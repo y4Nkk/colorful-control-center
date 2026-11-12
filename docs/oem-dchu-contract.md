@@ -242,12 +242,18 @@ OEM 的 PL/undervolt 应用是双轨：
 
 ## 11. 已知未知项（写入实现前必须补验）
 
+0. **非管理员下 GetDCHU_Data_Integer 读数疑似静态回显**（2026-11-12 实测：cmd29/85/101
+   返回值恒等于命令号、负载下不变；cmd16 恒 2259）。CC3.exe 为 asInvoker 却工作正常，
+   差异机制未定（服务会话 / 设备 ACL / 初始化序列）。HAL 必须带回声检测（值==cmd 且
+   恒定 → 判定 stale），提权验证批：`tools/probe/run-admin-probe.ps1`（一次 UAC）。
 1. **电源模式固件写入命令**：CC3 只切 Windows 电源计划；固件级切换由 Fn 守护
    进程（native）完成，命令号未提取到。候选：SetDCHU_Data(3, mode) 同命令空间
    回写——启用前必须在真机验证。
 2. GPU 风扇 EC 寄存器（0xE8 推测）。
 3. page6 写入的生效时机（立即 vs 重启）与 XTU3SERVICE 的角色边界。
 4. cmd 121 sub45 语义。
+5. cmd16 双用途怪癖：返回当前 CPU 频率值，OEM 代码按位解读为特性支持位——
+   本项目不将其作为能力依据；CPUOC 能力以 cmd122 bit23 与 WMI18 包为准。
 
 ## 12. 本项目使用规则
 

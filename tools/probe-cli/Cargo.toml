@@ -1,0 +1,26 @@
+[package]
+name = "probe-cli"
+version = "0.1.0"
+edition = "2024"
+description = "Phase 0 硬件探测 CLI：DCHU 能力报告 + MSR 锁检测（PL 0x610 / 降压 0x150）"
+license = "GPL-3.0"
+publish = false
+
+[[bin]]
+name = "ccc-probe"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+msr-driver-rs = "1"
+windows-sys = { version = "0.60", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+    "Win32_System_LibraryLoader",
+] }
+
+[profile.release]
+strip = true
