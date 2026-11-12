@@ -1,0 +1,20 @@
+﻿=== WMI OEM Enumeration (YY1-NOTEBOOK) ===
+=== 鏈哄櫒韬唤 ===
+System: Notebook NP5x_6x_7x_SNx (family: Not Applicable)
+BIOS:   INSYDE Corp. 1.07.16TCOLO2 (05/17/2023 08:00:00)
+Board:  Notebook NP5x_6x_7x_SNx
+
+=== root\WMI 鍛藉悕绌洪棿鍒楄〃 ===
+  ms_409
+  ms_804
+
+=== root\WMI 涓尮閰?OEM 鍏抽敭瀛楃殑绫?===
+  锛堟棤鍖归厤绫伙級
+
+=== 鍏朵粬 root 涓嬬殑 OEM 鍛藉悕绌洪棿鎺㈡祴 ===
+
+=== 鐩稿叧鍐呮牳鏈嶅姟锛圓cpiBridge / DCHU / EC锛?==
+  service CCDCHUService [Running] Control Center Hotkey Service
+  service ColorfulCenterHelper [Running] Colorful Center Helper
+  driver  AcpiBridge [Running] C:\WINDOWS\system32\drivers\AcpiBridge.sys
+  driver  CompositeBus [Stopped] C:\WINDOWS\system32\DriverStore\FileRepository\compositebus.inf_amd64_8cf6fa9d3afdfa25\CompositeBus.sys

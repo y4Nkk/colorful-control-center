@@ -8,7 +8,7 @@
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| Phase 0 | 硬件接口探测：OEM WMI 枚举 / EC 寄存器 diff / MSR 锁状态 | 计划 |
+| Phase 0 | 硬件接口探测：OEM WMI 枚举 / EC 寄存器 diff / MSR 锁状态 | 0.1/0.2/0.3 ✅（[oem-dchu-contract](docs/oem-dchu-contract.md)）；0.4 MSR 锁检测进行中 |
 | Phase 1 | 只读监控仪表盘（CPU / GPU / 风扇 / 温度） | 计划 |
 | Phase 2 | 自定义风扇曲线（任意控制点 + 滞后回差 + 斜坡限制 + 看门狗） | 计划 |
 | Phase 3 | PL1/PL2 功耗墙、偏移电压（undervolt）、GPU 频率偏移、性能档案 | 计划 |

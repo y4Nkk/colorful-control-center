@@ -15,21 +15,26 @@ OEM Control Center 可调参数不满足需求。本项目的目标是补齐：
 
 ## 2. 硬件控制通道（按优先级）
 
+> 2026-11-12 Phase 0 修订：基准机逆向审查（docs/oem-dchu-contract.md）确认
+> root\WMI 无 OEM 类；OEM CC 实际通道是 **InsydeDCHU.dll + AcpiBridge.sys 驱动**
+> （已安装、签名、覆盖读+写+持久化）。架构据此调整：
+
 | 层 | 通道 | 用途 | 依赖 |
 |---|---|---|---|
-| T1 | OEM WMI（`root\WMI`） | EC 读写、性能模式、键盘灯 —— OEM CC 自身走的就是这条 | 无内核驱动，仅管理员权限 |
-| T2 | EC 端口直写（62h/66h） | 风扇占空比、传感器读数，比 OEM 接口粒度更细 | PawnIO 或 WinRing0 |
-| T3 | CPU MSR | PL1/PL2（0x610）、偏移电压（0x150）、温度/功耗读数 | PawnIO 或 WinRing0 |
+| T1 | OEM InsydeDCHU.dll（FFI） | 温度/频率/风扇 RPM+duty/曲线读写/模式/PL+降压持久化 —— OEM CC 全部功能走这里 | AcpiBridge.sys（已装）；随 OEM CC 卸载而失效 |
+| T2 | EC 端口直写（62h/66h） | 兜底：风扇 duty（0x2C/0xCF/0xE7，tools/probe/ec-map.json） | PawnIO 或 WinRing0（仅当 T1 不可用且用户显式启用）|
+| T3 | CPU MSR | PL1/PL2（0x610）、偏移电压（0x150）运行时直写、锁检测 | PawnIO（msr-driver-rs）或 WinRing0 |
 | T4 | NVML + NVAPI | GPU 传感器读数（NVML）、频率偏移（NVAPI SetPstates20） | 用户态 DLL |
 
 分层规则：同一功能先走 T1，失败或粒度不足再降级 T2/T3。策略引擎只面向 HAL 接口，不感知具体通道。
 
-已知参考：
+已知参考（详见 docs/oem-dchu-contract.md）：
 
-- 蓝天 EC 经典映射（NBFC 社区验证，需在基准机上重新确认）：风扇占空比写 `0xCE/0xCF`（CPU/GPU 风扇），转速读 `0xD0~0xD3`，RPM = 常数 ÷ 读数（2156220 或 1352061，按机型）
-- `NvAPI_GPU_SetCoolerLevels` 在 RTX 上不支持（GPU 风扇归 EC 管）——EC 通道是刚需
+- T1 完整命令契约已从 OEM CC 反编译提取：读 cmd 12/13/18/29/85/96/101，
+  写曲线 cmd 14、风扇模式 cmd 121 sub1/14/25/34、PL+降压持久化 AppSettings page6
+- `NvAPI_GPU_SetCoolerLevels` 在 RTX 上不支持（GPU 风扇归 EC/DCHU 管）——T1 通道已覆盖
 - 笔记本 GPU 功耗目标常被 vBIOS 锁定，NVAPI 设置可能失败；频率偏移一般可用
-- Linux 内核 `uniwill-laptop` 驱动文档与 tuxedo-drivers 源码是 Uniwill WMI 接口的最佳参考
+- 电源模式固件写入命令未提取到（OEM 走 native Fn 守护进程），启用前需真机验证
 
 ## 3. 软件架构
 
@@ -50,10 +55,15 @@ OEM Control Center 可调参数不满足需求。本项目的目标是补齐：
 
 ### 内核访问后端
 
-`KernelAccess` trait 抽象，两个实现：
+2026-11-12 修订：T1（InsydeDCHU）覆盖了原计划中需要内核驱动的绝大多数能力
+（EC 读写、风扇曲线、PL/降压持久化），因此常规路径**不需要自带内核驱动**，
+也规避了 WinRing0 的 Defender VulnerableDriver 拦截。
 
-1. **PawnIO**（首选）：签名驱动，不触发 Microsoft Defender 的 VulnerableDriver 拦截（WinRing0 被 CVE-2020-14979 标记）
-2. **WinRing0**（后备）：PawnIO 不可用时的兼容路径（参考 winRing0-rs / msr-driver-rs 的实现）
+仍需内核访问的场景（T3 运行时 MSR 直写 / T2 EC 兜底）由 `KernelAccess` trait
+抽象，两个实现：
+
+1. **PawnIO**（首选）：签名驱动，不触发 Microsoft Defender 的 VulnerableDriver 拦截（WinRing0 被 CVE-2020-14979 标记）；msr-driver-rs 封装了 MSR 读写与安装
+2. **WinRing0**（后备）：PawnIO 不可用时的兼容路径（参考 winRing0-rs 的实现）
 
 ### 与 OEM Control Center 共存
 
@@ -68,13 +78,17 @@ OEM Control Center 可调参数不满足需求。本项目的目标是补齐：
 
 ## 5. Phase 0 探测清单
 
-1. **识别 ODM**：`Get-CimInstance -Namespace root\WMI -ClassName __Namespace`，列出名字含 `Clevo / Uniwill / Mci / Oem` 的 WMI 类
-2. **NBFC 现成配置**：检查 nbfc-linux 是否有本机模具配置，有则直接获得寄存器表
-3. **EC diff 探测**：`ec-probe dump`（nbfc-linux）逐项切换 OEM CC 设置后 dump 对比，产出 `ec-map.json`
-4. **MSR 锁状态**：
-   - 0x610 bit63（PL 锁）→ 决定 PL1/PL2 可写性
-   - 0x150 写入测试 → 决定 undervolt 可行性（用户确认优先级高）
-   - 可用 RWEverything 或自写探测 CLI
+> 2026-11-12 完成（方式：审查机器上 OEM CC 实现 + nbfc-linux 社区配置，无需交互式真机调试）：
+
+1. **识别 ODM** ✅ — `tools/probe/wmi-enum.ps1` + `tools/probe/wmi-enum-results.txt`：
+   root\WMI 无 OEM 类；通道确认为 InsydeDCHU.dll（x64）+ AcpiBridge.sys（Running）
+2. **NBFC 现成配置** ✅ — `Colorful X15 AT 22.json`（同模具上一代）：
+   手动控制权 0x2C=8/auto=5、CPU 风扇写 0xE7 / 读 0xCF（20-100）
+3. **EC/接口映射** ✅ — 升级为 DCHU 契约：`docs/oem-dchu-contract.md`
+   （读 cmd12/13、曲线 cmd14、模式 cmd121、PL+降压 page6、能力位图）+
+   `tools/probe/ec-map.json`（原始 EC 兜底，未验证）
+4. **MSR 锁状态** ⬜ — probe-cli 待实现（0x610 bit63 / 0x150 写入测试；
+   本机 XTU3SERVICE 已安装但 Stopped，page6+XTU 为降级路径）
 
 ## 6. UI 方向
 

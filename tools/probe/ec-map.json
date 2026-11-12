@@ -1,0 +1,35 @@
+{
+  "$comment": "原始 EC 端口寄存器映射（兜底通道）。来源：nbfc-linux share/nbfc/configs/Colorful X15 AT 22.json（GPL-3，作者 sek1ro），同模具上一代机型，未在本机验证。主通道见 docs/oem-dchu-contract.md。",
+  "machine_model": "Colorful X15 AT 22 (NP5x mold; 基准机 X15 AT 23 同族)",
+  "source": "nbfc-linux",
+  "verified_on_target": false,
+  "ec_poll_interval_ms": 100,
+  "critical_temperature_c": 77,
+  "critical_temperature_offset_c": 7,
+  "fans": [
+    {
+      "name": "CPU Fan",
+      "read_register": "0xCF",
+      "write_register": "0xE7",
+      "min_duty": 20,
+      "max_duty": 100,
+      "reset_required": false,
+      "fan_speed_reset_value": 50
+    }
+  ],
+  "control_registers": [
+    {
+      "register": "0x2C",
+      "description": "风扇控制权",
+      "manual_value": 8,
+      "auto_value": 5,
+      "write_occasion": "on_initialization",
+      "reset_required": true
+    }
+  ],
+  "unverified_candidates": [
+    { "register": "0xE8", "description": "GPU 风扇 duty 写（推测，与 CPU 风扇相邻）" },
+    { "register": "0x08", "description": "CPU 温度（Uniwill 常见布局，未验证）" },
+    { "register": "0x9E", "description": "GPU 温度（Uniwill 常见布局，未验证）" }
+  ]
+}
