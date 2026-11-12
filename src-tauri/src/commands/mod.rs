@@ -7,6 +7,7 @@
 //! - `fans`：风扇曲线/模式/偏移（薄委托 → fanctl）
 //! - `power`：功耗墙/电压偏移（薄委托 → powerctl）
 //! - `profiles`：性能档案 CRUD 与应用流水线
+//! - `settings`：开机自启（HKCU Run）+ 档案导入导出
 //! - 后续硬件领域（power / gpu…）按域开子模块，领域逻辑放
 //!   `src-tauri/src/<domain>/`，命令层保持可替换的薄壳。
 
@@ -15,3 +16,4 @@ pub(crate) mod fans;
 pub(crate) mod hardware;
 pub(crate) mod power;
 pub(crate) mod profiles;
+pub(crate) mod settings;

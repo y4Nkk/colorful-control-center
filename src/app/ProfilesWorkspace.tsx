@@ -2,11 +2,13 @@
  * 性能档案（Phase 3）：把当前设置（风扇曲线 + 模式 + PL + 电压偏移）打包
  * 保存/应用/删除。应用流水线每步独立报告成败。
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applyProfile,
   captureProfileSettings,
   deleteProfile,
+  exportProfile,
+  importProfile,
   listProfiles,
   saveProfile,
   type ApplyStep,
@@ -20,6 +22,7 @@ export function ProfilesWorkspace({ active }: { active: boolean }) {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [lastSteps, setLastSteps] = useState<ApplyStep[] | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(() => {
     if (!active) return;
@@ -127,6 +130,25 @@ export function ProfilesWorkspace({ active }: { active: boolean }) {
                 <button type="button" className="ccc-button" onClick={() => apply(profile.name)}>
                   应用
                 </button>
+                <button
+                  type="button"
+                  className="ccc-button"
+                  style={{ background: "var(--ccc-action-hover)" }}
+                  onClick={() => {
+                    exportProfile(profile.name).then((json) => {
+                      const blob = new Blob([json], { type: "application/json" });
+                      const url = URL.createObjectURL(blob);
+                      const anchor = document.createElement("a");
+                      anchor.href = url;
+                      anchor.download = `${profile.name}.json`;
+                      anchor.click();
+                      URL.revokeObjectURL(url);
+                      toast({ kind: "success", title: `已导出：${profile.name}.json` });
+                    });
+                  }}
+                >
+                  导出
+                </button>
                 <ConfirmButton
                   label="删除"
                   confirmLabel="确认删除？"
@@ -137,6 +159,44 @@ export function ProfilesWorkspace({ active }: { active: boolean }) {
           ))}
         </div>
       )}
+
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <button type="button" className="ccc-button" onClick={() => fileInputRef.current?.click()}>
+          导入档案（.json）
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json"
+          style={{ display: "none" }}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (!file) return;
+            file
+              .text()
+              .then((json) => importProfile(json))
+              .then((result) => {
+                if (result.ok) {
+                  toast({ kind: "success", title: result.message });
+                  reload();
+                } else {
+                  toast({ kind: "error", title: "导入失败", description: result.message });
+                }
+              })
+              .catch((cause: unknown) =>
+                toast({
+                  kind: "error",
+                  title: "导入失败",
+                  description: cause instanceof Error ? cause.message : String(cause),
+                }),
+              );
+          }}
+        />
+        <span style={{ color: "var(--ccc-text-muted)", fontSize: "var(--ccc-text-sm)" }}>
+          导入的档案与本地档案同等可用（重名覆盖）。
+        </span>
+      </div>
 
       {lastSteps && (
         <div className="ccc-facts">

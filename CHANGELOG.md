@@ -6,6 +6,11 @@
 
 ### 新增
 
+- **Phase 3 性能调校**：powerctl 双通道（page6 持久化 = OEM 同款 / PawnIO MSR 运行时），
+  PL 35–157W、undervolt −150…+50mV 钳位；性能档案（JSON 存储、当前设置捕获、
+  分步应用流水线、导入导出）；性能调校页与档案页
+- **Phase 4 打磨**：托盘常驻（关闭窗口=隐藏到托盘，左键唤起，菜单退出）、
+  历史温度曲线（仪表盘 5 分钟 SVG 图）、设置页（主题覆盖/开机自启(HKCU Run)/关于）
 - **Phase 0 硬件接口探测（0.1–0.4）**：OEM WMI 枚举脚本与结果存档、nbfc-linux 同模具配置检索、
   docs/oem-dchu-contract.md（基准机 OEM Control Center 逆向审查得到的完整硬件接口契约）、
   probe-cli（DCHU 能力报告 / CPUID / PawnIO MSR 锁检测与 0x150 降压写入测试）、

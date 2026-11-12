@@ -156,7 +156,7 @@ pub fn apply_voltage_persist(
 }
 
 /// 运行时通道：MSR 0x610 直写 PL（读改写，保留时间窗与锁位）。
-pub fn apply_pl_runtime(hal: &Hal, pl1_w: Option<f64>, pl2_w: Option<f64>) -> Result<()> {
+pub fn apply_pl_runtime(_hal: &Hal, pl1_w: Option<f64>, pl2_w: Option<f64>) -> Result<()> {
     let pl1 = pl1_w.map(clamp_pl).transpose()?;
     let pl2 = pl2_w.map(clamp_pl).transpose()?;
     let io = pawnio::PawnIo::open_with_intel_msr()?;

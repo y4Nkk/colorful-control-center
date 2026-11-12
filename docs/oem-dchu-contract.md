@@ -254,6 +254,9 @@ OEM 的 PL/undervolt 应用是双轨：
 4. cmd 121 sub45 语义。
 5. cmd16 双用途怪癖：返回当前 CPU 频率值，OEM 代码按位解读为特性支持位——
    本项目不将其作为能力依据；CPUOC 能力以 cmd122 bit23 与 WMI18 包为准。
+6. **键盘 RGB**：OEM 键盘灯协议线索在反编译产物 CleDef.cs（LEDKB_Command
+   SendDataArray=22 起、Kb_Cmd_Index 颜色/亮度/模式索引）与 CCToHKTray 枚举，
+   但实际 WMI/DCHU 命令号未确证——延后，启用前需真机逐项验证。
 
 ## 12. 本项目使用规则
 

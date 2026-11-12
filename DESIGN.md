@@ -56,6 +56,8 @@ Colorful Control Center 是七彩虹游戏本（蓝天模具）的本地硬件�
 | `src/components/use-toast.ts` | 全局通知唯一实现：命令式 `toast()` 任意模块可调，`useToast()` 供渲染方订阅 |
 | `src/components/Toaster.tsx` | 通知唯一渲染 Host，app 层挂载一次；模块禁止自建浮层/弹窗 |
 | `.ccc-button`（base.css） | 主操作按钮原语种子：40px 高、12px 圆角、行动蓝底；模块不自行拼按钮样式 |
+| `.ccc-input`（base.css） | 单行输入原语种子：40px 高、12px 圆角、hairline 边框 |
+| `ConfirmButton`（components/ConfirmButton.tsx） | 危险动作两步确认按钮唯一实现（3 秒未确认自动复位，确认态错误红）——一切硬件写入按钮用它 |
 | `FactList`（components/FactList.tsx） | 键值事实行唯一原语（`dashboard.css` 拥有语法）：监控数据、事实区块统一用它，不自建 `<dl>` 行 |
 | `api/hardware.ts` | 硬件快照类型与订阅唯一封装（`hardware-snapshot` 事件 1Hz） |
 | `src/components/PagePlaceholder.tsx` | 占位工作面唯一原语；真实模块接入时整体替换内容 |

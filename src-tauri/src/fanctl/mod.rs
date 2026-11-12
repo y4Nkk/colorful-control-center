@@ -17,11 +17,14 @@ use ccc_core::fan::{
     OemFanCurveInput, MAX_DUTY_PCT,
 };
 
-/// 风扇模式（契约 §7，本机确认语义）
+#[allow(dead_code)] // 模式清单由前端 FAN_MODES 消费
 pub const FAN_MODE_AUTO: u8 = 0;
+#[allow(dead_code)]
 pub const FAN_MODE_MAX: u8 = 1;
+#[allow(dead_code)]
 pub const FAN_MODE_MAXQ: u8 = 5;
 pub const FAN_MODE_CUSTOM: u8 = 6;
+#[allow(dead_code)]
 pub const FAN_MODE_SLOW: u8 = 8;
 
 #[derive(Clone, Serialize)]

@@ -24,6 +24,10 @@ macro_rules! handler {
             crate::commands::profiles::delete_profile,
             crate::commands::profiles::capture_profile_settings,
             crate::commands::profiles::apply_profile,
+            crate::commands::settings::get_autostart,
+            crate::commands::settings::set_autostart,
+            crate::commands::settings::export_profile,
+            crate::commands::settings::import_profile,
         ]
     };
 }

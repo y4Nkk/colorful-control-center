@@ -4,6 +4,12 @@ export interface CommandError {
   message: string;
 }
 
+/** 写入类命令的统一结果（Rust commands::OpResult）。 */
+export interface OpResult {
+  ok: boolean;
+  message: string;
+}
+
 /** Tauri invoke 失败可能是字符串、Error 或带 message 的对象；统一收敛。 */
 export function toCommandError(error: unknown): CommandError {
   if (typeof error === "string") return { code: "command-failed", message: error };

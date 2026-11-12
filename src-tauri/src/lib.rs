@@ -7,6 +7,7 @@ mod fanctl;
 mod hal;
 mod powerctl;
 mod profiles;
+mod tray;
 
 use hal::Hal;
 use tauri::{Emitter, Manager};
@@ -17,6 +18,7 @@ pub fn run() {
         .manage(Hal::new())
         .invoke_handler(command_registry::handler!())
         .setup(|app| {
+            tray::setup(app.handle())?;
             // 1Hz 硬件快照轮询线程：常驻 emit，前端仅在监控页可见时订阅
             let handle = app.handle().clone();
             std::thread::spawn(move || loop {

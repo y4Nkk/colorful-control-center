@@ -1,5 +1,6 @@
 /** 风扇控制（对应 src-tauri/src/fanctl；写入语义与钳位见该模块）。 */
 import { invoke } from "./client";
+import type { OpResult } from "./shared";
 
 export interface FanPointSet {
   id: "cpu" | "gpu1" | "gpu2";
@@ -27,10 +28,6 @@ export interface CurvePointsDto {
   d3Pct: number;
 }
 
-export interface OpResult {
-  ok: boolean;
-  message: string;
-}
 
 export const FAN_MODES: ReadonlyArray<{ id: number; label: string }> = [
   { id: 0, label: "自动" },

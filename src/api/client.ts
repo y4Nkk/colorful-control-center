@@ -30,3 +30,4 @@ export * from "./hardware";
 export * from "./fans";
 export * from "./power";
 export * from "./profiles";
+export * from "./settings";

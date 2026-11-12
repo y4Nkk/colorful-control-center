@@ -1,10 +1,7 @@
 /** 性能调校（对应 src-tauri/src/powerctl；钳位与安全语义见该模块）。 */
 import { invoke } from "./client";
+import type { OpResult } from "./shared";
 
-export interface Reading2 {
-  ok: boolean;
-  message: string;
-}
 
 export interface PowerProfile {
   pl1W: number | null;
@@ -20,13 +17,13 @@ export interface PowerProfile {
 }
 
 export const readPowerProfile = (): Promise<PowerProfile> => invoke("read_power_profile");
-export const applyPlPersist = (pl1W: number | null, pl2W: number | null): Promise<Reading2> =>
+export const applyPlPersist = (pl1W: number | null, pl2W: number | null): Promise<OpResult> =>
   invoke("apply_pl_persist", { pl1W, pl2W });
 export const applyVoltagePersist = (
   coreMv: number | null,
   gtMv: number | null,
-): Promise<Reading2> => invoke("apply_voltage_persist", { coreMv, gtMv });
-export const applyPlRuntime = (pl1W: number | null, pl2W: number | null): Promise<Reading2> =>
+): Promise<OpResult> => invoke("apply_voltage_persist", { coreMv, gtMv });
+export const applyPlRuntime = (pl1W: number | null, pl2W: number | null): Promise<OpResult> =>
   invoke("apply_pl_runtime", { pl1W, pl2W });
-export const applyVoltageRuntime = (plane: number, mv: number): Promise<Reading2> =>
+export const applyVoltageRuntime = (plane: number, mv: number): Promise<OpResult> =>
   invoke("apply_voltage_runtime", { args: { plane, mv } });
