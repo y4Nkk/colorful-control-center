@@ -1,0 +1,90 @@
+﻿**********************
+Windows PowerShell 脚本开始
+开始时间: 20261112124158
+用户名: YY1-NOTEBOOK\28308
+RunAs 用户: YY1-NOTEBOOK\28308
+配置名称: 
+计算机: YY1-NOTEBOOK (Microsoft Windows NT 10.0.26300.0)
+主机应用程序: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File F:\projects\colorful-control-center\tools\probe\run-admin-probe.ps1
+进程 ID: 3124
+PSVersion: 5.1.26100.9818
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9818
+BuildVersion: 10.0.26100.9818
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 F:\projects\colorful-control-center\tools\probe\admin-probe-results.txt
+=== 管理员探测批 2026-11-12 12:41:58 ===
+
+probe: F:\projects\colorful-control-center\tools\probe-cli\target\debug\ccc-probe.exe
+存在: True
+
+== 1. PawnIO 驱动部署 ==
+ccc-probe.exe : Error: PawnIO 閮ㄧ讲澶辫触锛堥渶绠＄悊鍛樿繍琛岋紱鍐呴儴鍚鍚?PawnIO.sys 閮ㄧ讲锛?
+所在位置 F:\projects\colorful-control-center\tools\probe\run-admin-probe.ps1:31 字符: 1
++ & $probe install 2>&1 | Write-Output
++ ~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: PawnIO 閮...awnIO.sys 閮ㄧ讲锛?:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+Caused by:
+    Windows API error in StartServiceW (code 1053)
+
+== 2. PL / 锁位检测 ==
+ccc-probe.exe : Error: 鏃犳硶鎵撳紑 \\.\PawnIO锛氶┍鍔ㄦ湭瀹夎锛堝厛杩愯 ccc-probe install锛岄渶绠＄悊鍛橈級鎴栨潈
+闄愪笉瓒?
+所在位置 F:\projects\colorful-control-center\tools\probe\run-admin-probe.ps1:35 字符: 1
++ & $probe pl 2>&1 | Write-Output
++ ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: 鏃犳硶鎵撳紑 \...渶绠＄悊鍛橈級鎴栨潈闄愪笉瓒?:String) [], RemoteEx
+ception
+    + FullyQualifiedErrorId : NativeCommandError
+
+
+== 3. undervolt 锁检测（写入后还原）==
+ccc-probe.exe : Error: 鏃犳硶鎵撳紑 \\.\PawnIO锛氶┍鍔ㄦ湭瀹夎锛堝厛杩愯 ccc-probe install锛岄渶绠＄悊鍛橈級鎴栨潈
+闄愪笉瓒?
+所在位置 F:\projects\colorful-control-center\tools\probe\run-admin-probe.ps1:39 字符: 1
++ & $probe uv-test --execute 2>&1 | Write-Output
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: 鏃犳硶鎵撳紑 \...渶绠＄悊鍛橈級鎴栨潈闄愪笉瓒?:String) [], RemoteEx
+ception
+    + FullyQualifiedErrorId : NativeCommandError
+
+
+== 4. DCHU 读数（管理员下，间隔 3 秒两次对照）==
+== InsydeDCHU 鑳藉姏鎶ュ憡锛堝彧璇伙級==
+cmd16 鐗规€т綅鍥? 2259 -> PowerMode, Flexikey, RGBKB, CPUOC, FanSetting
+cmd122: bit15 FanLess=false bit23 CPUOC=false
+cmd96: bit7 AntiDust=false bit10 FanOffset=false
+BIOS 鐗规€ц〃 v1: Quiet=false PowerSaving=false Performance=false Entertainment=false
+WMI18 榛樿: PL1=135 W(mW) PL2=135 W(mW) CPU鐢靛帇鍋忕Щ榛樿=0mV GT鍋忕Щ榛樿=0(u16) PL鏃堕棿绐?192 VR=0x0
+read CPU娓╁害 (cmd 29): ok=true value=29
+read GPU娓╁害 (cmd 85): ok=true value=85
+read CPU棰戠巼MHz (cmd 16): ok=true value=2259
+read FanDuty (cmd 101): ok=true value=101
+
+== Phase 0.4 缁撹锛堝钩鍙扮骇锛?=
+CPUOC/undervolt: 骞冲彴澹版槑鏀寔锛圤EM CPU_OC 鍔熻兘鍚屾閫氶亾锛欰ppSettings page6 + XTU锛?PL1/PL2: 鍙啓锛圤EM 鍚屾閫氶亾锛歱age6 offset 33/37/41 + IsSaved锛?MSR 0x610/0x150 閿佺姸鎬侊細闇€瑕?PawnIO 椹卞姩锛岀敤绠＄悊鍛樻潈闄愯繍琛?`pl` / `uv-test` 瀛愬懡浠?
+== InsydeDCHU 鑳藉姏鎶ュ憡锛堝彧璇伙級==
+cmd16 鐗规€т綅鍥? 2259 -> PowerMode, Flexikey, RGBKB, CPUOC, FanSetting
+cmd122: bit15 FanLess=false bit23 CPUOC=false
+cmd96: bit7 AntiDust=false bit10 FanOffset=false
+BIOS 鐗规€ц〃 v1: Quiet=false PowerSaving=false Performance=false Entertainment=false
+WMI18 榛樿: PL1=135 W(mW) PL2=135 W(mW) CPU鐢靛帇鍋忕Щ榛樿=0mV GT鍋忕Щ榛樿=0(u16) PL鏃堕棿绐?192 VR=0x0
+read CPU娓╁害 (cmd 29): ok=true value=29
+read GPU娓╁害 (cmd 85): ok=true value=85
+read CPU棰戠巼MHz (cmd 16): ok=true value=2259
+read FanDuty (cmd 101): ok=true value=101
+
+== Phase 0.4 缁撹锛堝钩鍙扮骇锛?=
+CPUOC/undervolt: 骞冲彴澹版槑鏀寔锛圤EM CPU_OC 鍔熻兘鍚屾閫氶亾锛欰ppSettings page6 + XTU锛?PL1/PL2: 鍙啓锛圤EM 鍚屾閫氶亾锛歱age6 offset 33/37/41 + IsSaved锛?MSR 0x610/0x150 閿佺姸鎬侊細闇€瑕?PawnIO 椹卞姩锛岀敤绠＄悊鍛樻潈闄愯繍琛?`pl` / `uv-test` 瀛愬懡浠?
+
+== 结束 ==
+**********************
+Windows PowerShell 脚本结束
+结束时间: 20261112124202
+**********************

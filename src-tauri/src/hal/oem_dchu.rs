@@ -66,7 +66,10 @@ impl Dchu {
         }
     }
 
-    /// 读整数命令。返回 (ok, value)；ok=false 表示不支持或失败。
+    /// 读整数命令。返回 (ok, value)。
+    /// ⚠️ 真机验证（2026-11-12）：该导出在非管理/管理下均返回静态回声
+    /// （值==命令号、负载下不变）——采样路径禁止使用，仅供诊断对比。
+    #[allow(dead_code)]
     pub fn read_int(&self, command: i32) -> (bool, i32) {
         let mut value: i32 = 0;
         unsafe {

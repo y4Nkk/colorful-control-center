@@ -26,13 +26,11 @@ export interface NvidiaSnapshot {
 
 export interface HardwareSnapshot {
   dchuAvailable: boolean;
-  cpuTempC: Reading | null;
-  cpuFreqMhz: Reading | null;
-  cpuFreqMaxMhz: Reading | null;
-  gpuTempC: Reading | null;
-  gpuFreqMhz: Reading | null;
+  /** CPU 温度（°C，65W 桶换算自 cmd12 buf[18] remote） */
+  cpuTempC: number | null;
+  /** cmd12 buf[18] 原始 remote（校准对照用） */
+  cpuRemoteRaw: number | null;
   fan: FanSnapshot;
-  memoryUsedMb: Reading | null;
   nvidia: NvidiaSnapshot | null;
   sampledAtMs: number;
   warnings: string[];

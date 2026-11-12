@@ -6,6 +6,9 @@ description = "Phase 0 硬件探测 CLI：DCHU 能力报告 + MSR 锁检测（PL
 license = "GPL-3.0"
 publish = false
 
+# 独立于仓库工作区（自带 lockfile 与构建流程）
+[workspace]
+
 [[bin]]
 name = "ccc-probe"
 path = "src/main.rs"

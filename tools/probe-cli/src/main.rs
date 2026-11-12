@@ -26,6 +26,8 @@ struct Cli {
 enum Command {
     /// InsydeDCHU 能力报告（无管理员，纯只读）
     Dchu,
+    /// InsydeDCHU cmd12/13 包转储（风扇表结构取证）
+    DchuPkg,
     /// CPUID 信息
     Info,
     /// PawnIO 驱动安装状态
@@ -65,6 +67,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Command::Dchu => dchu::report(),
+        Command::DchuPkg => dchu::dump_packages(),
         Command::Info => {
             print_cpuid();
             Ok(())

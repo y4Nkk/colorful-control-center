@@ -53,31 +53,35 @@ int WriteAppSettings(int page, int offset, int length, byte* buffer);
 | 70 | Init_WMI 触发（能力枚举入口） |
 | 122 | bit15 FanLess；bit23 = CPUOC 支持位 |
 
-## 4. 读包布局（GetDCHU_Data_Buffer）
+## 4. 读包布局（GetDCHU_Data_Buffer）—— ✅ 2026-11-12 真机验证为可靠通道
 
-### cmd 12 — 风扇实时状态
+> 关键事实：`GetDCHU_Data_Integer` 存在回声缺陷（见 §11-0），**全部传感数据
+> 必须走本节包读**。cmd12 真机负载差分验证：RPM 双活（474↔473）、
+> CPU remote buf[18] 活值（82→84 随负载上升）。
+
+### cmd 12 — 风扇实时状态（✅ 已验证）
 
 | 偏移 | 字段 |
 |---|---|
-| [2..3] | CPU 风扇 RPM（LE u16，高字节在后：buf[3]<<8\|buf[2]）|
+| [2..3] | CPU 风扇 RPM（buf[2]=高字节：`buf[3] + buf[2]<<8`，实测怠速 474）|
 | [16] | CPU 风扇 duty（0-255） |
-| [18] | CPU remote 温度（原始值，需按 TDP 曲线换算，见 §9） |
-| [4..5] / [19] / [21] | GPU1 风扇 RPM / duty / remote |
-| [6..7] / [22] / [24] | GPU2 风扇 RPM / duty / remote |
+| [18] | **CPU remote 温度（活值，需 CalCPUTemp 换算，见 §9）** |
+| [4..5] / [19] / [21] | GPU1 风扇 RPM / duty / remote（本机双风扇：CPU+GPU1）|
+| [6..7] / [22] / [24] | GPU2 风扇 RPM / duty / remote（本机不存在）|
 | [36..37] / [38] / [40] | Sys 风扇 RPM / duty / remote |
 
-### cmd 13 — 风扇能力与默认曲线
+### cmd 13 — 风扇能力与默认曲线（结构已填充；字段偏移待逐项校准）
 
 | 偏移 | 字段 |
 |---|---|
-| [12] | 风扇数量 FanCount |
-| [14] | 初始风扇模式（5 = MaxQ） |
-| [16..21] | CPU：T1, D1(0-255→%), T2, D2, T3, D3（T4=100, D4=100 固定）|
-| [24..29] / [32..37] | GPU1 / GPU2 同构 |
+| [12] | 风扇数量 FanCount（本机实测 2）|
+| [14] | 初始风扇模式（本机实测 0x40=64，与 OEM 语义不符——偏移待校准）|
+| [16..21] | CPU：T1=51, D1≈22.7%, T2=60, D2≈32%, T3=80, D3≈33%（本机实测值）|
+| [24..29] / [32..37] | GPU1 / GPU2 同构（本机 GPU1 区含 0xFF 占位——偏移待校准）|
 | [43] | bit1 = 不支持自定义曲线 |
 | [50] | bits_FanExist（bit0 CPU, bit1 GPU1, bit2 GPU2, bit3 Sys）|
 
-### cmd 18 — 超频默认值包
+### cmd 18 — 超频默认值包（✅ 本机实测：PL1/PL2 默认 135W/135W）
 
 | 偏移 | 字段 |
 |---|---|
@@ -242,10 +246,11 @@ OEM 的 PL/undervolt 应用是双轨：
 
 ## 11. 已知未知项（写入实现前必须补验）
 
-0. **非管理员下 GetDCHU_Data_Integer 读数疑似静态回显**（2026-11-12 实测：cmd29/85/101
-   返回值恒等于命令号、负载下不变；cmd16 恒 2259）。CC3.exe 为 asInvoker 却工作正常，
-   差异机制未定（服务会话 / 设备 ACL / 初始化序列）。HAL 必须带回声检测（值==cmd 且
-   恒定 → 判定 stale），提权验证批：`tools/probe/run-admin-probe.ps1`（一次 UAC）。
+0. **`GetDCHU_Data_Integer` 回声缺陷（✅ 管理员下复现，已定论）**：cmd29/85/101
+   返回值恒等于命令号、负载下不变、管理员下同样复现——该导出在本平台不可用。
+   **包读（GetDCHU_Data_Buffer）完全正常**（cmd12 真机负载差分验证）。全部
+   传感路径已改走包读；CC3.exe 为 asInvoker 却能工作的机制仍未解释
+   （推断其显示同样受此缺陷影响或经服务通道），不影响本项目。
 1. **电源模式固件写入命令**：CC3 只切 Windows 电源计划；固件级切换由 Fn 守护
    进程（native）完成，命令号未提取到。候选：SetDCHU_Data(3, mode) 同命令空间
    回写——启用前必须在真机验证。

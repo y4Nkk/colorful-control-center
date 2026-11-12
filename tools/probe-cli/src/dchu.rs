@@ -126,7 +126,29 @@ pub fn decode_cmd16(v: i32) -> Vec<&'static str> {
     out
 }
 
-/// 输出 Phase 0 能力结论报告（纯只读）。
+/// cmd12/13 包十六进制转储：区分「整数读回显」与「包读正常」。
+pub fn dump_packages() -> Result<()> {
+    let dchu = Dchu::load()?;
+    for cmd in [12u32, 13u32] {
+        let pkg = dchu.read_package(cmd as i32);
+        println!("== cmd{cmd} 包（256B，非零行） ==");
+        let mut any = false;
+        for row in 0..16 {
+            let line: Vec<String> = (0..16)
+                .map(|c| format!("{:02x}", pkg[row * 16 + c]))
+                .collect();
+            let nonzero = pkg[row * 16..row * 16 + 16].iter().any(|&b| b != 0);
+            if nonzero {
+                any = true;
+                println!("  {:02x}: {}", row * 16, line.join(" "));
+            }
+        }
+        if !any {
+            println!("  （全零）");
+        }
+    }
+    Ok(())
+}
 pub fn report() -> Result<()> {
     let dchu = Dchu::load()?;
     println!("== InsydeDCHU 能力报告（只读）==");

@@ -1,21 +1,16 @@
 /**
- * 监控仪表盘（Phase 1）：订阅后端 1Hz hardware-snapshot 事件，展示
- * CPU/GPU/风扇/内存实时读数。active=false 时不订阅（副作用只在可见页运行）。
- * 读数 stale（回声检测）显示为「读数异常」；与 HWiNFO 对齐是验收标准。
+ * 监控仪表盘（Phase 1）：订阅后端 1Hz hardware-snapshot 事件。
+ * CPU 温度 = DCHU cmd12 remote 换算；GPU = NVML（事实来源）；
+ * 风扇 RPM/duty = cmd12 包读。历史曲线 keep-alive 保活。
+ * 验收基准：与 HWiNFO 对齐（65W 桶换算若偏差大，在设置中校准桶参数）。
  */
 import { useEffect, useRef, useState } from "react";
 import {
   getHardwareSnapshot,
   onHardwareSnapshot,
   type HardwareSnapshot,
-  type Reading,
 } from "../api/client";
 import { FactList, type Fact } from "../components/FactList";
-
-function formatReading(reading: Reading | null, unit: string, digits = 0): string {
-  if (!reading || !reading.ok || reading.stale) return "读数异常";
-  return `${reading.value.toFixed(digits)} ${unit}`;
-}
 
 /** 历史采样环形缓冲（keep-alive 保活；最多 300 点 = 5 分钟 @1Hz）。 */
 interface HistorySample {
@@ -30,7 +25,9 @@ function HistoryChart({ samples }: { samples: HistorySample[] }) {
   if (samples.length < 2) return null;
   const width = 820;
   const height = 120;
-  const temps = samples.flatMap((sample) => [sample.cpuTemp, sample.gpuTemp]).filter((t): t is number => t != null);
+  const temps = samples
+    .flatMap((sample) => [sample.cpuTemp, sample.gpuTemp])
+    .filter((t): t is number => t != null);
   const maxTemp = Math.max(60, ...temps) + 5;
   const toX = (index: number) => (index / (HISTORY_LIMIT - 1)) * width;
   const toY = (temp: number) => height - (temp / maxTemp) * (height - 16) - 4;
@@ -46,7 +43,7 @@ function HistoryChart({ samples }: { samples: HistorySample[] }) {
   return (
     <div>
       <h3 className="ccc-group-title">
-        温度历史（最近 {Math.round(samples.length / 60)} 分钟 · 上限 {maxTemp}°C）
+        温度历史（最近 {Math.max(1, Math.round(samples.length / 60))} 分钟 · 上限 {maxTemp}°C）
       </h3>
       <svg width={width} height={height + 16} role="img" aria-label="温度历史曲线">
         <rect width={width} height={height} fill="var(--ccc-content)" rx="8" />
@@ -98,7 +95,7 @@ export function DashboardWorkspace({ active }: { active: boolean }) {
       if (!cancelled) {
         setSnapshot(snap);
         setError(null);
-        const cpu = snap.cpuTempC?.ok && !snap.cpuTempC.stale ? snap.cpuTempC.value : null;
+        const cpu = snap.cpuTempC;
         const gpu = snap.nvidia?.tempC ?? null;
         historyRef.current = [
           ...historyRef.current,
@@ -134,13 +131,10 @@ export function DashboardWorkspace({ active }: { active: boolean }) {
 
   const nvidia = snapshot.nvidia;
   const cpuFacts: Fact[] = [
-    { label: "CPU 温度", value: formatReading(snapshot.cpuTempC, "°C") },
+    { label: "CPU 温度", value: snapshot.cpuTempC != null ? `${snapshot.cpuTempC.toFixed(0)} °C` : "—" },
     {
-      label: "CPU 频率",
-      value:
-        snapshot.cpuFreqMaxMhz?.ok && !snapshot.cpuFreqMaxMhz.stale
-          ? `${formatReading(snapshot.cpuFreqMhz, "MHz")} / ${formatReading(snapshot.cpuFreqMaxMhz, "MHz")}`
-          : formatReading(snapshot.cpuFreqMhz, "MHz"),
+      label: "CPU remote 原始值",
+      value: snapshot.cpuRemoteRaw != null ? `${snapshot.cpuRemoteRaw.toFixed(0)}` : "—",
     },
   ];
   const fanFacts: Fact[] = [
@@ -176,20 +170,9 @@ export function DashboardWorkspace({ active }: { active: boolean }) {
         value: `${(nvidia.memUsedMb ?? 0).toFixed(0)} / ${nvidia.memTotalMb.toFixed(0)} MB`,
       });
     }
+  } else {
+    gpuFacts.push({ label: "GPU", value: "NVML 不可用", danger: true });
   }
-  gpuFacts.push({
-    label: "GPU 温度 (DCHU)",
-    value: formatReading(snapshot.gpuTempC, "°C"),
-    danger: snapshot.gpuTempC?.stale === true,
-  });
-  gpuFacts.push({
-    label: "GPU 频率 (DCHU)",
-    value: formatReading(snapshot.gpuFreqMhz, "MHz"),
-  });
-  gpuFacts.push({
-    label: "内存用量",
-    value: `${formatReading(snapshot.memoryUsedMb, "MB")} `,
-  });
 
   return (
     <div className="ccc-dashboard">
@@ -209,11 +192,11 @@ export function DashboardWorkspace({ active }: { active: boolean }) {
       <h3 className="ccc-group-title">风扇</h3>
       <FactList facts={fanFacts} />
       <HistoryChart samples={history} />
-      <h3 className="ccc-group-title">GPU{snapshot.gpuTempC?.stale ? "（DCHU 通道读数异常，以下为 NVML 事实）" : ""}</h3>
+      <h3 className="ccc-group-title">GPU（NVML）</h3>
       <FactList facts={gpuFacts} />
       <p style={{ color: "var(--ccc-text-muted)", fontSize: "var(--ccc-text-sm)" }}>
         采样于 {new Date(snapshot.sampledAtMs).toLocaleTimeString("zh-CN")} · 1Hz ·
-        验收基准：与 HWiNFO 读数对齐（Phase 1）
+        验收基准：与 HWiNFO 对齐；CPU 换算桶（65W）如有偏差请回填 acceptance-checklist
       </p>
     </div>
   );
