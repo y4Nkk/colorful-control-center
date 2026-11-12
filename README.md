@@ -32,7 +32,9 @@
 | [DESIGN.md](DESIGN.md) | UI / 交互设计契约唯一所有者 |
 | [AGENTS.md](AGENTS.md) | 协作规范与全局化接入契约唯一所有者 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本历史唯一来源 |
-| [docs/design.md](docs/design.md) | 硬件控制通道架构与 Phase 0 清单唯一所有者 |
+| [docs/design.md](docs/design.md) | 硬件控制通道架构与安全设计唯一所有者 |
+| [docs/oem-dchu-contract.md](docs/oem-dchu-contract.md) | OEM InsydeDCHU 硬件接口契约（逆向事实）唯一所有者 |
+| [docs/acceptance-checklist.md](docs/acceptance-checklist.md) | 真机验收清单（一键提权批 + 目检步骤） |
 | [.agents/notes/](.agents/notes/) | 架构决策笔记（三态流转，`npm run verify-notes` 校验） |
 
 ## 开发
