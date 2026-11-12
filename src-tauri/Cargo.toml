@@ -25,6 +25,6 @@ serde_json = { workspace = true }
 ccc-core = { path = "../crates/ccc-core" }
 nvml-wrapper = "0.13.0"
 anyhow = "1.0.104"
-windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_LibraryLoader"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_LibraryLoader", "Win32_System_IO"] }
 
 # profile.release 在工作区根统一配置

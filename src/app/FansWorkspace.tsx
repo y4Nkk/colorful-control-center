@@ -14,6 +14,7 @@ import {
   type FanPointSet,
   type FanProfile,
 } from "../api/client";
+import { ConfirmButton } from "../components/ConfirmButton";
 import { toast } from "../components/use-toast";
 
 /** 单风扇可调点编辑态 */
@@ -51,7 +52,9 @@ function CurvePreview({ set, edit }: { set: FanPointSet; edit: EditedPoints }) {
   ] as const;
   const toX = (t: number) => ((t - 30) / (100 - 30)) * 280;
   const toY = (d: number) => 120 - (d / 100) * 110;
-  const path = points.map(([t, d], i) => `${i === 0 ? "M" : "L"}${toX(t).toFixed(1)},${toY(d).toFixed(1)}`).join(" ");
+  const path = points
+    .map(([t, d], i) => `${i === 0 ? "M" : "L"}${toX(t).toFixed(1)},${toY(d).toFixed(1)}`)
+    .join(" ");
   return (
     <svg width="300" height="130" role="img" aria-label="曲线预览">
       <rect x="0" y="0" width="300" height="130" fill="var(--ccc-content)" rx="8" />
@@ -80,33 +83,6 @@ function NumberField({ label, value, onChange }: { label: string; value: string;
         onChange={(e) => onChange(e.target.value)}
       />
     </label>
-  );
-}
-
-/** 危险动作两步确认按钮：第一次点击进入确认态，3 秒未确认自动复位。 */
-function ConfirmButton({ label, confirmLabel, onConfirm }: { label: string; confirmLabel: string; onConfirm: () => void }) {
-  const [arming, setArming] = useState(false);
-  useEffect(() => {
-    if (!arming) return;
-    const timer = setTimeout(() => setArming(false), 3000);
-    return () => clearTimeout(timer);
-  }, [arming]);
-  return (
-    <button
-      type="button"
-      className="ccc-button"
-      style={arming ? { background: "var(--ccc-danger)" } : undefined}
-      onClick={() => {
-        if (arming) {
-          setArming(false);
-          onConfirm();
-        } else {
-          setArming(true);
-        }
-      }}
-    >
-      {arming ? confirmLabel : label}
-    </button>
   );
 }
 

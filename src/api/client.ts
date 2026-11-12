@@ -28,3 +28,5 @@ export * from "./shared";
 export * from "./app";
 export * from "./hardware";
 export * from "./fans";
+export * from "./power";
+export * from "./profiles";

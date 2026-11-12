@@ -10,6 +10,7 @@
 
 pub mod nvidia;
 pub mod oem_dchu;
+pub mod pawnio;
 
 use serde::Serialize;
 use std::collections::HashMap;

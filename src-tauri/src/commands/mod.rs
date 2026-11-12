@@ -5,9 +5,13 @@
 //! - `app`：应用自身信息（版本、名称）
 //! - `hardware`：硬件监控快照（薄委托 → hal）
 //! - `fans`：风扇曲线/模式/偏移（薄委托 → fanctl）
+//! - `power`：功耗墙/电压偏移（薄委托 → powerctl）
+//! - `profiles`：性能档案 CRUD 与应用流水线
 //! - 后续硬件领域（power / gpu…）按域开子模块，领域逻辑放
 //!   `src-tauri/src/<domain>/`，命令层保持可替换的薄壳。
 
 pub(crate) mod app;
 pub(crate) mod fans;
 pub(crate) mod hardware;
+pub(crate) mod power;
+pub(crate) mod profiles;

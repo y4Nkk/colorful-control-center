@@ -13,6 +13,17 @@ macro_rules! handler {
             crate::commands::fans::set_fan_mode,
             crate::commands::fans::set_fan_offset,
             crate::commands::fans::restore_fan_default,
+            crate::commands::power::read_power_profile,
+            crate::commands::power::apply_pl_persist,
+            crate::commands::power::apply_voltage_persist,
+            crate::commands::power::apply_pl_runtime,
+            crate::commands::power::apply_voltage_runtime,
+            crate::commands::profiles::save_profile,
+            crate::commands::profiles::list_profiles,
+            crate::commands::profiles::load_profile,
+            crate::commands::profiles::delete_profile,
+            crate::commands::profiles::capture_profile_settings,
+            crate::commands::profiles::apply_profile,
         ]
     };
 }

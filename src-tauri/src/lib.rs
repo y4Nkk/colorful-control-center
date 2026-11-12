@@ -5,6 +5,8 @@ mod command_registry;
 mod commands;
 mod fanctl;
 mod hal;
+mod powerctl;
+mod profiles;
 
 use hal::Hal;
 use tauri::{Emitter, Manager};
