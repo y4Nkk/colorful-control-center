@@ -1,4 +1,4 @@
-# Phase 0.1 — OEM WMI 枚举脚本
+﻿# Phase 0.1 — OEM WMI 枚举脚本
 # 目的：列出 root\WMI 及相关命名空间中 OEM（Clevo / Uniwill / TongFang / Insyde / Oem / Colorful）
 # 相关的类，确认 OEM CC 的 WMI 通道面。只读操作。
 # 用法：powershell -ExecutionPolicy Bypass -File tools\probe\wmi-enum.ps1
