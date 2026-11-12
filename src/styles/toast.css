@@ -1,0 +1,66 @@
+/*
+ * Toaster 全局通知语法（唯一所有者：components/Toaster.tsx）。
+ * 通知队列挂 app 层右下角；模块只调 toast()，不自建浮层。
+ */
+
+.ccc-toaster {
+  position: fixed;
+  right: var(--ccc-space-5);
+  bottom: var(--ccc-space-5);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ccc-space-2);
+  width: 320px;
+}
+
+.ccc-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ccc-space-2);
+  padding: var(--ccc-space-3) var(--ccc-space-4);
+  background: var(--ccc-content);
+  border: 1px solid var(--ccc-hairline);
+  border-radius: var(--ccc-radius-card);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+}
+
+.ccc-toast[data-kind="info"] .ccc-toast-dot { background: var(--ccc-action); }
+.ccc-toast[data-kind="success"] .ccc-toast-dot { background: var(--ccc-safe); }
+.ccc-toast[data-kind="warning"] .ccc-toast-dot { background: var(--ccc-warning); }
+.ccc-toast[data-kind="error"] .ccc-toast-dot { background: var(--ccc-danger); }
+
+.ccc-toast-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: var(--ccc-radius-full);
+}
+
+.ccc-toast-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ccc-toast-title {
+  font-weight: 600;
+}
+
+.ccc-toast-description {
+  color: var(--ccc-text-muted);
+  font-size: var(--ccc-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.ccc-toast-close {
+  flex: none;
+  color: var(--ccc-text-muted);
+  font-size: var(--ccc-text-lg);
+  line-height: 1;
+  padding: var(--ccc-space-1);
+}
+
+.ccc-toast-close:hover {
+  color: var(--ccc-text);
+}

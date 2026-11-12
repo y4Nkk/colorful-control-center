@@ -1,0 +1,91 @@
+/*
+ * AppShell 外框语法（唯一所有者：AppShell.tsx；几何契约见 DESIGN.md）。
+ * 两行两列 grid：导航跨左两行，顶栏右上，工作区右下。
+ */
+
+.ccc-shell {
+  display: grid;
+  grid-template-columns: var(--ccc-sidebar-width) 1fr;
+  grid-template-rows: var(--ccc-topbar-height) 1fr;
+  height: 100%;
+}
+
+/* ── 侧栏 ─────────────────────────────────────────── */
+
+.ccc-sidebar {
+  grid-row: 1 / 3;
+  display: flex;
+  flex-direction: column;
+  padding: var(--ccc-space-3);
+  gap: var(--ccc-space-2);
+}
+
+.ccc-brand {
+  padding: var(--ccc-space-2) var(--ccc-space-3) var(--ccc-space-4);
+  font-size: var(--ccc-text-md);
+  font-weight: 600;
+}
+
+.ccc-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ccc-nav-item {
+  display: block;
+  width: 100%;
+  height: var(--ccc-control-height);
+  padding: 0 var(--ccc-space-3);
+  border-radius: var(--ccc-radius-nav);
+  text-align: left;
+  font-size: var(--ccc-text-md);
+  color: var(--ccc-text-muted);
+  transition: background var(--ccc-motion-fast) var(--ccc-easing), color var(--ccc-motion-fast) var(--ccc-easing);
+}
+
+.ccc-nav-item:hover {
+  background: var(--ccc-row-hover);
+  color: var(--ccc-text);
+}
+
+.ccc-nav-item[aria-current="page"] {
+  background: var(--ccc-nav-selected);
+  color: var(--ccc-text);
+  font-weight: 600;
+}
+
+/* ── 顶栏 ─────────────────────────────────────────── */
+
+.ccc-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--ccc-space-3);
+  padding: 0 var(--ccc-space-4);
+}
+
+.ccc-topbar-title {
+  margin: 0;
+  font-size: var(--ccc-text-title);
+  font-weight: 600;
+}
+
+.ccc-topbar-spacer {
+  flex: 1;
+}
+
+/* 顶栏右侧全局信息位：全局持续状态/错误在此呈现（DESIGN.md 状态与反馈） */
+.ccc-global-info {
+  min-height: var(--ccc-control-height-compact);
+  display: flex;
+  align-items: center;
+}
+
+/* ── 工作区 ───────────────────────────────────────── */
+
+.ccc-workspace {
+  margin: 0 var(--ccc-space-1) var(--ccc-space-1) 0;
+  overflow-y: auto;
+  background: var(--ccc-content);
+  border-radius: var(--ccc-radius-panel);
+}

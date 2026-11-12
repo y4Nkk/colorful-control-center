@@ -1,51 +1,24 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+/**
+ * 应用根（composition root）：主题初始化 + AppShell 外框 + 工作区 +
+ * 全局通知 Host。页面状态在根持有（持久化于 Phase 4 设置接入）。
+ */
+import { useEffect, useState } from "react";
+import { AppShell } from "./app/AppShell";
+import { AppWorkspace } from "./app/AppWorkspace";
+import type { PageId } from "./app/navigation";
+import { Toaster } from "./components/Toaster";
+import { initializeTheme } from "./lib/theme";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
-
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+export default function App() {
+  const [page, setPage] = useState<PageId>("dashboard");
+  useEffect(() => initializeTheme(), []);
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    <>
+      <AppShell page={page} onPageChange={setPage}>
+        <AppWorkspace page={page} />
+      </AppShell>
+      <Toaster />
+    </>
   );
 }
-
-export default App;

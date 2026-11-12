@@ -1,0 +1,96 @@
+/*
+ * Colorful Control Center 运行时令牌唯一所有者。
+ *
+ * 本文件是唯一允许定义调色板、圆角档、间距、字阶与动效时长的地方。
+ * 组件只消费 --ccc-* 语义变量，不得引入本地颜色、表面、时长或圆角常量；
+ * scripts/check-boundaries.mjs 在构建期强制该所有权。视觉契约见 DESIGN.md。
+ */
+
+:root {
+  /* 核心色板 */
+  --ccc-action: #0a6cf5;
+  --ccc-action-hover: #0959c9;
+  --ccc-text-on-action: #ffffff;
+  --ccc-focus-ring: rgba(10, 108, 245, 0.42);
+  --ccc-safe: #1e8e3e;
+  --ccc-warning: #b25000;
+  --ccc-danger: #d70015;
+
+  /* 语义色 —— 浅色主题 */
+  --ccc-canvas: #ececf0;
+  --ccc-content: hsl(0 0% 98%);
+  --ccc-content-muted: hsl(240 16% 96%);
+  --ccc-text: #14161b;
+  --ccc-text-muted: rgba(20, 22, 27, 0.62);
+  --ccc-hairline: rgba(20, 22, 27, 0.12);
+  --ccc-row-hover: color-mix(in srgb, var(--ccc-text) 3%, var(--ccc-content));
+  --ccc-nav-selected: color-mix(in srgb, var(--ccc-action) 10%, var(--ccc-content));
+  --ccc-overlay-backdrop: rgba(20, 22, 27, 0.32);
+
+  /* 字体 */
+  --ccc-font-sans: "Noto Sans SC", "Microsoft YaHei UI", system-ui, sans-serif;
+  --ccc-font-mono: "Cascadia Mono", Consolas, "Sarasa Mono SC", monospace;
+
+  /* 字阶 */
+  --ccc-text-xs: 12px;
+  --ccc-text-sm: 13px;
+  --ccc-text-md: 14px;
+  --ccc-text-lg: 15px;
+  --ccc-text-xl: 17px;
+  --ccc-text-title: 20px;
+
+  /* 圆角档（唯一尺度；形状语义见 DESIGN.md） */
+  --ccc-radius-control: 12px;
+  --ccc-radius-card: 16px;
+  --ccc-radius-nav: 20px;
+  --ccc-radius-group: 24px;
+  --ccc-radius-panel: 28px;
+  --ccc-radius-full: 999px;
+
+  /* 间距档 */
+  --ccc-space-1: 4px;
+  --ccc-space-2: 8px;
+  --ccc-space-3: 12px;
+  --ccc-space-4: 16px;
+  --ccc-space-5: 24px;
+  --ccc-space-6: 32px;
+
+  /* 控件尺寸 */
+  --ccc-control-height: 40px;
+  --ccc-control-height-compact: 32px;
+  --ccc-sidebar-width: 224px;
+  --ccc-topbar-height: 64px;
+
+  /* 动效 */
+  --ccc-motion-fast: 150ms;
+  --ccc-motion: 240ms;
+  --ccc-motion-slow: 400ms;
+  --ccc-easing: cubic-bezier(0.2, 0, 0, 1);
+}
+
+[data-theme="dark"] {
+  --ccc-action: #409cff;
+  --ccc-action-hover: #66b1ff;
+  --ccc-focus-ring: rgba(64, 156, 255, 0.45);
+  --ccc-safe: #4fae62;
+  --ccc-warning: #d97f2a;
+  --ccc-danger: #ff5d5d;
+
+  --ccc-canvas: #16171b;
+  --ccc-content: #1e1f24;
+  --ccc-content-muted: #26272d;
+  --ccc-text: #e8e9ec;
+  --ccc-text-muted: rgba(232, 233, 236, 0.6);
+  --ccc-hairline: rgba(232, 233, 236, 0.14);
+  --ccc-row-hover: color-mix(in srgb, var(--ccc-text) 4%, var(--ccc-content));
+  --ccc-nav-selected: color-mix(in srgb, var(--ccc-action) 16%, var(--ccc-content));
+  --ccc-overlay-backdrop: rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ccc-motion-fast: 0ms;
+    --ccc-motion: 0ms;
+    --ccc-motion-slow: 0ms;
+  }
+}

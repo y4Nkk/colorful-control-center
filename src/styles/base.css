@@ -1,0 +1,118 @@
+/*
+ * 全局 reset 与硬约束。本文件不定义任何 --ccc-* 变量（tokens.css 唯一所有），
+ * 也不承载业务组件样式——后者按领域放 styles/<domain>.css 并在此聚合。
+ */
+
+@import "./shell.css";
+@import "./toast.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--ccc-font-sans);
+  font-size: var(--ccc-text-md);
+  line-height: 1.5;
+  color: var(--ccc-text);
+  background: var(--ccc-canvas);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100dvh;
+}
+
+/* 键盘焦点统一走全局焦点环；鼠标点击不显示 */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 3px var(--ccc-focus-ring);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--ccc-action) 24%, transparent);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* 等宽内容：寄存器、路径、数值 */
+.ccc-mono {
+  font-family: var(--ccc-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 主操作按钮（Button 原语种子；DESIGN.md 组件所有权登记） */
+.ccc-button {
+  height: var(--ccc-control-height);
+  padding: 0 var(--ccc-space-4);
+  border-radius: var(--ccc-radius-control);
+  background: var(--ccc-action);
+  color: var(--ccc-text-on-action);
+  font-size: var(--ccc-text-md);
+  transition: background var(--ccc-motion-fast) var(--ccc-easing);
+}
+
+.ccc-button:hover {
+  background: var(--ccc-action-hover);
+}
+
+/* 页面模块区：唯一滚动面在 AppShell 工作区，页面自身不设滚动 */
+.ccc-page {
+  padding: var(--ccc-space-4) var(--ccc-space-5);
+}
+
+/* 占位模块卡：Phase 模块接入前的工作面占位，接入后由真实模块替换 */
+.ccc-placeholder {
+  max-width: 720px;
+  padding: var(--ccc-space-5);
+  background: var(--ccc-content);
+  border: 1px solid var(--ccc-hairline);
+  border-radius: var(--ccc-radius-group);
+}
+
+.ccc-placeholder h2 {
+  margin: 0 0 var(--ccc-space-2);
+  font-size: var(--ccc-text-xl);
+  font-weight: 600;
+}
+
+.ccc-placeholder p {
+  margin: 0 0 var(--ccc-space-2);
+  color: var(--ccc-text-muted);
+}
+
+.ccc-placeholder .ccc-phase {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: var(--ccc-radius-full);
+  background: var(--ccc-nav-selected);
+  color: var(--ccc-text);
+  font-size: var(--ccc-text-xs);
+}

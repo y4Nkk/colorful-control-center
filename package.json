@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && npm run check:boundaries && vite build",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "verify-notes": "node scripts/verify-notes.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },
