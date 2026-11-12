@@ -5,6 +5,7 @@
 
 @import "./shell.css";
 @import "./toast.css";
+@import "./dashboard.css";
 
 *,
 *::before,
@@ -81,6 +82,21 @@ textarea {
 
 .ccc-button:hover {
   background: var(--ccc-action-hover);
+}
+
+/* 单行输入原语种子：40px 高、12px 圆角、hairline 边框 */
+.ccc-input {
+  height: var(--ccc-control-height);
+  padding: 0 var(--ccc-space-3);
+  border: 1px solid var(--ccc-hairline);
+  border-radius: var(--ccc-radius-control);
+  background: var(--ccc-content);
+  color: var(--ccc-text);
+  width: 90px;
+}
+
+.ccc-input:focus-visible {
+  border-color: var(--ccc-action);
 }
 
 /* 页面模块区：唯一滚动面在 AppShell 工作区，页面自身不设滚动 */

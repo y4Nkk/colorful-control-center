@@ -5,6 +5,7 @@
  * re-export 聚合，消费方统一从 "./api/client" 导入。
  */
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { listen as tauriListen, type UnlistenFn } from "@tauri-apps/api/event";
 import { toCommandError } from "./shared";
 
 type InvokeArgs = Record<string, unknown>;
@@ -17,6 +18,13 @@ export async function invoke<T>(command: string, args?: InvokeArgs): Promise<T> 
   }
 }
 
+/** 后端事件的唯一订阅入口（边界规则与 invoke 相同）。 */
+export function listenEvent<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn> {
+  return tauriListen<T>(event, (e) => handler(e.payload));
+}
+
 /* 领域模块拥有类型化命令族；本边界聚合其公开面。 */
 export * from "./shared";
 export * from "./app";
+export * from "./hardware";
+export * from "./fans";

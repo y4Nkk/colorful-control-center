@@ -1,0 +1,22 @@
+<!--
+  Colorful Control Center 应用图标唯一源文件（src-tauri/icons 全套尺寸由
+  `npx tauri icon src-tauri/icons/icon.svg` 重新生成；public/favicon.svg 为其副本）。
+
+  设计：五叶风扇转子（自定义风扇曲线 = 本产品签名能力）+ 圆形轮毂，
+  单一线性光谱自左下 #0A6CF5（tokens.css 的 ccc-action 浅色主题值）经紫、粉至琥珀，
+  呼应"七彩虹"品牌与 agent-switchboard 式扁平几何语言。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="ccc-icon-title ccc-icon-desc">
+  <title id="ccc-icon-title">Colorful Control Center</title>
+  <desc id="ccc-icon-desc">A five-blade fan rotor tinted by one spectrum from action blue through violet and pink to amber.</desc>
+  <defs>
+    <linearGradient id="ccc-spectrum" x1="146" y1="386" x2="380" y2="126" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0A6CF5"/>
+      <stop offset=".38" stop-color="#8055ED"/>
+      <stop offset=".68" stop-color="#ED68AB"/>
+      <stop offset="1" stop-color="#FFB36B"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#ccc-spectrum)" d="M335.2 234.8A170 170 0 0 1 386.9 94.4A208 208 0 0 1 454.9 195.2A240 240 0 0 0 335.2 277.2A82 82 0 0 0 335.2 234.8ZM300.7 324.8A170 170 0 0 1 450.2 330.5A208 208 0 0 1 375.3 426.4A240 240 0 0 0 260.3 337.9A82 82 0 0 0 300.7 324.8ZM204.4 319.7A170 170 0 0 1 245.1 463.7A208 208 0 0 1 130.8 422.1A240 240 0 0 0 179.4 285.4A82 82 0 0 0 204.4 319.7ZM179.4 226.6A170 170 0 0 1 55.1 309.8A208 208 0 0 1 59.3 188.3A240 240 0 0 0 204.4 192.3A82 82 0 0 0 179.4 226.6ZM260.3 174.1A170 170 0 0 1 142.7 81.6A208 208 0 0 1 259.6 48A240 240 0 0 0 300.7 187.2A82 82 0 0 0 260.3 174.1Z"/>
+  <circle fill="url(#ccc-spectrum)" cx="256" cy="256" r="52"/>
+</svg>

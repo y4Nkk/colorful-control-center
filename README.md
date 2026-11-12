@@ -8,9 +8,9 @@
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| Phase 0 | 硬件接口探测：OEM WMI 枚举 / EC 寄存器 diff / MSR 锁状态 | 0.1/0.2/0.3 ✅（[oem-dchu-contract](docs/oem-dchu-contract.md)）；0.4 MSR 锁检测进行中 |
-| Phase 1 | 只读监控仪表盘（CPU / GPU / 风扇 / 温度） | 计划 |
-| Phase 2 | 自定义风扇曲线（任意控制点 + 滞后回差 + 斜坡限制 + 看门狗） | 计划 |
+| Phase 0 | 硬件接口探测 | ✅ 0.1–0.4 完成（[oem-dchu-contract](docs/oem-dchu-contract.md)）；提权验证批：`tools/probe/run-admin-probe.ps1` |
+| Phase 1 | 只读监控仪表盘（CPU / GPU / 风扇 / 温度） | ✅ 已实现（HAL + 1Hz 事件推送，待真机对齐 HWiNFO 验收） |
+| Phase 2 | 自定义风扇曲线（OEM 曲线模式：固件执行 + 二次确认 + ≥20% 钳位；软件闭环 + 看门狗为后续增强） | ✅ 已实现（待真机写入验证） |
 | Phase 3 | PL1/PL2 功耗墙、偏移电压（undervolt）、GPU 频率偏移、性能档案 | 计划 |
 | 底座 | 全局底座与规范（令牌 / IPC 边界 / 全局通知 / 页面接入点 / 可执行规范） | ✅ 已完成 |
 

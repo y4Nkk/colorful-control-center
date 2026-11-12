@@ -1,0 +1,66 @@
+/*
+ * 仪表盘与事实行语法（唯一所有者：FactList.tsx / DashboardWorkspace.tsx）。
+ */
+
+.ccc-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ccc-space-4);
+  max-width: 860px;
+}
+
+.ccc-facts {
+  background: var(--ccc-content);
+  border: 1px solid var(--ccc-hairline);
+  border-radius: var(--ccc-radius-group);
+  padding: var(--ccc-space-2) var(--ccc-space-4);
+}
+
+.ccc-fact-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ccc-space-4);
+  min-height: 36px;
+  padding: var(--ccc-space-1) 0;
+}
+
+.ccc-fact-row + .ccc-fact-row {
+  border-top: 1px solid var(--ccc-hairline);
+}
+
+.ccc-fact-label {
+  flex: none;
+  width: 160px;
+  color: var(--ccc-text-muted);
+}
+
+.ccc-fact-value {
+  flex: 1;
+  min-width: 0;
+}
+
+.ccc-fact-value.is-danger {
+  color: var(--ccc-danger);
+}
+
+/* 监控分组标题 */
+.ccc-group-title {
+  margin: var(--ccc-space-2) 0 0;
+  font-size: var(--ccc-text-md);
+  font-weight: 600;
+  color: var(--ccc-text-muted);
+}
+
+/* 读数警告条（stale / 通道告警） */
+.ccc-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ccc-space-1);
+  padding: var(--ccc-space-3) var(--ccc-space-4);
+  background: var(--ccc-content);
+  border: 1px solid var(--ccc-hairline);
+  border-left: 3px solid var(--ccc-warning);
+  border-radius: var(--ccc-radius-card);
+  color: var(--ccc-text-muted);
+  font-size: var(--ccc-text-sm);
+}

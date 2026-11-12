@@ -7,6 +7,12 @@ macro_rules! handler {
     () => {
         tauri::generate_handler![
             crate::commands::app::get_backend_info,
+            crate::commands::hardware::read_hardware_snapshot,
+            crate::commands::fans::read_fan_profile,
+            crate::commands::fans::apply_fan_curve,
+            crate::commands::fans::set_fan_mode,
+            crate::commands::fans::set_fan_offset,
+            crate::commands::fans::restore_fan_default,
         ]
     };
 }
