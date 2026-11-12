@@ -3,22 +3,17 @@
 > 开发遵循「避免调试机器」：所有需要真机/管理员的验证已批量化为两个入口。
 > 完成后把结论回填到本文与 oem-dchu-contract.md §11。
 
-## 1. 一键提权验证批（约 2 分钟，一次 UAC）
+## 1. 一键提权验证批（已执行 4 轮；MSR 直写复测待重启）
 
-右键管理员运行（或脚本会自动请求提升）：
+已执行并留档 `tools/probe/admin-probe-results.txt`（transcript），结论：
 
-```powershell
-tools\probe\run-admin-probe.ps1
-```
-
-产出 `tools/probe/admin-probe-results.txt`，回答四个问题：
-
-| 问题 | 判读 |
+| 问题 | 定论 |
 |---|---|
-| MSR PL 锁（0x610 bit63） | 未锁 → 运行时 PL 直写可用；锁 → 只走 page6 持久化通道 |
-| undervolt 锁（0x150 写入测试） | 未锁 → 运行时降压可用；锁 → page6+XTU 通道（生效时机经 OEM 服务）|
-| DCHU 管理员读数 | 两次采样有变化 → 非管理员回显问题确认；仍恒定 → DLL 还有未知初始化，回填契约 §11-0 |
-| PawnIO | `ccc-probe status` 应显示已安装 |
+| PL1/PL2 可写性 | ✅ **可行**——page6 持久化通道（OEM CPU_OC 同款）已实现；WMI18 出厂默认 135/135W |
+| undervolt 可行性 | ✅ **可行**——page6+XTU 持久化通道（平台 CPUOC 功能同款）；MSR 0x150 运行时锁状态待下表复测 |
+| DCHU 整数读 | ❌ **回声缺陷定论**（管理员下同样复现，值==命令号）——传感路径已全部改走包读（✅ 负载差分验证活数据）|
+| PawnIO | ⚠️ 僵尸态：服务 RUNNING 但设备未创建（1052/1056）。**重启电脑后重跑本脚本一次**，`pl` / `uv-test --execute` 即可补出 MSR 锁定结论 |
+| cmd12/13 包转储 | ✅ 已入档（双风扇 RPM/duty/remote 活数据）|
 
 ## 2. 应用目检（npm run tauri dev，约 5 分钟）
 

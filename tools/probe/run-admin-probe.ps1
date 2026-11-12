@@ -21,13 +21,17 @@ if (-not $id.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
 $resultsPath = Join-Path $PSScriptRoot "admin-probe-results.txt"
 Start-Transcript -Path $resultsPath -Force
 
-Write-Output "=== 管理员探测批 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ==="
-Write-Output ""
-Write-Output "probe: $probe"
-Write-Output "存在: $(Test-Path $probe)"
+Write-Output "=== 管理员探测批 v4 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ==="
+
+Write-Output "== 0. PawnIO 服务重置（修复设备未创建）=="
+sc.exe stop PawnIO 2>&1 | Write-Output
+Start-Sleep -Seconds 2
+sc.exe start PawnIO 2>&1 | Write-Output
+Start-Sleep -Seconds 3
+sc.exe query PawnIO 2>&1 | Write-Output
 Write-Output ""
 
-Write-Output "== 1. PawnIO 驱动部署 =="
+Write-Output "== 1. PawnIO install（幂等）=="
 & $probe install 2>&1 | Write-Output
 Write-Output ""
 
@@ -39,10 +43,14 @@ Write-Output "== 3. undervolt 锁检测（写入后还原）=="
 & $probe uv-test --execute 2>&1 | Write-Output
 Write-Output ""
 
-Write-Output "== 4. DCHU 读数（管理员下，间隔 3 秒两次对照）=="
+Write-Output "== 4. DCHU 读数（间隔 3 秒两次对照）=="
 & $probe dchu 2>&1 | Write-Output
 Start-Sleep -Seconds 3
 & $probe dchu 2>&1 | Write-Output
+Write-Output ""
+
+Write-Output "== 5. DCHU cmd12/13 包转储 =="
+& $probe dchu-pkg 2>&1 | Write-Output
 Write-Output ""
 
 Write-Output "== 结束 =="

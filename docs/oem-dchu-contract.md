@@ -262,6 +262,12 @@ OEM 的 PL/undervolt 应用是双轨：
 6. **键盘 RGB**：OEM 键盘灯协议线索在反编译产物 CleDef.cs（LEDKB_Command
    SendDataArray=22 起、Kb_Cmd_Index 颜色/亮度/模式索引）与 CCToHKTray 枚举，
    但实际 WMI/DCHU 命令号未确证——延后，启用前需真机逐项验证。
+7. **PawnIO 僵尸态（2026-11-12 实测定论）**：install 后服务卡 RUNNING 但
+   `\\.\PawnIO` 设备从未创建（1052/1056 控制无效、CreateFileW=2），停启均无效
+   ——本内核构建（26300）首次加载异常，属环境限制。**MSR 运行时通道结论暂记
+   「本机暂不可用」**；重启后重跑 `tools/probe/run-admin-probe.ps1` 一次即可
+   补测 0x610/0x150 锁状态。Phase 3 的 PL/undervolt 可行性不受影响：
+   page6+XTU 持久化通道（OEM CPU_OC 同款）已实现并验证可写。
 
 ## 12. 本项目使用规则
 

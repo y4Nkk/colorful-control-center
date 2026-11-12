@@ -8,7 +8,7 @@
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| Phase 0 | 硬件接口探测 | ✅ 0.1–0.4 完成（[oem-dchu-contract](docs/oem-dchu-contract.md)）；提权验证批：`tools/probe/run-admin-probe.ps1` |
+| Phase 0 | 硬件接口探测 | ✅ 完成（[oem-dchu-contract](docs/oem-dchu-contract.md)）：PL/undervolt 经 page6+XTU 通道确认可行；MSR 直写锁状态待重启后复测（PawnIO 设备未创建，见契约 §11-7） |
 | Phase 1 | 只读监控仪表盘（CPU / GPU / 风扇 / 温度 + 5 分钟历史曲线） | ✅ 已实现（待真机对齐 HWiNFO 验收） |
 | Phase 2 | 自定义风扇曲线（OEM 曲线模式：固件执行 + 二次确认 + ≥20% 钳位；软件闭环 + 看门狗为后续增强） | ✅ 已实现（待真机写入验证） |
 | Phase 3 | PL1/PL2 功耗墙、偏移电压（page6 持久化 + MSR 运行时双通道）、性能档案（JSON + 一键应用 + 导入导出） | ✅ 已实现（undervolt 结论待 MSR 锁检测） |
