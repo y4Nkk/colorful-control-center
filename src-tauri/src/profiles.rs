@@ -1,226 +1,234 @@
-//! 性能档案域（Phase 3）：把「风扇曲线 + 模式 + PL + 电压偏移」打包为
-//! JSON 档案，一键应用。存储于应用数据目录 profiles/*.json。
-//!
-//! 应用顺序即安全顺序：曲线（cmd14）→ 模式（cmd121）→ PL 持久化 →
-//! 电压偏移持久化；每步独立报告成败，失败不中断后续步骤（结果可见）。
-//! 运行时 MSR 通道不进档案流水线（档案 = 可恢复意图，持久化通道语义）。
-
-use anyhow::{anyhow, Context, Result};
-use serde::{Deserialize, Serialize};
+//! 档案磁盘入口；数据与校验由 profiles/model.rs 拥有，执行事务见 apply.rs。
+pub mod application;
+mod apply;
+pub(crate) mod authorization;
+mod capture;
+mod devices;
+mod model;
+pub mod policy;
+mod preview;
+use anyhow::{Context, Result, anyhow, bail};
+pub(crate) use application::apply_startup;
+pub use application::{Application, apply_preview};
+#[cfg(test)]
+pub(crate) use apply::apply_reviewed;
+pub(crate) use devices::Devices;
+pub(crate) use preview::{preview_authorization, preview_mode};
+use std::path::{Path, PathBuf};
 use tauri::Manager;
+static PROFILE_MUTATION: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-use crate::fanctl::{self, FAN_MODE_CUSTOM};
-use crate::hal::Hal;
+pub use model::{ApplyStep, ProfileFile, ProfileMeta, ProfileSettings, validate};
 
-const FAN_IDS: [&str; 3] = ["cpu", "gpu1", "gpu2"];
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase", default)]
-pub struct ProfileFanPoints {
-    pub t2: f64,
-    pub d2_pct: f64,
-    pub t3: f64,
-    pub d3_pct: f64,
-}
-
-impl Default for ProfileFanPoints {
-    fn default() -> Self {
-        Self { t2: 60.0, d2_pct: 40.0, t3: 80.0, d3_pct: 70.0 }
+pub fn sanitize_name(name: &str) -> Result<String> {
+    let name = name.trim();
+    if name.is_empty()
+        || name.chars().count() > 60
+        || name.ends_with('.')
+        || !name
+            .chars()
+            .all(|c| c.is_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.'))
+    {
+        bail!("档案名须为 1–60 个文字、数字或 - _ .，不能以点结尾");
     }
-}
-
-#[derive(Serialize, Deserialize, Clone, Default)]
-#[serde(rename_all = "camelCase", default)]
-pub struct ProfileSettings {
-    pub fan_mode: Option<u8>,
-    pub fan_curves: Option<HashMap2>,
-    pub pl1_w: Option<f64>,
-    pub pl2_w: Option<f64>,
-    pub core_offset_mv: Option<i32>,
-    pub gt_offset_mv: Option<i32>,
-}
-
-type HashMap2 = std::collections::BTreeMap<String, ProfileFanPoints>;
-
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProfileFile {
-    pub version: u32,
-    pub name: String,
-    pub saved_at_ms: u64,
-    #[serde(default)]
-    pub settings: ProfileSettings,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProfileMeta {
-    pub name: String,
-    pub saved_at_ms: u64,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ApplyStep {
-    pub step: String,
-    pub ok: bool,
-    pub message: String,
-}
-
-fn sanitize_name(name: &str) -> Result<String> {
-    let trimmed = name.trim();
-    if trimmed.is_empty() || trimmed.len() > 60 {
-        return Err(anyhow!("档案名长度需在 1–60 字符"));
+    let reserved = name.split('.').next().unwrap_or("").to_ascii_uppercase();
+    if [
+        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+        "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9", "COM¹",
+        "COM²", "COM³", "LPT¹", "LPT²", "LPT³",
+    ]
+    .contains(&reserved.as_str())
+    {
+        bail!("此档案名为系统保留名称");
     }
-    if !trimmed.chars().all(|c| c.is_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.')) {
-        return Err(anyhow!("档案名只能包含文字、数字、空格、- _ ."));
-    }
-    Ok(trimmed.to_string())
+    Ok(name.into())
 }
 
-fn profiles_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|_| anyhow!("应用数据目录不可用"))?
-        .join("profiles");
+pub fn validate_file(file: &ProfileFile) -> Result<()> {
+    if file.version != 1 {
+        bail!("不支持的档案版本 {}", file.version);
+    }
+    if file.saved_at_ms > 8_640_000_000_000_000 {
+        bail!("档案时间戳超出界面可表示范围");
+    }
+    sanitize_name(&file.name)?;
+    validate(&file.settings)
+}
+
+pub(crate) fn profiles_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf> {
+    let dir = app.path().app_data_dir()?.join("profiles");
     std::fs::create_dir_all(&dir)?;
     Ok(dir)
 }
 
-fn profile_path(app: &tauri::AppHandle, name: &str) -> Result<std::path::PathBuf> {
-    let safe = sanitize_name(name)?;
-    Ok(profiles_dir(app)?.join(format!("{safe}.json")))
+fn profile_path(dir: &Path, name: &str) -> Result<PathBuf> {
+    Ok(dir.join(format!("{}.json", sanitize_name(name)?)))
+}
+
+pub(crate) fn same_name(left: &str, right: &str) -> bool {
+    let left: Vec<_> = left.encode_utf16().collect();
+    let right: Vec<_> = right.encode_utf16().collect();
+    let (Ok(left_len), Ok(right_len)) = (i32::try_from(left.len()), i32::try_from(right.len()))
+    else {
+        return false;
+    };
+    unsafe {
+        windows_sys::Win32::Globalization::CompareStringOrdinal(
+            left.as_ptr(),
+            left_len,
+            right.as_ptr(),
+            right_len,
+            1,
+        ) == windows_sys::Win32::Globalization::CSTR_EQUAL
+    }
+}
+
+fn check_existing_spelling(dir: &Path, path: &Path) -> Result<()> {
+    let expected = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| anyhow!("档案文件名无效"))?;
+    for entry in std::fs::read_dir(dir)? {
+        let name = entry?.file_name();
+        if let Some(name) = name.to_str() {
+            if same_name(name, expected) && name != expected {
+                bail!("档案名称与已有文件仅大小写不同，请使用已有名称或选择其他名称");
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn save(app: &tauri::AppHandle, settings: ProfileSettings, name: &str) -> Result<()> {
-    let path = profile_path(app, name)?;
+    save_in(&profiles_dir(app)?, settings, name)
+}
+
+fn save_in(dir: &Path, settings: ProfileSettings, name: &str) -> Result<()> {
+    let _lock = PROFILE_MUTATION
+        .lock()
+        .map_err(|_| anyhow!("档案存储状态异常"))?;
+    validate(&settings)?;
+    let path = profile_path(dir, name)?;
     let file = ProfileFile {
         version: 1,
         name: sanitize_name(name)?,
         saved_at_ms: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as u64)
-            .unwrap_or(0),
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_millis() as u64,
         settings,
     };
-    std::fs::write(&path, serde_json::to_vec_pretty(&file)?)
-        .with_context(|| format!("写入 {} 失败", path.display()))
+    std::fs::create_dir_all(dir)?;
+    check_existing_spelling(dir, &path)?;
+    crate::storage::write(&path, &serde_json::to_vec_pretty(&file)?).context("保存档案失败")
 }
 
 pub fn list(app: &tauri::AppHandle) -> Result<Vec<ProfileMeta>> {
-    let dir = profiles_dir(app)?;
-    let mut out = Vec::new();
-    for entry in std::fs::read_dir(&dir)?.flatten() {
-        let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+    list_in(&profiles_dir(app)?)
+}
+
+fn list_in(dir: &Path) -> Result<Vec<ProfileMeta>> {
+    let mut files = Vec::new();
+    for entry in std::fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("json") {
             continue;
         }
-        if let Ok(bytes) = std::fs::read(&path) {
-            if let Ok(file) = serde_json::from_slice::<ProfileFile>(&bytes) {
-                out.push(ProfileMeta { name: file.name, saved_at_ms: file.saved_at_ms });
-            }
-        }
+        let data = std::fs::read(&path).with_context(|| format!("读取 {} 失败", path.display()))?;
+        let file: ProfileFile = serde_json::from_slice(&data)
+            .with_context(|| format!("档案 {} 损坏", path.display()))?;
+        validate_file(&file)?;
+        files.push(ProfileMeta {
+            name: file.name,
+            saved_at_ms: file.saved_at_ms,
+        });
     }
-    out.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(out)
+    files.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(files)
 }
 
 pub fn load(app: &tauri::AppHandle, name: &str) -> Result<ProfileFile> {
-    let path = profile_path(app, name)?;
-    let bytes = std::fs::read(&path).with_context(|| format!("读取 {} 失败", path.display()))?;
-    serde_json::from_slice(&bytes).context("档案 JSON 解析失败")
+    load_from(&profiles_dir(app)?, name)
 }
 
-pub fn delete(app: &tauri::AppHandle, name: &str) -> Result<()> {
-    let path = profile_path(app, name)?;
-    std::fs::remove_file(path).context("删除档案失败")
+fn load_from(dir: &Path, name: &str) -> Result<ProfileFile> {
+    let file: ProfileFile = serde_json::from_slice(&std::fs::read(profile_path(dir, name)?)?)?;
+    validate_file(&file)?;
+    if file.name != sanitize_name(name)? {
+        bail!("档案名与文件名不一致");
+    }
+    Ok(file)
 }
 
-/// 应用档案流水线：每步独立报告，失败继续后续步骤。
-pub fn apply(app: &tauri::AppHandle, hal: &Hal, name: &str) -> Result<Vec<ApplyStep>> {
-    let file = load(app, name)?;
-    let mut steps = Vec::new();
-    let settings = &file.settings;
-
-    // 1. 风扇曲线
-    if let Some(curves) = &settings.fan_curves {
-        let pick = |id: &str| -> Option<ccc_core::fan::OemCurvePoints> {
-            curves.get(id).map(|p| ccc_core::fan::OemCurvePoints {
-                t2: p.t2,
-                d2: p.d2_pct,
-                t3: p.t3,
-                d3: p.d3_pct,
-            })
-        };
-        let result = fanctl::apply_curve(hal, pick("cpu"), pick("gpu1"), pick("gpu2"));
-        steps.push(step("风扇曲线", result));
-    }
-
-    // 2. 风扇模式
-    if let Some(mode) = settings.fan_mode {
-        let result = fanctl::set_mode(hal, mode);
-        steps.push(step(
-            &format!("风扇模式({mode})"),
-            result.map_err(|e| e.into()),
-        ));
-    }
-
-    // 3. PL 持久化
-    if settings.pl1_w.is_some() || settings.pl2_w.is_some() {
-        let result = crate::powerctl::apply_pl_persist(hal, settings.pl1_w, settings.pl2_w);
-        steps.push(step("功耗墙(page6)", result));
-    }
-
-    // 4. 电压偏移持久化
-    if settings.core_offset_mv.is_some() || settings.gt_offset_mv.is_some() {
-        let result = crate::powerctl::apply_voltage_persist(
-            hal,
-            settings.core_offset_mv,
-            settings.gt_offset_mv,
-        );
-        steps.push(step("电压偏移(page6)", result));
-    }
-
-    if steps.is_empty() {
-        steps.push(ApplyStep {
-            step: "无内容".into(),
-            ok: false,
-            message: "档案不包含任何设置".into(),
-        });
-    }
-    Ok(steps)
-}
-
-/// 从当前固件状态快照一份档案设置（fan 曲线来自 page4/cmd13，PL/电压来自 page6）。
-pub fn capture_current(hal: &Hal) -> Result<ProfileSettings> {
-    let profile = fanctl::read_profile(hal)?;
-    let power = crate::powerctl::read_profile(hal)?;
-    let mut curves = HashMap2::new();
-    for (id, _) in FAN_IDS.iter().enumerate() {
-        let set = &profile.fans[id];
-        curves.insert(
-            set.id.clone(),
-            ProfileFanPoints { t2: set.t2, d2_pct: set.d2_pct, t3: set.t3, d3_pct: set.d3_pct },
-        );
-    }
-    Ok(ProfileSettings {
-        fan_mode: Some(profile.current_mode),
-        fan_curves: Some(curves),
-        pl1_w: power.pl1_w,
-        pl2_w: power.pl2_w,
-        core_offset_mv: power.core_offset_mv.map(|v| v as i32),
-        gt_offset_mv: power.gt_offset_mv.map(|v| v as i32),
+pub fn delete(app: &tauri::AppHandle, name: &str) -> Result<bool> {
+    // 删除先锁档案，再解除启动引用；启动选择的只读校验不取档案写锁。
+    let _lock = PROFILE_MUTATION
+        .lock()
+        .map_err(|_| anyhow!("档案存储状态异常"))?;
+    let path = profile_path(&profiles_dir(app)?, name)?;
+    crate::startup::delete_linked_profile(app, name, || {
+        std::fs::remove_file(path).context("删除档案文件失败")
     })
 }
 
-fn step(name: &str, result: Result<()>) -> ApplyStep {
-    match result {
-        Ok(()) => ApplyStep { step: name.into(), ok: true, message: "成功".into() },
-        Err(err) => ApplyStep { step: name.into(), ok: false, message: err.to_string() },
+pub(crate) use capture::capture_current;
+
+#[cfg(test)]
+#[path = "profiles/storage_tests.rs"]
+mod storage_tests;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn profile_timestamp_roundtrips_through_javascript_preview() {
+        let mut file = ProfileFile {
+            version: 1,
+            name: "测试".into(),
+            saved_at_ms: 8_640_000_000_000_000,
+            settings: ProfileSettings {
+                fan_mode: Some(0),
+                ..Default::default()
+            },
+        };
+        assert!(validate_file(&file).is_ok());
+        file.saved_at_ms += 1;
+        assert!(validate_file(&file).is_err());
+        file.saved_at_ms = u64::MAX;
+        assert!(validate_file(&file).is_err());
+    }
+    #[test]
+    fn rejects_reserved_or_path_names() {
+        for name in [
+            "../x",
+            "CON",
+            "LPT1.json",
+            "foo.",
+            "",
+            "COM¹",
+            "com².json",
+            "COM³",
+            "LPT¹.json",
+            "lpt²",
+            "LPT³",
+        ] {
+            assert!(sanitize_name(name).is_err(), "{name}");
+        }
+        assert_eq!(sanitize_name(" 静音 ").unwrap(), "静音");
+        assert_eq!(sanitize_name("静音¹").unwrap(), "静音¹");
+        assert_eq!(sanitize_name("COM10").unwrap(), "COM10");
+    }
+    #[test]
+    fn rejects_wrong_version_and_unknown_settings() {
+        let file = ProfileFile {
+            version: 2,
+            name: "测试".into(),
+            saved_at_ms: 0,
+            settings: ProfileSettings {
+                fan_mode: Some(0),
+                ..Default::default()
+            },
+        };
+        assert!(validate_file(&file).is_err());
+        assert!(serde_json::from_str::<ProfileSettings>(r#"{"obsolete":true}"#).is_err());
     }
 }
-
-/// FAN_MODE_CUSTOM 保留引用（档案默认模式语义提示用）。
-#[allow(dead_code)]
-const _: u8 = FAN_MODE_CUSTOM;

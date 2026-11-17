@@ -1,100 +1,25 @@
-//! InsydeDCHU.dll 只读 FFI（probe-cli 独立副本；应用内 HAL 见 src-tauri）。
-//! 契约：docs/oem-dchu-contract.md。本模块只读，禁止封装任何写入导出。
+//! 探测只读外观；DLL ABI 唯一实现复用桌面 HAL，不公开写入方法。
+#[allow(dead_code)]
+#[path = "../../../src-tauri/src/hal/oem_dchu.rs"]
+mod transport;
+use anyhow::Result;
 
-#![allow(non_snake_case)]
-
-use anyhow::{anyhow, Result};
-use windows_sys::Win32::Foundation::{CloseHandle, FreeLibrary, FARPROC};
-use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
-
-const DLL_PATH: &str = "C:\\Program Files (x86)\\ControlCenter\\DCHU\\InsydeDCHU.dll";
-pub const STATUS_UNSUPPORTED: i32 = i32::MIN + 2; // 0x80000002
-
-type GetDCHUDataInteger = unsafe extern "system" fn(command: i32, data: *mut i32) -> i32;
-type GetDCHUDataBuffer = unsafe extern "system" fn(command: i32, buffer: *mut u8) -> i32;
-type ReadAppSettings =
-    unsafe extern "system" fn(page: i32, offset: i32, length: i32, buffer: *mut u8) -> i32;
-
-pub struct Dchu {
-    handle: *mut core::ffi::c_void,
-    get_int: GetDCHUDataInteger,
-    get_buf: GetDCHUDataBuffer,
-    read_settings: ReadAppSettings,
-}
-
-unsafe impl Send for Dchu {}
-unsafe impl Sync for Dchu {}
-
+pub struct Dchu(transport::Dchu);
 impl Dchu {
-    /// 加载 OEM DLL（依赖已安装的 AcpiBridge 驱动）。失败返回可读错误。
+    pub fn bios_capabilities(&self) -> Result<[u8; 256]> {
+        self.0.bios_capabilities()
+    }
     pub fn load() -> Result<Self> {
-        let mut wide: Vec<u16> = DLL_PATH.encode_utf16().collect();
-        wide.push(0);
-        unsafe {
-            let handle = LoadLibraryW(wide.as_ptr());
-            if handle.is_null() {
-                return Err(anyhow!(
-                    "InsydeDCHU.dll 加载失败：{}（OEM Control Center 未安装或驱动未运行）",
-                    DLL_PATH
-                ));
-            }
-            // FARPROC = Option<fn>；先统一转成裸指针做空检查，再按各导出签名转型。
-            let to_ptr = |p: FARPROC| -> *mut core::ffi::c_void {
-                std::mem::transmute::<FARPROC, *mut core::ffi::c_void>(p)
-            };
-            let get_int_ptr = to_ptr(GetProcAddress(handle, b"GetDCHU_Data_Integer\0".as_ptr()));
-            let get_buf_ptr = to_ptr(GetProcAddress(handle, b"GetDCHU_Data_Buffer\0".as_ptr()));
-            let read_ptr = to_ptr(GetProcAddress(handle, b"ReadAppSettings\0".as_ptr()));
-            if get_int_ptr.is_null() || get_buf_ptr.is_null() || read_ptr.is_null() {
-                FreeLibrary(handle);
-                return Err(anyhow!("InsydeDCHU.dll 缺少必需导出"));
-            }
-            Ok(Self {
-                handle,
-                get_int: std::mem::transmute(get_int_ptr),
-                get_buf: std::mem::transmute(get_buf_ptr),
-                read_settings: std::mem::transmute(read_ptr),
-            })
-        }
+        transport::Dchu::load().map(Self)
     }
-
-    /// 读整数命令。Ok=false 表示不支持/失败（0x80000002 / -1）。
     pub fn read_int(&self, command: i32) -> (bool, i32) {
-        let mut value: i32 = 0;
-        unsafe {
-            let status = (self.get_int)(command, &mut value);
-            let ok = status != STATUS_UNSUPPORTED && status != -1;
-            (ok, value)
-        }
+        self.0.read_int(command)
     }
-
-    /// 读 256B 包。
-    pub fn read_package(&self, command: i32) -> [u8; 256] {
-        let mut buffer = [0u8; 256];
-        unsafe {
-            (self.get_buf)(command, buffer.as_mut_ptr());
-        }
-        buffer
+    pub fn read_package(&self, command: i32) -> Result<[u8; 256]> {
+        self.0.read_package(command)
     }
-
-    /// 读 AppSettings（page, offset, length）。
-    pub fn read_settings(&self, page: i32, offset: i32, length: usize) -> Vec<u8> {
-        let mut buffer = vec![0u8; length];
-        unsafe {
-            (self.read_settings)(page, offset, length as i32, buffer.as_mut_ptr());
-        }
-        buffer
-    }
-
-    /// 读 AppSettings 的扁平 index（index = page*256 + offset）。
-    pub fn read_settings_index(&self, index: i32, length: usize) -> Vec<u8> {
-        self.read_settings(index / 256, index % 256, length)
-    }
-}
-
-impl Drop for Dchu {
-    fn drop(&mut self) {
-        unsafe { FreeLibrary(self.handle) };
+    pub fn read_settings(&self, page: i32, offset: i32, length: usize) -> Result<Vec<u8>> {
+        self.0.read_settings(page, offset, length)
     }
 }
 
@@ -130,7 +55,7 @@ pub fn decode_cmd16(v: i32) -> Vec<&'static str> {
 pub fn dump_packages() -> Result<()> {
     let dchu = Dchu::load()?;
     for cmd in [12u32, 13u32] {
-        let pkg = dchu.read_package(cmd as i32);
+        let pkg = dchu.read_package(cmd as i32)?;
         println!("== cmd{cmd} 包（256B，非零行） ==");
         let mut any = false;
         for row in 0..16 {
@@ -163,7 +88,6 @@ pub fn report() -> Result<()> {
             "读取失败".to_string()
         }
     );
-    let cpuoc = ok16 && (cmd16 as u32 >> 6) & 1 == 1;
 
     let (ok122, cmd122) = dchu.read_int(122);
     let cpuoc_wmi122 = ok122 && (cmd122 as u32 >> 23) & 1 == 1;
@@ -180,8 +104,8 @@ pub fn report() -> Result<()> {
         ok96 && ((cmd96 as u32 >> 10) & 1) == 1
     );
 
-    // BIOS 特性表 page7（电源模式支持位）
-    let page7 = dchu.read_settings(7, 0, 256);
+    // BIOS 特性实时查询（原厂page7缓存的来源，不读取缓存）
+    let page7 = dchu.bios_capabilities()?;
     let version = (u16::from(page7[0]) << 8) | u16::from(page7[1]);
     if version >= 256 {
         let mode_bits = page7[17];
@@ -196,8 +120,18 @@ pub fn report() -> Result<()> {
         println!("BIOS 特性表 v0: 电源模式支持位 @offset17 = {}", page7[17]);
     }
 
-    // WMI18 超频默认值包
-    let p18 = dchu.read_package(18);
+    println!(
+        "RPM 风扇表能力位：{}",
+        version == 256 && page7[20] & 0x10 != 0
+    );
+    print_defaults(&dchu)?;
+    println!("PL/降压实际可写性未验证；能力位和保存值不能证明即时参数可写。");
+    println!("MSR 锁位可显式运行 pl；电压写入测试需 uv-test --execute，测试会恢复原编码。");
+    Ok(())
+}
+
+fn print_defaults(dchu: &Dchu) -> Result<()> {
+    let p18 = dchu.read_package(18)?;
     let pl1_raw = u32_le(&p18, 8);
     let pl2_raw = u32_le(&p18, 12);
     let scale = |raw: u32| -> (u32, &'static str) {
@@ -230,20 +164,5 @@ pub fn report() -> Result<()> {
         u32_le(&p18, 221)
     );
 
-    // 实时读数冒烟（证明读通路）
-    for (cmd, name) in [(29, "CPU温度"), (85, "GPU温度"), (16, "CPU频率MHz"), (101, "FanDuty")] {
-        let (ok, v) = dchu.read_int(cmd);
-        println!("read {name} (cmd {cmd}): ok={ok} value={v}");
-    }
-
-    println!();
-    println!("== Phase 0.4 结论（平台级）==");
-    if cpuoc || cpuoc_wmi122 {
-        println!("CPUOC/undervolt: 平台声明支持（OEM CPU_OC 功能同款通道：AppSettings page6 + XTU）");
-        println!("PL1/PL2: 可写（OEM 同款通道：page6 offset 33/37/41 + IsSaved）");
-    } else {
-        println!("CPUOC 能力位未置位：page6+XTU 通道不可靠，undervolt 结论待 MSR 0x150 直接测试");
-    }
-    println!("MSR 0x610/0x150 锁状态：需要 PawnIO 驱动，用管理员权限运行 `pl` / `uv-test` 子命令");
     Ok(())
 }

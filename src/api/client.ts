@@ -1,8 +1,8 @@
 /*
- * 类型化客户端边界。本模块是前端唯一与 Tauri 后端通信的文件（scripts/
- * check-boundaries.mjs 强制）；组件只消费这些类型化封装，不得自行拼命令
- * 字符串或 import @tauri-apps。领域命令族由 api/<域>.ts 拥有，经此处
- * re-export 聚合，消费方统一从 "./api/client" 导入。
+ * 类型化客户端聚合边界：本模块拥有唯一 invoke() 与后端事件封装，SDK
+ * 访问仅限 src/api/（scripts/check-boundaries.mjs 强制）。组件只消费
+ * 类型化 API，不得自行拼命令字符串或 import @tauri-apps。领域 API
+ * 由 api/<域>.ts 拥有，经此处 re-export 聚合。
  */
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { listen as tauriListen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -26,8 +26,27 @@ export function listenEvent<T>(event: string, handler: (payload: T) => void): Pr
 /* 领域模块拥有类型化命令族；本边界聚合其公开面。 */
 export * from "./shared";
 export * from "./app";
+export * from "./window";
 export * from "./hardware";
 export * from "./fans";
 export * from "./power";
+export * from "./supply-mode";
 export * from "./profiles";
+export * from "./profile-policy";
 export * from "./settings";
+export * from "./preferences";
+export * from "./osd";
+export * from "./hotkeys";
+export * from "./gpu";
+export * from "./lighting";
+export * from "./lightbar";
+export * from "./keyboard";
+export * from "./keymap";
+export * from "./devices";
+export * from "./usb";
+export * from "./lan";
+export * from "./battery";
+export * from "./multizone";
+export * from "./microphone";
+export * from "./touchpad";
+export * from "./airplane";

@@ -1,203 +1,353 @@
-//! 性能调校域（Phase 3）：PL1/PL2 功耗墙 + 偏移电压（undervolt）。
-//!
-//! 双通道（契约 §10）：
-//! - **持久化通道（默认，OEM 同款）**：AppSettings page6 写入 + IsSaved=1。
-//!   与 OEM CPU_OC 完全同款语义；生效时机取决于 OEM 后台服务/固件
-//!   （本机 XTU3SERVICE 已安装），失败时无副作用残留——值就是"意图"。
-//! - **运行时通道（可选，需 PawnIO）**：MSR 0x610 直写 PL；0x150 OC Mailbox
-//!   直写电压偏移（plane cpu/gpu/cache），写后回读校验（锁检测内建）。
-//!
-//! 钳位（安全设计 docs/design.md §4）：
-//! - PL1/PL2：35–157 W（基准机默认 135/135，上限按散热保守取 157）
-//! - 核心电压偏移：−150…+50 mV；GT 偏移：−150…0 mV
-
-use anyhow::{anyhow, Context, Result};
-use serde::Serialize;
-
-use crate::hal::{pawnio, Hal};
+//! PL 与电压调节：字段事务、MSR 回读、首次写入前基线恢复。
+pub mod mode;
+pub mod runtime;
+use crate::hal::Hal;
+use anyhow::{Result, anyhow, bail};
+use ccc_core::{
+    msr,
+    settings::{self, Patch},
+};
+use serde::{Deserialize, Serialize};
 
 pub const PL_MIN_W: f64 = 35.0;
 pub const PL_MAX_W: f64 = 157.0;
 pub const UV_MIN_MV: i32 = -150;
 pub const UV_MAX_MV: i32 = 50;
 
+#[derive(Clone, Copy, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct CpuControls {
+    pub pl1_w: Option<f64>,
+    pub pl2_w: Option<f64>,
+    pub core_offset_mv: Option<i32>,
+    pub gt_offset_mv: Option<i32>,
+}
+impl CpuControls {
+    pub fn is_empty(&self) -> bool {
+        self.pl1_w.is_none()
+            && self.pl2_w.is_none()
+            && self.core_offset_mv.is_none()
+            && self.gt_offset_mv.is_none()
+    }
+}
+
+#[derive(Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PowerValues {
+    pub pl1_w: Option<f64>,
+    pub pl2_w: Option<f64>,
+    pub core_offset_mv: Option<f64>,
+    pub gt_offset_mv: Option<f64>,
+}
+
+fn read_runtime(hal: &Hal) -> Result<(PowerValues, Vec<String>)> {
+    let io = hal.open_msr()?;
+    let unit = msr::power_unit(io.read_msr(msr::MSR_RAPL_POWER_UNIT)?);
+    let (pl1, pl2) = msr::decode_power_limits(io.read_msr(msr::MSR_PKG_POWER_LIMIT)?, unit);
+    let mut warnings = Vec::new();
+    let mut voltage = |plane| match msr::read_voltage_units(&io, plane) {
+        Ok(units) => Some(units as f64 / 1.024),
+        Err(error) => {
+            warnings.push(format!("电压域 {plane}：{error}"));
+            None
+        }
+    };
+    Ok((
+        PowerValues {
+            pl1_w: Some(pl1),
+            pl2_w: Some(pl2),
+            core_offset_mv: voltage(0),
+            gt_offset_mv: voltage(1),
+        },
+        warnings,
+    ))
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PowerProfile {
-    /// page6 当前值（固件意图）
     pub pl1_w: Option<f64>,
     pub pl2_w: Option<f64>,
     pub pl_time_s: Option<f64>,
     pub core_offset_mv: Option<f64>,
     pub gt_offset_mv: Option<f64>,
-    /// WMI18 出厂默认（对照基准）
     pub default_pl1_w: Option<f64>,
     pub default_pl2_w: Option<f64>,
     pub default_core_offset_mv: Option<f64>,
-    /// 运行时通道可用性（PawnIO）
     pub msr_runtime_available: bool,
+    pub msr_runtime_error: Option<String>,
+    pub can_restore: bool,
+    pub runtime: PowerValues,
+    pub runtime_warnings: Vec<String>,
     pub warnings: Vec<String>,
 }
 
-fn f32_le(buf: &[u8], at: usize) -> f32 {
-    f32::from_le_bytes([buf[at], buf[at + 1], buf[at + 2], buf[at + 3]])
+fn i32_at(bytes: &[u8], at: usize) -> i32 {
+    i32::from_le_bytes(bytes[at..at + 4].try_into().unwrap())
 }
-fn i32_le(buf: &[u8], at: usize) -> i32 {
-    i32::from_le_bytes([buf[at], buf[at + 1], buf[at + 2], buf[at + 3]])
+fn finite(value: f64) -> Option<f64> {
+    value.is_finite().then_some(value)
 }
-fn u16_le(buf: &[u8], at: usize) -> u16 {
-    u16::from_le_bytes([buf[at], buf[at + 1]])
-}
-fn u32_le(buf: &[u8], at: usize) -> u32 {
-    u32::from_le_bytes([buf[at], buf[at + 1], buf[at + 2], buf[at + 3]])
-}
-
-/// 读取当前性能配置（page6 + WMI18 默认 + 运行时通道可用性）。
-pub fn read_profile(hal: &Hal) -> Result<PowerProfile> {
-    let (page6, page18) = hal.with_dchu(|dchu| {
-        Ok::<(Vec<u8>, [u8; 256]), anyhow::Error>((
-            dchu.read_settings(6, 0, 256),
-            dchu.read_package(18),
-        ))
-    })?;
-
-    let scale_w = |raw: u32| -> f64 {
-        if raw > 1_000_000 {
-            raw as f64 / 1_000_000.0
-        } else if raw > 1_000 {
-            raw as f64 / 1_000.0
-        } else {
-            raw as f64
-        }
-    };
-
-    let uv_raw = u16_le(&page18, 176);
-    let default_uv = if (uv_raw >> 15) & 1 == 1 {
-        (uv_raw ^ 0x8000) as i32
+fn scale_w(raw: u32) -> Option<f64> {
+    let value = if raw > 1_000_000 {
+        raw as f64 / 1_000_000.0
+    } else if raw > 1_000 {
+        raw as f64 / 1_000.0
     } else {
-        -(uv_raw as i32)
+        raw as f64
     };
+    (value > 0.0 && value < 500.0).then_some(value)
+}
 
-    let msr_runtime_available = check_msr_runtime();
+fn saved_values(page: &[u8]) -> PowerValues {
+    PowerValues {
+        pl1_w: finite(i32_at(page, 33) as f64).filter(|v| *v > 0.0),
+        pl2_w: finite(i32_at(page, 37) as f64).filter(|v| *v > 0.0),
+        core_offset_mv: Some(i32_at(page, 61) as f64),
+        gt_offset_mv: Some(i32_at(page, 69) as f64),
+    }
+}
 
+pub fn read_profile(hal: &Hal) -> Result<PowerProfile> {
+    let (page, defaults) =
+        hal.with_dchu(|d| Ok((d.read_settings(6, 0, 256)?, d.read_package(18)?)))?;
+    let (runtime, runtime_warnings, runtime_error) = match read_runtime(hal) {
+        Ok((values, warnings)) => (values, warnings, None),
+        Err(error) => (
+            PowerValues::default(),
+            Vec::new(),
+            Some(format!("{error:#}")),
+        ),
+    };
+    let raw = u16::from_le_bytes([defaults[176], defaults[177]]);
+    let default_uv = if raw & 0x8000 != 0 {
+        (raw ^ 0x8000) as f64
+    } else {
+        -(raw as f64)
+    };
+    let recovery = hal.recovery()?;
+    let saved = saved_values(&page);
     Ok(PowerProfile {
-        pl1_w: Some(i32_le(&page6, 33) as f64),
-        pl2_w: Some(i32_le(&page6, 37) as f64),
-        pl_time_s: Some(f32_le(&page6, 41) as f64),
-        core_offset_mv: Some(i32_le(&page6, 61) as f64),
-        gt_offset_mv: Some(i32_le(&page6, 69) as f64),
-        default_pl1_w: Some(scale_w(u32_le(&page18, 8))),
-        default_pl2_w: Some(scale_w(u32_le(&page18, 12))),
-        default_core_offset_mv: Some(default_uv as f64),
-        msr_runtime_available,
-        warnings: Vec::new(),
+        pl1_w: saved.pl1_w,
+        pl2_w: saved.pl2_w,
+        pl_time_s: finite(f32::from_le_bytes(page[41..45].try_into().unwrap()) as f64),
+        core_offset_mv: saved.core_offset_mv,
+        gt_offset_mv: saved.gt_offset_mv,
+        default_pl1_w: scale_w(u32::from_le_bytes(defaults[8..12].try_into().unwrap())),
+        default_pl2_w: scale_w(u32::from_le_bytes(defaults[12..16].try_into().unwrap())),
+        default_core_offset_mv: Some(default_uv),
+        msr_runtime_available: runtime_error.is_none(),
+        msr_runtime_error: runtime_error,
+        runtime,
+        runtime_warnings,
+        can_restore: !recovery.power.is_empty()
+            || recovery.runtime_pl.is_some()
+            || !recovery.voltage.is_empty(),
+        warnings: vec!["保存值不等于实时生效值".into()],
     })
 }
 
-/// PawnIO 运行时通道探测（不执行写）：能打开设备即视为可用。
-fn check_msr_runtime() -> bool {
-    pawnio::PawnIo::open_with_intel_msr().is_ok()
-}
-
-fn clamp_pl(w: f64) -> Result<f64> {
-    if !(PL_MIN_W..=PL_MAX_W).contains(&w) {
-        return Err(anyhow!("功耗墙 {w}W 超出安全范围 {PL_MIN_W}–{PL_MAX_W}W"));
+pub fn validate_pl(pl1: Option<f64>, pl2: Option<f64>) -> Result<()> {
+    if pl1.is_none() && pl2.is_none() {
+        bail!("没有提供功耗变更");
     }
-    Ok(w)
-}
-
-fn clamp_uv(mv: i32, min: i32, max: i32, label: &str) -> Result<i32> {
-    if !(min..=max).contains(&mv) {
-        return Err(anyhow!("{label}偏移 {mv}mV 超出安全范围 {min}…{max}mV"));
+    for value in [pl1, pl2].into_iter().flatten() {
+        if !value.is_finite() || !(PL_MIN_W..=PL_MAX_W).contains(&value) || value.fract() != 0.0 {
+            bail!("功耗须为 {PL_MIN_W}–{PL_MAX_W}W 的整数");
+        }
     }
-    Ok(mv)
+    validate_pl_order(pl1, pl2)?;
+    Ok(())
 }
 
-/// 持久化通道：写 PL1/PL2（W，None=保持）→ IsSaved=1。
-pub fn apply_pl_persist(hal: &Hal, pl1_w: Option<f64>, pl2_w: Option<f64>) -> Result<()> {
-    let pl1 = pl1_w.map(clamp_pl).transpose()?;
-    let pl2 = pl2_w.map(clamp_pl).transpose()?;
-    hal.with_dchu(|dchu| {
-        let page6 = dchu.read_settings(6, 0, 256);
-        let mut patched = page6.clone();
-        if let Some(v) = pl1 {
-            patched[33..37].copy_from_slice(&(v as i32).to_le_bytes());
-        }
-        if let Some(v) = pl2 {
-            patched[37..41].copy_from_slice(&(v as i32).to_le_bytes());
-        }
-        patched[32] = 1; // IsSaved：固件/服务应用 page6
-        dchu.write_settings(6, 0, &patched)
-    })
-    .context("写入功耗墙（page6）失败")
-}
-
-/// 持久化通道：写电压偏移（mV，None=保持）→ IsSaved=1。
-pub fn apply_voltage_persist(
-    hal: &Hal,
-    core_mv: Option<i32>,
-    gt_mv: Option<i32>,
-) -> Result<()> {
-    let core = core_mv.map(|v| clamp_uv(v, UV_MIN_MV, UV_MAX_MV, "核心电压")).transpose()?;
-    let gt = gt_mv.map(|v| clamp_uv(v, -150, 0, "GT 电压")).transpose()?;
-    hal.with_dchu(|dchu| {
-        let page6 = dchu.read_settings(6, 0, 256);
-        let mut patched = page6.clone();
-        if let Some(v) = core {
-            patched[61..65].copy_from_slice(&v.to_le_bytes());
-        }
-        if let Some(v) = gt {
-            patched[69..73].copy_from_slice(&v.to_le_bytes());
-        }
-        patched[32] = 1;
-        dchu.write_settings(6, 0, &patched)
-    })
-    .context("写入电压偏移（page6）失败")
-}
-
-/// 运行时通道：MSR 0x610 直写 PL（读改写，保留时间窗与锁位）。
-pub fn apply_pl_runtime(_hal: &Hal, pl1_w: Option<f64>, pl2_w: Option<f64>) -> Result<()> {
-    let pl1 = pl1_w.map(clamp_pl).transpose()?;
-    let pl2 = pl2_w.map(clamp_pl).transpose()?;
-    let io = pawnio::PawnIo::open_with_intel_msr()?;
-    let current = io
-        .read_msr(pawnio::MSR_PKG_POWER_LIMIT)
-        .context("读取 MSR 0x610 失败")?;
-    if (current >> 63) & 1 == 1 {
-        return Err(anyhow!("MSR PL 锁定位(bit63)已置位：运行时直写不可用，请使用持久化通道"));
-    }
-    let value = pawnio::encode_power_limit(current, pl1, pl2);
-    io.write_msr(pawnio::MSR_PKG_POWER_LIMIT, value)
-        .context("写入 MSR 0x610 失败")?;
-    let verify = io.read_msr(pawnio::MSR_PKG_POWER_LIMIT)?;
-    if verify & 0x7FFF7FFF_00000000u64 & value != value & 0x7FFF7FFF_00000000u64 {
-        // 粗校验：回读的 PL1/PL2 字段应与写入一致
-        return Err(anyhow!("写入后回读不一致（可能被固件覆盖）"));
+pub fn validate_pl_order(pl1: Option<f64>, pl2: Option<f64>) -> Result<()> {
+    if matches!((pl1, pl2), (Some(a), Some(b)) if !a.is_finite() || !b.is_finite() || a > b) {
+        bail!("持续功耗上限不能高于短时功耗上限，且当前功耗读数须有效");
     }
     Ok(())
 }
 
-/// 运行时通道：OC Mailbox 写核心电压偏移（plane cpu=0 / gpu=1 / cache=2），
-/// 写后回读；回读与目标偏差 >2mV 判定为锁定。
-pub fn apply_voltage_runtime(
-    hal: &Hal,
-    plane: u64,
-    mv: i32,
-) -> Result<f64> {
-    let _ = hal;
-    let clamped = match plane {
-        0 | 2 => clamp_uv(mv, UV_MIN_MV, UV_MAX_MV, "电压")?,
-        1 => clamp_uv(mv, -150, 0, "GT 电压")?,
-        _ => return Err(anyhow!("未知 plane：{plane}")),
-    };
-    let io = pawnio::PawnIo::open_with_intel_msr()?;
-    let current = pawnio::read_voltage_offset(&io, plane).context("读取当前偏移失败")?;
-    let after = pawnio::set_voltage_offset(&io, plane, clamped)?;
-    if (after - clamped as f64).abs() > 2.0 {
-        // 还原现场，避免半程状态
-        let restored = pawnio::set_voltage_offset(&io, plane, current.round() as i32);
-        let _ = restored;
-        return Err(anyhow!("写入未生效（回读 {after:+.1}mV ≠ 目标 {clamped}mV）——OC Mailbox 疑似锁定"));
+pub fn validate_voltage(core: Option<i32>, gt: Option<i32>) -> Result<()> {
+    if core.is_none() && gt.is_none() {
+        bail!("没有提供电压变更");
     }
-    Ok(after)
+    if core.is_some_and(|v| !(UV_MIN_MV..=UV_MAX_MV).contains(&v))
+        || gt.is_some_and(|v| !(-150..=0).contains(&v))
+    {
+        bail!("核心电压偏移范围 −150…+50 mV，核显电压偏移范围 −150…0 mV");
+    }
+    Ok(())
+}
+
+pub fn power_patches(pl1: Option<f64>, pl2: Option<f64>) -> Result<Vec<Patch>> {
+    validate_pl(pl1, pl2)?;
+    Ok([(33, pl1), (37, pl2)]
+        .into_iter()
+        .filter_map(|(at, v)| v.map(|v| Patch::new(at, (v as i32).to_le_bytes())))
+        .collect())
+}
+
+pub fn voltage_patches(core: Option<i32>, gt: Option<i32>) -> Result<Vec<Patch>> {
+    validate_voltage(core, gt)?;
+    Ok([(61, core), (69, gt)]
+        .into_iter()
+        .filter_map(|(at, v)| v.map(|v| Patch::new(at, v.to_le_bytes())))
+        .collect())
+}
+
+pub fn apply_patches(hal: &Hal, patches: &[Patch]) -> Result<()> {
+    let before = checkpoint_patches(hal, patches)?;
+    settings::remember(&mut hal.recovery()?.power, before);
+    hal.with_dchu(|d| {
+        settings::apply(d, 6, patches, Some(&Patch::new(32, [1])))
+            .map(|_| ())
+            .map_err(|e| anyhow!(e))
+    })
+}
+
+pub fn checkpoint_patches(hal: &Hal, patches: &[Patch]) -> Result<Vec<Patch>> {
+    if patches.is_empty() {
+        bail!("没有提供保存设置变更");
+    }
+    hal.with_dchu(|d| {
+        let mut before = patches
+            .iter()
+            .map(|p| {
+                d.read_settings(6, p.offset as i32, p.data.len())
+                    .map(|data| Patch::new(p.offset, data))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        before.push(Patch::new(32, d.read_settings(6, 32, 1)?));
+        Ok(before)
+    })
+}
+
+pub fn restore_patches(hal: &Hal, before: &[Patch]) -> Result<()> {
+    let trigger = before
+        .iter()
+        .find(|p| p.offset == 32)
+        .ok_or_else(|| anyhow!("保存恢复快照缺少 IsSaved 字段"))?;
+    let fields = before
+        .iter()
+        .filter(|p| p.offset != 32)
+        .cloned()
+        .collect::<Vec<_>>();
+    hal.with_dchu(|d| {
+        settings::apply(d, 6, &fields, Some(trigger))
+            .map(|_| ())
+            .map_err(|e| anyhow!(e))
+    })
+}
+
+pub fn saved_patches(hal: &Hal, controls: CpuControls) -> Result<Vec<Patch>> {
+    if controls.is_empty() {
+        bail!("没有提供 CPU 变更");
+    }
+    let mut patches = Vec::new();
+    if controls.pl1_w.is_some() || controls.pl2_w.is_some() {
+        validate_pl(controls.pl1_w, controls.pl2_w)?;
+        let saved = if controls.pl1_w.is_none() || controls.pl2_w.is_none() {
+            saved_values(&hal.with_dchu(|d| d.read_settings(6, 0, 256))?)
+        } else {
+            PowerValues::default()
+        };
+        let first = controls.pl1_w.or(saved.pl1_w);
+        let second = controls.pl2_w.or(saved.pl2_w);
+        if first.is_none() || second.is_none() {
+            bail!("当前保存功耗不完整，需同时设置持续功耗上限和短时功耗上限");
+        }
+        validate_pl_order(first, second)?;
+        patches.extend(power_patches(controls.pl1_w, controls.pl2_w)?);
+    }
+    if controls.core_offset_mv.is_some() || controls.gt_offset_mv.is_some() {
+        patches.extend(voltage_patches(
+            controls.core_offset_mv,
+            controls.gt_offset_mv,
+        )?);
+    }
+    Ok(patches)
+}
+
+pub fn apply_saved(hal: &Hal, controls: CpuControls) -> Result<()> {
+    apply_patches(hal, &saved_patches(hal, controls)?)
+}
+
+pub fn apply_runtime(hal: &Hal, controls: CpuControls) -> Result<()> {
+    if controls.core_offset_mv.is_some() || controls.gt_offset_mv.is_some() {
+        validate_voltage(controls.core_offset_mv, controls.gt_offset_mv)?;
+    }
+    let units = |v: Option<i32>| {
+        v.map(|v| msr::offset_units(v as f64))
+            .transpose()
+            .map_err(|e| anyhow!(e))
+    };
+    runtime::apply(
+        hal,
+        runtime::Settings {
+            pl1_w: controls.pl1_w,
+            pl2_w: controls.pl2_w,
+            core_offset_units: units(controls.core_offset_mv)?,
+            gt_offset_units: units(controls.gt_offset_mv)?,
+        },
+    )
+}
+
+pub fn restore(hal: &Hal) -> Result<()> {
+    let (patches, pl, voltages) = {
+        let state = hal.recovery()?;
+        (state.power.clone(), state.runtime_pl, state.voltage.clone())
+    };
+    let mut errors = Vec::new();
+    if !patches.is_empty() {
+        match restore_patches(hal, &patches) {
+            Ok(_) => hal.recovery()?.power.clear(),
+            Err(e) => errors.push(format!("保存值恢复：{e:#}")),
+        }
+    }
+    if pl.is_some() || !voltages.is_empty() {
+        match hal.open_msr() {
+            Ok(io) => {
+                if let Some(value) = pl {
+                    match msr::restore_power(&io, value) {
+                        Ok(()) => hal.recovery()?.runtime_pl = None,
+                        Err(e) => errors.push(e),
+                    }
+                }
+                for (plane, units) in voltages {
+                    match runtime::voltage_if_changed(&io, plane, units) {
+                        Ok(()) => {
+                            hal.recovery()?.voltage.remove(&plane);
+                        }
+                        Err(e) => errors.push(e),
+                    }
+                }
+            }
+            Err(e) => errors.push(format!("运行值恢复：{e:#}")),
+        }
+    }
+    if !errors.is_empty() {
+        bail!("{}", errors.join("；"));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn rejects_partial_invalid_and_inverted_power() {
+        assert!(validate_pl(None, None).is_err());
+        assert!(validate_pl(Some(f64::NAN), Some(80.0)).is_err());
+        assert!(validate_pl(Some(90.0), Some(80.0)).is_err());
+        assert!(validate_pl(Some(60.5), Some(80.0)).is_err());
+        assert!(validate_pl(Some(60.0), Some(80.0)).is_ok());
+    }
+    #[test]
+    fn patches_touch_only_the_requested_fields() {
+        assert_eq!(
+            power_patches(Some(65.0), None).unwrap(),
+            vec![Patch::new(33, 65i32.to_le_bytes())]
+        );
+        assert!(voltage_patches(None, Some(1)).is_err());
+    }
 }

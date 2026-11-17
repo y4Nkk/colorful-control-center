@@ -5,24 +5,35 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && npm run check:boundaries && vite build",
+    "build": "tsc && npm run check:boundaries && npm run check:icons && vite build",
+    "generate:icons": "node scripts/generate-icons.mjs",
+    "check:icons": "node scripts/generate-icons.mjs --check",
     "check:boundaries": "node scripts/check-boundaries.mjs",
+    "check:controls": "node --test scripts/ui-boundaries.test.mjs scripts/select-layout.test.mjs",
+    "check:ui": "playwright test -c tools/ui-check/playwright.config.ts",
+    "check:ui:native": "node tools/ui-check/native.mjs",
     "verify-notes": "node scripts/verify-notes.mjs",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build:installer": "pwsh -NoProfile -File scripts/build-windows-installer.ps1",
+    "check:installer": "pwsh -NoProfile -File tools/installer-check/check.ps1"
   },
   "dependencies": {
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2"
+    "@tauri-apps/plugin-opener": "^2",
+    "lucide-react": "^1.73.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.2",
+    "postcss": "^8.5.32",
+    "postcss-selector-parser": "^7.1.0",
     "typescript": "~6.0.3",
-    "vite": "^8.0.16",
-    "@tauri-apps/cli": "^2"
+    "vite": "^8.0.16"
   }
 }

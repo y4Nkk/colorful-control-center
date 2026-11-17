@@ -1,0 +1,171 @@
+use super::{
+    model::{self, Record, State},
+    transaction::Io,
+};
+use anyhow::{Result, bail};
+use std::path::PathBuf;
+use windows::{
+    Win32::System::{Com::*, TaskScheduler::*, Variant::VARIANT},
+    core::BSTR,
+};
+use windows_sys::Win32::{Foundation::*, Security::*, System::Threading::*};
+
+struct Apartment;
+impl Drop for Apartment {
+    fn drop(&mut self) {
+        unsafe { CoUninitialize() };
+    }
+}
+pub struct Native {
+    folder: ITaskFolder,
+    _apartment: Apartment,
+    pub user: String,
+    pub executable: String,
+    pub path: PathBuf,
+}
+pub fn user() -> Result<String> {
+    let mut token = std::ptr::null_mut();
+    if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    let result = (|| {
+        let mut size = 0;
+        unsafe { GetTokenInformation(token, TokenUser, std::ptr::null_mut(), 0, &mut size) };
+        if size == 0 || size > 65536 {
+            bail!("当前用户令牌大小无效");
+        }
+        let mut buffer = vec![0usize; (size as usize).div_ceil(std::mem::size_of::<usize>())];
+        if unsafe {
+            GetTokenInformation(
+                token,
+                TokenUser,
+                buffer.as_mut_ptr().cast(),
+                size,
+                &mut size,
+            )
+        } == 0
+        {
+            return Err(std::io::Error::last_os_error().into());
+        }
+        let sid = unsafe { &*(buffer.as_ptr().cast::<TOKEN_USER>()) }.User.Sid;
+        let count = unsafe { GetSidSubAuthorityCount(sid) };
+        if count.is_null() {
+            bail!("当前用户SID无效");
+        }
+        let authority = unsafe { GetSidIdentifierAuthority(sid) };
+        if authority.is_null() {
+            bail!("当前用户SID无效");
+        }
+        let authority = unsafe { (*authority).Value }
+            .into_iter()
+            .fold(0u64, |v, b| (v << 8) | u64::from(b));
+        let mut text = format!("S-1-{authority}");
+        for index in 0..unsafe { *count } {
+            text.push_str(&format!("-{}", unsafe {
+                *GetSidSubAuthority(sid, u32::from(index))
+            }));
+        }
+        Ok(text)
+    })();
+    unsafe { CloseHandle(token) };
+    result
+}
+impl Native {
+    pub fn new(path: PathBuf) -> Result<Self> {
+        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED).ok()? };
+        let apartment = Apartment;
+        let service: ITaskService =
+            unsafe { CoCreateInstance(&TaskScheduler, None, CLSCTX_INPROC_SERVER)? };
+        let empty = VARIANT::default();
+        unsafe { service.Connect(&empty, &empty, &empty, &empty)? };
+        Ok(Self {
+            folder: unsafe { service.GetFolder(&BSTR::from("\\"))? },
+            _apartment: apartment,
+            user: user()?,
+            executable: std::env::current_exe()?
+                .to_str()
+                .ok_or_else(|| anyhow::anyhow!("程序路径不是UTF-8"))?
+                .into(),
+            path,
+        })
+    }
+    fn name(&self) -> BSTR {
+        BSTR::from(format!("ColorfulControlCenter-{}", self.user))
+    }
+    fn raw(&self) -> Result<Option<String>> {
+        match unsafe { self.folder.GetTask(&self.name()) } {
+            Ok(task) => Ok(Some(unsafe { task.Xml()? }.to_string())),
+            Err(error) if error.code().0 as u32 == 0x80070002 => Ok(None),
+            Err(error) => Err(error.into()),
+        }
+    }
+}
+impl Io for Native {
+    fn state(&self) -> Result<State> {
+        let raw = self.raw()?;
+        let task = raw
+            .as_ref()
+            .map(|value| {
+                model::task_level(value, &self.executable, &self.user)
+                    .map(|level| model::xml(&self.executable, &self.user, level).unwrap())
+            })
+            .transpose()?;
+        let state = State {
+            task,
+            run: super::super::registry::read_value()?,
+        };
+        model::validate(&state, &self.executable, &self.user)?;
+        Ok(state)
+    }
+    fn record(&self) -> Result<Option<Record>> {
+        let bytes = match std::fs::read(&self.path) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error.into()),
+        };
+        if bytes.len() > 262144 {
+            bail!("登录自启恢复记录过大");
+        }
+        let Some(record): Option<Record> = serde_json::from_slice(&bytes)? else {
+            return Ok(None);
+        };
+        if record.version != 1 {
+            bail!("登录自启恢复记录版本无效");
+        }
+        model::validate(&record.before, &self.executable, &self.user)?;
+        model::validate(&record.applied, &self.executable, &self.user)?;
+        Ok(Some(record))
+    }
+    fn task(&self, xml: Option<&str>) -> Result<()> {
+        if let Some(xml) = xml {
+            model::task_level(xml, &self.executable, &self.user)?;
+            let empty = VARIANT::default();
+            unsafe {
+                self.folder.RegisterTask(
+                    &self.name(),
+                    &BSTR::from(xml),
+                    TASK_CREATE_OR_UPDATE.0,
+                    &VARIANT::from(self.user.as_str()),
+                    &empty,
+                    TASK_LOGON_INTERACTIVE_TOKEN,
+                    &empty,
+                )?
+            };
+        } else if self.raw()?.is_some() {
+            unsafe { self.folder.DeleteTask(&self.name(), 0)? };
+        }
+        Ok(())
+    }
+    fn run(&self, value: Option<&str>) -> Result<()> {
+        super::super::registry::write_value(value)
+    }
+    fn save(&self, record: &Option<Record>) -> Result<()> {
+        std::fs::create_dir_all(
+            self.path
+                .parent()
+                .ok_or_else(|| anyhow::anyhow!("恢复记录没有目录"))?,
+        )?;
+        crate::storage::write(&self.path, &serde_json::to_vec(record)?)?;
+        Ok(())
+    }
+}

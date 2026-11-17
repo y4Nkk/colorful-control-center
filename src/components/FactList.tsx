@@ -2,6 +2,7 @@
  * 键值事实行唯一原语（DESIGN.md 组件所有权）：每行一对标签与值，
  * 值可携带状态（ok=false / stale 时由调用方传入占位文本与告警色）。
  */
+import { Surface } from "./Surface";
 import type { ReactNode } from "react";
 
 export interface Fact {
@@ -11,9 +12,9 @@ export interface Fact {
   danger?: boolean;
 }
 
-export function FactList({ facts }: { facts: Fact[] }) {
+export function FactList({ facts, compact = false, layout = "rows" }: { facts: Fact[]; compact?: boolean; layout?: "rows" | "tiles" }) {
   return (
-    <div className="ccc-facts">
+    <Surface as="div" variant={layout === "tiles" ? "plain" : "group"} className="ccc-facts" data-layout={layout} data-density={compact ? "compact" : undefined}>
       {facts.map((fact) => (
         <div key={fact.label} className="ccc-fact-row">
           <span className="ccc-fact-label">{fact.label}</span>
@@ -22,6 +23,6 @@ export function FactList({ facts }: { facts: Fact[] }) {
           </span>
         </div>
       ))}
-    </div>
+    </Surface>
   );
 }

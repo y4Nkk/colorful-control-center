@@ -8,7 +8,7 @@ param(
     [switch]$Save
 )
 
-$ErrorActionPreference = "SilentlyContinue"
+$ErrorActionPreference = "Stop"
 $out = New-Object System.Collections.Generic.List[string]
 function Log { param($s) $out.Add($s); Write-Host $s }
 
@@ -35,7 +35,7 @@ if ($classes) {
     foreach ($c in $classes) {
         Log ""
         Log "── $($c.CimClassName)  (super: $($c.CimSuperClassName))"
-        foreach ($p in ($c.CimClassProperties | Where-Object { $_.Name -notmatch '^_?' })) {
+        foreach ($p in ($c.CimClassProperties | Where-Object { $_.Name -notmatch '^_' })) {
             Log "    prop  $($p.Name) : $($p.CimType)"
         }
         foreach ($m in $c.CimClassMethods) {

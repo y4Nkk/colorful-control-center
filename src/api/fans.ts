@@ -2,6 +2,22 @@
 import { invoke } from "./client";
 import type { OpResult } from "./shared";
 
+export type FanId = "cpu" | "gpu1" | "gpu2" | "sys";
+export const FAN_LABELS: Record<FanId, string> = { cpu: "CPU", gpu1: "GPU 1", gpu2: "GPU 2", sys: "系统" };
+export interface RpmPoint { tempC: number; rpmPct: number }
+export interface RpmFan { id: FanId; maximumRpm: number; points: RpmPoint[] }
+export interface SoftwarePoint { tempC: number; dutyPct: number }
+export interface SoftwareCurve { points: SoftwarePoint[]; hysteresisC: number; rampPctPerS: number }
+export type SoftwareCurves = Partial<Record<FanId, SoftwareCurve>>;
+export interface StoredFanCheckpoint {
+  software: SoftwareCurves | null;
+  package: number[] | null;
+  rpmPairs: { query: number; tables: [number[], number[]] }[] | null;
+  fields: { offset: number; data: number[] }[];
+  mode: number;
+  offset: number;
+}
+
 export interface FanPointSet {
   id: "cpu" | "gpu1" | "gpu2";
   present: boolean;
@@ -14,11 +30,21 @@ export interface FanPointSet {
 }
 
 export interface FanProfile {
+  softwareSupported: boolean;
+  software: SoftwareCurves | null;
+  curveKind: "twoPoint" | "rpmTable";
+  rpmFans: RpmFan[];
+  availableModes: number[];
   fanCount: number;
   customSupported: boolean;
   currentMode: number;
   offsetPct: number;
   fans: FanPointSet[];
+  canRestore: boolean;
+  warnings: string[];
+  safetyStatus: string;
+  blockedReason: string | null;
+  softwareBlockedReason: string | null;
 }
 
 export interface CurvePointsDto {
@@ -32,12 +58,15 @@ export interface CurvePointsDto {
 export const FAN_MODES: ReadonlyArray<{ id: number; label: string }> = [
   { id: 0, label: "自动" },
   { id: 1, label: "全速" },
-  { id: 5, label: "MaxQ" },
+  { id: 5, label: "能效优先" },
   { id: 6, label: "自定义" },
   { id: 8, label: "静音" },
 ];
 
 export const readFanProfile = (): Promise<FanProfile> => invoke("read_fan_profile");
+export const applySoftwareFanCurves = (curves: SoftwareCurves): Promise<OpResult> => invoke("apply_software_fan_curves", { curves });
+export const applyRpmFanCurves = (curves: Partial<Record<FanId, RpmPoint[]>>): Promise<OpResult> =>
+  invoke("apply_rpm_fan_curves", { curves });
 export const applyFanCurve = (
   cpu: CurvePointsDto | null,
   gpu1: CurvePointsDto | null,
@@ -46,3 +75,21 @@ export const applyFanCurve = (
 export const setFanMode = (mode: number): Promise<OpResult> => invoke("set_fan_mode", { mode });
 export const setFanOffset = (pct: number): Promise<OpResult> => invoke("set_fan_offset", { pct });
 export const restoreFanDefault = (): Promise<OpResult> => invoke("restore_fan_default");
+export const restoreFanProfile = (): Promise<OpResult> => invoke("restore_fan_profile");
+
+export interface DustSchedule { weekdays: number; hour: number; onResume: boolean }
+export interface FanDustProfile {
+  revision: string;
+  running: boolean;
+  current: DustSchedule | null;
+  initial: { schedule: DustSchedule | null } | null;
+  softwareActive: boolean;
+  lastStart: "sent" | "uncertain" | "running" | "completed" | null;
+  startBlockedReason: string | null;
+  scheduleBlockedReason: string | null;
+}
+export const readFanDust = (): Promise<FanDustProfile | null> => invoke("read_fan_dust");
+export const startFanDust = (expectedRevision: string): Promise<void> => invoke("start_fan_dust", { expectedRevision });
+export const applyFanDustSchedule = (expectedRevision: string, schedule: DustSchedule): Promise<void> =>
+  invoke("apply_fan_dust_schedule", { request: { expectedRevision, schedule } });
+export const restoreFanDustSchedule = (expectedRevision: string): Promise<void> => invoke("restore_fan_dust_schedule", { expectedRevision });

@@ -1,0 +1,71 @@
+[package]
+name = "control-sim"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# 硬件域模拟测试不链接 Tauri/WebView2，禁止启动应用或初始化硬件。
+[workspace]
+
+[[bin]]
+name = "watchdog-fixture"
+path = "src/bin/watchdog-fixture.rs"
+test = false
+
+[[bin]]
+name = "owned-process-fixture"
+path = "src/bin/owned-process-fixture.rs"
+test = false
+
+[[bin]]
+name = "storage-fixture"
+path = "src/bin/storage-fixture.rs"
+test = false
+
+[[bin]]
+name = "fan-safety-fixture"
+path = "src/bin/fan-safety-fixture.rs"
+test = false
+
+[[bin]]
+name = "lease-fixture"
+path = "src/bin/lease-fixture.rs"
+test = false
+
+[[bin]]
+name = "display-fixture"
+path = "src/bin/display-fixture.rs"
+test = false
+
+[[bin]]
+name = "gpu-power-fixture"
+path = "src/bin/gpu-power-fixture.rs"
+test = false
+
+[[bin]]
+name = "gpu-session-fixture"
+path = "src/bin/gpu-session-fixture.rs"
+test = false
+
+[[bin]]
+name = "calibration-fixture"
+path = "src/bin/calibration-fixture.rs"
+test = false
+
+[[bin]]
+name = "lan-authorization-fixture"
+path = "src/bin/lan-authorization-fixture.rs"
+test = false
+
+[dependencies]
+anyhow = "1"
+log = "0.4"
+tempfile = "3.27.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+roxmltree = "0.20.0"
+windows = { version = "0.62.2", features = ["Win32_Devices_FunctionDiscovery", "Win32_Foundation", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_System_Ole", "Win32_System_Rpc", "Win32_System_Wmi", "Win32_UI_Shell_PropertiesSystem"] }
+ccc-core = { path = "../../crates/ccc-core" }
+sha2 = "0.10"
+nvml-wrapper = "0.13.0"
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Globalization", "Win32_Graphics_Gdi", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_LibraryLoader", "Win32_System_IO", "Win32_System_Registry", "Win32_System_Power", "Win32_System_Performance", "Win32_System_Com", "Win32_System_Threading", "Win32_System_JobObjects", "Win32_System_SystemInformation", "Win32_System_WindowsProgramming", "Win32_System_EventLog", "Win32_System_Services", "Win32_System_Diagnostics_ToolHelp", "Win32_Devices_DeviceAndDriverInstallation", "Win32_Devices_HumanInterfaceDevice", "Win32_UI_Shell", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging"] }

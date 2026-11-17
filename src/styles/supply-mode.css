@@ -1,0 +1,11 @@
+.ccc-control-devices > .ccc-supply-mode { grid-column: 1 / -1; }
+.ccc-supply-mode-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--ccc-space-4); align-items: start; }
+.ccc-supply-mode-current, .ccc-supply-mode-stack, .ccc-supply-mode-summary, .ccc-supply-mode-case, .ccc-supply-mode-recovery { display: flex; flex-direction: column; gap: var(--ccc-space-3); min-width: 0; }
+.ccc-supply-mode-summary, .ccc-supply-mode-case { padding: var(--ccc-space-4); }
+.ccc-supply-mode-scenarios, .ccc-supply-mode-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-3); min-width: 0; }
+.ccc-supply-mode h3, .ccc-supply-mode h4 { margin: 0; font-size: var(--ccc-text-sm); }
+.ccc-supply-mode p { margin: 0; overflow-wrap: anywhere; }
+.ccc-supply-mode-clock, .ccc-supply-mode-raw { font-family: var(--ccc-font-mono); font-size: var(--ccc-text-sm); }
+.ccc-supply-mode-raw { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+@container ccc-control (max-width: 700px) { .ccc-supply-mode-columns { grid-template-columns: minmax(0, 1fr); } }
+@container ccc-control (max-width: 500px) { .ccc-supply-mode-scenarios, .ccc-supply-mode-pair { grid-template-columns: minmax(0, 1fr); } }

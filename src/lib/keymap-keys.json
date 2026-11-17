@@ -1,0 +1,454 @@
+[
+  {
+    "scanCode": 1,
+    "label": "ESC"
+  },
+  {
+    "scanCode": 2,
+    "label": "1"
+  },
+  {
+    "scanCode": 3,
+    "label": "2"
+  },
+  {
+    "scanCode": 4,
+    "label": "3"
+  },
+  {
+    "scanCode": 5,
+    "label": "4"
+  },
+  {
+    "scanCode": 6,
+    "label": "5"
+  },
+  {
+    "scanCode": 7,
+    "label": "6"
+  },
+  {
+    "scanCode": 8,
+    "label": "7"
+  },
+  {
+    "scanCode": 9,
+    "label": "8"
+  },
+  {
+    "scanCode": 10,
+    "label": "9"
+  },
+  {
+    "scanCode": 11,
+    "label": "0"
+  },
+  {
+    "scanCode": 12,
+    "label": "-"
+  },
+  {
+    "scanCode": 13,
+    "label": "="
+  },
+  {
+    "scanCode": 14,
+    "label": "←BACKSPACE"
+  },
+  {
+    "scanCode": 15,
+    "label": "TAB ↹"
+  },
+  {
+    "scanCode": 16,
+    "label": "Q"
+  },
+  {
+    "scanCode": 17,
+    "label": "W"
+  },
+  {
+    "scanCode": 18,
+    "label": "E"
+  },
+  {
+    "scanCode": 19,
+    "label": "R"
+  },
+  {
+    "scanCode": 20,
+    "label": "T"
+  },
+  {
+    "scanCode": 21,
+    "label": "Y"
+  },
+  {
+    "scanCode": 22,
+    "label": "U"
+  },
+  {
+    "scanCode": 23,
+    "label": "I"
+  },
+  {
+    "scanCode": 24,
+    "label": "O"
+  },
+  {
+    "scanCode": 25,
+    "label": "P"
+  },
+  {
+    "scanCode": 26,
+    "label": "["
+  },
+  {
+    "scanCode": 27,
+    "label": "]"
+  },
+  {
+    "scanCode": 28,
+    "label": "↲ENTER"
+  },
+  {
+    "scanCode": 29,
+    "label": "LEFT CTRL"
+  },
+  {
+    "scanCode": 30,
+    "label": "A"
+  },
+  {
+    "scanCode": 31,
+    "label": "S"
+  },
+  {
+    "scanCode": 32,
+    "label": "D"
+  },
+  {
+    "scanCode": 33,
+    "label": "F"
+  },
+  {
+    "scanCode": 34,
+    "label": "G"
+  },
+  {
+    "scanCode": 35,
+    "label": "H"
+  },
+  {
+    "scanCode": 36,
+    "label": "J"
+  },
+  {
+    "scanCode": 37,
+    "label": "K"
+  },
+  {
+    "scanCode": 38,
+    "label": "L"
+  },
+  {
+    "scanCode": 39,
+    "label": ";"
+  },
+  {
+    "scanCode": 40,
+    "label": "'"
+  },
+  {
+    "scanCode": 41,
+    "label": "`"
+  },
+  {
+    "scanCode": 42,
+    "label": "⇧SHIFT"
+  },
+  {
+    "scanCode": 43,
+    "label": "\\"
+  },
+  {
+    "scanCode": 44,
+    "label": "Z"
+  },
+  {
+    "scanCode": 45,
+    "label": "X"
+  },
+  {
+    "scanCode": 46,
+    "label": "C"
+  },
+  {
+    "scanCode": 47,
+    "label": "V"
+  },
+  {
+    "scanCode": 48,
+    "label": "B"
+  },
+  {
+    "scanCode": 49,
+    "label": "N"
+  },
+  {
+    "scanCode": 50,
+    "label": "M"
+  },
+  {
+    "scanCode": 51,
+    "label": ","
+  },
+  {
+    "scanCode": 52,
+    "label": "."
+  },
+  {
+    "scanCode": 53,
+    "label": "/"
+  },
+  {
+    "scanCode": 54,
+    "label": "⇧SHIFT"
+  },
+  {
+    "scanCode": 55,
+    "label": "*"
+  },
+  {
+    "scanCode": 56,
+    "label": "ALT"
+  },
+  {
+    "scanCode": 57,
+    "label": "SPACE"
+  },
+  {
+    "scanCode": 58,
+    "label": "CAPS LOCK"
+  },
+  {
+    "scanCode": 59,
+    "label": "F1"
+  },
+  {
+    "scanCode": 60,
+    "label": "F2"
+  },
+  {
+    "scanCode": 61,
+    "label": "F3"
+  },
+  {
+    "scanCode": 62,
+    "label": "F4"
+  },
+  {
+    "scanCode": 63,
+    "label": "F5"
+  },
+  {
+    "scanCode": 64,
+    "label": "F6"
+  },
+  {
+    "scanCode": 65,
+    "label": "F7"
+  },
+  {
+    "scanCode": 66,
+    "label": "F8"
+  },
+  {
+    "scanCode": 67,
+    "label": "F9"
+  },
+  {
+    "scanCode": 68,
+    "label": "F10"
+  },
+  {
+    "scanCode": 69,
+    "label": "NUM LOCK"
+  },
+  {
+    "scanCode": 70,
+    "label": "Scr LK"
+  },
+  {
+    "scanCode": 71,
+    "label": "7(HOME)"
+  },
+  {
+    "scanCode": 72,
+    "label": "8(↑)"
+  },
+  {
+    "scanCode": 73,
+    "label": "9(PGUP)"
+  },
+  {
+    "scanCode": 74,
+    "label": "-"
+  },
+  {
+    "scanCode": 75,
+    "label": "4(←)"
+  },
+  {
+    "scanCode": 76,
+    "label": "5"
+  },
+  {
+    "scanCode": 77,
+    "label": "6(→)"
+  },
+  {
+    "scanCode": 78,
+    "label": "+"
+  },
+  {
+    "scanCode": 79,
+    "label": "1(END)"
+  },
+  {
+    "scanCode": 80,
+    "label": "2(↓)"
+  },
+  {
+    "scanCode": 81,
+    "label": "3(PGDN)"
+  },
+  {
+    "scanCode": 82,
+    "label": "0(INS)"
+  },
+  {
+    "scanCode": 83,
+    "label": ".(DEL)"
+  },
+  {
+    "scanCode": 86,
+    "label": "\\"
+  },
+  {
+    "scanCode": 87,
+    "label": "F11"
+  },
+  {
+    "scanCode": 88,
+    "label": "F12"
+  },
+  {
+    "scanCode": 112,
+    "label": "カタカナひらがな"
+  },
+  {
+    "scanCode": 115,
+    "label": "/"
+  },
+  {
+    "scanCode": 121,
+    "label": "変換"
+  },
+  {
+    "scanCode": 123,
+    "label": "無変換"
+  },
+  {
+    "scanCode": 125,
+    "label": "￥"
+  },
+  {
+    "scanCode": 126,
+    "label": "."
+  },
+  {
+    "scanCode": 57372,
+    "label": "↲ENTER"
+  },
+  {
+    "scanCode": 57373,
+    "label": "RIGHT CTRL"
+  },
+  {
+    "scanCode": 57378,
+    "label": "Play"
+  },
+  {
+    "scanCode": 57386,
+    "label": "Pause/Break"
+  },
+  {
+    "scanCode": 57397,
+    "label": "/"
+  },
+  {
+    "scanCode": 57399,
+    "label": "PRTSC"
+  },
+  {
+    "scanCode": 57400,
+    "label": "ALT"
+  },
+  {
+    "scanCode": 57414,
+    "label": "Break"
+  },
+  {
+    "scanCode": 57415,
+    "label": "HOME"
+  },
+  {
+    "scanCode": 57416,
+    "label": "▲"
+  },
+  {
+    "scanCode": 57417,
+    "label": "PGUP"
+  },
+  {
+    "scanCode": 57419,
+    "label": "◀"
+  },
+  {
+    "scanCode": 57421,
+    "label": "▶"
+  },
+  {
+    "scanCode": 57423,
+    "label": "END"
+  },
+  {
+    "scanCode": 57424,
+    "label": "▼"
+  },
+  {
+    "scanCode": 57425,
+    "label": "PGDN"
+  },
+  {
+    "scanCode": 57426,
+    "label": "INS"
+  },
+  {
+    "scanCode": 57427,
+    "label": "DEL"
+  },
+  {
+    "scanCode": 57435,
+    "label": "WIN"
+  },
+  {
+    "scanCode": 57437,
+    "label": "MENU"
+  },
+  {
+    "scanCode": 57629,
+    "label": "Pause"
+  }
+]

@@ -1,0 +1,250 @@
+use super::*;
+use crate::profiles::application::{Origin, Permission};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+
+fn permission(enabled: &Arc<AtomicBool>) -> Permission {
+    let enabled = enabled.clone();
+    Permission::new(move || {
+        anyhow::ensure!(enabled.load(Ordering::SeqCst), "自动档案授权已撤销");
+        Ok(())
+    })
+}
+
+#[test]
+fn background_system_permission_is_checked_before_display_trial() {
+    for origin in [Origin::Startup, Origin::Ac, Origin::Battery, Origin::Resume] {
+        let mut h = Harness::new();
+        h.enable_lan();
+        let mut runtime = h.runtime();
+        runtime.origin = origin;
+        runtime.permission = Some(Permission::with_mode_driver(
+            || Ok(()),
+            |_| Ok(()),
+            || anyhow::bail!("isolated token is not elevated"),
+        ));
+        let result = h
+            .application
+            .begin(runtime, &h.file, None, Some(&h.review), None, None);
+        let report = result.unwrap();
+        assert!(!report.targets_applied && report.pending.is_none());
+        assert!(
+            report
+                .steps
+                .iter()
+                .any(|step| !step.ok && step.message.contains("not elevated"))
+        );
+        assert_eq!(h.f.lan.io.authorizations.load(Ordering::SeqCst), 0);
+        assert_eq!(h.f.lan.io.writes.load(Ordering::SeqCst), 0);
+        h.no_other_writes();
+        assert!(h.f.display.io.0.lock().unwrap().writes.is_empty());
+    }
+}
+
+#[test]
+fn ordinary_background_profile_does_not_require_system_permission() {
+    let h = Harness::new();
+    let mut runtime = h.runtime();
+    runtime.origin = Origin::Startup;
+    runtime.permission = Some(Permission::with_mode_driver(
+        || Ok(()),
+        |_| Ok(()),
+        || anyhow::bail!("must not query elevation without privileged changes"),
+    ));
+    let report = h
+        .application
+        .begin(runtime, &h.file, None, Some(&h.review), None, None)
+        .unwrap();
+    assert!(report.pending.is_some());
+    h.no_other_writes();
+    h.application.cancel(h.runtime(), report.id).unwrap();
+    h.restored();
+}
+
+#[test]
+fn origin_serialization_uses_one_current_contract_without_startup_flag() {
+    for (origin, value) in [
+        (Origin::Manual, "manual"),
+        (Origin::Startup, "startup"),
+        (Origin::Ac, "ac"),
+        (Origin::Battery, "battery"),
+        (Origin::Resume, "resume"),
+    ] {
+        assert_eq!(serde_json::to_value(origin).unwrap(), value);
+    }
+    let h = Harness::new();
+    let report = h.begin();
+    let value = serde_json::to_value(report).unwrap();
+    assert_eq!(value["origin"], "manual");
+    assert!(value.get("startup").is_none());
+}
+
+#[test]
+fn automatic_origin_requires_permission_and_manual_origin_cannot_inherit_one() {
+    let h = Harness::new();
+    for origin in [Origin::Startup, Origin::Ac, Origin::Battery, Origin::Resume] {
+        let mut runtime = h.runtime();
+        runtime.origin = origin;
+        assert!(
+            h.application
+                .begin(runtime, &h.file, None, Some(&h.review), None, None)
+                .is_err()
+        );
+    }
+    for origin in [Origin::Manual] {
+        let mut runtime = h.runtime();
+        runtime.origin = origin;
+        runtime.permission = Some(Permission::new(|| Ok(())));
+        assert!(
+            h.application
+                .begin(runtime, &h.file, None, Some(&h.review), None, None)
+                .is_err()
+        );
+    }
+    h.no_other_writes();
+    assert!(h.f.display.io.0.lock().unwrap().writes.is_empty());
+}
+
+#[test]
+fn revoked_before_begin_has_no_display_or_other_output() {
+    let h = Harness::new();
+    let enabled = Arc::new(AtomicBool::new(false));
+    let mut runtime = h.runtime();
+    runtime.origin = Origin::Ac;
+    runtime.permission = Some(permission(&enabled));
+    assert!(
+        h.application
+            .begin(runtime, &h.file, None, Some(&h.review), None, None)
+            .is_err()
+    );
+    assert!(h.f.display.io.0.lock().unwrap().writes.is_empty());
+    h.no_other_writes();
+    assert!(
+        h.application
+            .read(&h.f.display.controller)
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
+fn manual_keep_cannot_discard_automatic_permission_and_recovery_is_allowed() {
+    let h = Harness::new();
+    let enabled = Arc::new(AtomicBool::new(true));
+    let mut runtime = h.runtime();
+    runtime.origin = Origin::Battery;
+    runtime.permission = Some(permission(&enabled));
+    let report = h
+        .application
+        .begin(runtime, &h.file, None, Some(&h.review), None, None)
+        .unwrap();
+    enabled.store(false, Ordering::SeqCst);
+    let report = h.application.keep(h.runtime(), report.id).unwrap();
+    assert_eq!(report.origin, Origin::Battery);
+    assert!(!report.targets_applied && report.pending.is_none());
+    assert!(
+        report
+            .steps
+            .iter()
+            .any(|s| !s.ok && s.message.contains("授权已撤销"))
+    );
+    h.no_other_writes();
+    h.restored();
+}
+
+#[test]
+fn revoked_while_waiting_for_system_authorization_has_no_remaining_output() {
+    let mut h = Harness::new();
+    h.enable_lan();
+    let enabled = Arc::new(AtomicBool::new(true));
+    let mut runtime = h.runtime();
+    runtime.origin = Origin::Resume;
+    runtime.permission = Some(permission(&enabled));
+    let report = h
+        .application
+        .begin(runtime, &h.file, None, Some(&h.review), None, None)
+        .unwrap();
+    let grant = enabled.clone();
+    *h.f.lan.io.on_authorize.lock().unwrap() =
+        Some(Box::new(move || grant.store(false, Ordering::SeqCst)));
+    let report = h.application.keep(h.runtime(), report.id).unwrap();
+    assert!(!report.targets_applied && report.pending.is_none());
+    assert!(
+        report
+            .steps
+            .iter()
+            .any(|s| !s.ok && s.message.contains("授权已撤销"))
+    );
+    assert_eq!(h.f.lan.io.executions.load(Ordering::SeqCst), 0);
+    h.no_other_writes();
+    h.restored();
+}
+
+#[test]
+fn revocation_after_a_device_transaction_rolls_it_back_without_blocking_recovery() {
+    let h = Harness::new();
+    let initial = h.f.device.0.lock().unwrap().pages[6][33..37].to_vec();
+    let device = h.f.device.clone();
+    let mut runtime = h.runtime();
+    runtime.origin = Origin::Ac;
+    runtime.permission = Some(Permission::new(move || {
+        anyhow::ensure!(
+            device.0.lock().unwrap().pages[6][33..37] != 77i32.to_le_bytes(),
+            "供电条件已变化"
+        );
+        Ok(())
+    }));
+    let report = h
+        .application
+        .begin(runtime, &h.file, None, Some(&h.review), None, None)
+        .unwrap();
+    let report = h.application.keep(h.runtime(), report.id).unwrap();
+    assert!(!report.targets_applied && report.pending.is_none());
+    assert!(
+        report
+            .steps
+            .iter()
+            .any(|s| !s.ok && s.step == "档案授权复核")
+    );
+    assert_eq!(h.f.device.0.lock().unwrap().pages[6][33..37], initial);
+    h.restored();
+}
+
+#[test]
+fn most_recent_automatic_result_survives_manual_application_without_erasing_startup() {
+    let h = Harness::new();
+    let mut runtime = h.runtime();
+    runtime.origin = Origin::Ac;
+    runtime.permission = Some(Permission::new(|| Ok(())));
+    let initial = h
+        .application
+        .begin(runtime, &h.file, None, Some(&h.review), None, None)
+        .unwrap();
+    let completed = h.application.keep(h.runtime(), initial.id).unwrap();
+    assert!(completed.targets_applied);
+    let review =
+        h.f.display
+            .controller
+            .preview_profile(h.file.settings.display.as_ref().unwrap(), None)
+            .unwrap();
+    h.application
+        .begin(h.runtime(), &h.file, None, Some(&review), None, None)
+        .unwrap();
+    let automatic = h
+        .application
+        .automatic_report(&h.f.display.controller)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        (automatic.id, automatic.revision, automatic.origin),
+        (completed.id, completed.revision, Origin::Ac)
+    );
+    assert!(
+        h.application
+            .startup_report(&h.f.display.controller)
+            .unwrap()
+            .is_none()
+    );
+}

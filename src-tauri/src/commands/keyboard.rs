@@ -1,0 +1,38 @@
+use crate::{hal::Hal, keyboard};
+use tauri::Manager;
+
+#[tauri::command]
+pub(crate) async fn read_keyboard_settings(
+    app: tauri::AppHandle,
+) -> Result<keyboard::Profile, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<keyboard::Controller>()
+            .read(&app.state::<Hal>())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| format!("{e:#}"))
+}
+#[tauri::command]
+pub(crate) async fn apply_keyboard_settings(
+    app: tauri::AppHandle,
+    request: keyboard::Request,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<keyboard::Controller>()
+            .apply(&app.state::<Hal>(), &request)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| format!("{e:#}"))
+}
+#[tauri::command]
+pub(crate) async fn restore_keyboard_settings(app: tauri::AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<keyboard::Controller>()
+            .restore(&app.state::<Hal>())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| format!("{e:#}"))
+}

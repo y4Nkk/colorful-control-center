@@ -25,14 +25,39 @@ pub struct OpResult {
 
 fn to_result<T>(result: anyhow::Result<T>) -> Result<OpResult, String> {
     match result {
-        Ok(_) => Ok(OpResult { ok: true, message: "已应用".into() }),
-        Err(err) => Ok(OpResult { ok: false, message: err.to_string() }),
+        Ok(_) => Ok(OpResult {
+            ok: true,
+            message: "已应用".into(),
+        }),
+        Err(err) => Ok(OpResult {
+            ok: false,
+            message: err.to_string(),
+        }),
     }
 }
 
 #[tauri::command]
 pub(crate) fn read_fan_profile(hal: State<'_, Hal>) -> Result<FanProfile, String> {
+    let _write = hal.begin_write().map_err(|e| format!("{e:#}"))?;
     fanctl::read_profile(&hal).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub(crate) fn apply_rpm_fan_curves(
+    hal: State<'_, Hal>,
+    curves: fanctl::rpm::Curves,
+) -> Result<OpResult, String> {
+    let _write = hal.begin_write().map_err(|e| format!("{e:#}"))?;
+    to_result(fanctl::rpm::apply(&hal, &curves))
+}
+
+#[tauri::command]
+pub(crate) fn apply_software_fan_curves(
+    hal: State<'_, Hal>,
+    curves: ccc_core::software_fan::Curves,
+) -> Result<OpResult, String> {
+    let _write = hal.begin_write().map_err(|e| format!("{e:#}"))?;
+    to_result(fanctl::software::apply_confirmed(&hal, &curves))
 }
 
 #[tauri::command]
@@ -42,6 +67,7 @@ pub(crate) fn apply_fan_curve(
     gpu1: Option<CurvePointsDto>,
     gpu2: Option<CurvePointsDto>,
 ) -> Result<OpResult, String> {
+    let _write = hal.begin_write().map_err(|e| e.to_string())?;
     let to_points = |dto: Option<CurvePointsDto>| {
         dto.map(|p| ccc_core::fan::OemCurvePoints {
             t2: p.t2,
@@ -50,20 +76,34 @@ pub(crate) fn apply_fan_curve(
             d3: p.d3_pct,
         })
     };
-    to_result(fanctl::apply_curve(&hal, to_points(cpu), to_points(gpu1), to_points(gpu2)))
+    to_result(fanctl::apply_curve(
+        &hal,
+        to_points(cpu),
+        to_points(gpu1),
+        to_points(gpu2),
+    ))
 }
 
 #[tauri::command]
 pub(crate) fn set_fan_mode(hal: State<'_, Hal>, mode: u8) -> Result<OpResult, String> {
+    let _write = hal.begin_write().map_err(|e| e.to_string())?;
     to_result(fanctl::set_mode(&hal, mode))
 }
 
 #[tauri::command]
 pub(crate) fn set_fan_offset(hal: State<'_, Hal>, pct: u32) -> Result<OpResult, String> {
+    let _write = hal.begin_write().map_err(|e| e.to_string())?;
     to_result(fanctl::set_offset(&hal, pct))
 }
 
 #[tauri::command]
 pub(crate) fn restore_fan_default(hal: State<'_, Hal>) -> Result<OpResult, String> {
+    let _write = hal.begin_write().map_err(|e| e.to_string())?;
     to_result(fanctl::restore_default(&hal))
+}
+
+#[tauri::command]
+pub(crate) fn restore_fan_profile(hal: State<'_, Hal>) -> Result<OpResult, String> {
+    let _write = hal.begin_write().map_err(|e| e.to_string())?;
+    to_result(fanctl::restore_initial(&hal))
 }

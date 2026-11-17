@@ -1,0 +1,60 @@
+.ccc-scroll-area {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ccc-scroll-area:not([hidden]) {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.ccc-scroll-viewport {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+.ccc-nav-pages > .ccc-scroll-viewport { scrollbar-gutter: auto; }
+
+.ccc-scroll-viewport:focus-visible {
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 3px var(--ccc-focus-ring);
+}
+
+/* WebView2 原生滑块保持完整槽宽作为拖动热区，仅在内侧绘制细线。 */
+::-webkit-scrollbar {
+  width: var(--ccc-scrollbar-gutter);
+  height: var(--ccc-scrollbar-gutter);
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+}
+
+::-webkit-scrollbar-thumb {
+  border: var(--ccc-scrollbar-thumb-inset) solid transparent;
+  border-radius: var(--ccc-radius-full);
+  background-color: transparent;
+  background-clip: padding-box;
+  min-height: var(--ccc-scrollbar-thumb-min);
+  min-width: var(--ccc-scrollbar-thumb-min);
+}
+
+[data-scrolling]::-webkit-scrollbar-thumb {
+  background-color: var(--ccc-scrollbar-thumb);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--ccc-scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--ccc-scrollbar-thumb-active);
+}

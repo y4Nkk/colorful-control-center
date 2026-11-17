@@ -62,7 +62,7 @@ try {
     } elseif ($exact.Count -gt 1) {
         Write-Host "多个精确命中，请人工选择：$($exact -join ', ')"
     } else {
-        Write-Host "无精确命中（本机走 InsydeDCHU 主通道；EC 兜底寄存器见 tools/probe/ec-map.json）。"
+        Write-Host "无精确命中（本机走 InsydeDCHU 主通道；原始 EC 研究候选见 tools/probe/ec-map.json）。"
     }
     Write-Host "[4] 完成"
 } catch {

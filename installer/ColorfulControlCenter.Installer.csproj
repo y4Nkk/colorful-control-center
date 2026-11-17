@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration>Release</Configuration>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>ColorfulControlCenter.Installer</RootNamespace>
+    <AssemblyName>ColorfulControlCenter.Installer</AssemblyName>
+    <TargetFrameworkVersion>v4.8.1</TargetFrameworkVersion>
+    <LangVersion>5</LangVersion>
+    <StartupObject>ColorfulControlCenter.Installer.Program</StartupObject>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\src-tauri\icons\icon.ico</ApplicationIcon>
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <PlatformTarget>x64</PlatformTarget>
+    <WarningLevel>4</WarningLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" /><Reference Include="System.Core" />
+    <Reference Include="System.Xaml" /><Reference Include="System.Xml" />
+    <Reference Include="System.Windows.Forms" /><Reference Include="WindowsBase" />
+    <Reference Include="PresentationCore" /><Reference Include="PresentationFramework" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="InstallationRequest.cs" /><Compile Include="InstalledApplication.cs" />
+    <Compile Include="InstallerEngine.cs" /><Compile Include="InstallerFailure.cs" /><Compile Include="InstallerWindow.cs" />
+    <Compile Include="InstallerWindowLayout.cs" /><Compile Include="InstallerWindowMotion.cs" /><Compile Include="Program.cs" />
+    <Compile Include="$(InstallerBuildDirectory)\Product.cs" />
+    <Compile Include="$(InstallerTestSource)" Condition="'$(InstallerTestSource)' != ''" />
+    <Compile Include="..\tools\installer-check\InstallerMotionChecks.cs" Condition="'$(InstallerTestSource)' != ''" />
+    <EmbeddedResource Include="Theme.xaml"><LogicalName>CCC.Theme</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="$(InstallerBuildDirectory)\Palette.xaml"><LogicalName>CCC.Palette</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="assets\installer-artwork.png"><LogicalName>CCC.Artwork</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="..\src-tauri\icons\128x128@2x.png"><LogicalName>CCC.Icon</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="$(InstallerEnginePath)"><LogicalName>CCC.Engine</LogicalName></EmbeddedResource>
+  </ItemGroup>
+  <Target Name="RequireInputs" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(InstallerEnginePath)')" Text="Build the NSIS engine first." />
+    <Error Condition="!Exists('$(InstallerBuildDirectory)\Product.cs')" Text="Use scripts/build-windows-installer.ps1." />
+  </Target>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

@@ -1,0 +1,22 @@
+.ccc-icon {
+  display: block;
+  flex: none;
+  width: var(--ccc-icon-size);
+  height: var(--ccc-icon-size);
+  pointer-events: none;
+}
+
+.ccc-icon[data-size="16"] {
+  width: var(--ccc-icon-size-small);
+  height: var(--ccc-icon-size-small);
+}
+
+.ccc-icon[data-size="24"] {
+  width: var(--ccc-icon-size-nav);
+  height: var(--ccc-icon-size-nav);
+}
+
+.ccc-nav-item[aria-current="page"] .ccc-icon { stroke-width: 2.3; }
+.ccc-panel-title, .ccc-icon-title { display: flex; align-items: center; gap: var(--ccc-space-2); }
+.ccc-panel-title > .ccc-icon, .ccc-icon-title > .ccc-icon { color: var(--ccc-text-muted); }
+.ccc-step-status { display: inline-flex; align-items: center; gap: var(--ccc-space-2); }

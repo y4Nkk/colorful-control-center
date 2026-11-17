@@ -1,0 +1,12 @@
+html[data-surface="osd"], html[data-surface="osd"] body { background: transparent; overflow: hidden; }
+.ccc-osd { height: 100%; display: grid; align-items: center; padding: var(--ccc-space-2); pointer-events: none; }
+.ccc-osd-card { display: flex; align-items: center; justify-content: space-between; gap: var(--ccc-space-4); padding: var(--ccc-space-4) var(--ccc-space-5); }
+.ccc-osd-content { min-width: 0; }
+.ccc-osd-content strong { font-size: var(--ccc-text-lg); font-weight: 600; }
+.ccc-osd-content p { margin: var(--ccc-space-1) 0 0; color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.ccc-osd-card.is-error strong { color: var(--ccc-danger); }
+.ccc-osd-level { position: relative; flex: 0 0 56px; height: 56px; display: grid; place-items: center; color: var(--ccc-action); }
+.ccc-osd-level svg { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 4; stroke-linecap: round; }
+.ccc-osd-level .ccc-osd-track { stroke: var(--ccc-hairline); }
+.ccc-osd-level span { color: var(--ccc-text); }
+.ccc-osd-level small { font-size: var(--ccc-text-xs); color: var(--ccc-text-muted); }

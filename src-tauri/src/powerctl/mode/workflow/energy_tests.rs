@@ -1,0 +1,278 @@
+use super::*;
+#[path = "../../../profiles/apply/fixtures.rs"]
+#[allow(dead_code)]
+mod fixtures;
+use fixtures::Fixture;
+
+fn setup(value: u8) -> Fixture {
+    Fixture::new().with_energy(value)
+}
+fn current(f: &Fixture) -> energy::State {
+    f.hal
+        .with_dchu(|io| energy::read(io, f.hal.reviewed_dsdt))
+        .unwrap()
+}
+fn apply(f: &Fixture, wanted: u8) -> Result<()> {
+    let target = super::super::read(&f.hal)?
+        .targets
+        .into_iter()
+        .find(|target| target.mode == wanted)
+        .unwrap();
+    apply_preview(&f.hal, &target)
+}
+fn at(f: &Fixture, prefix: &str) -> usize {
+    f.device
+        .0
+        .lock()
+        .unwrap()
+        .events
+        .iter()
+        .position(|event| event.starts_with(prefix))
+        .unwrap()
+}
+fn options(f: &mut Fixture) {
+    f.hal.set_test_dtt_driver(std::sync::Arc::new(|| Ok(true)));
+    let mut state = f.device.0.lock().unwrap();
+    state.pages[1][1] = 2;
+    state.bios[0] = 1;
+    state.bios[16] |= 16;
+    state.bios[11] |= 16;
+}
+fn apply_options(f: &Fixture) {
+    let p = boost::read(&f.hal).unwrap();
+    boost::apply(
+        &f.hal,
+        &boost::Request {
+            expected_revision: p.revision,
+            values: boost::Values {
+                turbo_fan: Some(true),
+                dtt: Some(false),
+            },
+        },
+    )
+    .unwrap();
+}
+
+#[test]
+fn all_explicit_modes_preview_and_apply_the_original_energy_values_once() {
+    for (wanted, initial, expected) in [(0, 1, 2), (1, 2, 1), (2, 2, 0), (3, 1, 2), (4, 2, 1)] {
+        let f = setup(initial);
+        if wanted == 4 {
+            let mut state = f.device.0.lock().unwrap();
+            state.bios[0] = 1;
+            state.bios[17] |= 0x80;
+        }
+        let _gate = f.hal.begin_write().unwrap();
+        let profile = super::super::read(&f.hal).unwrap();
+        let target = profile
+            .targets
+            .into_iter()
+            .find(|target| target.mode == wanted)
+            .unwrap();
+        assert_eq!(target.energy.unwrap().energy_star, Some(expected));
+        assert!(f.device.0.lock().unwrap().events.is_empty());
+        apply_preview(&f.hal, &target).unwrap();
+        assert_eq!(current(&f).energy_star, Some(expected));
+        assert_eq!(
+            f.device
+                .0
+                .lock()
+                .unwrap()
+                .events
+                .iter()
+                .filter(|event| event.starts_with("ENERGY:"))
+                .count(),
+            1
+        );
+        assert!(at(&f, "MODE:") < at(&f, "ENERGY:"));
+        assert!(at(&f, "ENERGY:") < at(&f, "PAGE4:5:"));
+    }
+}
+
+#[test]
+fn gpu_callbacks_enclose_the_single_common_energy_step() {
+    let f = setup(0);
+    let _gate = f.hal.begin_write().unwrap();
+    let plan = checkpoint(&f.hal, 3).unwrap();
+    plan.execute_linked(
+        &f.hal,
+        &mut || Ok(()),
+        &mut |_| {
+            assert_eq!(current(&f).energy_star, Some(0));
+            f.device
+                .0
+                .lock()
+                .unwrap()
+                .events
+                .push("GPU_FREQUENCY".into());
+            Ok(())
+        },
+        &mut |_| {
+            assert_eq!(current(&f).energy_star, Some(2));
+            f.device.0.lock().unwrap().events.push("GPU_AFTER".into());
+            Ok(())
+        },
+        &mut || Ok(()),
+    )
+    .unwrap();
+    assert!(at(&f, "MODE:3") < at(&f, "GPU_FREQUENCY"));
+    assert!(at(&f, "GPU_FREQUENCY") < at(&f, "ENERGY:2"));
+    assert!(at(&f, "ENERGY:2") < at(&f, "GPU_AFTER"));
+    assert!(at(&f, "GPU_AFTER") < at(&f, "PAGE4:5:"));
+}
+
+#[test]
+fn a_failed_command_or_false_ack_restores_mode_and_keeps_the_energy_baseline() {
+    for ignore in [false, true] {
+        let f = setup(2);
+        let _gate = f.hal.begin_write().unwrap();
+        {
+            let mut state = f.device.0.lock().unwrap();
+            state.ignore_energy_write = ignore;
+            if !ignore {
+                state.fail_energy = Some(1);
+            }
+        }
+        assert!(apply(&f, 1).is_err());
+        assert_eq!(f.device.0.lock().unwrap().pages[1][1], 3);
+        assert_eq!(current(&f).energy_star, Some(2));
+        assert_eq!(
+            restore_target(&f.hal)
+                .unwrap()
+                .unwrap()
+                .energy
+                .unwrap()
+                .energy_star,
+            Some(2)
+        );
+    }
+}
+
+#[test]
+fn later_fan_failure_compensates_the_common_energy_step() {
+    let f = setup(1);
+    let _gate = f.hal.begin_write().unwrap();
+    f.device.0.lock().unwrap().fail_fan_mode = true;
+    assert!(apply(&f, 2).is_err());
+    assert_eq!(current(&f).energy_star, Some(1));
+    assert_eq!(f.device.0.lock().unwrap().pages[1][1], 3);
+    assert!(at(&f, "ENERGY:0") < at(&f, "FAN_MODE_FAILURE"));
+    assert!(at(&f, "FAN_MODE_FAILURE") < at(&f, "ENERGY:1"));
+}
+
+#[test]
+fn changed_preflight_energy_and_unrestorable_firmware_stop_before_all_outputs() {
+    let f = setup(2);
+    let _gate = f.hal.begin_write().unwrap();
+    let plan = checkpoint(&f.hal, 1).unwrap();
+    f.device.0.lock().unwrap().bios[2] = 0;
+    assert!(plan.execute(&f.hal).is_err());
+    assert!(f.device.0.lock().unwrap().events.is_empty());
+    f.device.0.lock().unwrap().bios[2] = 3 << 4;
+    assert!(super::super::read(&f.hal).is_err());
+    assert!(checkpoint(&f.hal, 1).is_err());
+    assert!(f.hal.recovery().unwrap().oem_mode.is_none());
+}
+
+#[test]
+fn hardware_managed_energy_never_sends_79_for_selection_or_restore() {
+    let f = Fixture::new();
+    let _gate = f.hal.begin_write().unwrap();
+    apply(&f, 1).unwrap();
+    assert!(current(&f).hardware_p_state);
+    let target = restore_target(&f.hal).unwrap().unwrap();
+    restore(&f.hal, &target.revision).unwrap();
+    assert!(
+        !f.device
+            .0
+            .lock()
+            .unwrap()
+            .events
+            .iter()
+            .any(|event| event.starts_with("ENERGY:"))
+    );
+}
+
+#[test]
+fn option_only_recovery_leaves_a_later_energy_value_untouched() {
+    let mut f = setup(3);
+    options(&mut f);
+    let _gate = f.hal.begin_write().unwrap();
+    apply_options(&f);
+    let target = restore_target(&f.hal).unwrap().unwrap();
+    assert!(target.energy.is_none());
+    f.device.0.lock().unwrap().bios[2] = 0;
+    restore(&f.hal, &target.revision).unwrap();
+    assert_eq!(current(&f).energy_star, Some(0));
+    assert!(
+        !f.device
+            .0
+            .lock()
+            .unwrap()
+            .events
+            .iter()
+            .any(|event| event.starts_with("ENERGY:"))
+    );
+}
+
+#[test]
+fn choosing_after_options_adds_only_the_first_energy_baseline_and_rejects_old_restore() {
+    let mut f = setup(3);
+    options(&mut f);
+    let _gate = f.hal.begin_write().unwrap();
+    apply_options(&f);
+    let old = restore_target(&f.hal).unwrap().unwrap();
+    f.device.0.lock().unwrap().bios[2] = 0;
+    apply(&f, 1).unwrap();
+    let target = restore_target(&f.hal).unwrap().unwrap();
+    assert_eq!(target.energy.unwrap().energy_star, Some(0));
+    assert_eq!((target.mode, target.turbo), (old.mode, old.turbo));
+    f.device.0.lock().unwrap().events.clear();
+    assert!(restore(&f.hal, &old.revision).is_err());
+    assert!(f.device.0.lock().unwrap().events.is_empty());
+    restore(&f.hal, &target.revision).unwrap();
+    assert_eq!(current(&f).energy_star, Some(0));
+    assert_eq!(f.device.0.lock().unwrap().pages[4][8], 0);
+}
+
+#[test]
+fn changed_energy_management_blocks_every_initial_restore_output_and_is_visible() {
+    let f = setup(1);
+    let _gate = f.hal.begin_write().unwrap();
+    apply(&f, 2).unwrap();
+    let target = restore_target(&f.hal).unwrap().unwrap();
+    f.device.0.lock().unwrap().bios[9] = 0x40;
+    let profile = super::super::read(&f.hal).unwrap();
+    assert!(!profile.can_restore && profile.restore_blocked_reason.is_some());
+    f.device.0.lock().unwrap().events.clear();
+    assert!(restore(&f.hal, &target.revision).is_err());
+    assert!(f.device.0.lock().unwrap().events.is_empty());
+    assert!(f.hal.recovery().unwrap().oem_mode.is_some());
+}
+
+#[test]
+fn unreadable_energy_during_compensation_does_not_skip_other_owned_domains() {
+    let f = setup(2);
+    let _gate = f.hal.begin_write().unwrap();
+    let plan = checkpoint(&f.hal, 1).unwrap();
+    let error = plan
+        .execute_linked(
+            &f.hal,
+            &mut || Ok(()),
+            &mut |_| Ok(()),
+            &mut |_| {
+                f.device.0.lock().unwrap().bios[2] = 3 << 4;
+                bail!("隔离后续域失败")
+            },
+            &mut || Ok(()),
+        )
+        .unwrap_err();
+    assert!(format!("{error:#}").contains("EnergyStar"));
+    assert_eq!(f.device.0.lock().unwrap().pages[1][1], 3);
+    assert_eq!(f.device.0.lock().unwrap().pages[4][5], 0);
+    assert!(f.hal.recovery().unwrap().oem_mode.is_some());
+    f.device.0.lock().unwrap().bios[2] = 1 << 4;
+    let target = restore_target(&f.hal).unwrap().unwrap();
+    restore(&f.hal, &target.revision).unwrap();
+    assert_eq!(current(&f).energy_star, Some(2));
+}

@@ -1,0 +1,59 @@
+.ccc-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  width: var(--ccc-switch-width);
+  min-height: var(--ccc-control-height);
+}
+
+.ccc-switch > input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.ccc-switch-track {
+  position: relative;
+  display: block;
+  width: var(--ccc-switch-width);
+  height: var(--ccc-switch-height);
+  border-radius: var(--ccc-radius-full);
+  background: var(--ccc-text-muted);
+  transition: background var(--ccc-motion-fast) var(--ccc-easing);
+}
+
+.ccc-switch-thumb {
+  position: absolute;
+  top: 50%;
+  left: calc((var(--ccc-switch-height) - var(--ccc-switch-thumb)) / 2);
+  width: var(--ccc-switch-thumb);
+  height: var(--ccc-switch-thumb);
+  border-radius: var(--ccc-radius-full);
+  background: var(--ccc-text-on-action);
+  transform: translateY(-50%);
+  transition: transform var(--ccc-motion-fast) var(--ccc-easing);
+}
+
+.ccc-switch > input:checked + .ccc-switch-track {
+  background: var(--ccc-action);
+}
+
+.ccc-switch > input:checked + .ccc-switch-track > .ccc-switch-thumb {
+  transform: translate(calc(var(--ccc-switch-width) - var(--ccc-switch-height)), -50%);
+}
+
+.ccc-switch > input:focus-visible + .ccc-switch-track {
+  box-shadow: 0 0 0 3px var(--ccc-focus-ring);
+}
+.ccc-switch > input[aria-disabled="true"] {
+  cursor: wait;
+}
+.ccc-switch > input[aria-disabled="true"] + .ccc-switch-track {
+  opacity: 0.5;
+}

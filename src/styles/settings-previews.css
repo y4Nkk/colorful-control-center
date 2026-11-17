@@ -1,0 +1,23 @@
+.ccc-preference-illustration { width: 100%; max-width: calc(var(--ccc-space-6) * 6); height: 100%; padding: var(--ccc-space-2); }
+.ccc-theme-art { position: relative; display: block; width: 100%; height: 100%; overflow: hidden; }
+.ccc-theme-scene { position: absolute; inset: 0; display: block; padding: var(--ccc-space-3); background: var(--ccc-canvas); }
+.ccc-theme-scene-half { clip-path: inset(0 0 0 50%); }
+.ccc-preview-window { display: grid; grid-template-columns: var(--ccc-space-6) minmax(0, 1fr); grid-template-rows: var(--ccc-space-4) minmax(0, 1fr);
+  height: 100%; overflow: hidden; border: 1px solid var(--ccc-hairline); border-radius: var(--ccc-radius-control); background: var(--ccc-canvas); }
+.ccc-preview-titlebar { grid-column: 1 / -1; display: flex; align-items: center; padding-inline: var(--ccc-space-2); gap: var(--ccc-space-1); }
+.ccc-preview-titlebar > svg { width: var(--ccc-space-3); height: var(--ccc-space-3); }
+.ccc-preview-titlebar > span { flex: 1; }
+.ccc-preview-titlebar > i { width: var(--ccc-space-1); height: calc(var(--ccc-space-1) / 2); background: var(--ccc-text-muted); }
+.ccc-preview-sidebar { display: flex; flex-direction: column; gap: var(--ccc-space-2); padding: var(--ccc-space-2); }
+.ccc-preview-sidebar > i { height: var(--ccc-space-1); border-radius: var(--ccc-radius-full); background: var(--ccc-hairline); }
+.ccc-preview-sidebar > i:first-child { background: var(--ccc-action); }
+.ccc-preview-content { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: var(--ccc-space-2);
+  margin: 0 var(--ccc-space-1) var(--ccc-space-1) 0; gap: var(--ccc-space-2); border-radius: var(--ccc-radius-control); background: var(--ccc-content); }
+.ccc-preview-reading { display: flex; gap: var(--ccc-space-1); }
+.ccc-preview-reading > i { width: var(--ccc-space-6); height: var(--ccc-space-3); border-radius: var(--ccc-radius-full); background: var(--ccc-content-muted); }
+.ccc-preview-content > svg { flex: 1; min-height: 0; width: 100%; }
+.ccc-motion-preview { animation: ccc-preference-motion calc(var(--ccc-motion-slow) * 5) var(--ccc-easing) infinite alternate; }
+@keyframes ccc-preference-motion { to { transform: translateX(90px); } }
+@media (prefers-reduced-motion: reduce) { .ccc-motion-preview { animation: none; } }
+:root[data-motion="reduce"] .ccc-motion-preview { animation: none; }
+@container ccc-settings (max-width: 480px) { .ccc-theme-scene { padding: var(--ccc-space-1); } }

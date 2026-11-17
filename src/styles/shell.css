@@ -1,91 +1,158 @@
-/*
- * AppShell 外框语法（唯一所有者：AppShell.tsx；几何契约见 DESIGN.md）。
- * 两行两列 grid：导航跨左两行，顶栏右上，工作区右下。
- */
-
+/* 侧栏与顶栏共用一层模糊材质；不透明工作区覆盖其余区域。 */
 .ccc-shell {
   display: grid;
-  grid-template-columns: var(--ccc-sidebar-width) 1fr;
-  grid-template-rows: var(--ccc-topbar-height) 1fr;
+  grid-template-columns: var(--ccc-sidebar-width) minmax(0, 1fr);
+  grid-template-rows: var(--ccc-topbar-height) minmax(0, 1fr);
   height: 100%;
+  overflow: hidden;
+  background: var(--ccc-chrome-bg);
+  -webkit-backdrop-filter: blur(var(--ccc-chrome-blur)) saturate(var(--ccc-chrome-saturation));
+  backdrop-filter: blur(var(--ccc-chrome-blur)) saturate(var(--ccc-chrome-saturation));
+  transition: grid-template-columns var(--ccc-motion) var(--ccc-easing);
 }
 
-/* ── 侧栏 ─────────────────────────────────────────── */
+.ccc-shell.is-collapsed {
+  grid-template-columns: var(--ccc-sidebar-collapsed-width) minmax(0, 1fr);
+}
 
+/* 侧栏与标题栏共享完整的 64px 顶部拖动区。 */
 .ccc-sidebar {
-  grid-row: 1 / 3;
+  grid-area: 1 / 1 / 3 / 2;
   display: flex;
   flex-direction: column;
-  padding: var(--ccc-space-3);
-  gap: var(--ccc-space-2);
+  min-width: 0;
+  min-height: 0;
+  user-select: none;
 }
 
-.ccc-brand {
-  padding: var(--ccc-space-2) var(--ccc-space-3) var(--ccc-space-4);
-  font-size: var(--ccc-text-md);
-  font-weight: 600;
+.ccc-sidebar-top {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: var(--ccc-topbar-height);
+  padding-inline: var(--ccc-space-3);
+}
+
+.ccc-sidebar-toggle > .ccc-icon {
+  transition: transform var(--ccc-motion-fast) var(--ccc-easing);
+}
+
+.ccc-sidebar-toggle[aria-expanded="false"] > .ccc-icon {
+  transform: rotate(180deg);
 }
 
 .ccc-nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  padding: var(--ccc-space-1) var(--ccc-space-3) var(--ccc-space-3);
+  gap: var(--ccc-space-4);
 }
 
-.ccc-nav-item {
-  display: block;
-  width: 100%;
-  height: var(--ccc-control-height);
-  padding: 0 var(--ccc-space-3);
-  border-radius: var(--ccc-radius-nav);
-  text-align: left;
-  font-size: var(--ccc-text-md);
-  color: var(--ccc-text-muted);
-  transition: background var(--ccc-motion-fast) var(--ccc-easing), color var(--ccc-motion-fast) var(--ccc-easing);
+.ccc-nav-group,
+.ccc-nav-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ccc-space-1);
 }
 
-.ccc-nav-item:hover {
-  background: var(--ccc-row-hover);
-  color: var(--ccc-text);
+.ccc-nav-footer {
+  margin-top: auto;
+}
+.ccc-nav-pages { flex: 1; min-height: 0; }
+
+.ccc-nav .ccc-nav-item {
+  display: flex;
+  align-items: center;
+  flex: none;
+  padding-inline: var(--ccc-space-2);
+  gap: var(--ccc-space-3);
+  overflow: hidden;
 }
 
-.ccc-nav-item[aria-current="page"] {
-  background: var(--ccc-nav-selected);
-  color: var(--ccc-text);
+.ccc-nav-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity var(--ccc-motion) var(--ccc-easing);
+}
+
+.ccc-shell.is-collapsed .ccc-nav .ccc-nav-item {
+  gap: 0;
+}
+
+.ccc-shell.is-collapsed .ccc-nav-label {
+  opacity: 0;
+}
+
+/* 未标记为拖动区的按钮、通知等交互元素保留自己的点击行为。 */
+.ccc-topbar {
+  grid-area: 1 / 2;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: var(--ccc-space-3);
+  padding: 0 var(--ccc-space-3) 0 var(--ccc-space-4);
+  user-select: none;
+}
+
+.ccc-brand {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: var(--ccc-space-2);
+  font-size: var(--ccc-text-sm);
   font-weight: 600;
 }
 
-/* ── 顶栏 ─────────────────────────────────────────── */
+.ccc-brand-icon {
+  pointer-events: none;
+  flex: none;
+  width: var(--ccc-icon-size-nav);
+  height: var(--ccc-icon-size-nav);
+}
 
-.ccc-topbar {
-  display: flex;
-  align-items: center;
-  gap: var(--ccc-space-3);
-  padding: 0 var(--ccc-space-4);
+.ccc-brand-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ccc-topbar-title {
+  flex: none;
   margin: 0;
+  padding-left: var(--ccc-space-4);
+  border-left: var(--ccc-border);
   font-size: var(--ccc-text-title);
   font-weight: 600;
 }
 
 .ccc-topbar-spacer {
+  align-self: stretch;
   flex: 1;
 }
 
-/* 顶栏右侧全局信息位：全局持续状态/错误在此呈现（DESIGN.md 状态与反馈） */
 .ccc-global-info {
-  min-height: var(--ccc-control-height-compact);
   display: flex;
   align-items: center;
+  min-height: var(--ccc-control-height-compact);
 }
 
-/* ── 工作区 ───────────────────────────────────────── */
+.ccc-global-info:empty {
+  display: none;
+}
+
+.ccc-window-controls {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: var(--ccc-space-1);
+}
 
 .ccc-workspace {
+  grid-area: 2 / 2;
+  min-width: 0;
+  min-height: 0;
   margin: 0 var(--ccc-space-1) var(--ccc-space-1) 0;
-  overflow-y: auto;
-  background: var(--ccc-content);
-  border-radius: var(--ccc-radius-panel);
 }

@@ -1,7 +1,9 @@
 {
-  "$comment": "原始 EC 端口寄存器映射（兜底通道）。来源：nbfc-linux share/nbfc/configs/Colorful X15 AT 22.json（GPL-3，作者 sek1ro），同模具上一代机型，未在本机验证。主通道见 docs/oem-dchu-contract.md。",
+  "$comment": "原始 EC 端口寄存器研究候选。来源：nbfc-linux share/nbfc/configs/Colorful X15 AT 22.json（GPL-3，作者 sek1ro），同模具上一代机型，未在本机验证；当前应用不实现该端口通道。主通道见 docs/oem-dchu-contract.md。",
   "machine_model": "Colorful X15 AT 22 (NP5x mold; 基准机 X15 AT 23 同族)",
   "source": "nbfc-linux",
+  "source_url": "https://github.com/nbfc-linux/nbfc-linux/blob/main/share/nbfc/configs/Colorful%20X15%20AT%2022.json",
+  "source_blob_sha": "dcbde5b0634d6ba5189b97482b2db5a1d331344f",
   "verified_on_target": false,
   "ec_poll_interval_ms": 100,
   "critical_temperature_c": 77,

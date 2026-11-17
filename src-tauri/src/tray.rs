@@ -1,15 +1,65 @@
-//! 托盘常驻（Phase 4）：显示主窗口 / 退出；关闭主窗口 = 隐藏到托盘
-//! （真正退出走托盘菜单，保证风扇/性能设置的后台语义一致）。
+//! 托盘只请求档案预览，硬件写入仍经应用内确认与同一事务入口。
+use tauri::{
+    Emitter, Manager, WindowEvent,
+    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
+    tray::TrayIconBuilder,
+};
 
-use tauri::menu::{Menu, MenuItem};
-use tauri::tray::TrayIconBuilder;
-use tauri::{Manager, WindowEvent};
+fn menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    let menu = Menu::new(app)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        "show",
+        "显示控制台",
+        true,
+        None::<&str>,
+    )?)?;
+    let profiles = Submenu::new(app, "性能档案", true)?;
+    match crate::profiles::list(app) {
+        Ok(list) if !list.is_empty() => {
+            for profile in list {
+                profiles.append(&MenuItem::with_id(
+                    app,
+                    format!("profile:{}", profile.name),
+                    &profile.name,
+                    true,
+                    None::<&str>,
+                )?)?;
+            }
+        }
+        Ok(_) => profiles.append(&MenuItem::with_id(
+            app,
+            "empty",
+            "暂无档案",
+            false,
+            None::<&str>,
+        )?)?,
+        Err(error) => {
+            log::error!("[tray] 档案列表：{error:#}");
+            profiles.append(&MenuItem::with_id(
+                app,
+                "error",
+                "档案读取失败",
+                false,
+                None::<&str>,
+            )?)?;
+        }
+    }
+    menu.append(&profiles)?;
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?)?;
+    Ok(menu)
+}
+
+pub fn refresh(app: &tauri::AppHandle) {
+    if let Some(tray) = app.tray_by_id("main-tray") {
+        if let Err(error) = menu(app).and_then(|menu| tray.set_menu(Some(menu))) {
+            log::error!("[tray] 更新菜单失败：{error}");
+        }
+    }
+}
 
 pub fn setup(app: &tauri::AppHandle) -> tauri::Result<()> {
-    let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &quit])?;
-
     TrayIconBuilder::with_id("main-tray")
         .icon(
             app.default_window_icon()
@@ -17,15 +67,20 @@ pub fn setup(app: &tauri::AppHandle) -> tauri::Result<()> {
                 .ok_or_else(|| tauri::Error::AssetNotFound("icon".into()))?,
         )
         .tooltip("Colorful Control Center")
-        .menu(&menu)
+        .menu(&menu(app)?)
         .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "show" => show_main(app),
-            "quit" => app.exit(0),
-            _ => {}
+        .on_menu_event(|app, event| {
+            let id = event.id.as_ref();
+            if id == "quit" {
+                app.exit(0);
+            } else if id == "show" {
+                show_main(app);
+            } else if let Some(name) = id.strip_prefix("profile:") {
+                show_main(app);
+                let _ = app.emit("profile-preview-request", name);
+            }
         })
         .on_tray_icon_event(|tray, event| {
-            // 左键单击 = 显示主窗口
             if let tauri::tray::TrayIconEvent::Click {
                 button: tauri::tray::MouseButton::Left,
                 button_state: tauri::tray::MouseButtonState::Up,
@@ -36,28 +91,30 @@ pub fn setup(app: &tauri::AppHandle) -> tauri::Result<()> {
             }
         })
         .build(app)?;
-    setup_close_to_tray(app);
+    if let Some(window) = app.get_webview_window("main") {
+        let close = window.clone();
+        window.on_window_event(move |event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let app = close.app_handle();
+                let preferences = app.state::<crate::preferences::Controller>().snapshot();
+                if preferences.is_ok_and(|s| {
+                    s.settings.close_behavior == crate::preferences::model::CloseBehavior::Exit
+                }) {
+                    app.exit(0);
+                } else if let Err(error) = close.hide() {
+                    log::error!("隐藏到托盘失败：{error}");
+                }
+            }
+        });
+    }
     Ok(())
 }
 
-fn show_main(app: &tauri::AppHandle) {
+pub(crate) fn show_main(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
     }
-}
-
-/// 关闭主窗口 → 隐藏（常驻托盘）。
-fn setup_close_to_tray(app: &tauri::AppHandle) {
-    let Some(window) = app.get_webview_window("main") else {
-        return;
-    };
-    let handle_for_close = window.clone();
-    window.on_window_event(move |event| {
-        if let WindowEvent::CloseRequested { api, .. } = event {
-            api.prevent_close();
-            let _ = handle_for_close.hide();
-        }
-    });
 }

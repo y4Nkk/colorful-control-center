@@ -7,17 +7,14 @@
 //! 安全语义：本模块只做「读 + 受控写」；undervolt 值必须经 powerctl 钳位
 //! （−150..+50 mV，安全设计 docs/design.md §4）。
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
 };
 use windows_sys::Win32::System::IO::DeviceIoControl;
 
-const DEVICE_PATH: &[u16] = &[
-    0x5C, 0x00, 0x5C, 0x00, 0x2E, 0x00, 0x5C, 0x00, 0x50, 0x00, 0x41, 0x00, 0x57, 0x00, 0x4E,
-    0x00, 0x49, 0x00, 0x4F, 0x00, 0x00,
-]; // "\\.\PawnIO"
+use ccc_core::msr::{MsrAccess, PAWNIO_DEVICE_PATH};
 const IOCTL_PIO_LOAD_BINARY: u32 = (41394 << 16) | (0x821 << 2);
 const IOCTL_PIO_EXECUTE_FN: u32 = (41394 << 16) | (0x841 << 2);
 const GENERIC_READ: u32 = 0x8000_0000;
@@ -35,7 +32,7 @@ impl PawnIo {
     pub fn open_with_intel_msr() -> Result<Self> {
         let handle = unsafe {
             CreateFileW(
-                DEVICE_PATH.as_ptr(),
+                PAWNIO_DEVICE_PATH.as_ptr(),
                 GENERIC_READ | GENERIC_WRITE,
                 FILE_SHARE_READ | FILE_SHARE_WRITE,
                 std::ptr::null(),
@@ -46,7 +43,8 @@ impl PawnIo {
         };
         if handle == INVALID_HANDLE_VALUE {
             return Err(anyhow!(
-                "PawnIO 驱动不可用：请以管理员运行 tools/probe/run-admin-probe.ps1 完成一次性安装"
+                "打开 \\\\.\\PawnIO 失败：{}（检查安装状态与权限）",
+                std::io::Error::last_os_error()
             ));
         }
         let this = Self { handle };
@@ -101,6 +99,12 @@ impl PawnIo {
                 );
             }
         }
+        if returned as usize != out_buf.len() {
+            bail!(
+                "执行 {name} 返回长度异常：期望 {}，实际 {returned}",
+                out_buf.len()
+            );
+        }
         Ok(out_buf
             .chunks_exact(8)
             .map(|c| u64::from_le_bytes(c.try_into().unwrap()))
@@ -124,47 +128,16 @@ impl Drop for PawnIo {
     }
 }
 
-/* ── OC Mailbox（0x150）编码（与 probe-cli/src/msr.rs 同源位布局）── */
-
-pub const OC_MAILBOX: u32 = 0x150;
-pub const MSR_PKG_POWER_LIMIT: u32 = 0x610;
-
-pub fn mailbox_read(plane: u64) -> u64 {
-    (1 << 63) | (plane << 40) | (1 << 36)
-}
-
-pub fn mailbox_write(plane: u64, offset_mv: i32) -> u64 {
-    let x = ((offset_mv as f64) * 1.024).round() as i32 & 0xFFF;
-    mailbox_read(plane) | (1 << 32) | (((x as u64) << 21) & 0xFFE0_0000)
-}
-
-/// 读取 plane 当前电压偏移（mV）。读协议本身经 mailbox 写命令。
-pub fn read_voltage_offset(io: &PawnIo, plane: u64) -> Result<f64> {
-    io.write_msr(OC_MAILBOX, mailbox_read(plane))?;
-    let resp = io.read_msr(OC_MAILBOX)?;
-    let plane_val = resp >> 40;
-    let field = resp ^ (plane_val << 40);
-    let y = ((field & 0xFFFF_FFFF) >> 21) as i32 & 0xFFF;
-    let units = if y <= 1024 { y } else { -(2048 - y) };
-    Ok(units as f64 / 1.024)
-}
-
-/// 设置电压偏移并回读校验，返回回读值。写入被忽略（锁）时回读 ≠ 目标。
-pub fn set_voltage_offset(io: &PawnIo, plane: u64, mv: i32) -> Result<f64> {
-    io.write_msr(OC_MAILBOX, mailbox_write(plane, mv))?;
-    read_voltage_offset(io, plane)
-}
-
-/// 0x610 打包：PL1/PL2（1/8W 粒度）+ 各自时间窗保持原值不变（读改写）。
-pub fn encode_power_limit(current: u64, pl1_w: Option<f64>, pl2_w: Option<f64>) -> u64 {
-    let mut value = current;
-    if let Some(pl1) = pl1_w {
-        let units = (pl1 * 8.0).round() as u64;
-        value = (value & !0x7FFF) | (units & 0x7FFF);
+impl MsrAccess for PawnIo {
+    fn read(&self, address: u32) -> std::result::Result<u64, String> {
+        self.read_msr(address).map_err(|e| format!("{e:#}"))
     }
-    if let Some(pl2) = pl2_w {
-        let units = (pl2 * 8.0).round() as u64;
-        value = (value & !(0x7FFF_u64 << 32)) | ((units & 0x7FFF) << 32);
+
+    fn write(&self, address: u32, value: u64) -> std::result::Result<(), String> {
+        self.write_msr(address, value).map_err(|e| format!("{e:#}"))
     }
-    value
+
+    fn pause(&self) {
+        std::thread::sleep(std::time::Duration::from_micros(100));
+    }
 }

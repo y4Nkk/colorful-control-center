@@ -20,6 +20,7 @@
 | `src/lib/` | 纯函数工具（theme 等） |
 | `src-tauri/src/commands/` | 命令薄层：参数校验与调度，不沉淀业务状态 |
 | `src-tauri/src/command_registry.rs` | 全部命令唯一注册清单 |
+| `src-tauri/src/assembly.rs` | 原生领域状态的唯一装配；入口保留控制权、线程与退出调度 |
 | `src-tauri/src/<domain>/` | 硬件领域逻辑（hal / fan / power…，出现时创建） |
 | `tools/`、`scripts/` | 探测工具与可执行规范脚本 |
 | `docs/` | 硬件架构文档 |

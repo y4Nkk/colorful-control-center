@@ -12,9 +12,19 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Colorful Control Center",
         "width": 1100,
-        "height": 720
+        "height": 720,
+        "minWidth": 900,
+        "minHeight": 560,
+        "decorations": false,
+        "resizable": true,
+        "transparent": true,
+        "backgroundColor": "#00000000",
+        "windowEffects": {
+          "effects": ["acrylic"]
+        }
       }
     ],
     "security": {
@@ -23,7 +33,19 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
+    "windows": {
+      "allowDowngrades": false,
+      "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },
+      "nsis": {
+        "installerHooks": "windows/nsis-hooks.nsh",
+        "installMode": "currentUser",
+        "languages": ["SimpChinese"],
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

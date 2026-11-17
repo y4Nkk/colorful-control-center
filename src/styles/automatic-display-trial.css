@@ -1,0 +1,2 @@
+.ccc-auto-display-host { position: fixed; z-index: 1100; right: var(--ccc-space-4); bottom: var(--ccc-space-4); width: min(440px, calc(100vw - 2 * var(--ccc-space-4))); max-height: calc(100dvh - 2 * var(--ccc-space-4)); overflow: auto; }
+.ccc-auto-display-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-3); }

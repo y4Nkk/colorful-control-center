@@ -1,18 +1,8 @@
 /*
- * 仪表盘与事实行语法（唯一所有者：FactList.tsx / DashboardWorkspace.tsx）。
+ * 事实行与短警告语法（唯一所有者：FactList.tsx）。
  */
 
-.ccc-dashboard {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ccc-space-4);
-  max-width: 860px;
-}
-
 .ccc-facts {
-  background: var(--ccc-content);
-  border: 1px solid var(--ccc-hairline);
-  border-radius: var(--ccc-radius-group);
   padding: var(--ccc-space-2) var(--ccc-space-4);
 }
 
@@ -25,7 +15,7 @@
 }
 
 .ccc-fact-row + .ccc-fact-row {
-  border-top: 1px solid var(--ccc-hairline);
+  border-top: var(--ccc-border);
 }
 
 .ccc-fact-label {
@@ -43,6 +33,16 @@
   color: var(--ccc-danger);
 }
 
+.ccc-facts[data-density="compact"] { width: 100%; padding: 0 var(--ccc-space-3); font-size: var(--ccc-text-sm); }
+.ccc-facts[data-density="compact"] .ccc-fact-row { gap: var(--ccc-space-2); min-height: var(--ccc-control-height-compact); }
+.ccc-facts[data-density="compact"] .ccc-fact-label { width: 46%; }
+.ccc-facts[data-density="compact"] .ccc-fact-value { text-align: right; overflow-wrap: anywhere; }
+.ccc-facts[data-layout="tiles"] { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: var(--ccc-space-3); padding: 0; }
+.ccc-facts[data-layout="tiles"] .ccc-fact-row { display: flex; flex-direction: column; align-items: stretch; gap: var(--ccc-space-1); min-height: 0; padding: 0; border-top: 0; }
+.ccc-facts[data-layout="tiles"] .ccc-fact-label { width: auto; }
+.ccc-facts[data-layout="tiles"] .ccc-fact-value { text-align: left; overflow-wrap: anywhere; font-weight: 500; }
+.ccc-facts[data-layout="tiles"] .ccc-fact-value:not(.is-danger) { color: var(--ccc-text); }
+
 /* 监控分组标题 */
 .ccc-group-title {
   margin: var(--ccc-space-2) 0 0;
@@ -58,7 +58,7 @@
   gap: var(--ccc-space-1);
   padding: var(--ccc-space-3) var(--ccc-space-4);
   background: var(--ccc-content);
-  border: 1px solid var(--ccc-hairline);
+  border: var(--ccc-border);
   border-left: 3px solid var(--ccc-warning);
   border-radius: var(--ccc-radius-card);
   color: var(--ccc-text-muted);

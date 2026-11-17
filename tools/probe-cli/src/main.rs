@@ -4,8 +4,8 @@
 //!   info                  CPUID 信息（无管理员）
 //!   status                PawnIO 驱动安装状态
 //!   install               部署 PawnIO 驱动（需管理员，一次性）
-//!   pl                    读 0x610/0xCE/0xE2 解码 PL1/PL2/锁位（需管理员）
-//!   uv-test [--execute]   0x150 降压锁检测：读当前偏移；--execute 时写 +1 单位
+//!   pl                    读 0x610/0x606 解码 PL1/PL2/锁位（需管理员）
+//!   uv-test [--execute]   0x150 降压锁检测：读当前偏移；--execute 时降低一编码单位
 //!                         验证后还原（需管理员）
 //!   msr-read <addr>       读任意 MSR（需管理员）
 
@@ -50,7 +50,7 @@ enum Command {
 
 #[derive(Args)]
 struct UvArgs {
-    /// 实际执行写入测试（写入 +1 步进后立即还原）
+    /// 实际降低一个电压编码单位，回读后精确还原
     #[arg(long)]
     execute: bool,
     /// 目标域：cpu|gpu|cache|uncore|analogio
@@ -73,15 +73,17 @@ fn main() -> Result<()> {
             Ok(())
         }
         Command::Status => {
-            let installed = msr_driver_rs::MsrDriver::is_installed()
-                .context("查询 PawnIO 服务状态失败")?;
-            println!("PawnIO 驱动: {}", if installed { "已安装" } else { "未安装" });
+            let installed =
+                msr_driver_rs::MsrDriver::is_installed().context("查询 PawnIO 服务状态失败")?;
+            println!(
+                "PawnIO 驱动: {}",
+                if installed { "已安装" } else { "未安装" }
+            );
             Ok(())
         }
         Command::Install => {
-            msr_driver_rs::MsrDriver::install().context(
-                "PawnIO 部署失败（需管理员运行；内部含签名 PawnIO.sys 部署）",
-            )?;
+            msr_driver_rs::MsrDriver::install()
+                .context("PawnIO 部署失败（需管理员运行；内部含签名 PawnIO.sys 部署）")?;
             println!("PawnIO 驱动已部署并启动");
             Ok(())
         }
@@ -89,9 +91,8 @@ fn main() -> Result<()> {
         Command::UvTest(args) => cmd_uv_test(args),
         Command::MsrRead { addr, cpu } => {
             let addr = parse_hex(&addr)?;
-            let driver = msr_driver_rs::MsrDriver::new().context(
-                "打开 PawnIO 失败：先以管理员运行 `ccc-probe install`",
-            )?;
+            let driver = msr_driver_rs::MsrDriver::new()
+                .context("打开 PawnIO 失败：先以管理员运行 `ccc-probe install`")?;
             let value = driver.read_msr(addr, cpu).context("MSR 读取失败")?;
             println!("MSR {addr:#06x} (cpu{cpu}) = {value:#018x} ({value})");
             Ok(())
@@ -155,13 +156,12 @@ fn print_cpuid() {
 
 fn cmd_pl() -> Result<()> {
     let io = msr::PawnIo::open_with_intel_msr()?;
-    let driver = msr_driver_rs::MsrDriver::new().context("打开 PawnIO 失败：先 `ccc-probe install`")?;
-    let pl = driver.read_msr(0x610, 0).context("读 0x610 失败")?;
-    let platform = driver.read_msr(0xCE, 0).context("读 0xCE 失败")?;
-    let feature = io.read_msr(0xE2).context("读 0xE2 失败")?;
-    println!("MSR_PKG_POWER_LIMIT (0x610): {}", msr::decode_pkg_power_limit(pl));
-    println!("MSR_PLATFORM_INFO  (0x0CE): {}", msr::decode_platform_info(platform));
-    println!("MSR_FEATURE_CONFIG (0x0E2): {}", msr::decode_feature_config(feature));
+    let pl = io.read_msr(0x610).context("读 0x610 失败")?;
+    let rapl = io.read_msr(0x606).context("读 RAPL 单位 0x606 失败")?;
+    println!(
+        "MSR_PKG_POWER_LIMIT (0x610): {}",
+        msr::decode_pkg_power_limit(pl, rapl)
+    );
     println!();
     println!("结论：");
     let pl_raw = pl;
@@ -169,7 +169,11 @@ fn cmd_pl() -> Result<()> {
     println!(
         "- PL 锁(bit63) {}：{}",
         if lock63 { "已锁定" } else { "未锁定" },
-        if lock63 { "MSR 直写 PL1/PL2 不可用，走 OEM page6+XTU 持久化通道" } else { "运行时 MSR 直写 PL1/PL2 可行" }
+        if lock63 {
+            "MSR 直写 PL1/PL2 已锁；OEM page6 仅能保存意图，实际生效未验证"
+        } else {
+            "锁位未设置；实际可写性仍需显式写入、回读和恢复验证"
+        }
     );
     Ok(())
 }
@@ -189,26 +193,19 @@ fn cmd_uv_test(args: UvArgs) -> Result<()> {
     if !args.execute {
         println!();
         println!("这是只读探测（读协议本身经 mailbox 写命令）。");
-        println!("写入锁检测需 --execute：写入 +1 步进（约 +1 mV，安全边界内）→ 回读 → 还原。");
+        println!("写入锁检测需 --execute：降低一编码步进（约 0.98 mV）→ 回读 → 精确还原。");
+        println!("此操作会改变硬件电压；尚未执行，因此不能判断降压写入是否可行。");
         return Ok(());
     }
 
-    // 写入 +1 编码步进（≈ +0.98 mV），回读，再还原。
-    let probe_mv = current.round() as i32 + 1;
-    println!("写入测试值: {probe_mv:+} mV ...");
-    let after = msr::set_voltage_offset(&io, plane, probe_mv).context("写入失败")?;
-    let locked = (after - probe_mv as f64).abs() > 2.0;
-    println!("回读值: {after:+.3} mV");
-
-    let restored = msr::set_voltage_offset(&io, plane, current.round() as i32)
-        .context("还原失败——请立即手动恢复原偏移！")?;
-    println!("已还原为: {restored:+.3} mV");
-
-    println!();
-    if locked {
-        println!("结论: MSR 0x150 已锁定（写入被忽略）——undervolt 走 OEM page6+XTU 通道");
+    let probe = msr::test_voltage_write(&io, plane)?;
+    let tested = f64::from(probe.target_units) / 1.024;
+    let restored = f64::from(probe.before_units) / 1.024;
+    println!("已确认写入 {tested:+.3} mV，并精确恢复 {restored:+.3} mV");
+    if probe.negative_offset_verified() {
+        println!("结论：本次负偏移写入及恢复均通过回读校验；稳定性未验证");
     } else {
-        println!("结论: MSR 0x150 未锁定——运行时 undervolt 直写可行");
+        println!("结论：本次降低一步及恢复通过；目标仍非负，尚未验证负偏移写入");
     }
     Ok(())
 }

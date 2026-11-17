@@ -1,57 +1,34 @@
-﻿# 一次性提权验证批（Phase 0.4 收尾）
-# 作用：以管理员运行 probe-cli 的全部探测，输出存档到 tools\probe\admin-probe-results.txt
-# 用法：powershell -ExecutionPolicy Bypass -File tools\probe\run-admin-probe.ps1
-# （脚本会自行请求提升——UAC 点"是"即可；非管理员调用时经 Start-Process 转交）
-
-$ErrorActionPreference = "Continue"
-$root = Split-Path -Parent $PSScriptRoot
-$probe = Join-Path $root "probe-cli\target\release\ccc-probe.exe"
-if (-not (Test-Path $probe)) { $probe = Join-Path $root "probe-cli\target\debug\ccc-probe.exe" }
-
-$id = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-if (-not $id.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "需要管理员权限，正在请求提升（请确认 UAC）..."
-    Start-Process powershell -Verb RunAs -Wait -ArgumentList @(
-        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $PSCommandPath
-    )
-    exit
+﻿# 显式运行的探测批；默认只读，不安装/重启服务，不自动提权。
+# -ExecuteVoltageTest 才会测试一个电压编码步进并恢复；此操作会写硬件。
+param(
+    [switch]$ExecuteVoltageTest,
+    [ValidateSet("cpu", "gpu", "cache", "uncore", "analogio")][string]$Plane = "cpu",
+    [string]$OutputPath = (Join-Path $PSScriptRoot ("probe-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".txt"))
+)
+$ErrorActionPreference = "Stop"
+$probeRoot = Split-Path -Parent $PSScriptRoot
+$probe = Join-Path $probeRoot "probe-cli\target\release\ccc-probe.exe"
+if (-not (Test-Path -LiteralPath $probe)) {
+    throw "未找到 release 版 ccc-probe.exe；先在项目根目录执行 cargo build --release --manifest-path tools/probe-cli/Cargo.toml"
 }
-
-# 提权后：transcript 兜底记录（子控制台关闭也不丢输出）
-$resultsPath = Join-Path $PSScriptRoot "admin-probe-results.txt"
-Start-Transcript -Path $resultsPath -Force
-
-Write-Output "=== 管理员探测批 v4 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ==="
-
-Write-Output "== 0. PawnIO 服务重置（修复设备未创建）=="
-sc.exe stop PawnIO 2>&1 | Write-Output
-Start-Sleep -Seconds 2
-sc.exe start PawnIO 2>&1 | Write-Output
-Start-Sleep -Seconds 3
-sc.exe query PawnIO 2>&1 | Write-Output
-Write-Output ""
-
-Write-Output "== 1. PawnIO install（幂等）=="
-& $probe install 2>&1 | Write-Output
-Write-Output ""
-
-Write-Output "== 2. PL / 锁位检测 =="
-& $probe pl 2>&1 | Write-Output
-Write-Output ""
-
-Write-Output "== 3. undervolt 锁检测（写入后还原）=="
-& $probe uv-test --execute 2>&1 | Write-Output
-Write-Output ""
-
-Write-Output "== 4. DCHU 读数（间隔 3 秒两次对照）=="
-& $probe dchu 2>&1 | Write-Output
-Start-Sleep -Seconds 3
-& $probe dchu 2>&1 | Write-Output
-Write-Output ""
-
-Write-Output "== 5. DCHU cmd12/13 包转储 =="
-& $probe dchu-pkg 2>&1 | Write-Output
-Write-Output ""
-
-Write-Output "== 结束 =="
-Stop-Transcript
+if (Test-Path -LiteralPath $OutputPath) { throw "输出文件已存在，请指定新的 -OutputPath" }
+$probeFailed = $false
+function Invoke-Probe {
+    param([string[]]$ProbeArgs)
+    Write-Output ("=== ccc-probe " + ($ProbeArgs -join " ") + " ===")
+    & $probe @ProbeArgs
+    if ($LASTEXITCODE -ne 0) { $script:probeFailed = $true }
+}
+Start-Transcript -LiteralPath $OutputPath -NoClobber
+try {
+    Invoke-Probe -ProbeArgs @("status")
+    Invoke-Probe -ProbeArgs @("pl")
+    Invoke-Probe -ProbeArgs @("dchu")
+    Invoke-Probe -ProbeArgs @("dchu-pkg")
+    if ($ExecuteVoltageTest) {
+        Invoke-Probe -ProbeArgs @("uv-test", "--execute", "--plane", $Plane)
+    } else {
+        Write-Output "未执行电压 Mailbox 查询或写入。实际 PL/降压可写性仍未验证。"
+    }
+} finally { Stop-Transcript }
+if ($probeFailed) { exit 1 }

@@ -1,0 +1,33 @@
+.ccc-profile-layout { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(0, 3fr); gap: var(--ccc-space-4); align-items: start; }
+.ccc-profile-name { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-2); }
+.ccc-profile-choice { display: flex; flex-direction: column; gap: var(--ccc-space-1); padding: var(--ccc-space-3); text-align: left; }
+.ccc-profile-choice time { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
+.ccc-profile-preview { display: grid; gap: var(--ccc-space-4); }
+.ccc-profile-device { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: var(--ccc-space-4); padding: var(--ccc-space-3); }
+.ccc-profile-device p { margin: 0; }
+.ccc-profile-device strong { overflow-wrap: anywhere; }
+.ccc-profile-device .ccc-control-caption { overflow-wrap: anywhere; }
+.ccc-profile-trial { margin-bottom: var(--ccc-space-4); }
+.ccc-profile-trial-displays { display: grid; gap: var(--ccc-space-3); }
+.ccc-profile-results { margin-top: var(--ccc-space-4); padding: var(--ccc-space-3); }
+.ccc-profile-peripheral { display: grid; grid-template-columns: minmax(0, 1fr) minmax(40px, 80px); gap: var(--ccc-space-2); align-items: center; }
+.ccc-profile-weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--ccc-space-1); }
+.ccc-profile-day { text-align: center; color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
+.ccc-profile-weekdays [data-selected="true"] { color: var(--ccc-action); font-weight: 600; }
+.ccc-profile-values { display: grid; gap: var(--ccc-space-2); min-width: 0; }
+.ccc-profile-values h3 { margin: 0; color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); font-weight: 500; }
+.ccc-profile-pd-levels { display: flex; flex-wrap: wrap; gap: var(--ccc-space-2); }
+.ccc-profile-pd-levels span { padding: var(--ccc-space-2); border: var(--ccc-border); border-radius: var(--ccc-radius-control); font-size: var(--ccc-text-sm); }
+.ccc-profile-pd-levels [data-selected="true"] { color: var(--ccc-action); border-color: var(--ccc-action); font-weight: 600; }
+.ccc-profile-thresholds { display: flex; justify-content: space-evenly; flex-wrap: wrap; gap: var(--ccc-space-3); }
+.ccc-profile-preview svg[role="img"] { width: 100%; max-height: 220px; }
+.ccc-profile-steps { padding: 0; list-style: none; display: grid; gap: var(--ccc-space-2); font-size: var(--ccc-text-sm); }
+.ccc-profile-steps li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--ccc-space-2); border-top: var(--ccc-border); padding-top: var(--ccc-space-2); }
+@media (max-width: 700px) { .ccc-profile-layout, .ccc-profile-device { grid-template-columns: minmax(0, 1fr); } }
+
+.ccc-profile-curves { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-5); }
+.ccc-profile-curves figure { margin: 0; min-width: 0; }
+.ccc-profile-curves figcaption { margin-bottom: var(--ccc-space-3); color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
+.ccc-profile-curves figure svg { display: block; width: 100%; height: 100px; overflow: visible; }
+.ccc-profile-curve-axis { display: flex; justify-content: space-between; color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); margin-top: var(--ccc-space-2); }
+@media (max-width: 560px) { .ccc-profile-curves { grid-template-columns: minmax(0, 1fr); } }

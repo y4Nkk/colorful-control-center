@@ -1,0 +1,11 @@
+[package]
+name = "ccc-ui-webview2"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+tao = "=0.37.2"
+wry = { version = "=0.57.2", default-features = false, features = ["os-webview"] }

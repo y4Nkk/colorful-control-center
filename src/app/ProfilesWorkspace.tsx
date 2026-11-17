@@ -1,215 +1,68 @@
-/**
- * 性能档案（Phase 3）：把当前设置（风扇曲线 + 模式 + PL + 电压偏移）打包
- * 保存/应用/删除。应用流水线每步独立报告成败。
- */
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  applyProfile,
-  captureProfileSettings,
-  deleteProfile,
-  exportProfile,
-  importProfile,
-  listProfiles,
-  saveProfile,
-  type ApplyStep,
-  type ProfileMeta,
-} from "../api/client";
+import { Icon } from "../components/Icon";
+import { Surface } from "../components/Surface";
+import { Input } from "../components/Input";
+import { Button } from "../components/Button";
+import { Collapsible } from "../components/Collapsible";
+import { useRef } from "react";
 import { ConfirmButton } from "../components/ConfirmButton";
-import { toast } from "../components/use-toast";
+import { ProfilePreview } from "../components/profiles/ProfilePreview";
+import { useProfiles } from "./useProfiles";
 
-export function ProfilesWorkspace({ active }: { active: boolean }) {
-  const [profiles, setProfiles] = useState<ProfileMeta[]>([]);
-  const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [lastSteps, setLastSteps] = useState<ApplyStep[] | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const reload = useCallback(() => {
-    if (!active) return;
-    listProfiles()
-      .then((list) => {
-        setProfiles(list);
-        setError(null);
-      })
-      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)));
-  }, [active]);
-
-  useEffect(() => {
-    reload();
-  }, [reload]);
-
-  const save = () => {
-    captureProfileSettings()
-      .then((settings) =>
-        saveProfile(name, settings).then((result) => ({ settings, result })),
-      )
-      .then(({ result }) => {
-        if (result.ok) {
-          toast({ kind: "success", title: `档案已保存：${name}` });
-          reload();
-        } else {
-          toast({ kind: "error", title: "保存失败", description: result.message });
-        }
-      })
-      .catch((cause: unknown) =>
-        toast({ kind: "error", title: "保存失败", description: cause instanceof Error ? cause.message : String(cause) }),
-      );
-  };
-
-  const apply = (target: string) => {
-    applyProfile(target)
-      .then((steps) => {
-        setLastSteps(steps);
-        const failed = steps.filter((step) => !step.ok);
-        if (failed.length === 0) {
-          toast({ kind: "success", title: `档案已应用：${target}` });
-        } else {
-          toast({
-            kind: "warning",
-            title: `应用完成，${failed.length} 步失败`,
-            description: failed.map((step) => `${step.step}: ${step.message}`).join("；"),
-          });
-        }
-      })
-      .catch((cause: unknown) =>
-        toast({ kind: "error", title: "应用失败", description: cause instanceof Error ? cause.message : String(cause) }),
-      );
-  };
-
-  const remove = (target: string) => {
-    deleteProfile(target).then((result) => {
-      if (result.ok) {
-        toast({ kind: "success", title: `档案已删除：${target}` });
-        reload();
-      } else {
-        toast({ kind: "error", title: "删除失败", description: result.message });
-      }
-    });
-  };
-
+export function ProfilesWorkspace({ active, requestedProfile }: { active: boolean; requestedProfile?: { name: string } | null }) {
+  const model = useProfiles(active, requestedProfile);
+  const fileInput = useRef<HTMLInputElement>(null);
   return (
-    <div className="ccc-dashboard">
-      <div className="ccc-placeholder" style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
-          <span style={{ color: "var(--ccc-text-muted)" }}>档案名</span>
-          <input
-            className="ccc-input"
-            style={{ width: 220 }}
-            value={name}
-            placeholder="例如：游戏满血 / 静音办公"
-            onChange={(e) => setName(e.target.value)}
-          />
-        </label>
-        <ConfirmButton
-          label="保存当前设置为档案"
-          confirmLabel="确认保存？"
-          onConfirm={() => {
-            if (!name.trim()) {
-              toast({ kind: "error", title: "请先输入档案名" });
-              return;
-            }
-            save();
-          }}
-        />
-      </div>
-
-      {error && <div className="ccc-warnings">读取失败：{error}</div>}
-      {profiles.length === 0 && !error && (
-        <div className="ccc-warnings">还没有档案——先在「性能调校 / 风扇曲线」调好参数，再回来保存。</div>
-      )}
-
-      {profiles.length > 0 && (
-        <div className="ccc-facts">
-          {profiles.map((profile) => (
-            <div key={profile.name} className="ccc-fact-row">
-              <span className="ccc-fact-label">{profile.name}</span>
-              <span className="ccc-fact-value" style={{ display: "flex", gap: 8 }}>
-                <span style={{ color: "var(--ccc-text-muted)" }}>
-                  {new Date(profile.savedAtMs).toLocaleString("zh-CN")}
-                </span>
-                <button type="button" className="ccc-button" onClick={() => apply(profile.name)}>
-                  应用
-                </button>
-                <button
-                  type="button"
-                  className="ccc-button"
-                  style={{ background: "var(--ccc-action-hover)" }}
-                  onClick={() => {
-                    exportProfile(profile.name).then((json) => {
-                      const blob = new Blob([json], { type: "application/json" });
-                      const url = URL.createObjectURL(blob);
-                      const anchor = document.createElement("a");
-                      anchor.href = url;
-                      anchor.download = `${profile.name}.json`;
-                      anchor.click();
-                      URL.revokeObjectURL(url);
-                      toast({ kind: "success", title: `已导出：${profile.name}.json` });
-                    });
-                  }}
-                >
-                  导出
-                </button>
-                <ConfirmButton
-                  label="删除"
-                  confirmLabel="确认删除？"
-                  onConfirm={() => remove(profile.name)}
-                />
-              </span>
-            </div>
-          ))}
+    <div className="ccc-control ccc-profiles">
+      <Surface as="section" variant="group" className="ccc-panel">
+        <div className="ccc-actions">
+          <label className="ccc-profile-name">档案名
+            <Input value={model.name} disabled={model.busy} maxLength={60}
+              onChange={(e) => model.setName(e.target.value)} placeholder="游戏 / 静音" />
+          </label>
+          <ConfirmButton icon="save" key={model.name} label="保存当前" confirmLabel={model.profiles.some((p) => p.name === model.name.trim()) ? "覆盖同名档案？" : "保存当前设置？"}
+            disabled={!model.name.trim()} busy={model.busy} onConfirm={model.save} />
+          <Button icon="upload" type="button" disabled={model.busy} onClick={() => fileInput.current?.click()}>导入</Button>
+          <Input ref={fileInput} type="file" aria-label="导入性能档案" accept=".json,application/json" hidden onChange={(e) => {
+            const file = e.target.files?.[0]; e.target.value = ""; if (file) void model.stageImport(file);
+          }} />
         </div>
-      )}
-
-      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <button type="button" className="ccc-button" onClick={() => fileInputRef.current?.click()}>
-          导入档案（.json）
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/json,.json"
-          style={{ display: "none" }}
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            event.target.value = "";
-            if (!file) return;
-            file
-              .text()
-              .then((json) => importProfile(json))
-              .then((result) => {
-                if (result.ok) {
-                  toast({ kind: "success", title: result.message });
-                  reload();
-                } else {
-                  toast({ kind: "error", title: "导入失败", description: result.message });
-                }
-              })
-              .catch((cause: unknown) =>
-                toast({
-                  kind: "error",
-                  title: "导入失败",
-                  description: cause instanceof Error ? cause.message : String(cause),
-                }),
-              );
-          }}
-        />
-        <span style={{ color: "var(--ccc-text-muted)", fontSize: "var(--ccc-text-sm)" }}>
-          导入的档案与本地档案同等可用（重名覆盖）。
-        </span>
-      </div>
-
-      {lastSteps && (
-        <div className="ccc-facts">
-          {lastSteps.map((step) => (
-            <div key={step.step} className="ccc-fact-row">
-              <span className="ccc-fact-label">{step.step}</span>
-              <span className={step.ok ? "ccc-fact-value" : "ccc-fact-value is-danger"}>
-                {step.ok ? "成功" : step.message}
-              </span>
-            </div>
+        {model.error && <p className="ccc-control-error" role="alert">{model.error}</p>}
+      </Surface>
+      <div className="ccc-profile-layout">
+        <Surface as="section" variant="group" className="ccc-panel" aria-label="档案列表">
+          {model.profiles.length === 0 ? <span className="ccc-chip">暂无档案</span> : model.profiles.map((p) => (
+            <Button variant="selection" aria-pressed={model.preview?.name === p.name} key={p.name} className="ccc-profile-choice"
+              disabled={model.busy} onClick={() => { void model.select(p.name); }}>
+              <strong>{p.name}</strong><time>{new Date(p.savedAtMs).toLocaleDateString("zh-CN")}</time>
+            </Button>
           ))}
-        </div>
-      )}
+        </Surface>
+        <Surface as="section" variant="group" className="ccc-panel" aria-label="档案预览">
+          {model.preview ? <>
+            <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="profiles" />{model.preview.name}</h2>
+              <span className="ccc-chip">{model.imported ? "待导入" : "预览"}</span></div>
+            <ProfilePreview settings={model.preview.settings} modeTarget={model.modeTarget} displayReview={model.displayReview} gpuPowerReview={model.gpuPowerReview} graphicsModeReview={model.graphicsModeReview} />
+            <div className="ccc-actions">
+              {model.imported ? <ConfirmButton key={JSON.stringify(model.preview)} label="确认导入" confirmLabel="导入并覆盖同名档案？" busy={model.busy} onConfirm={model.confirmImport} /> : <>
+                <ConfirmButton key={JSON.stringify([model.preview, model.modeTarget, model.displayReview, model.gpuPowerReview, model.graphicsModeReview])} label="应用" confirmLabel={`应用「${model.preview.name}」？`} disabled={model.applicationPending || (model.preview.settings.oemPowerMode != null && !model.modeTarget) || (model.preview.settings.display != null && !model.displayReview) || (model.preview.settings.gpuPower != null && !model.gpuPowerReview) || (model.preview.settings.graphicsMode != null && !model.graphicsModeReview)} busy={model.busy} onConfirm={model.apply} />
+                <Button icon="download" variant="secondary" type="button" disabled={model.busy} onClick={() => { void model.download(); }}>导出</Button>
+                <ConfirmButton icon="delete" key={`delete:${JSON.stringify(model.preview)}`} variant="secondary" label="删除" confirmLabel={`删除「${model.preview.name}」及其开机应用设置？`} busy={model.busy} onConfirm={model.remove} />
+              </>}
+            </div>
+          </> : <span className="ccc-chip">选择档案预览</span>}
+          {model.application && model.application.steps.length > 0 && <Surface as="section" variant="group" className="ccc-profile-results" aria-label="最近应用记录">
+            <div className="ccc-panel-head"><h3 className="ccc-panel-title"><Icon name="logs" />最近执行 · {model.application.name}</h3>
+              <span className="ccc-chip">{model.application.targetsApplied ? "目标已确认" : "未完成全部目标"}</span></div>
+            {model.application.targetsApplied && model.application.steps.some(step => !step.ok) && <p className="ccc-control-caption">目标设置已应用，部分收尾待处理。</p>}
+            {model.application.steps.filter(step => !step.ok).map((step, i) => <p key={i} className="ccc-control-error">{step.step}：{step.message}</p>)}
+            <Collapsible summary={`执行明细 · ${model.application.steps.length} 项`}><ol className="ccc-profile-steps" aria-label="执行结果">
+            {model.application.steps.map((step, index) => <li key={`${index}-${step.step}`}>
+              <span className="ccc-step-status"><Icon name={step.ok ? "check-circle" : "error"} label={step.ok ? "成功" : "失败"} size={16} />{step.step}</span><span>{step.message}</span>
+            </li>)}
+            </ol></Collapsible>
+          </Surface>}
+        </Surface>
+      </div>
     </div>
   );
 }

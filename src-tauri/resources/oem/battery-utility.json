@@ -1,0 +1,95 @@
+{
+  "sha256": "8abcae91fe798db277c953e2a203b9ec4953ba94d08fa19f195ddedeadf50151",
+  "entries": [
+    {
+      "subgroup": "0012ee47-9041-4b5d-9b77-535fba8b1442",
+      "setting": "6738e2c4-e8a5-4a42-b16a-e040e769756e",
+      "ac": null,
+      "dc": 540
+    },
+    {
+      "subgroup": "238c9fa8-0aad-41ed-83f4-97be242c8f20",
+      "setting": "29f6c1db-86da-48c5-9fdb-f2b67b1f44da",
+      "ac": 0,
+      "dc": 0
+    },
+    {
+      "subgroup": "238c9fa8-0aad-41ed-83f4-97be242c8f20",
+      "setting": "9d7815a6-7ee4-497e-8888-515a05f02364",
+      "ac": 0,
+      "dc": 0
+    },
+    {
+      "subgroup": "fea3413e-7e05-4911-9a71-700331f1c294",
+      "setting": "245d8541-3943-4422-b025-13a784f679b7",
+      "ac": 2,
+      "dc": 2
+    },
+    {
+      "subgroup": "4f971e89-eebd-4455-a8de-9e59040e7347",
+      "setting": "7648efa3-dd9c-4e3e-b566-50f929386280",
+      "ac": 1,
+      "dc": 1
+    },
+    {
+      "subgroup": "7516b95f-f776-4464-8c53-06167f40cc99",
+      "setting": "3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e",
+      "ac": 0,
+      "dc": 0
+    },
+    {
+      "subgroup": "7516b95f-f776-4464-8c53-06167f40cc99",
+      "setting": "aded5e82-b909-4619-9949-f5d71dac0bcb",
+      "ac": 100,
+      "dc": 100
+    },
+    {
+      "subgroup": "de830923-a562-41af-a086-e3a2c6bad2da",
+      "setting": "13d09884-f74e-474a-a852-b6bde8ad03a8",
+      "ac": null,
+      "dc": 100
+    },
+    {
+      "subgroup": "de830923-a562-41af-a086-e3a2c6bad2da",
+      "setting": "e69653ca-cf7f-4f05-aa73-cb833fa90ad4",
+      "ac": null,
+      "dc": 0
+    },
+    {
+      "subgroup": "e73a048d-bf27-4f12-9731-8b2076e8891f",
+      "setting": "5dbb7c9f-38e9-40d2-9749-4f8a0e9f640f",
+      "ac": 0,
+      "dc": 0
+    },
+    {
+      "subgroup": "e73a048d-bf27-4f12-9731-8b2076e8891f",
+      "setting": "637ea02f-bbcb-4015-8e2c-a1c7b9c0b546",
+      "ac": 0,
+      "dc": 0
+    },
+    {
+      "subgroup": "e73a048d-bf27-4f12-9731-8b2076e8891f",
+      "setting": "8183ba9a-e910-48da-8769-14ae6dc1170a",
+      "ac": 0,
+      "dc": 0
+    },
+    {
+      "subgroup": "e73a048d-bf27-4f12-9731-8b2076e8891f",
+      "setting": "9a66d8d7-4ff7-4ef9-b5a2-5a326ca2a469",
+      "ac": 1,
+      "dc": 1
+    },
+    {
+      "subgroup": "e73a048d-bf27-4f12-9731-8b2076e8891f",
+      "setting": "bcded951-187b-4d05-bccc-f7e51960c258",
+      "ac": 0,
+      "dc": 0
+    },
+    {
+      "subgroup": "e73a048d-bf27-4f12-9731-8b2076e8891f",
+      "setting": "f3c5027d-cd16-4930-aa6b-90db844a8f00",
+      "ac": 0,
+      "dc": 0
+    }
+  ]
+}

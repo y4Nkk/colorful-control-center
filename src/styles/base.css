@@ -3,9 +3,33 @@
  * 也不承载业务组件样式——后者按领域放 styles/<domain>.css 并在此聚合。
  */
 
+@import "./icons.css";
 @import "./shell.css";
 @import "./toast.css";
+@import "./osd.css";
+@import "./scroll-area.css";
+@import "./collapsible.css";
+@import "./button.css";
+@import "./field.css";
+@import "./select.css";
+@import "./choice.css";
+@import "./slider.css";
+@import "./surface.css";
 @import "./dashboard.css";
+@import "./control.css";
+@import "./configuration-visuals.css";
+@import "./gpu-visuals.css";
+@import "./profile-policy.css";
+@import "./supply-mode.css";
+@import "./multizone.css";
+@import "./keymap.css";
+@import "./mode-presets.css";
+@import "./monitoring.css";
+@import "./battery-visuals.css";
+@import "./switch.css";
+@import "./settings.css";
+@import "./profiles.css";
+@import "./automatic-display-trial.css";
 
 *,
 *::before,
@@ -20,12 +44,14 @@ body {
   height: 100%;
 }
 
+html { font-family: var(--ccc-font-sans); }
+
 body {
-  font-family: var(--ccc-font-sans);
+  font-family: inherit;
   font-size: var(--ccc-text-md);
   line-height: 1.5;
   color: var(--ccc-text);
-  background: var(--ccc-canvas);
+  background: transparent;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -40,7 +66,7 @@ body {
 
 :focus-visible {
   outline: 2px solid transparent;
-  box-shadow: 0 0 0 3px var(--ccc-focus-ring);
+  box-shadow: var(--ccc-focus-shadow);
 }
 
 ::selection {
@@ -56,9 +82,7 @@ button {
   cursor: pointer;
 }
 
-input,
-select,
-textarea {
+input {
   font: inherit;
   color: inherit;
 }
@@ -67,36 +91,6 @@ textarea {
 .ccc-mono {
   font-family: var(--ccc-font-mono);
   font-variant-numeric: tabular-nums;
-}
-
-/* 主操作按钮（Button 原语种子；DESIGN.md 组件所有权登记） */
-.ccc-button {
-  height: var(--ccc-control-height);
-  padding: 0 var(--ccc-space-4);
-  border-radius: var(--ccc-radius-control);
-  background: var(--ccc-action);
-  color: var(--ccc-text-on-action);
-  font-size: var(--ccc-text-md);
-  transition: background var(--ccc-motion-fast) var(--ccc-easing);
-}
-
-.ccc-button:hover {
-  background: var(--ccc-action-hover);
-}
-
-/* 单行输入原语种子：40px 高、12px 圆角、hairline 边框 */
-.ccc-input {
-  height: var(--ccc-control-height);
-  padding: 0 var(--ccc-space-3);
-  border: 1px solid var(--ccc-hairline);
-  border-radius: var(--ccc-radius-control);
-  background: var(--ccc-content);
-  color: var(--ccc-text);
-  width: 90px;
-}
-
-.ccc-input:focus-visible {
-  border-color: var(--ccc-action);
 }
 
 /* 页面模块区：唯一滚动面在 AppShell 工作区，页面自身不设滚动 */
@@ -108,9 +102,6 @@ textarea {
 .ccc-placeholder {
   max-width: 720px;
   padding: var(--ccc-space-5);
-  background: var(--ccc-content);
-  border: 1px solid var(--ccc-hairline);
-  border-radius: var(--ccc-radius-group);
 }
 
 .ccc-placeholder h2 {
