@@ -1,3 +1,4 @@
+import { availableAction, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -18,9 +19,9 @@ test("显卡SVG只装饰真实当前状态，修改草稿不改变当前图示",
   await expect(visual).toHaveAttribute("data-enabled", "on");
   await expect(visual).toContainText("开启");
   expect(await calls(page, "apply_gpu_power")).toHaveLength(0);
-  await power(page).getByRole("button", { name: "应用独显状态", exact: true }).click();
+  await openConfigurationReview(page, "独显电源");
   expect(await calls(page, "apply_gpu_power")).toHaveLength(0);
-  await power(page).getByRole("button", { name: "确认关闭此独显并请求系统授权？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   await expect(visual).toHaveAttribute("data-enabled", "off");
 });
 
@@ -57,6 +58,6 @@ test("未知独显保持未知图示，不将空数据绘成关闭或零频率",
   const visual = power(page).locator(".ccc-gpu-power-visual");
   await expect(visual).toHaveAttribute("data-enabled", "unknown");
   await expect(visual.getByText("未知", { exact: true })).toBeVisible();
-  await expect(power(page).getByRole("button", { name: "应用独显状态", exact: true })).toHaveCount(0);
+  await expect(availableAction(page, "独显电源")).toHaveCount(0);
   expect(await calls(page, "apply_gpu_power")).toHaveLength(0);
 });

@@ -1,3 +1,4 @@
+import { availableAction } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -45,6 +46,6 @@ test("原厂节能已启用时手动充电入口保留状态并禁止写入", as
   await page.goto("/"); await openWorkspace(page, "电池与节能");
   await expect(battery(page)).toContainText("节能计划管理充电阈值");
   await expect(battery(page).getByRole("switch", { name: "限制充电范围", exact: true })).toHaveAttribute("aria-disabled", "true");
-  await expect(battery(page).getByRole("button", { name: "应用充电设置", exact: true })).toBeDisabled();
+  await expect(availableAction(page, "充电保护")).toHaveCount(0);
   expect(await page.evaluate(() => window.__uiFixture.calls.filter(call => call.command === "apply_battery_charge"))).toEqual([]);
 });

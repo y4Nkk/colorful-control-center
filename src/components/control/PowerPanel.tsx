@@ -2,12 +2,12 @@ import { Icon } from "../Icon";
 import { Surface } from "../Surface";
 import { Button } from "../Button";
 import { SegmentedControl } from "../SegmentedControl";
-import { ConfirmButton } from "../ConfirmButton";
-import { Collapsible } from "../Collapsible";
+import { ConfigurationAction } from "../ConfigurationAction";
+import { DetailsDialog } from "../DetailsDialog";
 import { DiffPreview } from "./DiffPreview";
 import { ScaleSlider } from "./ScaleSlider";
 import { usePowerControl } from "./usePowerControl";
-import { ParameterHelp } from "./ParameterHelp";
+import { ParameterDescriptions } from "./ParameterHelp";
 import { CPU_TUNING_HELP } from "./parameterDescriptions";
 
 export function PowerPanel({ active, revision, onSettled }: { active: boolean; revision: number; onSettled: () => void }) {
@@ -17,7 +17,7 @@ export function PowerPanel({ active, revision, onSettled }: { active: boolean; r
     <Surface as="section" variant="group" className="ccc-panel" aria-label="功耗与电压">
       <h2 className="ccc-panel-title"><Icon name="power" />功耗与电压</h2>
       <span className="ccc-chip">{model.error ? "读取失败" : "读取中…"}</span>
-      <ParameterHelp title="CPU 调节参数说明" items={CPU_TUNING_HELP} />
+      <DetailsDialog title="CPU 调节参数说明"><ParameterDescriptions items={CPU_TUNING_HELP} /></DetailsDialog>
       {model.error && <><p role="alert" className="ccc-control-error">{model.error}</p>
         <Button icon="refresh" variant="ghost" size="compact" type="button" onClick={model.retry}>重试</Button></>}
     </Surface>
@@ -25,7 +25,13 @@ export function PowerPanel({ active, revision, onSettled }: { active: boolean; r
   const unavailable = target === "runtime" && !profile.msrRuntimeAvailable;
   return (
     <Surface as="section" variant="group" className="ccc-panel" aria-label="功耗与电压">
-      <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="power" />功耗与电压</h2></div>
+      <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="power" />CPU 功耗与电压</h2>
+        <div className="ccc-module-tools"><DetailsDialog title="CPU 参数与诊断" label="详情">
+          <ParameterDescriptions items={CPU_TUNING_HELP} />
+          {[...profile.warnings, ...profile.runtimeWarnings, profile.msrRuntimeError].filter(Boolean)
+            .map((warning, index) => <p key={index}>{warning}</p>)}
+        </DetailsDialog></div>
+      </div>
       <SegmentedControl label="应用方式" value={target} disabled={busy}
         options={[{ value: "runtime", label: "立即应用" }, { value: "saved", label: "保存设置" }]}
         onChange={value => model.setTarget(value as typeof target)} />
@@ -42,20 +48,12 @@ export function PowerPanel({ active, revision, onSettled }: { active: boolean; r
       <ScaleSlider label="核显电压偏移" unit="mV" min={-150} max={0}
         current={dirty.current.gtMv} draft={draft.gtMv}
         unavailable={!dirty.gtReady} disabled={busy || unavailable} onChange={(gtMv) => model.change({ gtMv })} />
-      <DiffPreview items={dirty.items} />
       {model.error && <p className="ccc-control-error" role="alert">{model.error}</p>}
-      <div className="ccc-actions">
-        <ConfirmButton label={target === "runtime" ? "应用" : "保存"}
-          confirmLabel={`确认${target === "runtime" ? "应用" : "保存"} ${dirty.items.map((item) => item.to).join(" / ")}？`}
-          disabled={dirty.items.length === 0 || unavailable} busy={busy} onConfirm={model.apply} />
-        <ConfirmButton icon="undo" variant="secondary" label="恢复初始" confirmLabel="恢复功耗与电压？" disabled={!profile.canRestore}
-          busy={busy} onConfirm={model.restore} />
-      </div>
-      <ParameterHelp title="CPU 调节参数说明" items={CPU_TUNING_HELP} />
-      <Collapsible summary="诊断">
-        {[...profile.warnings, ...profile.runtimeWarnings, profile.msrRuntimeError].filter(Boolean)
-          .map((warning, index) => <p key={index}>{warning}</p>)}
-      </Collapsible>
+      {model.reviews.map(({ scope, items, apply }) => <ConfigurationAction key={scope}
+        label={scope === "runtime" ? "CPU 实时设置" : "CPU 保存设置"} revision={JSON.stringify([profile, items])}
+        disabled={busy} onConfirm={apply}><DiffPreview items={items} /></ConfigurationAction>)}
+      <ConfigurationAction label="CPU 功耗与电压" revision={JSON.stringify(profile)} restore disabled={busy || !profile.canRestore}
+        onConfirm={model.restore}><p>恢复首次操作前的功耗上限与电压偏移。</p></ConfigurationAction>
     </Surface>
   );
 }

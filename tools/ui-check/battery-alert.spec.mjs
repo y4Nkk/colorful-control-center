@@ -1,3 +1,4 @@
+import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -24,10 +25,10 @@ test("独立范围二次确认，绝对亮度预览不伪造零目标", async ({
   const brightness = page.getByRole("region", { name: "原厂低电量亮度事实与预览", exact: true });
   await expect(brightness).toContainText("事件指定亮度");
   expect(await brightness.getByRole("meter").count()).toBe(2);
-  await panel(page).getByRole("checkbox", { name: "启用原厂热键接管", exact: true }).check();
-  await panel(page).getByRole("button", { name: "应用热键策略", exact: true }).click();
+  await panel(page).getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
+  await openConfigurationReview(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
-  await panel(page).getByRole("button", { name: "确认此范围的热键接管？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   expect((await calls(page, "apply_hotkeys"))[0].args.request.settings.actions).toEqual(["batteryAlert"]);
 });
 test("初始codec恢复保留二次确认，失败后记录仍可重试", async ({ page }) => {

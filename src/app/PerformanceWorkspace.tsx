@@ -9,7 +9,7 @@ export function PerformanceWorkspace({ active, model }: HardwareWorkspaceProps) 
   return <div className="ccc-control ccc-performance">
     <OemPowerMode active={active} revision={revisions.mode} onSettled={() => model.refreshOthers("mode")} />
     <OemPerformanceOptions active={active} revision={revisions.options} onSettled={() => model.refreshOthers("options")} />
-    <div className="ccc-tuning-columns">
+    <div className="ccc-device-pair">
       <PowerPanel active={active} revision={revisions.power} onSettled={() => model.refreshOthers("power")} />
       <GpuTuning active={active} revision={revisions.gpu} onSettled={() => model.refreshOthers("gpu")} />
     </div>

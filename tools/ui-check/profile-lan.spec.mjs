@@ -1,3 +1,5 @@
+import { openStartupParameters, openProfileResults } from "./profile-review.mjs";
+import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -33,11 +35,12 @@ test("逐设备预览使用语义与缺失状态，两次确认提交完整目�
   await expect(card).toContainText("恢复为未设置");
   await expect(card).toContainText("开启");
   expect(await writes(page)).toEqual([]);
-  await panel(page).getByRole("button", { name: "应用", exact: true }).click();
+  await openConfigurationReview(page);
   expect(await writes(page)).toEqual([]);
-  await panel(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await panel(page).getByText(/^执行明细/).click();
-  await expect(panel(page).getByLabel("执行结果").getByRole("listitem").filter({ hasText: "网络驱动策略" }).getByRole("img", { name: "成功", exact: true })).toBeVisible();
+  const results = await openProfileResults(page);
+  await expect(results.getByRole("listitem").filter({ hasText: "网络驱动策略" }).getByRole("img", { name: "成功", exact: true })).toBeVisible();
   const calls = await writes(page);
   expect(calls.map(call => call.command)).toEqual(["apply_profile"]);
   expect(calls[0].args.expected.settings.lanPolicy.devices).toHaveLength(2);
@@ -77,14 +80,14 @@ test("导入只保存档案，字段删除含义与原始配置保持可查", as
 
 test("驱动变化拒绝旧目标，同名文件变化仍需重新确认", async ({ page }) => {
   await selectProfile(page);
-  await panel(page).getByRole("button", { name: "应用", exact: true }).click();
+  await openConfigurationReview(page);
   await page.evaluate(() => window.__uiFixture.lan.frame.devices[0].identity.driverVersion.bytes = [50, 0, 0, 0]);
-  await panel(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("LAN档案驱动身份已变化");
   expect(await writes(page)).toHaveLength(1);
   await page.evaluate(() => window.__uiFixture.profile.settings.lanPolicy.devices[0].name = "文件已更改");
-  await panel(page).getByRole("button", { name: "应用", exact: true }).click();
-  await panel(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
+  await openConfigurationReview(page);
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("档案已变化");
 });
 
@@ -93,10 +96,11 @@ test("后续失败和网络补偿失败逐项展示，不报告全部成功", as
     { step: "网络驱动策略", ok: true, message: "已确认" }, { step: "GPU 偏移", ok: false, message: "隔离GPU故障" },
     { step: "恢复网络驱动策略", ok: false, message: "同一授权补偿失败，初始记录保留" }]);
   await selectProfile(page);
-  await panel(page).getByRole("button", { name: "应用", exact: true }).click();
-  await panel(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
+  await openConfigurationReview(page);
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("部分设置恢复失败");
-  await expect(panel(page).getByLabel("执行结果")).toContainText("初始记录保留");
+  const results = await openProfileResults(page);
+  await expect(results).toContainText("初始记录保留");
 });
 
 test("启动选择共享网络预览，保存选择不申请网络写入", async ({ page }) => {
@@ -104,10 +108,10 @@ test("启动选择共享网络预览，保存选择不申请网络写入", async
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
-  await startup.getByText("查看启动档案参数", { exact: true }).click();
-  await expect(startup.getByRole("region", { name: "档案网络策略 · 隔离网卡 1", exact: true })).toContainText("需系统授权");
-  await startup.getByRole("button", { name: "保存", exact: true }).click();
-  await startup.getByRole("button", { name: "启动时应用「隔离档案」？", exact: true }).click();
+  const parameters = await openStartupParameters(page);
+  await expect(parameters.getByRole("region", { name: "档案网络策略 · 隔离网卡 1", exact: true })).toContainText("需系统授权");
+  await page.keyboard.press("Escape");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   const calls = await writes(page);
   expect(calls.map(call => call.command)).toEqual(["set_startup_profile"]);
   expect(calls[0].args.expected.settings.lanPolicy.devices).toHaveLength(2);

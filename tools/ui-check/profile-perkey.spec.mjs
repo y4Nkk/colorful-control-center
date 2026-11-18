@@ -1,3 +1,5 @@
+import { openStartupParameters, openProfileResults } from "./profile-review.mjs";
+import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
@@ -31,13 +33,14 @@ test("档案逐键键帽只读展示关闭与保留档位，确认携带完整�
   expect(await card(page).locator("svg title").count()).toBeGreaterThan(80);
   await expect(card(page).locator("button, input")).toHaveCount(0);
   expect(await writes(page)).toEqual([]);
-  await panel(page).getByRole("button", { name: "应用", exact: true }).click();
+  await openConfigurationReview(page);
   expect(await writes(page)).toEqual([]);
-  await panel(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
   const calls = await writes(page); expect(calls).toHaveLength(1);
   expect(calls[0].args.expected.settings.perkeyLighting).toMatchObject({ keyboardType: 3, device: { compact: false, physicalThreeColumn: false }, values: { enabled: false, brightness: 3 } });
   expect(calls[0].args.expected.settings.perkeyLighting.values.pattern.colors).toHaveLength(120);
-  await expect(panel(page).getByLabel("执行结果")).toContainText("逐键灯效");
+  const results = await openProfileResults(page);
+  await expect(results).toContainText("逐键灯效");
 });
 
 test("捕获和导出保留逐键颜色与型号，不混入普通键盘灯或启动监听", async ({ page }) => {
@@ -77,10 +80,10 @@ test("启动选择共享逐键卡片，确认只保存选择不应用灯效", as
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
-  await startup.getByText("查看启动档案参数", { exact: true }).click();
-  await expect(startup.getByLabel("档案逐键灯效")).toContainText("保留亮度");
-  await startup.getByRole("button", { name: "保存", exact: true }).click();
-  await startup.getByRole("button", { name: "启动时应用「隔离档案」？", exact: true }).click();
+  const parameters = await openStartupParameters(page);
+  await expect(parameters.getByLabel("档案逐键灯效")).toContainText("保留亮度");
+  await page.keyboard.press("Escape");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   const calls = await writes(page);
   expect(calls.map(c => c.command)).toEqual(["set_startup_profile"]);
   expect(calls[0].args.expected.settings.perkeyLighting.values.pattern.colors).toHaveLength(120);
@@ -88,17 +91,18 @@ test("启动选择共享逐键卡片，确认只保存选择不应用灯效", as
 
 test("旧逐键预览被拒绝，补偿和会话恢复失败保留具体结果", async ({ page }) => {
   await select(page);
-  await panel(page).getByRole("button", { name: "应用", exact: true }).click();
+  await openConfigurationReview(page);
   await page.evaluate(() => { window.__uiFixture.profile.settings.perkeyLighting.values.speed = 2; });
-  await panel(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("档案已变化");
   await page.evaluate(() => { window.__uiFixture.profileSteps = [{ step: "GPU 偏移", ok: false, message: "隔离后续失败" },
     { step: "恢复逐键灯效", ok: false, message: "设备身份变化，首次快照保留" }, { step: "恢复逐键按键响应", ok: false, message: "前态未恢复，保持暂停" }]; });
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
-  await panel(page).getByRole("button", { name: "应用", exact: true }).click();
-  await panel(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
+  await openConfigurationReview(page);
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("部分设置恢复失败");
-  await expect(panel(page).getByLabel("执行结果")).toContainText("保持暂停");
+  const results = await openProfileResults(page);
+  await expect(results).toContainText("保持暂停");
 });
 
 test("逐键状态未知阻止捕获，不生成默认灯效", async ({ page }) => {

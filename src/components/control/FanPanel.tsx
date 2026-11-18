@@ -4,8 +4,8 @@ import { Button } from "../Button";
 import { SegmentedControl } from "../SegmentedControl";
 import { useEffect, useState } from "react";
 import { FAN_LABELS, FAN_MODES, type FanId } from "../../api/client";
-import { ConfirmButton } from "../ConfirmButton";
-import { Collapsible } from "../Collapsible";
+import { ConfigurationAction } from "../ConfigurationAction";
+import { DetailsDialog } from "../DetailsDialog";
 import { DiffPreview } from "./DiffPreview";
 import { FanCurveEditor } from "./FanCurveEditor";
 import { ScaleSlider } from "./ScaleSlider";
@@ -31,7 +31,13 @@ export function FanPanel({ active, revision, onSettled, temps }: { active: boole
   return (
     <Surface as="section" variant="group" className="ccc-panel" aria-label="风扇曲线">
       <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="fan" />风扇曲线</h2>
-        <span className="ccc-chip">{profile?.safetyStatus || "读取中…"}</span></div>
+        <span className="ccc-chip">{profile ? softwareRunning ? "软件接管" : (FAN_MODES.find(mode => mode.id === profile.currentMode)?.label ?? "模式未知") : "未读取"}</span>
+        <div className="ccc-module-tools"><ParameterHelp title="风扇曲线参数说明" items={FAN_HELP} />
+          {profile && <DetailsDialog title="风扇诊断" label="诊断">
+            <p>{profile.safetyStatus}</p>
+            {profile.warnings.map(warning => <p key={warning}>{warning}</p>)}
+          </DetailsDialog>}</div>
+      </div>
       {model.error && <div role="alert" className="ccc-control-error">{model.error}
         <Button icon="refresh" variant="ghost" size="compact" type="button" disabled={model.busy} onClick={model.retry}>重试</Button></div>}
       {profile ? <>
@@ -42,9 +48,9 @@ export function FanPanel({ active, revision, onSettled, temps }: { active: boole
             disabled: !profile.softwareSupported, title: !profile.softwareSupported ? "当前固件尚未核对软件控制协议" : undefined }]} />
         <div className="ccc-fan-content" hidden={executor !== "firmware"}>
         <div className="ccc-fan-toolbar">
-          <SegmentedControl label="选择风扇" value={selected.id} onChange={value => setTab(value as FanId)}
-            options={fans.map(item => ({ value: item.id, label: FAN_LABELS[item.id] }))} />
-          <SegmentedControl label="风扇模式" value={String(model.mode)} disabled={model.busy}
+          {selected && <SegmentedControl label="选择风扇" value={selected.id} onChange={value => setTab(value as FanId)}
+            options={fans.map(item => ({ value: item.id, label: FAN_LABELS[item.id] }))} />}
+          <SegmentedControl label="风扇模式" value={String(model.mode)} disabled={model.busy || !!profile.blockedReason}
             onChange={value => model.setMode(Number(value))}
             options={FAN_MODES.filter(mode => profile.availableModes.includes(mode.id)).map(mode => ({
               value: String(mode.id), label: mode.label, disabled: mode.id === 6 && !profile.customSupported }))} />
@@ -57,16 +63,24 @@ export function FanPanel({ active, revision, onSettled, temps }: { active: boole
           draft={model.rpmDrafts[rpmFan.id] ?? rpmFan.points} maximumRpm={rpmFan.maximumRpm}
           editable={profile.customSupported && !model.busy} onChange={(next) => model.changeRpm(rpmFan.id, next)} />}
         <ScaleSlider label="加速偏移" unit="%" min={0} max={100} current={profile.offsetPct} draft={model.offset} disabled={model.busy} onChange={model.setOffset} />
-        <FanActions model={model} />
+        {executor === "firmware" && <FanChanges model={model} />}
         </div>
-        {profile.softwareSupported && <div hidden={executor !== "software"}><SoftwareFanPanel profile={profile} refresh={model.refresh} onBusy={(value) => { setSoftwareBusy(value); if (!value) onSettled(); }} /></div>}
+        {profile.softwareSupported && <div hidden={executor !== "software"}><SoftwareFanPanel visible={executor === "software"}
+          readValid={model.readValid} profile={profile} refresh={model.refresh} onBusy={(value) => { setSoftwareBusy(value); if (!value) onSettled(); }} /></div>}
+        <ConfigurationAction label="风扇设置" revision={JSON.stringify(profile)} restore
+          disabled={model.busy || softwareBusy || !model.readValid || !profile.canRestore || !!profile.blockedReason} onConfirm={model.restore}>
+          <p>恢复首次调整前的风扇模式、曲线和加速偏移。</p>
+        </ConfigurationAction>
+        <ConfigurationAction label="固件默认风扇设置" revision={JSON.stringify(profile)} restore
+          disabled={model.busy || softwareBusy || !model.readValid || !!profile.blockedReason} onConfirm={model.restoreDefault}>
+          <p>使用固件默认值重置风扇曲线及偏移。</p>
+        </ConfigurationAction>
       </> : !model.error && <span className="ccc-chip">读取中…</span>}
-      <ParameterHelp title="风扇曲线参数说明" items={FAN_HELP} />
     </Surface>
   );
 }
 
-function FanActions({ model }: { model: ReturnType<typeof useFanControl> }) {
+function FanChanges({ model }: { model: ReturnType<typeof useFanControl> }) {
   const { profile, drafts, rpmDrafts, mode, offset, busy } = model;
   if (!profile) return null;
   const items = profile.fans.filter((fan) => fan.present).flatMap((fan) => {
@@ -87,17 +101,8 @@ function FanActions({ model }: { model: ReturnType<typeof useFanControl> }) {
   if (profile.software) items.push({ label: "执行方式", from: "软件曲线", to: "固件曲线" });
   if (mode !== profile.currentMode) items.push({ label: "模式", from: label(profile.currentMode), to: label(mode) });
   if (offset !== profile.offsetPct) items.push({ label: "加速", from: `${profile.offsetPct}%`, to: `${offset}%` });
-  return <>
+  return <ConfigurationAction label="固件曲线" revision={JSON.stringify([profile, items])}
+    disabled={busy || !model.readValid || !model.dirty || !!profile.blockedReason} onConfirm={model.apply}>
     <DiffPreview items={items} />
-    <div className="ccc-actions">
-      <ConfirmButton key={`${profile.blockedReason}-${JSON.stringify(items)}`} label="应用" confirmLabel={`确认应用 ${items.length} 项变更？`}
-        disabled={!model.dirty || !!profile.blockedReason} busy={busy} onConfirm={model.apply} />
-      <ConfirmButton icon="undo" key={`restore-${profile.blockedReason}`} variant="secondary" label="恢复初始" confirmLabel="恢复风扇初始设置？" disabled={!profile.canRestore || !!profile.blockedReason}
-        busy={busy} onConfirm={model.restore} />
-    </div>
-    <Collapsible summary="诊断">
-      {profile.warnings.map((warning) => <p key={warning}>{warning}</p>)}
-      <ConfirmButton key={`default-${profile.blockedReason}`} label="固件默认" confirmLabel="恢复固件默认风扇设置？" disabled={!!profile.blockedReason} busy={busy} onConfirm={model.restoreDefault} />
-    </Collapsible>
-  </>;
+  </ConfigurationAction>;
 }

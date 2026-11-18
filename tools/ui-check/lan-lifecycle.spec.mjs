@@ -1,3 +1,4 @@
+import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -48,8 +49,8 @@ test("写入回读期间切页返回仍发布确认后的状态", async ({ page 
   await expect(panel(page)).toContainText("旧读取网卡");
   await panel(page).getByRole("combobox", { name: "网卡节能目标", exact: true }).click();
   await page.getByRole("option", { name: "开启网卡节能", exact: true }).click();
-  await panel(page).getByRole("button", { name: "应用网络策略", exact: true }).click();
-  await panel(page).getByRole("button", { name: "确认这些字段并请求系统授权？", exact: true }).click();
+  await openConfigurationReview(page, "网络驱动策略");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.__uiFixture.pendingLanReads.length)).toBe(1);
   await navigate(page, "性能档案"); await navigate(page, "电池与节能");
   await page.evaluate(() => {

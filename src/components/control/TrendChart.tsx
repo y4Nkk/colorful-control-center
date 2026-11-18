@@ -24,24 +24,27 @@ function TemperatureBars({ entry, domain, start, span }: {
   span: number;
 }) {
   const y = valuePct(domain);
+  const limitY = y(95);
   const hasReadings = entry.points.some((point) => point.value != null && Number.isFinite(point.value));
   // 1Hz 采样只占自身时间槽，不能用柱宽跨过停采时段。
-  const width = `min(var(--ccc-space-3), ${78_000 / span}%)`;
+  const width = Math.min(18, 780_000 / span);
   return (
     <div className="ccc-trend-plot" style={{ color: entry.colorVar }} role="img" aria-label={`${entry.label} 温度柱状图，95°C 参考线${hasReadings ? "" : "，暂无读数"}`}>
-      <div className="ccc-trend-columns">
+      <svg className="ccc-trend-columns" viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true">
+        <path className="ccc-trend-limit" d={`M0 ${limitY}H1000`} vectorEffect="non-scaling-stroke" />
         {entry.points.map((point, index) => {
           if (point.value == null || !Number.isFinite(point.value)) return null;
           const height = Math.max(0, Math.min(100, 100 - y(point.value)));
-          return <span key={point.atMs}
+          const center = (point.atMs - start) / span * 1000;
+          return <rect key={point.atMs}
             className={`ccc-trend-bar${index === entry.points.length - 1 ? " is-latest" : ""}${point.value >= 95 ? " is-hot" : ""}`}
-            style={{ left: `${((point.atMs - start) / span) * 100}%`, width, height: `${height}%` }}
-            title={`${entry.label} · ${fmtClock(point.atMs)} · ${fmtInt(point.value)}°C`} />;
+            x={center - width / 2} y={100 - height} width={width} height={height} rx={Math.min(1.8, width / 3)}>
+            <title>{entry.label} · {fmtClock(point.atMs)} · {fmtInt(point.value)}°C</title>
+          </rect>;
         })}
-        <span className="ccc-trend-limit" style={{ top: `${y(95)}%` }} />
-        {!hasReadings && <span className="ccc-trend-empty">{entry.points.length ? "暂无读数" : "等待采样"}</span>}
-      </div>
-      <span className="ccc-trend-limit-label" style={{ top: `${y(95)}%` }}>95°C</span>
+      </svg>
+      {!hasReadings && <span className="ccc-trend-empty">{entry.points.length ? "暂无读数" : "等待采样"}</span>}
+      <span className="ccc-trend-limit-label" style={{ top: `${limitY}%` }}>95°C</span>
       <span className="ccc-trend-zero">0°C</span>
     </div>
   );

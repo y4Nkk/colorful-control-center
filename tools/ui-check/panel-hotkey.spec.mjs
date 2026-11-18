@@ -1,3 +1,4 @@
+import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -35,14 +36,14 @@ test("适用行为在授权前可见，读取和选择范围不会启动会话",
   await expect(facts(page)).toContainText("不表示面板已断电");
 });
 test("屏幕按键独立授权并确认，不继承触摸板或亮度范围", async ({ page }) => {
-  const p = panel(page); await p.getByRole("checkbox", { name: "启用原厂热键接管", exact: true }).check();
+  const p = panel(page); await p.getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
   for (const label of ["触摸板开关", "原厂屏幕亮度策略", "原厂状态通知"]) {
     const checkbox = p.getByRole("checkbox", { name: label, exact: true }); await checkbox.check();
     await expect(scope(page)).not.toBeChecked(); await checkbox.uncheck();
   }
-  await scope(page).check(); await p.getByRole("button", { name: "应用热键策略", exact: true }).click();
+  await scope(page).check(); await openConfigurationReview(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
-  await p.getByRole("button", { name: "确认此范围的热键接管？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   expect((await calls(page, "apply_hotkeys"))[0].args.request.settings.actions).toEqual(["panelHotkey"]);
   await expect(facts(page)).toContainText("未运行");
 });

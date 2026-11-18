@@ -64,8 +64,13 @@ test("共享原语禁用、草稿与两步确认没有第二实现", async ({ pa
   await slider.press("ArrowRight"); await expect(page.getByLabel("滑杆数值")).toHaveText("31");
   await page.getByRole("button", { name: "执行隔离操作", exact: true }).click();
   await expect(page.getByLabel("执行次数")).toHaveText("0");
-  await expect(page.getByRole("button", { name: "确认执行隔离操作？" })).toHaveAttribute("data-tone", "danger");
-  await page.getByRole("button", { name: "确认执行隔离操作？" }).click();
+  const dialog = page.getByRole("dialog", { name: "执行隔离操作", exact: true });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByLabel("执行次数")).toHaveText("0");
+  await page.getByRole("button", { name: "执行隔离操作", exact: true }).click();
+  await dialog.getByRole("button", { name: "确认执行隔离操作？", exact: true }).click();
   await expect(page.getByLabel("执行次数")).toHaveText("1");
 });
 

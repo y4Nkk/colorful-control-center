@@ -12,7 +12,7 @@ export const ACTIONS: { scope: HotkeyScope; icon: IconName; title: string; rule:
   { scope: "touchpad", icon: "touchpad", title: "触摸板开关", rule: "切换已确认设备的系统开关并保存偏好；状态未知或设备变化时停止执行。" },
   { scope: "fnLock", icon: "keyboard", title: "Fn 锁切换", rule: "只切换 Fn 锁，保留 Win 锁与按键交换。" },
   { scope: "mappings", icon: "keyboard", title: "映射开关", rule: "只切换本应用已经接管的设备；映射内容变化后需要重新确认。" },
-  { scope: "openConsole", icon: "controls", title: "唤起控制台", rule: "显示控制台窗口。" },
+  { scope: "openConsole", icon: "window", title: "唤起主窗口", rule: "显示主窗口。" },
   { scope: "stateNotifications", icon: "info", title: "原厂状态通知", rule: "记录锁键、扩展坞、GPS、静音模式、移动网络、除尘、Turbo 风扇与充电状态，不执行开关。按原厂规则识别到 USB 键盘时跳过数字锁提示。" },
   { scope: "keyboardBrightnessEvent", icon: "lighting", title: "原厂亮度循环与反馈", rule: "原厂支持的 RGB 键盘循环关闭与 1–4 档，关闭时保留亮度；白光读取固件档位并同步保存，不发送亮度命令。" },
   { scope: "cameraReports", icon: "info", title: "摄像头状态反馈", rule: "记录摄像头及摄像头／麦克风组合报告，按原厂规则同步摄像头保存值；不执行设备开关。恢复只还原初始软件策略。" },

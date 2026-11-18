@@ -1,7 +1,7 @@
 import { Icon } from "../Icon";
 import type { ProfileSettings, ProfileDisplayReview } from "../../api/client";
 import { Surface } from "../Surface";
-import { Collapsible } from "../Collapsible";
+import { DetailsDialog } from "../DetailsDialog";
 import { DisplayModeVisual } from "../control/DisplayModeVisual";
 
 export function ProfileDisplayPreview({ target, review }: { target: ProfileSettings["display"]; review: ProfileDisplayReview | null }) {
@@ -12,7 +12,7 @@ export function ProfileDisplayPreview({ target, review }: { target: ProfileSetti
       const current = review?.displays.find(change => change.target.device === mode.device)?.before;
       return <Surface variant="group" className="ccc-profile-device" key={mode.device}>
         <div><strong>{mode.name}</strong><p className="ccc-control-caption">{mode.width} × {mode.height} · {mode.bits} 位</p>
-          <Collapsible summary="显示器绑定"><p className="ccc-control-caption">{mode.device}<br />{mode.identity}</p></Collapsible></div>
+          <DetailsDialog title="显示器绑定"><p className="ccc-control-caption">{mode.device}<br />{mode.identity}</p></DetailsDialog></div>
         <div className="ccc-profile-values"><span className="ccc-control-caption">{current ? `切换前 ${current.frequency} Hz → 目标` : "当前未读取 · 档案目标"}</span><DisplayModeVisual mode={mode} label="档案目标" /></div>
       </Surface>;
     })}

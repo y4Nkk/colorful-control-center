@@ -1,3 +1,4 @@
+import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -38,11 +39,11 @@ test("计划亮度与事件目标使用有分母的比例环，草稿不写入",
 });
 
 test("低电量亮度独立授权，确认前不应用", async ({ page }) => {
-  await panel(page).getByRole("checkbox", { name: "启用原厂热键接管", exact: true }).check();
+  await panel(page).getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
   await scope(page).check();
-  await panel(page).getByRole("button", { name: "应用热键策略", exact: true }).click();
+  await openConfigurationReview(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
-  await panel(page).getByRole("button", { name: "确认此范围的热键接管？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   expect((await calls(page, "apply_hotkeys"))[0].args.request.settings.actions).toEqual(["batteryLowBrightness"]);
 });
 

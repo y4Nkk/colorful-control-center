@@ -1,3 +1,4 @@
+import { availableAction, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -7,8 +8,8 @@ async function select(page, label, option) {
   await panel(page).getByRole("combobox", { name: label, exact: true }).click(); await page.getByRole("option", { name: option, exact: true }).click();
 }
 async function apply(page) {
-  await panel(page).getByRole("button", { name: "应用网络策略", exact: true }).click();
-  await panel(page).getByRole("button", { name: "确认这些字段并请求系统授权？", exact: true }).click();
+  await openConfigurationReview(page, "网络驱动策略");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
 }
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
@@ -29,35 +30,35 @@ test("后端预览三个字段，建议只填草稿，确认后修改所选网�
   await region.getByRole("checkbox", { name: "应用原厂关机唤醒驱动补丁", exact: true }).check();
   await expect(region.getByLabel("网络策略变更预览").locator(".ccc-fact-row")).toHaveCount(3);
   expect(await writes(page)).toHaveLength(0);
-  await region.getByRole("button", { name: "应用网络策略", exact: true }).click(); expect(await writes(page)).toHaveLength(0);
-  await region.getByRole("button", { name: "确认这些字段并请求系统授权？", exact: true }).click();
+  await openConfigurationReview(page, "网络驱动策略"); expect(await writes(page)).toHaveLength(0);
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   const calls = await writes(page); expect(calls).toHaveLength(1); expect(calls[0].args.request.deviceId).toBe("PCI\\ISOLATED\\1");
   expect(await page.evaluate(() => window.__uiFixture.lan.frame.devices[1].values.pnpCapabilities)).toBeNull();
-  await region.getByRole("button", { name: "恢复初始网络策略", exact: true }).click(); expect(await writes(page)).toHaveLength(1);
-  await region.getByRole("button", { name: "确认恢复这张网卡的初始字段？", exact: true }).click();
+  await openConfigurationReview(page, "网络驱动策略", true); expect(await writes(page)).toHaveLength(1);
+  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   expect(await page.evaluate(() => window.__uiFixture.lan.frame.devices[0].values.pnpCapabilities)).toBeNull();
 });
 
 test("切换网卡清除草稿和确认，不触碰其他设备", async ({ page }) => {
   await select(page, "网卡节能目标", "开启网卡节能");
-  await panel(page).getByRole("button", { name: "应用网络策略", exact: true }).click();
+  await openConfigurationReview(page, "网络驱动策略");
   await select(page, "网络策略设备", "隔离网卡 2");
   await expect(panel(page).getByRole("combobox", { name: "网卡节能目标", exact: true })).toHaveText("保留当前节能设置");
-  await expect(panel(page).getByRole("button", { name: "确认这些字段并请求系统授权？", exact: true })).toHaveCount(0);
+  await expect(configurationDialog(page).getByRole("button", { name: "确认应用", exact: true })).toHaveCount(0);
   expect(await writes(page)).toHaveLength(0);
 });
 
 test("读取失败撤销快照并保留草稿，旧驱动预览不能沿用确认", async ({ page }) => {
   const region = panel(page);
   await select(page, "网卡节能目标", "开启网卡节能");
-  await region.getByRole("button", { name: "应用网络策略", exact: true }).click();
+  await openConfigurationReview(page, "网络驱动策略");
   await page.evaluate(() => { window.__uiFixture.lan.revision = "external"; });
   await region.getByRole("button", { name: "重新读取网络策略", exact: true }).click();
-  await expect(region.getByRole("button", { name: "确认这些字段并请求系统授权？", exact: true })).toHaveCount(0);
+  await expect(configurationDialog(page).getByRole("button", { name: "确认应用", exact: true })).toHaveCount(0);
   await page.evaluate(() => { window.__uiFixture.lanReadFault = "隔离LAN读取失败"; });
   await region.getByRole("button", { name: "重新读取网络策略", exact: true }).click();
   await expect(region.getByRole("alert")).toContainText("隔离LAN读取失败");
-  await expect(region.getByRole("button", { name: "应用网络策略", exact: true })).toHaveCount(0);
+  await expect(availableAction(page, "网络驱动策略")).toHaveCount(0);
   await page.evaluate(() => { window.__uiFixture.lanReadFault = null; });
   await region.getByRole("button", { name: "重新读取网络策略", exact: true }).click();
   await expect(region.getByRole("combobox", { name: "网卡节能目标", exact: true })).toHaveText("开启网卡节能");
@@ -69,11 +70,11 @@ test("权威预览失败禁止请求系统授权，恢复后才能继续", async
   await page.evaluate(() => { window.__uiFixture.lanPreviewFault = "隔离驱动字段预览失败"; });
   await select(page, "网卡节能目标", "开启网卡节能");
   await expect(panel(page).getByRole("alert")).toContainText("隔离驱动字段预览失败");
-  await expect(panel(page).getByRole("button", { name: "应用网络策略", exact: true })).toBeDisabled();
+  await expect(availableAction(page, "网络驱动策略")).toHaveCount(0);
   expect(await writes(page)).toHaveLength(0);
   await page.evaluate(() => { window.__uiFixture.lanPreviewFault = null; });
   await panel(page).getByRole("button", { name: "重新读取网络策略", exact: true }).click();
-  await expect(panel(page).getByRole("button", { name: "应用网络策略", exact: true })).toBeEnabled();
+  await expect(availableAction(page, "网络驱动策略")).toBeEnabled();
 });
 
 test("部分失败保留逐字段初态，驱动更换阻止恢复且记录可见", async ({ page }) => {
@@ -84,8 +85,8 @@ test("部分失败保留逐字段初态，驱动更换阻止恢复且记录可�
   await page.evaluate(() => { const lan = window.__uiFixture.lan; lan.frame.devices[0].identity.driverVersion = { kind: 1, bytes: [50, 0, 0, 0] }; lan.revision = "driver-update"; });
   await panel(page).getByRole("button", { name: "重新读取网络策略", exact: true }).click();
   await expect(panel(page)).toContainText("设备或驱动身份已变化");
-  await expect(panel(page).getByRole("button", { name: "恢复初始网络策略", exact: true })).toBeDisabled();
-  await expect(panel(page).getByRole("button", { name: "应用网络策略", exact: true })).toBeDisabled();
+  await expect(availableAction(page, "网络驱动策略", true)).toHaveCount(0);
+  await expect(availableAction(page, "网络驱动策略")).toHaveCount(0);
 });
 
 test("未知字段与不适用补丁不开放编辑，无能力隐藏模块", async ({ page }) => {
@@ -106,7 +107,7 @@ test("运行互斥明确禁止授权，避免等待系统对话框干扰软件�
   await region.getByRole("button", { name: "重新读取网络策略", exact: true }).click();
   await select(page, "网卡节能目标", "开启网卡节能");
   await expect(region).toContainText("请先退出软件风扇曲线");
-  await expect(region.getByRole("button", { name: "应用网络策略", exact: true })).toBeDisabled();
+  await expect(availableAction(page, "网络驱动策略")).toHaveCount(0);
   expect(await writes(page)).toHaveLength(0);
 });
 

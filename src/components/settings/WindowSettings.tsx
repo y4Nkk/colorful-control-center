@@ -4,7 +4,8 @@ import type { PreferencesModel } from "../../app/useAppPreferences";
 import { AutostartSetting } from "./AutostartSetting";
 import { Switch } from "../Switch";
 import { PreferenceCards, SettingRow } from "./PreferenceCards";
-import { ClosePreview, StartupPagePreview } from "./SettingsPreviews";
+import { ClosePreview } from "./SettingsPreviews";
+import { SegmentedControl } from "../SegmentedControl";
 import { ShortcutSetting } from "./ShortcutSetting";
 
 export function WindowSettings({ model, active }: { model: PreferencesModel; active: boolean }) {
@@ -22,10 +23,10 @@ export function WindowSettings({ model, active }: { model: PreferencesModel; act
     <AutostartSetting active={active} busy={busy} />
     <SettingRow label="启动时最小化到托盘"><Switch label="启动时最小化到托盘" checked={settings.startMinimized} disabled={busy}
       onChange={startMinimized => void patch({ startMinimized })} /></SettingRow>
-    <PreferenceCards label="启动页面" value={settings.startupPage} busy={busy}
-      options={[{ value: "dashboard", label: "控制台" },
+    <SettingRow label="启动页面"><SegmentedControl label="启动页面" value={settings.startupPage} disabled={busy}
+      options={[{ value: "dashboard", label: "概览" },
         { value: "lastVisited", label: "上次访问页面" }]}
-      preview={page => <StartupPagePreview page={page} />} onChange={startupPage => void patch({ startupPage })} />
+      onChange={value => void patch({ startupPage: value === "lastVisited" ? value : "dashboard" })} /></SettingRow>
     <ShortcutSetting value={settings.globalShortcut} busy={busy || !active} active={active}
       onChange={globalShortcut => patch({ globalShortcut })} />
   </Surface>;

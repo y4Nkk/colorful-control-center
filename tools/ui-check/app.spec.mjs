@@ -1,3 +1,4 @@
+import { availableAction } from "./configuration-review.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
@@ -14,7 +15,7 @@ test("分类页面的下拉/分段入口统一接入且只改草稿", async ({ p
   await expect(page.getByRole("checkbox", { name: "左区开关" })).toBeVisible();
   await navigate(page, "显示与显卡");
   await choose(page, "目标刷新率", "144 Hz");
-  await expect(page.getByRole("button", { name: "应用刷新率", exact: true })).toBeEnabled();
+  await expect(availableAction(page, "屏幕刷新率")).toBeEnabled();
   await navigate(page, "自动策略");
   await choose(page, "启动档案", "隔离档案");
   await navigate(page, "显示与显卡");
@@ -51,7 +52,7 @@ test("档案输入/文件引用和设置搜索选择接入同一原语", async (
 });
 
 test("实际十页浅深与窄宽窗口无控件溢出", async ({ page }) => {
-  for (const title of ["控制台", "风扇散热", "性能调校", "显示与显卡", "灯光效果", "键盘与输入", "电池与节能", "自动策略", "性能档案", "设置"]) {
+  for (const title of ["概览", "风扇散热", "性能调校", "显示与显卡", "灯光效果", "键盘与输入", "电池与节能", "自动策略", "性能档案", "设置"]) {
     await navigate(page, title);
     for (const theme of ["light", "dark"]) {
       await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);

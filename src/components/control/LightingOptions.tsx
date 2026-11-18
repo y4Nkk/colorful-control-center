@@ -1,12 +1,12 @@
 import { Icon } from "../Icon";
 import { applyLightingOptions, restoreLightingOptions, type KeyboardZone, type LightingOptionsValues } from "../../api/client";
 import { Button } from "../Button";
-import { ConfirmButton } from "../ConfirmButton";
+import { ConfigurationAction } from "../ConfigurationAction";
 import { FactList } from "../FactList";
 import { Input } from "../Input";
 import { Surface } from "../Surface";
 import { Switch } from "../Switch";
-import { Collapsible } from "../Collapsible";
+import { DetailsDialog } from "../DetailsDialog";
 import { hexOf, rgbOf } from "./useKeyboardLighting";
 import { useLightingOptions } from "./useLightingOptions";
 import { TopCoverEditor } from "./TopCoverEditor";
@@ -66,20 +66,19 @@ export function LightingOptions({ active, revision }: { active: boolean; revisio
         {draft.lightBar && profile.current.lightBar && <PeripheralLight title="灯条" current={profile.current.lightBar} draft={draft.lightBar} disabled={busy} onChange={lightBar => update({ lightBar })} />}
       </div>
       {!profile.capabilities.peripheralSupportKnown && <p className="ccc-control-caption">外围灯区能力未知。</p>}
-      {preview.length > 0 && <FactList compact facts={preview} />}
       {!valid && <p className="ccc-control-error" role="alert">时间须为5–7199秒；设备能力变化后请按当前支持的项目重新编辑。</p>}
-      <div className="ccc-actions">
-        <ConfirmButton key={JSON.stringify(request)} label="应用灯光选项" confirmLabel="确认应用灯光选项？" busy={busy} disabled={!valid || !dirty}
-          onConfirm={() => request ? run(() => applyLightingOptions(request), "灯光选项已写入") : undefined} />
-        <ConfirmButton icon="undo" key={`restore-${profile.revision}`} variant="secondary" label="恢复灯光选项初始" confirmLabel="恢复本会话修改前的灯光选项？" busy={busy} disabled={!profile.canRestore}
-          onConfirm={() => run(() => restoreLightingOptions(profile.revision), "灯光选项已恢复")} />
-      </div>
-      <Collapsible summary="灯光选项恢复目标与说明">
+      <ConfigurationAction label="灯光策略与外围灯区" revision={JSON.stringify(request)} disabled={busy || !valid || !dirty}
+        onConfirm={() => request ? run(() => applyLightingOptions(request), "灯光选项已写入") : undefined}>
+        <FactList compact facts={preview} />
+      </ConfigurationAction>
+      <ConfigurationAction label="灯光策略与外围灯区" revision={profile.revision} restore disabled={busy || !profile.canRestore}
+        onConfirm={() => run(() => restoreLightingOptions(profile.revision), "灯光选项已恢复")}>
       {profile.initial && <p className="ccc-control-caption">恢复目标：{timerText(profile.initial.idleTimer)}
         {profile.initial.bootOverride !== null ? `；开机灯效覆盖${booleanText(profile.initial.bootOverride)}` : ""}
         {profile.initial.topCover ? `；独立顶盖${topCoverText(profile.initial.topCover)}` : ""}
         {profile.initial.logo ? `；Logo 灯${zoneText(profile.initial.logo)}` : ""}{profile.initial.lightBar ? `；灯条${zoneText(profile.initial.lightBar)}` : ""}</p>}
-      <p>恢复只还原这些选项，保留当前键盘灯效。闲置关灯启用时可设为5–7199秒。</p></Collapsible>
+      <p>只还原这些选项，保留当前键盘灯效。</p></ConfigurationAction>
+      <DetailsDialog title="灯光策略说明"><p>闲置关灯可设为 5–7199 秒。</p></DetailsDialog>
     </>}
   </Surface>;
 }

@@ -8,7 +8,7 @@
 @import "./toast.css";
 @import "./osd.css";
 @import "./scroll-area.css";
-@import "./collapsible.css";
+@import "./dialog.css";
 @import "./button.css";
 @import "./field.css";
 @import "./select.css";
@@ -30,6 +30,7 @@
 @import "./settings.css";
 @import "./profiles.css";
 @import "./automatic-display-trial.css";
+@import "./configuration.css";
 
 *,
 *::before,
@@ -95,7 +96,9 @@ input {
 
 /* 页面模块区：唯一滚动面在 AppShell 工作区，页面自身不设滚动 */
 .ccc-page {
-  padding: var(--ccc-space-4) var(--ccc-space-5);
+  max-width: var(--ccc-workspace-width);
+  margin-inline: auto;
+  padding: var(--ccc-space-4) clamp(var(--ccc-space-2), 2vw, var(--ccc-space-5)) var(--ccc-space-6);
 }
 
 /* 占位模块卡：Phase 模块接入前的工作面占位，接入后由真实模块替换 */

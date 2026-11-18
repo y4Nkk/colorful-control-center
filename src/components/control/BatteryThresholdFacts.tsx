@@ -1,7 +1,7 @@
 import { restoreBatteryThresholds, type BatteryThresholdPlan, type BatteryThresholdProfile } from "../../api/client";
 import { ConfirmButton } from "../ConfirmButton";
 import { Surface } from "../Surface";
-import { Collapsible } from "../Collapsible";
+import { DetailsDialog } from "../DetailsDialog";
 import { MetricReadout } from "./MetricReadout";
 import { powerPlanName } from "./power-plan-values";
 
@@ -30,7 +30,7 @@ export function BatteryThresholdFacts({ profile, busy, run }: Props) {
         <strong>事件目标</strong>
         <div className="ccc-battery-threshold-targets">{targets.map((target, index) =>
           <MetricReadout key={names[index]} label={names[index]} value={target} maximum={100} unit="%" colorVar="var(--ccc-action)" />)}</div>
-        <Collapsible summary="阈值作用范围"><p>接管后对活动计划和存在的标准计划分别设置插电与电池阈值；不创建缺失计划。</p></Collapsible>
+        <DetailsDialog title="阈值作用范围"><p>接管后对活动计划和存在的标准计划分别设置插电与电池阈值；不创建缺失计划。</p></DetailsDialog>
       </Surface>
     </div>
     {(recovery || profile.restoreError) && <Surface variant="inset" className="ccc-battery-threshold-part">

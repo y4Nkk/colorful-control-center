@@ -2,7 +2,7 @@
 .ccc-surface[data-surface="plain"] { border-radius: 0; background: transparent; }
 .ccc-surface[data-surface="card"] { border: var(--ccc-border); border-radius: var(--ccc-radius-card); background: var(--ccc-content); }
 .ccc-surface[data-surface="group"] { border: var(--ccc-border); background: var(--ccc-content); }
-.ccc-surface[data-surface="workspace"] { border-radius: var(--ccc-radius-panel); background: var(--ccc-content); }
+.ccc-surface[data-surface="workspace"] { border-radius: var(--ccc-radius-group); background: var(--ccc-workspace-bg); }
 .ccc-surface[data-surface="inset"] { border: var(--ccc-border); border-radius: var(--ccc-radius-control); background: var(--ccc-content); }
 .ccc-surface[data-surface="panel"] > .ccc-surface[data-surface="panel"] { background: transparent; }
 .ccc-surface[hidden] { display: none; }

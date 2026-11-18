@@ -1,5 +1,5 @@
 import { BrandLogo } from "../BrandLogo";
-import type { ThemePreference, MotionPreference, CloseBehavior, StartupPage, RuntimeLogLevel } from "../../api/client";
+import type { ThemePreference, CloseBehavior } from "../../api/client";
 
 function MiniWindow() {
   return (
@@ -19,10 +19,10 @@ function MiniWindow() {
 }
 
 /** 预览画的是界面结构，不包含模拟的硬件读数。 */
-export function ThemePreview({ theme, scale = 100 }: { theme: ThemePreference; scale?: number }) {
+export function ThemePreview({ theme }: { theme: ThemePreference }) {
   return (
     <span className="ccc-theme-art" aria-hidden="true">
-      <span className="ccc-theme-scene" style={{ transform: `scale(${scale / 100})` }} data-preview-theme={theme === "dark" ? "dark" : "light"}><MiniWindow /></span>
+      <span className="ccc-theme-scene" data-preview-theme={theme === "dark" ? "dark" : "light"}><MiniWindow /></span>
       {theme === "system" && <span className="ccc-theme-scene ccc-theme-scene-half" data-preview-theme="dark"><MiniWindow /></span>}
     </span>
   );
@@ -42,35 +42,4 @@ export function ClosePreview({ behavior }: { behavior: CloseBehavior }) {
       </>}
     </svg>
   );
-}
-
-export function MotionPreview({ mode }: { mode: MotionPreference }) {
-  return <svg className="ccc-preference-illustration" viewBox="0 0 160 80" fill="none">
-    <rect x="12" y="12" width="136" height="56" rx="12" fill="var(--ccc-content)" stroke="var(--ccc-hairline)" />
-    <path d="M32 40h90" stroke="var(--ccc-hairline)" strokeWidth="4" />
-    <circle cx="122" cy="40" r="7" stroke="var(--ccc-text-muted)" />
-    <circle cx={mode === "reduce" ? 122 : 32} cy="40" r="7" fill="var(--ccc-action)" className={mode === "system" ? "ccc-motion-preview" : undefined} />
-  </svg>;
-}
-
-export function StartupPagePreview({ page }: { page: StartupPage }) {
-  return <svg className="ccc-preference-illustration" viewBox="0 0 160 80" fill="none">
-    <rect x="12" y="8" width="136" height="64" rx="12" fill="var(--ccc-content)" stroke="var(--ccc-hairline)" />
-    <path d="M38 8v64" stroke="var(--ccc-hairline)" />
-    <rect x="19" y={page === "dashboard" ? 21 : 38} width="12" height="4" rx="2" fill="var(--ccc-action)" />
-    <path d={page === "dashboard" ? "M54 52l16-13 18 5 22-20 20 5" : "M54 25h72m-72 15h56m-56 15h64"} stroke="var(--ccc-action)" strokeWidth="3" />
-  </svg>;
-}
-
-export function LogPreview({ level }: { level: RuntimeLogLevel }) {
-  const levels: RuntimeLogLevel[] = ["debug", "info", "warn", "error", "silent"];
-  const rank = levels.indexOf(level);
-  return <svg className="ccc-preference-illustration" viewBox="0 0 160 80" fill="none">
-    <rect x="12" y="8" width="136" height="64" rx="12" fill="var(--ccc-content)" stroke="var(--ccc-hairline)" />
-    {rank === 4 ? <g stroke="var(--ccc-text-muted)" strokeWidth="2"><circle cx="80" cy="40" r="18" /><path d="m66 54 28-28" /></g>
-      : levels.slice(0, 4).map((item, index) => index >= rank && <g key={item}>
-        <circle cx="28" cy={20 + index * 13} r="3" fill={`var(--ccc-${index === 3 ? "danger" : index === 2 ? "warning" : "action"})`} />
-        <path d={`M42 ${20 + index * 13}h${80 - index * 8}`} stroke="var(--ccc-hairline)" strokeWidth="4" />
-      </g>)}
-  </svg>;
 }

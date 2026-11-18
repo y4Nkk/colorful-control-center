@@ -10,7 +10,7 @@ fn menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     menu.append(&MenuItem::with_id(
         app,
         "show",
-        "显示控制台",
+        "显示主窗口",
         true,
         None::<&str>,
     )?)?;

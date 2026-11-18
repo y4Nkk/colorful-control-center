@@ -2,7 +2,6 @@ import type { BatteryProfile } from "../../api/client";
 import { Icon } from "../Icon";
 import { Surface } from "../Surface";
 import { BatteryArtwork } from "./BatteryArtwork";
-import { MetricReadout } from "./MetricReadout";
 
 const validPercent = (value: number | null | undefined) => value != null && Number.isFinite(value) && value >= 0 && value <= 100 ? value : null;
 export function BatteryLevel({ percent, charging, label = "当前电量" }: { percent: number | null; charging: boolean | null; label?: string }) {
@@ -16,23 +15,15 @@ export function BatteryLevel({ percent, charging, label = "当前电量" }: { pe
 }
 export function BatteryOverview({ profile }: { profile: BatteryProfile | null }) {
   const power = profile?.power, present = power?.present === true;
-  const diagnostics = present ? profile?.diagnostics : null;
   const supply = power?.acOnline == null ? "供电未知" : power.acOnline ? "外接电源" : "电池供电";
   const charging = !present ? null : power?.charging ?? null;
   const status = power?.present === false ? "未检测到电池" : !present || charging === null ? "电池状态未知" : charging ? "正在充电" : "未在充电";
   const remaining = present && power?.remainingSeconds != null ? `${Math.ceil(power.remainingSeconds / 60)} 分钟` : "—";
   return <div className="ccc-battery-overview" aria-label="电池实时概览">
-    <Surface as="section" variant="inset" className="ccc-battery-overview-part" aria-label="当前电池读数">
+    <Surface as="section" variant="plain" className="ccc-battery-overview-part" aria-label="当前电池读数">
       <div className="ccc-battery-overview-head"><span><Icon name={power?.acOnline === true ? "plug" : "battery"} />{supply}</span><span>{status}</span></div>
       <BatteryLevel percent={present ? power?.percent ?? null : null} charging={charging} />
       <div className="ccc-battery-overview-foot"><span>当前电量</span><span>预计剩余 <strong>{remaining}</strong></span></div>
-    </Surface>
-    <Surface as="section" variant="inset" className="ccc-battery-overview-part" aria-label="电池容量读数">
-      <div className="ccc-battery-overview-head"><span><Icon name="battery" />容量对比</span><span>原厂报告</span></div>
-      <div className="ccc-battery-capacity"><MetricReadout label="满充 / 设计容量" value={diagnostics?.capacityPct ?? null} maximum={100} unit="%" colorVar="var(--ccc-safe)" />
-        <div className="ccc-battery-cycle"><Icon name="refresh" /><strong className="ccc-mono">{diagnostics?.cycleCount ?? "—"}<small> 次</small></strong><span>累计循环</span></div>
-      </div>
-      <div className="ccc-battery-overview-foot"><span>生产日期</span><strong>{diagnostics?.manufacturedOn ?? "—"}</strong></div>
     </Surface>
   </div>;
 }

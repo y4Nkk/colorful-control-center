@@ -1,7 +1,7 @@
 import { restoreGpuTurbo, type GpuTurboProfile } from "../../api/client";
 import { ConfirmButton } from "../ConfirmButton";
 import { Surface } from "../Surface";
-import { Collapsible } from "../Collapsible";
+import { DetailsDialog } from "../DetailsDialog";
 import { gpuLock, gpuOffsets, gpuRestoredOffset, gpuTarget } from "./gpu-values";
 
 type Props = { profile: GpuTurboProfile; busy: boolean; run: (action: () => Promise<void>, message: string, reset: boolean) => Promise<void> };
@@ -45,7 +45,7 @@ export function GpuTurboFacts({ profile, busy, run }: Props) {
           <ul className="ccc-gpu-turbo-modes">{current.onTargets.filter(item => item.onAc || item.mode === 2).map(item =>
             <li key={`${item.mode}-${item.onAc}`}><span>{modes[item.mode]}{item.mode === 2 ? item.onAc ? " · 插电" : " · 电池" : ""}</span>
               <span className="ccc-gpu-turbo-target">{gpuTarget(item.target)}</span>{item.unavailableReason && <span className="ccc-control-error">不可执行：{item.unavailableReason}</span>}</li>)}</ul>
-          <Collapsible summary="锁频与恢复说明"><p>锁频操作同时解除第二锁频域，恢复时还原初始值。模式或供电变化时按上表选择；设备、能力或保存目标变化后需要重新确认。</p></Collapsible>
+          <DetailsDialog title="锁频与恢复说明"><p>锁频操作同时解除第二锁频域，恢复时还原初始值。模式或供电变化时按上表选择；设备、能力或保存目标变化后需要重新确认。</p></DetailsDialog>
         </> : <p className="ccc-control-caption">目标不可用，不能确认此范围。</p>}
       </Surface>
     </div>

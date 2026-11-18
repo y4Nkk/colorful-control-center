@@ -1,3 +1,5 @@
+import { openProfileDetails, openStartupParameters, openProfileResults } from "./profile-review.mjs";
+import { availableAction, changeButton, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -21,16 +23,14 @@ test.beforeEach(async ({ page }) => {
 
 test("档案组合预览包含目标选项，两次确认携带同一目标", async ({ page }) => {
   await selectProfile(page);
-  const panel = preview(page);
-  await expect(panel.getByLabel("档案性能选项")).toContainText("随性能模式应用");
-  await expect(panel.getByLabel("模式联动目标")).toContainText("性能增强");
-  await expect(panel.getByLabel("模式联动目标")).toContainText("动态调优");
+  const review = await openConfigurationReview(page);
+  await expect(review.getByLabel("档案性能选项")).toContainText("随性能模式应用");
+  await expect(review.getByLabel("模式联动目标")).toContainText("性能增强");
+  await expect(review.getByLabel("模式联动目标")).toContainText("动态调优");
   expect(await writes(page)).toEqual([]);
-  await panel.getByRole("button", { name: "应用", exact: true }).click();
-  expect(await writes(page)).toEqual([]);
-  await panel.getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
-  await panel.getByText(/^执行明细/).click();
-  await expect(panel.getByLabel("执行结果").getByRole("listitem").filter({ hasText: "性能选项" }).getByRole("img", { name: "成功", exact: true })).toBeVisible();
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  const results = await openProfileResults(page);
+  await expect(results.getByRole("listitem").filter({ hasText: "性能选项" }).getByRole("img", { name: "成功", exact: true })).toBeVisible();
   const [call] = await writes(page);
   expect(call.args.expectedMode).toMatchObject({ mode: 2, turbo: true, dtt: true, fanMode: 0 });
   expect(call.args.expected.settings.performanceOptions).toEqual({ turboFan: true, dtt: true });
@@ -40,8 +40,12 @@ test("其他模式保存偏好，图形预览和导出保留开关值", async ({
   await page.evaluate(() => window.__uiFixture.profile.settings.oemPowerMode = 3);
   await selectProfile(page);
   const panel = preview(page);
-  await expect(panel.getByLabel("档案性能选项")).toContainText("本次不激活它们");
-  await expect(panel.getByLabel("模式联动目标")).not.toContainText("动态调优");
+  const details = await openProfileDetails(page);
+  await details.getByLabel("档案性能选项").getByRole("button", { name: "应用顺序", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "应用顺序", exact: true })).toContainText("本次不激活它们");
+  await page.keyboard.press("Escape");
+  await expect(details.getByLabel("模式联动目标")).not.toContainText("动态调优");
+  await page.keyboard.press("Escape");
   const download = page.waitForEvent("download");
   await panel.getByRole("button", { name: "导出", exact: true }).click();
   const file = await download;
@@ -62,18 +66,18 @@ test("捕获保留当前保存偏好并省略固件未声明的选项", async ({
   await expect(preview(page).getByRole("heading", { name: "保存偏好" })).toBeVisible();
   const saved = (await writes(page)).find(call => call.command === "save_profile");
   expect(saved.args.args.settings.performanceOptions).toEqual({ turboFan: null, dtt: true });
-  await expect(preview(page).getByLabel("档案性能选项")).not.toContainText("Turbo 风扇");
+  await expect((await openProfileDetails(page)).getByLabel("档案性能选项")).not.toContainText("Turbo 风扇");
 });
 
 test("驱动在确认后变化时拒绝激活，重新预览显示错误", async ({ page }) => {
   await selectProfile(page);
-  await preview(page).getByRole("button", { name: "应用", exact: true }).click();
+  await openConfigurationReview(page);
   await page.evaluate(() => window.__uiFixture.performanceOptions.dttDriverAvailable = false);
-  await preview(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("不能激活DTT");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
-  await expect(preview(page).getByRole("button", { name: "应用", exact: true })).toBeDisabled();
-  await expect(preview(page).getByLabel("执行结果")).toHaveCount(0);
+  await expect(changeButton(page)).toHaveCount(0);
+  await expect(preview(page).getByRole("button", { name: /^执行明细/ })).toHaveCount(0);
 });
 
 test("启动选择展示组合联动，保存完整文件且不发送应用", async ({ page }) => {
@@ -81,11 +85,11 @@ test("启动选择展示组合联动，保存完整文件且不发送应用", as
   const panel = page.getByRole("region", { name: "启动档案", exact: true });
   await panel.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
-  await panel.getByText("查看启动档案参数", { exact: true }).click();
-  await expect(panel.getByLabel("模式联动目标")).toContainText("动态调优");
-  await expect(panel).toContainText("启动时将重新检查能力及状态");
-  await panel.getByRole("button", { name: "保存", exact: true }).click();
-  await panel.getByRole("button", { name: "启动时应用「隔离档案」？", exact: true }).click();
+  const parameters = await openStartupParameters(page);
+  await expect(parameters.getByLabel("模式联动目标")).toContainText("动态调优");
+  await expect(parameters).toContainText("启动时保存插电偏好并应用模式的固件节能联动");
+  await page.keyboard.press("Escape");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   const calls = await writes(page);
   expect(calls.map(call => call.command)).toEqual(["set_startup_profile"]);
   expect(calls[0].args.expected.settings.performanceOptions).toEqual({ turboFan: true, dtt: true });
@@ -99,20 +103,20 @@ test("保留开启DTT但驱动未知时，先关闭DTT才能应用其他选项",
   });
   await panel.getByRole("button", { name: "重新读取性能选项", exact: true }).click();
   await panel.getByRole("switch", { name: "Turbo 风扇", exact: true }).click();
-  await expect(panel.getByRole("button", { name: "应用性能选项", exact: true })).toBeDisabled();
+  await expect(availableAction(page, "性能选项")).toHaveCount(0);
   await expect(panel).toContainText("请确认驱动或先关闭 DTT");
   await panel.getByRole("switch", { name: "动态调校 DTT", exact: true }).click();
-  await expect(panel.getByRole("button", { name: "应用性能选项", exact: true })).toBeEnabled();
+  await expect(availableAction(page, "性能选项")).toBeEnabled();
   expect(await writes(page)).toEqual([]);
 });
 
 test("性能档案卡片在宽窄及深浅主题下保持模块边框和可读布局", async ({ page }) => {
   await selectProfile(page);
+  const panel = (await openProfileDetails(page)).getByLabel("档案性能选项");
   for (const theme of ["light", "dark"]) {
     await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
     for (const width of [360, 1440]) {
       await page.setViewportSize({ width, height: 1800 });
-      const panel = preview(page).getByLabel("档案性能选项");
       await panel.scrollIntoViewIfNeeded();
       expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
       await expect(panel).toHaveAttribute("data-surface", "group");

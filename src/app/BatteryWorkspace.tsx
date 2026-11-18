@@ -9,7 +9,9 @@ export function BatteryWorkspace({ active, model }: HardwareWorkspaceProps) {
   return <div className="ccc-control">
     <BatterySettings active={active} revision={model.deviceRevision} onPolicyChanged={model.refreshSystemPolicy} />
     <PlatformPower active={active} revision={revisions.mode} />
-    <UsbPowerPolicy active={active} revision={revisions.mode} />
-    <LanPolicy active={active} revision={revisions.mode} />
+    <div className="ccc-device-pair">
+      <UsbPowerPolicy active={active} revision={revisions.mode} />
+      <LanPolicy active={active} revision={revisions.mode} />
+    </div>
   </div>;
 }

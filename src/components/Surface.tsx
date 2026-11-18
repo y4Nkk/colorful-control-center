@@ -2,7 +2,7 @@ import type { HTMLAttributes } from "react";
 
 export type SurfaceVariant = "plain" | "panel" | "card" | "group" | "workspace" | "inset";
 interface SurfaceProps extends HTMLAttributes<HTMLElement> {
-  as?: "div" | "section" | "label" | "main";
+  as?: "div" | "section" | "label" | "main" | "dl";
   variant?: SurfaceVariant;
 }
 

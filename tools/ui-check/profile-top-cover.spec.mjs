@@ -1,3 +1,5 @@
+import { openStartupParameters, openProfileResults } from "./profile-review.mjs";
+import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
@@ -11,8 +13,8 @@ async function select(page) {
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
 }
 async function apply(page) {
-  await preview(page).getByRole("button", { name: "应用", exact: true }).click();
-  await preview(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
+  await openConfigurationReview(page);
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
 }
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
@@ -27,13 +29,14 @@ test("独立顶盖档案预览只读，确认后更新控制台并复用初始�
   await expect(card.getByRole("img", { name: "独立顶盖档案颜色" }).locator("rect")).toHaveAttribute("fill", "#abcdef");
   expect(await page.evaluate(() => window.__uiFixture.lightingOptions.current.topCover.brightness)).toBe(3);
   await apply(page);
-  await expect(preview(page).getByLabel("执行结果")).toContainText("灯光策略与外围灯区");
+  const results = await openProfileResults(page);
+  await expect(results).toContainText("灯光策略与外围灯区");
   await navigate(page, "灯光效果");
   const panel = page.getByRole("region", { name: "灯光策略与外围灯区", exact: true });
   await expect(panel.getByRole("slider", { name: "顶盖亮度", exact: true })).toHaveValue("2");
   await expect(panel).toContainText("独立顶盖亮度3级 · #0A141E");
-  await panel.getByRole("button", { name: "恢复灯光选项初始", exact: true }).click();
-  await panel.getByRole("button", { name: "恢复本会话修改前的灯光选项？", exact: true }).click();
+  await openConfigurationReview(page, "灯光策略与外围灯区", true);
+  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   await expect(panel.getByRole("slider", { name: "顶盖亮度", exact: true })).toHaveValue("3");
 });
 
@@ -60,7 +63,8 @@ test("后续设备失败恢复本次顶盖前态并保留首次基线", async ({
   });
   await select(page);
   await apply(page);
-  await expect(preview(page).getByLabel("执行结果")).toContainText("恢复灯光策略与外围灯区");
+  const results = await openProfileResults(page);
+  await expect(results).toContainText("恢复灯光策略与外围灯区");
   const state = await page.evaluate(() => window.__uiFixture.lightingOptions);
   expect(state.current.topCover.brightness).toBe(3);
   expect(state.initial.topCover.brightness).toBe(3);
@@ -86,10 +90,10 @@ test("启动档案预览和确认绑定完整顶盖目标，保存选择不执�
   const panel = page.getByRole("region", { name: "启动档案", exact: true });
   await panel.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
-  await panel.getByText("查看启动档案参数", { exact: true }).click();
-  await expect(panel).toContainText("独立顶盖 · 亮度2级 · #ABCDEF");
-  await panel.getByRole("button", { name: "保存", exact: true }).click();
-  await panel.getByRole("button", { name: "启动时应用「隔离档案」？", exact: true }).click();
+  const parameters = await openStartupParameters(page);
+  await expect(parameters).toContainText("独立顶盖 · 亮度2级 · #ABCDEF");
+  await page.keyboard.press("Escape");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   const calls = await page.evaluate(() => window.__uiFixture.calls.filter(call => call.command === "set_startup_profile"));
   expect(calls).toHaveLength(1);
   expect(calls[0].args.expected.settings.lightingOptions.values.topCover.brightness).toBe(2);

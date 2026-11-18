@@ -15,10 +15,10 @@ export function GraphicsWorkspace({ active, model, navigationRequest, onNavigate
     <div ref={anchor} role="region" aria-label="显示控制区域" tabIndex={-1} className="ccc-device-anchor">
       <DisplaySettings active={active} revision={model.deviceRevision} rotationRequest={rotationRequest} />
     </div>
-    <div className="ccc-device-pair">
+    <div className="ccc-device-grid">
       <AutomaticRefreshSettings active={active} revision={model.deviceRevision} />
       <GraphicsModeSettings active={active} revision={model.deviceRevision} />
+      <GpuPowerSettings active={active} revision={model.deviceRevision} onSettled={() => model.setRevisions(previous => ({ ...previous, gpu: previous.gpu + 1 }))} />
     </div>
-    <GpuPowerSettings active={active} revision={model.deviceRevision} onSettled={() => model.setRevisions(previous => ({ ...previous, gpu: previous.gpu + 1 }))} />
   </div>;
 }

@@ -1,13 +1,14 @@
 import type { HardwareSnapshot, SystemOverview } from "../../api/client";
 import { formatParameter } from "../../lib/format-parameters";
 import { FactList } from "../FactList";
-import { ParameterHelp } from "./ParameterHelp";
+import { ParameterDescriptions } from "./ParameterHelp";
+import { DetailsDialog } from "../DetailsDialog";
 import { CPU_SPEC_HELP, GPU_SPEC_HELP } from "./parameterDescriptions";
 
 export function CpuParameters({ overview, live }: { overview: SystemOverview | null; live: HardwareSnapshot | null }) {
   const cpu = overview?.cpu;
   const ghz = (mhz: number | null | undefined) => formatParameter(mhz == null ? null : mhz / 1000, "GHz", 2);
-  return <div className="ccc-hardware-parameters" role="group" aria-label="CPU 硬件参数">
+  return <DetailsDialog title="CPU 硬件参数" label="CPU 详细信息">
     <FactList compact facts={[
       { label: "物理核心数", value: formatParameter(cpu?.physicalCores, "核") },
       { label: "逻辑处理器数", value: formatParameter(cpu?.logicalProcessors, "个") },
@@ -15,13 +16,13 @@ export function CpuParameters({ overview, live }: { overview: SystemOverview | n
       { label: "标称最高频率", value: ghz(cpu?.maxClockMhz) },
       { label: "当前温度", value: formatParameter(live?.cpuTempC, "°C", 1) },
     ]} />
-    <ParameterHelp title="CPU 硬件参数说明" items={CPU_SPEC_HELP} />
-  </div>;
+    <ParameterDescriptions items={CPU_SPEC_HELP} />
+  </DetailsDialog>;
 }
 
 export function GpuParameters({ live }: { live: HardwareSnapshot | null }) {
   const gpu = live?.nvidia;
-  return <div className="ccc-hardware-parameters" role="group" aria-label="GPU 硬件参数">
+  return <DetailsDialog title="GPU 硬件参数" label="GPU 详细信息">
     <FactList compact facts={[
       { label: "计算核心数", value: formatParameter(gpu?.cudaCores, "个") },
       { label: "显存位宽", value: formatParameter(gpu?.memoryBusWidthBits, "位") },
@@ -32,6 +33,6 @@ export function GpuParameters({ live }: { live: HardwareSnapshot | null }) {
       { label: "当前功耗", value: formatParameter(gpu?.powerDrawW, "W", 1) },
       { label: "当前功耗上限", value: formatParameter(gpu?.powerLimitW, "W", 1) },
     ]} />
-    <ParameterHelp title="GPU 硬件参数说明" items={GPU_SPEC_HELP} />
-  </div>;
+    <ParameterDescriptions items={GPU_SPEC_HELP} />
+  </DetailsDialog>;
 }

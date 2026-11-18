@@ -3,8 +3,11 @@ import { Surface } from "../Surface";
 import type { PreferencesModel } from "../../app/useAppPreferences";
 import { PreferenceCards, SettingRow } from "./PreferenceCards";
 import { FontPicker } from "./FontPicker";
-import { ThemePreview, MotionPreview } from "./SettingsPreviews";
+import { ThemePreview } from "./SettingsPreviews";
+import { SegmentedControl } from "../SegmentedControl";
+import { Switch } from "../Switch";
 
+const SCALES = [90, 100, 110, 125] as const;
 export function AppearanceSettings({ model }: { model: PreferencesModel }) {
   const { snapshot, busy, patch } = model;
   if (!snapshot) return null;
@@ -18,16 +21,11 @@ export function AppearanceSettings({ model }: { model: PreferencesModel }) {
       preview={theme => <ThemePreview theme={theme} />} onChange={theme => void patch({ theme })} />
     <SettingRow label="界面字体"><FontPicker value={settings.interfaceFont} busy={busy}
       onChange={interfaceFont => patch({ interfaceFont })} /></SettingRow>
-    <PreferenceCards label="主界面缩放" value={settings.interfaceScale} busy={busy}
-      options={[{ value: 90, label: "90%" },
-        { value: 100, label: "100%" },
-        { value: 110, label: "110%" },
-        { value: 125, label: "125%" }]}
-      preview={scale => <ThemePreview theme="light" scale={scale} />}
-      onChange={interfaceScale => void patch({ interfaceScale })} />
-    <PreferenceCards label="动态效果" value={settings.motion} busy={busy}
-      options={[{ value: "system", label: "跟随系统" },
-        { value: "reduce", label: "减少动态效果" }]}
-      preview={mode => <MotionPreview mode={mode} />} onChange={motion => void patch({ motion })} />
+    <SettingRow label="主界面缩放"><SegmentedControl label="主界面缩放" value={String(settings.interfaceScale)} disabled={busy}
+      options={SCALES.map(scale => ({ value: String(scale), label: `${scale}%` }))}
+      onChange={value => { const interfaceScale = SCALES.find(scale => String(scale) === value); if (interfaceScale) void patch({ interfaceScale }); }} />
+    </SettingRow>
+    <SettingRow label="减少动态效果"><Switch label="减少动态效果" checked={settings.motion === "reduce"} disabled={busy}
+      onChange={reduce => void patch({ motion: reduce ? "reduce" : "system" })} /></SettingRow>
   </Surface>;
 }

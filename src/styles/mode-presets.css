@@ -1,8 +1,8 @@
 /* 场景插画与图片选择卡布局；交互表面由 Surface / Radio 拥有。 */
 .ccc-mode-presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--ccc-space-3); }
 .ccc-mode-presets:has(> :nth-child(5)) { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.ccc-mode-option { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: center; overflow: hidden; }
-.ccc-mode-artwork { position: relative; display: block; overflow: hidden; aspect-ratio: 1; }
+.ccc-mode-option { display: grid; grid-template-rows: auto 1fr; align-items: stretch; overflow: hidden; }
+.ccc-mode-artwork { position: relative; display: block; overflow: hidden; aspect-ratio: 2.15; }
 .ccc-mode-art { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; transform-origin: 50% 65%; transition: transform var(--ccc-motion) var(--ccc-easing); }
 
 .ccc-mode-select-mark {
@@ -17,30 +17,27 @@
   border-radius: var(--ccc-radius-full);
   background: color-mix(in srgb, var(--ccc-content) 82%, transparent);
   color: var(--ccc-action);
+  visibility: hidden;
 }
 
 .ccc-mode-select-mark .ccc-icon { opacity: 0; }
 .ccc-mode-copy { display: flex; flex-direction: column; padding: var(--ccc-space-3); }
-.ccc-mode-option-head { display: flex; flex-direction: column; align-items: flex-start; gap: var(--ccc-space-1); }
+.ccc-mode-option-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--ccc-space-1); }
 .ccc-mode-option-head strong { font-size: var(--ccc-text-xl); font-weight: 600; }
 .ccc-mode-option-status { display: inline-flex; align-items: center; gap: var(--ccc-space-1); color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
 .ccc-mode-option[data-current="true"] .ccc-mode-option-status::before { content: ""; width: 5px; height: 5px; border-radius: var(--ccc-radius-full); background: var(--ccc-safe); }
 .ccc-mode-hint { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
 .ccc-mode-hint { margin: 0; }
 
-.ccc-mode-option:has(input:checked) .ccc-mode-select-mark { border-color: transparent; background: var(--ccc-content); }
+.ccc-mode-option:has(input:checked) .ccc-mode-select-mark { border-color: transparent; background: var(--ccc-content); visibility: visible; }
 .ccc-mode-option:has(input:checked) .ccc-mode-select-mark .ccc-icon { opacity: 1; }
 .ccc-mode-option:has(input:checked) .ccc-mode-option-head strong { color: var(--ccc-action); }
 .ccc-mode-option:is(:hover, :focus-within):has(input:enabled) .ccc-mode-art { transform: scale(1.035); }
 
-@container ccc-control (max-width: 900px) {
+@container ccc-control (max-width: 660px) {
   .ccc-mode-presets, .ccc-mode-presets:has(> :nth-child(5)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@container ccc-control (max-width: 400px) {
-  .ccc-mode-presets, .ccc-mode-presets:has(> :nth-child(5)) { grid-template-columns: minmax(0, 1fr); }
-}
-.ccc-mode-restore-fold { width: 100%; }
-.ccc-mode-gpu-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); align-items: start; gap: var(--ccc-space-3); width: 100%; }
+.ccc-mode-gpu-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: var(--ccc-space-3); width: 100%; }
 .ccc-mode-gpu-part, .ccc-mode-clock-facts { display: flex; flex-direction: column; gap: var(--ccc-space-2); min-width: 0; }
 .ccc-mode-gpu-part { padding: var(--ccc-space-3); }
 .ccc-mode-gpu-part p, .ccc-mode-clock-facts p { margin: 0; }
@@ -49,7 +46,3 @@
 .ccc-mode-restore-block { display: flex; flex-direction: column; gap: var(--ccc-space-3); min-width: 0; }
 .ccc-mode-restore-block h3 { margin: 0; font-size: var(--ccc-text-sm); }
 .ccc-mode-restore-raw { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font-size: var(--ccc-text-sm); }
-
-@container ccc-control (max-width: 900px) {
-  .ccc-mode-gpu-columns { grid-template-columns: minmax(0, 1fr); }
-}

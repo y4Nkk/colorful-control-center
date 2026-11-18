@@ -1,6 +1,8 @@
 import { Surface } from "../Surface";
 import { Radio } from "../Radio";
 import { Button } from "../Button";
+import { ConfigurationAction } from "../ConfigurationAction";
+import { DetailsDialog } from "../DetailsDialog";
 import { useId } from "react";
 import { OEM_POWER_MODES } from "../../api/client";
 import { Icon } from "../Icon";
@@ -9,7 +11,7 @@ import { ModeArtwork } from "./ModeArtwork";
 import { OemModeEffects } from "./OemModeEffects";
 import { OemModeRestore } from "./OemModeRestore";
 import { useOemPowerMode } from "./useOemPowerMode";
-import { ParameterHelp } from "./ParameterHelp";
+import { ParameterDescriptions } from "./ParameterHelp";
 import { MODE_HELP } from "./parameterDescriptions";
 import { gpuModeError } from "./gpu-values";
 
@@ -34,7 +36,10 @@ export function OemPowerMode({ active, revision, onSettled }: { active: boolean;
   return <Surface as="section" variant="group" className="ccc-panel" aria-label="预设模式" aria-busy={disabled}>
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="performance" />预设模式</h2>
       <span className="ccc-chip" role="status">{reading ? "读取中…" : profile ? `当前使用 · ${modeLabel(profile.currentMode)}` : "当前模式未知"}</span>
-      {profile && <span className="ccc-chip" aria-label="当前插电偏好">插电偏好 · {modeLabel(profile.acMode)}</span>}
+      <div className="ccc-module-tools"><DetailsDialog label="详情" title="模式说明">
+        {profile && <p>插电偏好 · {modeLabel(profile.acMode)}</p>}
+        <ParameterDescriptions items={MODE_HELP} />
+      </DetailsDialog></div>
     </div>
     <div className="ccc-mode-presets" role="radiogroup" aria-label="预设模式选择">
       {presets.map(({ mode }) => {
@@ -57,22 +62,21 @@ export function OemPowerMode({ active, revision, onSettled }: { active: boolean;
       })}
     </div>
     {profile && profile.availableModes.length === 0 && <span className="ccc-chip">固件未声明可用模式</span>}
-    {dirty && changes.length > 0 && <DiffPreview items={changes} />}
-    {dirty && changes.length === 0 && <span className="ccc-chip">重新应用 · {modeLabel(draft!)}</span>}
-    {dirty && target && <OemModeEffects target={target} />}
-    {dirty && target && (target.unavailableReason || !target.gpu) && <p className="ccc-control-error" role="alert">{gpuError}</p>}
+    {dirty && target && gpuError && <div className="ccc-actions">
+      <p className="ccc-control-error" role="alert">{gpuError}</p>
+      <DetailsDialog title="模式联动详情" wide><OemModeEffects target={target} /></DetailsDialog>
+    </div>}
     {dirty && !target && <p className="ccc-mode-hint">未读取到该模式的联动目标，请重试后再应用。</p>}
-    {dirty && profile.softwareActive && <span className="ccc-chip">退出软件曲线，切换到原厂风扇策略</span>}
     {error && <p role="alert" className="ccc-control-error">{error}</p>}
     {profile?.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
-    <div className="ccc-actions">
-      <Button icon={busy ? "loading" : "apply"} type="button" aria-busy={busy}
-        disabled={busy || reading || blocked || !dirty || !target?.revision || !!gpuError}
-        onClick={() => { void model.apply(); }}>{busy ? "正在应用…" : "确认应用模式"}</Button>
-      {(error || (dirty && !target)) && <Button icon="refresh" variant="ghost" size="compact" type="button" disabled={disabled} onClick={model.retry}>重试</Button>}
-    </div>
+    {(error || (dirty && (!target || gpuError))) && <Button className="ccc-inline-tool" icon="refresh" variant="ghost" size="compact" disabled={disabled} onClick={model.retry}>重试</Button>}
+    <ConfigurationAction label="预设模式" revision={target?.revision ?? ""} disabled={disabled || blocked || !dirty || !target?.revision || !!gpuError}
+      onConfirm={model.apply}>
+      {changes.length > 0 ? <DiffPreview items={changes} /> : <p>重新应用 · {draft != null && modeLabel(draft)}</p>}
+      {target && <OemModeEffects target={target} />}
+      {profile?.softwareActive && <p>退出软件曲线，切换到原厂风扇策略。</p>}
+    </ConfigurationAction>
     {profile?.restore && <OemModeRestore target={profile.restore} currentMode={profile.currentMode} currentAcMode={profile.acMode} currentEnergy={profile.energy}
-      busy={busy} disabled={reading || blocked || !profile.canRestore} blockedReason={profile.restoreBlockedReason} label="恢复初始" onRestore={model.restore} />}
-    <ParameterHelp title="模式说明" items={MODE_HELP} />
+      busy={busy} disabled={reading || blocked || !profile.canRestore} blockedReason={profile.restoreBlockedReason ?? profile.blockedReason} onRestore={model.restore} />}
   </Surface>;
 }

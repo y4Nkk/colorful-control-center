@@ -1,5 +1,5 @@
 import { FAN_MODES, OEM_POWER_MODES, type OemEnergyState, type OemModeGpuState, type SupplyModeRecovery as Recovery } from "../../api/client";
-import { Collapsible } from "../Collapsible";
+import { DetailsDialog } from "../DetailsDialog";
 import { FactList } from "../FactList";
 import { Surface } from "../Surface";
 import { GpuModeRawStateFacts, GpuModeObservationFacts } from "./GpuModeFacts";
@@ -49,11 +49,11 @@ export function SupplyModeRecovery({ value }: { value: Recovery }) {
         <div className="ccc-supply-mode-stack"><h4>初始目标</h4><GpuModeRawStateFacts value={value.initialGpuClocks.state} /></div>
       </div>
     </Surface>}
-    <Collapsible summary="查看完整风扇恢复参数">
+    <DetailsDialog title="查看完整风扇恢复参数">
       <div className="ccc-supply-mode-pair">
         <div className="ccc-supply-mode-stack"><h4>当前参数</h4><pre className="ccc-supply-mode-raw ccc-mono">{JSON.stringify(value.currentFan, null, 2)}</pre></div>
         <div className="ccc-supply-mode-stack"><h4>初始参数</h4><pre className="ccc-supply-mode-raw ccc-mono">{JSON.stringify(value.initialFan, null, 2)}</pre></div>
       </div>
-    </Collapsible>
+    </DetailsDialog>
   </div>;
 }

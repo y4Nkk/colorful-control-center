@@ -3,7 +3,7 @@ import type { IconName } from "../components/Icon";
 export type PageId = "dashboard" | "cooling" | "performance" | "graphics" | "lighting" | "input" | "battery" | "automation" | "profiles" | "settings";
 export interface PageDefinition { id: PageId; title: string; icon: IconName; workspace?: string }
 export const PAGES: readonly PageDefinition[] = [
-  { id: "dashboard", workspace: "ControlWorkspace", title: "控制台", icon: "controls" },
+  { id: "dashboard", workspace: "ControlWorkspace", title: "概览", icon: "overview" },
   { id: "cooling", title: "风扇散热", icon: "fan" },
   { id: "performance", title: "性能调校", icon: "performance" },
   { id: "graphics", title: "显示与显卡", icon: "display" },

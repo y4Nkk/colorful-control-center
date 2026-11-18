@@ -29,15 +29,17 @@ export function useMicrophoneSettings(active: boolean, revision: number) {
     return () => { disposed = true; clearInterval(timer); ++generation.current; };
   }, [active, revision, reload]);
   const run = async (action: () => Promise<void>, title: string) => {
-    if (writing.current) return;
+    if (writing.current) return false;
     writing.current = true; ++generation.current; setBusy(true); setActionError(null);
     try {
       await reading.current?.catch(() => undefined);
       await action(); await reload(true, true);
       toast({ kind: "success", title });
+      return true;
     } catch (error) {
       setActionError(String(error));
       await reload(false, true).catch(() => {});
+      return false;
     } finally { writing.current = false; setBusy(false); }
   };
   const reread = () => { if (!writing.current) void reload().catch(() => {}); };

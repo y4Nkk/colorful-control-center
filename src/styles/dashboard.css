@@ -3,7 +3,8 @@
  */
 
 .ccc-facts {
-  padding: var(--ccc-space-2) var(--ccc-space-4);
+  margin: 0;
+  padding: 0;
 }
 
 .ccc-fact-row {
@@ -27,13 +28,15 @@
 .ccc-fact-value {
   flex: 1;
   min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .ccc-fact-value.is-danger {
   color: var(--ccc-danger);
 }
 
-.ccc-facts[data-density="compact"] { width: 100%; padding: 0 var(--ccc-space-3); font-size: var(--ccc-text-sm); }
+.ccc-facts[data-density="compact"] { width: 100%; font-size: var(--ccc-text-sm); }
 .ccc-facts[data-density="compact"] .ccc-fact-row { gap: var(--ccc-space-2); min-height: var(--ccc-control-height-compact); }
 .ccc-facts[data-density="compact"] .ccc-fact-label { width: 46%; }
 .ccc-facts[data-density="compact"] .ccc-fact-value { text-align: right; overflow-wrap: anywhere; }

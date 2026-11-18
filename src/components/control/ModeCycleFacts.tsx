@@ -1,5 +1,5 @@
 import { OEM_POWER_MODES, type OemModeCycleProfile } from "../../api/client";
-import { Collapsible } from "../Collapsible";
+import { DetailsDialog } from "../DetailsDialog";
 import { Surface } from "../Surface";
 import { GpuModeDriverRanges, GpuModeRawStateFacts, GpuModeSupplyTargets } from "./GpuModeFacts";
 import { OemModeEffects } from "./OemModeEffects";
@@ -8,7 +8,7 @@ import { ModeArtwork } from "./ModeArtwork";
 
 export function ModeCycleFacts({ profile }: { profile: OemModeCycleProfile }) {
   const { clocks, node } = profile;
-  return <Collapsible summary="电源模式循环联动预览">
+  return <DetailsDialog title="电源模式循环联动预览">
     <section className="ccc-mode-gpu-columns" aria-label="电源模式循环GPU预览">
       <Surface variant="inset" className="ccc-mode-gpu-part">
         <GpuPowerVisual label="当前GPU" enabled={node?.enabled ?? null} automatic={node?.automaticPowerOff ?? null} />
@@ -16,11 +16,11 @@ export function ModeCycleFacts({ profile }: { profile: OemModeCycleProfile }) {
         {clocks.deferredReason && <span className="ccc-chip">开启后核对频率</span>}
         {clocks.driverError && <p className="ccc-control-error" role="alert">{clocks.driverError}</p>}
         {!clocks.driver && !clocks.deferredReason && !clocks.driverError && <span className="ccc-chip">当前频率未读取</span>}
-        <Collapsible summary="设备与恢复说明">
+        <DetailsDialog title="设备与恢复说明">
           <p>{node?.name ?? (profile.nodeSupported ? "独显节点未报告" : "固件未声明独显节点控制")}</p>
           {clocks.deferredReason && <p>{clocks.deferredReason}</p>}
           <p>设备和驱动范围变化需重新确认；初始状态在预设模式区域恢复。</p>
-        </Collapsible>
+        </DetailsDialog>
       </Surface>
       <Surface variant="inset" className="ccc-mode-gpu-part">
         <strong>循环候选与供电目标</strong>
@@ -33,10 +33,10 @@ export function ModeCycleFacts({ profile }: { profile: OemModeCycleProfile }) {
             </div>
             {nodeChoice?.unavailableReason && <p className="ccc-control-error" role="alert">{nodeChoice.unavailableReason}</p>}
             <GpuModeSupplyTargets choices={clocks.choices.filter(choice => choice.mode === mode.mode)} />
-            <Collapsible summary="风扇与系统联动"><OemModeEffects target={mode} /></Collapsible>
+            <DetailsDialog title="风扇与系统联动"><OemModeEffects target={mode} /></DetailsDialog>
           </Surface>;
         })}</div>
       </Surface>
     </section>
-  </Collapsible>;
+  </DetailsDialog>;
 }

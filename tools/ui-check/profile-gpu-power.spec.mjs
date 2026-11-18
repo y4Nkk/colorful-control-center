@@ -1,16 +1,17 @@
+import { changeButton, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
+import { openProfileDetails, openProfileResults, openStartupParameters, profilePanel as panel } from "./profile-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
-const panel = page => page.getByRole("region", { name: "档案预览", exact: true });
-const gpu = page => panel(page).getByLabel("档案独显配置", { exact: true });
+const gpu = context => context.getByLabel("档案独显配置", { exact: true });
 async function select(page) {
   await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: "性能档案", exact: true }).click();
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
 }
 async function apply(page) {
-  await panel(page).getByRole("button", { name: "应用", exact: true }).click();
-  await panel(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
+  await openConfigurationReview(page);
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
 }
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
@@ -24,15 +25,16 @@ test.beforeEach(async ({ page }) => {
 });
 test("节点和自动策略分别预览，确认前零写入并绑定完整来源", async ({ page }) => {
   await select(page);
-  await expect(gpu(page)).toContainText("开启 → 关闭");
-  await expect(gpu(page)).toContainText("关闭 → 开启");
-  await expect(gpu(page).getByRole("meter")).toHaveCount(0);
+  await expect(gpu(panel(page))).toHaveCount(0);
   await expect(panel(page).getByRole("meter")).toHaveCount(0);
-  await expect(panel(page).getByLabel("保存设置 · CPU 持续功耗上限", { exact: true })).toHaveText("77 W");
-  await panel(page).getByRole("button", { name: "应用", exact: true }).click();
+  const review = await openConfigurationReview(page);
+  await expect(gpu(review)).toContainText("开启 → 关闭");
+  await expect(gpu(review)).toContainText("关闭 → 开启");
+  await expect(gpu(review).getByRole("meter")).toHaveCount(0);
+  await expect(review.getByLabel("保存设置 · CPU 持续功耗上限", { exact: true })).toHaveText("77 W");
   expect(await page.evaluate(() => window.__uiFixture.calls.filter(call => call.command === "apply_profile"))).toEqual([]);
-  await panel(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
-  await expect(panel(page).getByLabel("执行结果")).toContainText("独显目标复核");
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await expect(await openProfileResults(page)).toContainText("独显目标复核");
   const state = await page.evaluate(() => {
     const data = window.__uiFixture;
     return { device: data.gpuPower.devices[0], args: data.calls.find(call => call.command === "apply_profile").args };
@@ -44,18 +46,19 @@ test("节点和自动策略分别预览，确认前零写入并绑定完整来�
 test("混合策略保持独立，不被压成节点开关的反值", async ({ page }) => {
   await page.evaluate(() => window.__uiFixture.profile.settings.gpuPower.values = { enabled: true, automaticPowerOff: true });
   await select(page);
-  await expect(gpu(page)).toContainText("开启 → 开启");
-  await expect(gpu(page)).toContainText("关闭 → 开启");
-  await apply(page);
-  await expect(panel(page).getByLabel("执行结果")).toContainText("独显目标复核");
+  const review = await openConfigurationReview(page);
+  await expect(gpu(review)).toContainText("开启 → 开启");
+  await expect(gpu(review)).toContainText("关闭 → 开启");
+  await review.getByRole("button", { name: "应用档案", exact: true }).click();
+  await expect(await openProfileResults(page)).toContainText("独显目标复核");
   expect(await page.evaluate(() => window.__uiFixture.gpuPower.devices[0].automaticPowerOff)).toBe(true);
 });
 test("独显预览失败保留文件目标并禁止手动执行", async ({ page }) => {
   await page.evaluate(() => window.__uiFixture.profileGpuPreviewFault = "隔离独显预览断开");
   await select(page);
-  await expect(gpu(page)).toContainText("目标关闭");
-  await expect(panel(page).getByRole("button", { name: "应用", exact: true })).toBeDisabled();
+  await expect(changeButton(page)).toHaveCount(0);
   await expect(panel(page).getByRole("button", { name: "导出", exact: true })).toBeEnabled();
+  await expect(gpu(await openProfileDetails(page))).toContainText("目标关闭");
 });
 test("旧来源在执行时拒绝，不授权或改变独显", async ({ page }) => {
   await select(page);
@@ -76,7 +79,7 @@ test("多屏确认前不执行独显，明确保留才继续", async ({ page }) 
   expect(await page.evaluate(() => window.__uiFixture.profileGpuAuthorizations ?? 0)).toBe(0);
   await host.getByRole("button", { name: "保留显示并继续档案", exact: true }).click();
   await expect(host).toHaveCount(0);
-  await expect(panel(page).getByLabel("执行结果")).toContainText("独显目标复核");
+  await expect(await openProfileResults(page)).toContainText("独显目标复核");
   expect(await page.evaluate(() => window.__uiFixture.gpuPower.devices[0].enabled)).toBe(false);
 });
 test("开启后驱动复核失败显示本次恢复，不能报告全部完成", async ({ page }) => {
@@ -88,8 +91,8 @@ test("开启后驱动复核失败显示本次恢复，不能报告全部完成",
     data.profileGpuDriverReady = false;
   });
   await select(page); await apply(page);
-  await expect(panel(page).getByLabel("执行结果")).toContainText("恢复本次独显状态");
   await expect(panel(page).getByLabel("最近应用记录")).toContainText("未完成全部目标");
+  await expect(await openProfileResults(page)).toContainText("恢复本次独显状态");
   expect(await page.evaluate(() => window.__uiFixture.gpuPower.devices[0].enabled)).toBe(false);
 });
 test("启动选择复用独显预览且保存意图不执行硬件", async ({ page }) => {
@@ -97,10 +100,9 @@ test("启动选择复用独显预览且保存意图不执行硬件", async ({ pa
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
-  await startup.locator("summary").filter({ hasText: "查看启动档案参数" }).click();
-  await expect(startup.getByLabel("档案独显配置")).toContainText("开启 → 关闭");
-  await startup.getByRole("button", { name: "保存", exact: true }).click();
-  await startup.getByRole("button", { name: "启动时应用「隔离档案」？", exact: true }).click();
+  await expect(gpu(await openStartupParameters(page))).toContainText("开启 → 关闭");
+  await page.keyboard.press("Escape");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   const saved = await page.evaluate(() => window.__uiFixture.calls.find(call => call.command === "set_startup_profile"));
   expect(saved.args.expected.settings.gpuPower.values).toEqual({ enabled: false, automaticPowerOff: true });
   expect(await page.evaluate(() => window.__uiFixture.profileGpuAuthorizations ?? 0)).toBe(0);
@@ -118,13 +120,15 @@ test("保存当前捕获实际节点与混合策略，不复制旧档案目标",
 });
 test("宽窄深浅保持模块边框与数值语义", async ({ page }) => {
   await select(page);
+  const dialog = await openProfileDetails(page);
+  const values = gpu(dialog);
   for (const theme of ["light", "dark"]) for (const width of [1440, 360]) {
     await page.setViewportSize({ width, height: 1500 });
     await page.evaluate(value => document.documentElement.dataset.theme = value, theme);
-    await gpu(page).scrollIntoViewIfNeeded();
-    const bounds = await gpu(page).boundingBox();
+    await values.scrollIntoViewIfNeeded();
+    const bounds = await values.boundingBox();
     expect(bounds.x).toBeGreaterThanOrEqual(0); expect(bounds.x + bounds.width).toBeLessThanOrEqual(width + 1);
-    await expect(panel(page).getByRole("meter")).toHaveCount(0);
+    await expect(dialog.getByRole("meter")).toHaveCount(0);
     await page.screenshot({ path: `target/ui-check/profile-gpu-power-${theme}-${width}.png`, fullPage: true });
   }
 });

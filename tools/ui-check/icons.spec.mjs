@@ -1,3 +1,4 @@
+import { configurationDialog } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -8,7 +9,7 @@ test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_I
 
 test("分类导航统一使用本地库图标，中文名称与选中状态保留", async ({ page }) => {
   await page.goto("/");
-  for (const [title, icon] of [["控制台", "controls"], ["风扇散热", "fan"], ["性能调校", "performance"], ["显示与显卡", "display"], ["灯光效果", "lighting"], ["键盘与输入", "keyboard"], ["电池与节能", "battery"], ["自动策略", "power"], ["性能档案", "profiles"], ["设置", "settings"]]) {
+  for (const [title, icon] of [["概览", "overview"], ["风扇散热", "fan"], ["性能调校", "performance"], ["显示与显卡", "display"], ["灯光效果", "lighting"], ["键盘与输入", "keyboard"], ["电池与节能", "battery"], ["自动策略", "power"], ["性能档案", "profiles"], ["设置", "settings"]]) {
     const button = page.getByRole("button", { name: title, exact: true });
     await button.click();
     await expect(button).toHaveAttribute("aria-current", "page");
@@ -45,7 +46,7 @@ test("图标随两步确认状态切换，第一次点击仍然没有写入", as
   await expect(button.locator("svg")).toHaveAttribute("data-icon", "apply");
   await button.click();
   expect(await calls(page, "apply_gpu_power")).toHaveLength(0);
-  const confirm = panel.getByRole("button", { name: "确认关闭此独显并请求系统授权？", exact: true });
+  const confirm = configurationDialog(page).getByRole("button", { name: "确认应用", exact: true });
   await expect(confirm.locator("svg")).toHaveAttribute("data-icon", "confirm");
   await confirm.click();
   await expect.poll(async () => (await calls(page, "apply_gpu_power")).length).toBe(1);

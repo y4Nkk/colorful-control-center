@@ -106,7 +106,7 @@ async function appChecks(page) {
   await page.context().addInitScript({ content: PROFILE_REFRESH_IPC });
   await page.goto("http://127.0.0.1:1450/");
   await record("原生 WebView2 十页导航与只读浏览", async () => {
-    for (const title of ["控制台", "风扇散热", "性能调校", "显示与显卡", "灯光效果", "键盘与输入", "电池与节能", "自动策略", "性能档案", "设置"]) await openWorkspace(page, title);
+    for (const title of ["概览", "风扇散热", "性能调校", "显示与显卡", "灯光效果", "键盘与输入", "电池与节能", "自动策略", "性能档案", "设置"]) await openWorkspace(page, title);
     expect(await page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_|restore_)/.test(call.command)))).toEqual([]);
   });
   await record("原生 WebView2 分类草稿和滚动保活", async () => {

@@ -1,3 +1,4 @@
+import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -8,9 +9,9 @@ test("显示试用使用后端剩余时长，保留后仍可恢复初始模式",
   const panel = page.getByRole("region", { name: "屏幕显示", exact: true });
   await panel.getByRole("combobox", { name: "目标刷新率" }).click();
   await page.getByRole("option", { name: "144 Hz", exact: true }).click();
-  await panel.getByRole("button", { name: "应用刷新率", exact: true }).click();
+  await openConfigurationReview(page, "屏幕刷新率");
   expect(await page.evaluate(() => window.__uiFixture.calls.filter(c => c.command === "apply_display_refresh").length)).toBe(0);
-  await panel.getByRole("button", { name: "试用 144 Hz，15 秒内保留？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "试用 144 Hz", exact: true }).click();
   await expect(panel.getByRole("status")).toContainText(/试用 144 Hz · \d+ 秒后自动恢复/);
   await page.evaluate(() => window.__uiFixture.displayExpiresAt = Date.now() + 8000);
   await expect(panel.getByRole("status")).toContainText(/· [1-8] 秒后/);
@@ -18,13 +19,13 @@ test("显示试用使用后端剩余时长，保留后仍可恢复初始模式",
   await expect(panel.getByRole("status")).toHaveCount(0);
   await panel.getByRole("combobox", { name: "目标刷新率" }).click();
   await page.getByRole("option", { name: "60 Hz", exact: true }).click();
-  await panel.getByRole("button", { name: "应用刷新率", exact: true }).click();
-  await panel.getByRole("button", { name: "试用 60 Hz，15 秒内保留？", exact: true }).click();
+  await openConfigurationReview(page, "屏幕刷新率");
+  await configurationDialog(page).getByRole("button", { name: "试用 60 Hz", exact: true }).click();
   await page.evaluate(() => window.__uiFixture.displayExpiresAt = Date.now() - 1);
   await expect(panel.getByRole("status")).toHaveCount(0);
   await expect(panel).toContainText("144 Hz");
-  await panel.getByRole("button", { name: "恢复屏幕初始", exact: true }).click();
-  await panel.getByRole("button", { name: "恢复首次切换前的显示模式？", exact: true }).click();
+  await openConfigurationReview(page, "屏幕显示", true);
+  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   await expect(panel).toContainText("60 Hz");
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });

@@ -3,7 +3,8 @@ import { MOCK_IPC } from "./mock-ipc.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { supplyModeFixture } from "./supply-mode-fixture.mjs";
 import { installConfigurationFixture } from "./configuration-fixture.mjs";
-const pages = ["控制台", "风扇散热", "性能调校", "显示与显卡", "灯光效果", "键盘与输入", "电池与节能", "自动策略", "性能档案", "设置"];
+import { openConfigurationReview } from "./configuration-review.mjs";
+const pages = ["概览", "风扇散热", "性能调校", "显示与显卡", "灯光效果", "键盘与输入", "电池与节能", "自动策略", "性能档案", "设置"];
 async function setup(page) {
   await page.addInitScript({ content: MOCK_IPC });
   await page.addInitScript(installConfigurationFixture, supplyModeFixture());
@@ -15,13 +16,13 @@ async function ready(page, name) {
   if (name === "性能调校") await expect(page.getByRole("slider", { name: "持续功耗上限", exact: true })).toBeVisible();
   if (name === "显示与显卡") await expect(page.locator('[data-mode-frequency="60"]').first()).toBeVisible();
   if (name === "灯光效果") await expect(page.getByRole("combobox", { name: "灯效", exact: true })).toBeVisible();
-  if (name === "键盘与输入") await expect(page.getByRole("checkbox", { name: "Fn 锁", exact: true })).toBeVisible();
+  if (name === "键盘与输入") await expect(page.getByRole("switch", { name: "Fn 锁", exact: true })).toBeVisible();
   if (name === "电池与节能") await expect(page.getByRole("img", { name: "PD 适配器报告功率 · 100 W", exact: true })).toBeVisible();
   if (name === "自动策略") {
     await expect(page.getByRole("region", { name: "原厂供电模式", exact: true }).locator('[data-power-source="ac"]')).toBeVisible();
-    await expect(page.getByRole("checkbox", { name: "启用自动档案", exact: true })).toBeEnabled();
+    await expect(page.getByRole("switch", { name: "启用自动档案", exact: true })).toBeEnabled();
   }
-  if (name === "性能档案") await expect(page.getByRole("region", { name: "档案预览", exact: true }).getByRole("img", { name: /^档案目标：/ })).toBeVisible();
+  if (name === "性能档案") await expect(page.getByRole("region", { name: "档案预览", exact: true }).getByRole("heading", { name: "隔离档案", exact: true })).toBeVisible();
 }
 
 for (const theme of ["light", "dark"]) {
@@ -82,11 +83,11 @@ test("白光SVG区分保存值和草稿，跨页与外部读数更新不混同",
   const panel = page.getByRole("region", { name: "键盘灯光", exact: true });
   await expect(panel.getByRole("img", { name: "当前保存亮度：3 级", exact: true })).toBeVisible();
   await panel.getByRole("slider", { name: "亮度", exact: true }).fill("5");
-  await expect(panel.getByRole("img", { name: "待应用亮度：5 级", exact: true })).toBeVisible();
+  await expect(panel.getByRole("img", { name: "目标亮度：5 级", exact: true })).toBeVisible();
   await page.evaluate(() => { window.__uiFixture.keyboard.current.brightnessLevel = 2; });
-  await openWorkspace(page, "控制台"); await openWorkspace(page, "灯光效果");
-  await expect(panel.getByRole("img", { name: "当前保存亮度：2 级", exact: true })).toBeVisible();
-  await expect(panel.getByRole("img", { name: "待应用亮度：5 级", exact: true })).toBeVisible();
+  await openWorkspace(page, "概览"); await openWorkspace(page, "灯光效果");
+  await expect(panel.getByRole("img", { name: "目标亮度：5 级", exact: true })).toBeVisible();
+  await expect(await openConfigurationReview(page, "键盘灯光")).toContainText("2 级 → 5 级");
   expect(await writes(page)).toEqual([]);
 });
 
@@ -95,7 +96,7 @@ test("供电SVG、适配器瓦数与除尘状态只取各自报告，未知不�
   const supply = page.getByRole("region", { name: "原厂供电模式", exact: true });
   await expect(supply.locator('[data-power-source="ac"]')).toBeVisible();
   await page.evaluate(() => { window.__uiFixture.supplyMode.review.onAc = null; });
-  await supply.getByRole("button", { name: "重新读取", exact: true }).click();
+  await supply.getByRole("button", { name: "重新读取供电模式", exact: true }).click();
   await expect(supply.locator('[data-power-source="unknown"]')).toBeVisible();
   await openWorkspace(page, "电池与节能");
   const pd = page.getByRole("region", { name: "平台电源", exact: true });
@@ -126,12 +127,12 @@ test("关灯保留真实档位，读取失败移除白光图形，重试保留�
     window.__lightingReadFail = true;
     window.__TAURI_INTERNALS__.invoke = (command, args) => command === "read_keyboard_lighting" && window.__lightingReadFail ? Promise.reject(new Error("隔离白光读取失败")) : invoke(command, args);
   });
-  await openWorkspace(page, "控制台"); await openWorkspace(page, "灯光效果");
+  await openWorkspace(page, "概览"); await openWorkspace(page, "灯光效果");
   await expect(panel.getByRole("alert")).toContainText("隔离白光读取失败");
   await expect(panel.locator("[data-backlight-level]")).toHaveCount(0);
   await page.evaluate(() => { window.__lightingReadFail = false; });
-  await panel.getByRole("button", { name: "重试读取", exact: true }).click();
-  await expect(panel.getByRole("img", { name: "待应用亮度：5 级", exact: true })).toBeVisible();
+  await panel.getByRole("button", { name: "重新读取键盘灯", exact: true }).click();
+  await expect(panel.getByRole("img", { name: "目标亮度：5 级", exact: true })).toBeVisible();
   await expect(panel.getByRole("alert")).toHaveCount(0);
   expect(await writes(page)).toEqual([]);
 });

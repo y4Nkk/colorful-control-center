@@ -1,3 +1,4 @@
+import { availableAction, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -8,8 +9,8 @@ async function select(page, label, name) {
   await page.getByRole("option", { name, exact: true }).click();
 }
 async function apply(page) {
-  await region(page).getByRole("button", { name: "应用独立灯条", exact: true }).click();
-  await region(page).getByRole("button", { name: "确认应用这些灯条设置？", exact: true }).click();
+  await openConfigurationReview(page, "独立灯条");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
 }
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
@@ -29,12 +30,12 @@ test("X58六模式七色先预览再确认，类型化请求与初始恢复完�
   await panel.getByRole("combobox", { name: "独立灯条七色", exact: true }).click();
   await expect(page.getByRole("option")).toHaveCount(7); await page.getByRole("option", { name: "紫色", exact: true }).click();
   await expect(panel.getByLabel("独立灯条变更预览")).toContainText("紫色");
-  await panel.getByRole("button", { name: "应用独立灯条", exact: true }).click(); expect(await writes(page)).toHaveLength(0);
-  await panel.getByRole("button", { name: "确认应用这些灯条设置？", exact: true }).click();
+  await openConfigurationReview(page, "独立灯条"); expect(await writes(page)).toHaveLength(0);
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   const calls = await writes(page); expect(calls).toHaveLength(1);
   expect(calls[0].args.request.values).toEqual({ kind: "x58", settings: { effect: "static", speed: 3, brightness: 4, colorId: 7 } });
-  await panel.getByRole("button", { name: "恢复初始灯条", exact: true }).click(); expect(await writes(page)).toHaveLength(1);
-  await panel.getByRole("button", { name: "确认恢复修改前的独立灯条？", exact: true }).click();
+  await openConfigurationReview(page, "独立灯条", true); expect(await writes(page)).toHaveLength(1);
+  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   await expect(panel.getByRole("combobox", { name: "独立灯条七色", exact: true })).toHaveText("红色");
 });
 
@@ -69,7 +70,7 @@ test("未知的非活动颜色须明确选择，不能自动补成默认红色",
   await select(page, "独立灯条模式", "左右扫描");
   await expect(panel.getByRole("combobox", { name: "独立灯条七色", exact: true })).toHaveText("请选择");
   await expect(panel).toContainText("保存颜色未知，请先选择七色之一");
-  await expect(panel.getByRole("button", { name: "应用独立灯条", exact: true })).toBeDisabled(); expect(await writes(page)).toHaveLength(0);
+  await expect(availableAction(page, "独立灯条")).toHaveCount(0); expect(await writes(page)).toHaveLength(0);
   await select(page, "独立灯条七色", "青色"); await apply(page);
   expect((await writes(page))[0].args.request.values.settings.colorId).toBe(5);
 });
@@ -77,14 +78,14 @@ test("未知的非活动颜色须明确选择，不能自动补成默认红色",
 test("重读撤销旧确认，读取失败保留草稿并移除执行快照", async ({ page }) => {
   const panel = region(page);
   await select(page, "独立灯条七色", "蓝色");
-  await panel.getByRole("button", { name: "应用独立灯条", exact: true }).click();
+  await openConfigurationReview(page, "独立灯条");
   await page.evaluate(() => { window.__uiFixture.lightBar.revision = "external"; });
   await panel.getByRole("button", { name: "重新读取独立灯条", exact: true }).click();
-  await expect(panel.getByRole("button", { name: "确认应用这些灯条设置？", exact: true })).toHaveCount(0);
+  await expect(configurationDialog(page).getByRole("button", { name: "确认应用", exact: true })).toHaveCount(0);
   await page.evaluate(() => { window.__uiFixture.lightBarReadFault = "隔离X58读取失败"; });
   await panel.getByRole("button", { name: "重新读取独立灯条", exact: true }).click();
   await expect(panel.getByRole("alert")).toContainText("隔离X58读取失败");
-  await expect(panel.getByRole("button", { name: "应用独立灯条", exact: true })).toHaveCount(0);
+  await expect(availableAction(page, "独立灯条")).toHaveCount(0);
   await page.evaluate(() => { window.__uiFixture.lightBarReadFault = null; });
   await panel.getByRole("button", { name: "重新读取独立灯条", exact: true }).click();
   await expect(panel.getByRole("combobox", { name: "独立灯条七色", exact: true })).toHaveText("蓝色"); expect(await writes(page)).toHaveLength(0);
@@ -96,9 +97,9 @@ test("部分失败留下初始恢复，未知现值仍可恢复原X58配置", as
   await expect(panel.getByRole("alert")).toContainText("隔离X58部分保存失败");
   await page.evaluate(() => { window.__uiFixture.lightBar.current = null; window.__uiFixture.lightBar.revision = "unknown"; });
   await panel.getByRole("button", { name: "重新读取独立灯条", exact: true }).click();
-  await expect(panel.getByRole("button", { name: "应用独立灯条", exact: true })).toHaveCount(0);
-  await panel.getByRole("button", { name: "恢复初始灯条", exact: true }).click();
-  await panel.getByRole("button", { name: "确认恢复修改前的独立灯条？", exact: true }).click();
+  await expect(availableAction(page, "独立灯条")).toHaveCount(0);
+  await openConfigurationReview(page, "独立灯条", true);
+  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   await expect(panel.getByRole("combobox", { name: "独立灯条七色", exact: true })).toHaveText("红色");
 });
 
@@ -110,7 +111,7 @@ test("型号变化保留旧草稿但不跨型号解释，显式载入新型号�
   });
   await panel.getByRole("button", { name: "重新读取独立灯条", exact: true }).click();
   await expect(panel).toContainText("灯条型号已变化，旧草稿已保留");
-  await expect(panel.getByRole("button", { name: "应用独立灯条", exact: true })).toHaveCount(0);
+  await expect(availableAction(page, "独立灯条")).toHaveCount(0);
   await panel.getByRole("button", { name: "载入当前灯条草稿", exact: true }).click();
   await expect(panel.getByLabel("独立灯条颜色", { exact: true })).toHaveValue("#010203"); expect(await writes(page)).toHaveLength(0);
 });

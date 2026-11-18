@@ -4,7 +4,7 @@ import selectorParser from "postcss-selector-parser";
 import { UI_CONTRACT, VISUAL_PROPERTIES, classOwner, componentPath, primitiveFiles, stylePath } from "./ui-contract.mjs";
 
 const owners = new Map(UI_CONTRACT.flatMap(owner => [owner.name, ...owner.files ?? []].map(name => [name, owner])));
-const forbiddenNative = new Set(["button", "input", "select", "option", "textarea", "details", "summary"]);
+const forbiddenNative = new Set(["button", "input", "select", "option", "textarea", "details", "summary", "dialog"]);
 const utilityClasses = new Set(["ccc-mono"]);
 const visualJs = name => VISUAL_PROPERTIES.test(name.replace(/[A-Z]/g, value => `-${value.toLowerCase()}`));
 

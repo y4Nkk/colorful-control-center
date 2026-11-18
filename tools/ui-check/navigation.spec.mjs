@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
-const pages = ["控制台", "风扇散热", "性能调校", "显示与显卡", "灯光效果", "键盘与输入", "电池与节能", "自动策略", "性能档案", "设置"];
+const pages = ["概览", "风扇散热", "性能调校", "显示与显卡", "灯光效果", "键盘与输入", "电池与节能", "自动策略", "性能档案", "设置"];
 test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); });
 const navigate = async (page, name) => {
   await page.getByRole("button", { name, exact: true }).click();
@@ -11,7 +11,7 @@ test("十个语义入口与独立界面，浏览不写硬件", async ({ page }) 
     await navigate(page, name);
     await expect(page.getByRole("button", { name, exact: true })).toHaveAttribute("aria-current", "page");
   }
-  await navigate(page, "控制台");
+  await navigate(page, "概览");
   await expect(page.getByRole("region", { name: "温度趋势", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "应用灯光选项", exact: true })).not.toBeVisible();
   await expect(page.getByRole("button", { name: "确认应用模式", exact: true })).not.toBeVisible();
@@ -50,7 +50,7 @@ for (const theme of ["light", "dark"]) {
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     for (const width of [1440, 360]) {
       await page.setViewportSize({ width, height: 960 });
-      for (const name of ["控制台", "性能调校", "灯光效果", "自动策略"]) {
+      for (const name of ["概览", "性能调校", "灯光效果", "自动策略"]) {
         await navigate(page, name);
         const main = page.getByRole("main", { name, exact: true });
         const bounds = await main.boundingBox();

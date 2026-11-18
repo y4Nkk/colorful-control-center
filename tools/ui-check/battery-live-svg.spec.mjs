@@ -1,3 +1,4 @@
+import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { openWorkspace } from "./workspace.mjs";
@@ -39,11 +40,11 @@ test("零电量、未知、无电池和超过设计容量分别展示", async ({
 test("读取失败撤销旧预览和图形读数，恢复后保留未提交草稿", async ({ page }) => {
   const p = panel(page); await p.getByRole("switch", { name: "限制充电范围", exact: true }).click();
   await p.getByRole("combobox", { name: "开始充电阈值", exact: true }).click(); await page.getByRole("option", { name: "70%", exact: true }).click();
-  await p.getByRole("button", { name: "应用充电设置", exact: true }).click();
+  await openConfigurationReview(page, "充电保护");
   await page.evaluate(() => { window.__uiFixture.batteryReadFault = "系统电量读取失败"; }); await reread(page);
   await expect(p.getByRole("alert")).toContainText("系统电量读取失败");
   await expect(overview(page).locator('[data-battery-fill]')).toHaveCount(0);
-  await expect(p.getByRole("button", { name: "确认应用充电设置？", exact: true })).toHaveCount(0);
+  await expect(configurationDialog(page).getByRole("button", { name: "确认应用", exact: true })).toHaveCount(0);
   await page.evaluate(() => { window.__uiFixture.batteryReadFault = null; }); await reread(page);
   await expect(p.getByRole("alert")).toHaveCount(0);
   await expect(p.getByRole("combobox", { name: "开始充电阈值", exact: true })).toHaveText("70%");

@@ -4,7 +4,7 @@
  * 1. IPC 边界：`invoke(` 与 `@tauri-apps/` import 只允许出现在 src/api/
  * 2. 令牌所有权：`--ccc-*` 自定义属性定义只允许出现在 src/styles/tokens.css
  * 3. 页面接线一致：PAGES 注册的每个页面必须在 AppWorkspace 有对应分支
- * 4. 内容折叠：details/summary 只允许由全局 Collapsible 原语拥有
+ * 4. 对话框：原生 dialog 只允许由全局 Dialog 原语拥有
  * 5. 控件所有权：业务只能组合全局控件，不直接拼原生元素或覆盖控件样式
  *
  * Run: node scripts/check-boundaries.mjs
@@ -30,7 +30,7 @@ function* walk(dir) {
 
 const rel = (path) => relative(rootDir, path).replaceAll("\\", "/");
 
-/** 1. IPC 边界 + 2. 令牌所有权 + 4. 内容折叠所有权 */
+/** 1. IPC 边界 + 2. 令牌所有权 + 4. 对话框所有权 */
 for (const file of walk(srcDir)) {
   const path = rel(file);
   if (file.endsWith(".ts") || file.endsWith(".tsx")) {
@@ -65,7 +65,7 @@ for (const [path, content] of styles) violations.push(...inspectUiStyles(path, c
 /** 3. 页面接线一致：PAGES ↔ AppWorkspace 分支 */
 const navigation = readFileSync(join(srcDir, "app", "navigation.ts"), "utf8");
 const appWorkspace = readFileSync(join(srcDir, "app", "AppWorkspace.tsx"), "utf8");
-// 页面→工作区组件：显式 workspace 字段优先（控制台为合并页 ControlWorkspace），
+// 页面→工作区组件：显式 workspace 字段优先（概览显式对应 ControlWorkspace），
 // 否则按 PageId 约定推断 <Id>Workspace。
 const pageMatches = [...navigation.matchAll(/id: "([a-z]+)"(?:,\s*workspace: "(\w+)")?/g)];
 if (pageMatches.length === 0) violations.push("src/app/navigation.ts: PAGES 未找到任何页面注册");

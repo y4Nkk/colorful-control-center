@@ -1,3 +1,4 @@
+import { availableAction, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -19,24 +20,24 @@ test("独立灯条模式颜色与亮度先预览再确认，可恢复初始", as
   await page.getByRole("option", { name: "呼吸", exact: true }).click();
   await panel.getByLabel("独立灯条颜色", { exact: true }).fill("#123456");
   await expect(panel.getByLabel("独立灯条变更预览")).toContainText("#123456");
-  await panel.getByRole("button", { name: "应用独立灯条", exact: true }).click(); expect(await writes(page)).toHaveLength(0);
-  await panel.getByRole("button", { name: "确认应用这些灯条设置？", exact: true }).click();
+  await openConfigurationReview(page, "独立灯条"); expect(await writes(page)).toHaveLength(0);
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   const calls = await writes(page); expect(calls).toHaveLength(1); expect(calls[0].args.request.values.kind).toBe("x170"); expect(calls[0].args.request.values.settings.color).toEqual({ r: 18, g: 52, b: 86 });
-  await panel.getByRole("button", { name: "恢复初始灯条", exact: true }).click(); expect(await writes(page)).toHaveLength(1);
-  await panel.getByRole("button", { name: "确认恢复修改前的独立灯条？", exact: true }).click();
+  await openConfigurationReview(page, "独立灯条", true); expect(await writes(page)).toHaveLength(1);
+  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   await expect(panel.getByLabel("独立灯条颜色", { exact: true })).toHaveValue("#ff0000");
 });
 test("读取失败撤销执行快照且不丢草稿，外部变化撤销旧确认", async ({ page }) => {
   const panel = region(page);
   await panel.getByLabel("独立灯条颜色", { exact: true }).fill("#abcdef");
-  await panel.getByRole("button", { name: "应用独立灯条", exact: true }).click();
+  await openConfigurationReview(page, "独立灯条");
   await page.evaluate(() => { window.__uiFixture.lightBar.revision = "external"; });
   await panel.getByRole("button", { name: "重新读取独立灯条", exact: true }).click();
-  await expect(panel.getByRole("button", { name: "应用独立灯条", exact: true })).toBeVisible();
+  await expect(availableAction(page, "独立灯条")).toBeVisible();
   await page.evaluate(() => { window.__uiFixture.lightBarReadFault = "隔离灯条读取失败"; });
   await panel.getByRole("button", { name: "重新读取独立灯条", exact: true }).click();
   await expect(panel.getByRole("alert")).toContainText("隔离灯条读取失败");
-  await expect(panel.getByRole("button", { name: "应用独立灯条", exact: true })).toHaveCount(0);
+  await expect(availableAction(page, "独立灯条")).toHaveCount(0);
   await page.evaluate(() => { window.__uiFixture.lightBarReadFault = null; });
   await panel.getByRole("button", { name: "重新读取独立灯条", exact: true }).click();
   await expect(panel.getByLabel("独立灯条颜色", { exact: true })).toHaveValue("#abcdef");
@@ -46,15 +47,15 @@ test("部分失败保留恢复入口，未知当前值仍可恢复已记录初�
   const panel = region(page);
   await panel.getByLabel("独立灯条颜色", { exact: true }).fill("#123456");
   await page.evaluate(() => { window.__uiFixture.lightBarFault = "隔离发送失败，恢复已尝试"; });
-  await panel.getByRole("button", { name: "应用独立灯条", exact: true }).click();
-  await panel.getByRole("button", { name: "确认应用这些灯条设置？", exact: true }).click();
+  await openConfigurationReview(page, "独立灯条");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   await expect(panel.getByRole("alert")).toContainText("隔离发送失败");
   await page.evaluate(() => { window.__uiFixture.lightBar.current = null; window.__uiFixture.lightBar.revision = "unknown"; });
   await panel.getByRole("button", { name: "重新读取独立灯条", exact: true }).click();
   await expect(panel).toContainText("当前保存值未知");
-  await expect(panel.getByRole("button", { name: "应用独立灯条", exact: true })).toHaveCount(0);
-  await panel.getByRole("button", { name: "恢复初始灯条", exact: true }).click();
-  await panel.getByRole("button", { name: "确认恢复修改前的独立灯条？", exact: true }).click();
+  await expect(availableAction(page, "独立灯条")).toHaveCount(0);
+  await openConfigurationReview(page, "独立灯条", true);
+  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   await expect(panel.getByLabel("独立灯条颜色", { exact: true })).toHaveValue("#ff0000");
 });
 test("设备冲突阻止写入，无能力隐藏且不生成默认配置", async ({ page }) => {
@@ -62,7 +63,7 @@ test("设备冲突阻止写入，无能力隐藏且不生成默认配置", async
   await page.evaluate(() => { window.__uiFixture.lightBar.blockedReason = "原厂控制者仍在运行"; });
   await panel.getByRole("button", { name: "重新读取独立灯条", exact: true }).click();
   await panel.getByLabel("独立灯条颜色", { exact: true }).fill("#123456");
-  await expect(panel.getByRole("button", { name: "应用独立灯条", exact: true })).toBeDisabled();
+  await expect(availableAction(page, "独立灯条")).toHaveCount(0);
   await page.evaluate(() => { window.__uiFixture.lightBar = null; });
   await panel.getByRole("button", { name: "重新读取独立灯条", exact: true }).click();
   await expect(panel).toHaveCount(0); expect(await writes(page)).toHaveLength(0);

@@ -12,12 +12,13 @@ test("图标库只通过全局语义组件接入", () => {
   assert.deepEqual(source('import { Icon } from "../Icon"; <Icon name="fan" />').violations, []);
 });
 
-for (const tag of ["button", "input", "select", "option", "textarea", "details", "summary"]) {
+for (const tag of ["button", "input", "select", "option", "textarea", "details", "summary", "dialog"]) {
   test(`拒绝业务直接拼 ${tag}`, () => assert.equal(source(`<${tag} />`).violations.length, 1));
 }
 test("接受全局原语自己的原生结构", () => {
   assert.deepEqual(inspectUiSource("src/components/Button.tsx", "<button />").violations, []);
   assert.deepEqual(inspectUiSource("src/components/Checkbox.tsx", "<input />").violations, []);
+  assert.deepEqual(inspectUiSource("src/components/Dialog.tsx", "<dialog />").violations, []);
   assert.deepEqual(inspectUiSource("src/components/Textarea.tsx", "<textarea className='ccc-field ccc-input' />").violations, []);
   assert.equal(inspectUiSource("src/components/Textarea.tsx", "<button />").violations.length, 1);
   assert.equal(inspectUiSource("src/components/Select.tsx", "<select />").violations.length, 1);

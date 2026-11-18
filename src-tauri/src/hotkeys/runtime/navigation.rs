@@ -26,10 +26,10 @@ fn finish(app: &AppHandle, status: &Mutex<Status>, id: u64, result: Result<()>) 
         Ok(()) => {
             state.navigation_ready(id);
             state.error = None;
-            state.last_result = Some("已请求定位控制台区域".into());
+            state.last_result = Some("已请求定位设置区域".into());
         }
         Err(error) => {
-            state.error = Some(format!("显示控制台区域失败：{error:#}"));
+            state.error = Some(format!("显示设置区域失败：{error:#}"));
             log::warn!("[hotkeys] 导航：{error:#}");
         }
     }
@@ -73,10 +73,10 @@ pub(super) fn request(
         }
     }) {
         if let Ok(mut state) = status.lock() {
-            state.error = Some(format!("请求显示控制台区域失败：{error}"));
+            state.error = Some(format!("请求显示设置区域失败：{error}"));
         }
         publish(app, status);
-        return Err(error).context("请求显示控制台区域");
+        return Err(error).context("请求显示设置区域");
     }
     Ok(false)
 }

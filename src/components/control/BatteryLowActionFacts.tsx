@@ -1,6 +1,6 @@
 import type { BatteryLowActionProfile } from "../../api/client";
 import { Surface } from "../Surface";
-import { Collapsible } from "../Collapsible";
+import { DetailsDialog } from "../DetailsDialog";
 import { Icon } from "../Icon";
 
 const action = (value: number) => ["不操作", "睡眠", "休眠", "计划设置关机，原厂事件不另行请求"][value] ?? "未知";
@@ -24,10 +24,10 @@ export function BatteryLowActionFacts({ profile }: { profile: BatteryLowActionPr
         <span className="ccc-rule-heading"><Icon name="battery" />仅电池供电时触发</span>
         <span className="ccc-rule-heading"><Icon name="sleep" />按当前计划睡眠 / 休眠</span>
         <span className="ccc-chip is-warn">系统动作不自动撤销</span>
-        <Collapsible summary="事件与恢复说明">
+        <DetailsDialog title="事件与恢复说明">
         <p className="ccc-control-caption">原厂事件等待 1 秒后，在电池供电时按上述计划请求睡眠或休眠；接电或供电未知时不请求。</p>
         <p className="ccc-control-caption">睡眠和休眠不会自动撤销；可停止监听或恢复初始热键策略。Windows 电源计划仍可能独立执行其设置。</p>
-        </Collapsible>
+        </DetailsDialog>
       </Surface>
     </div>
   </section>;

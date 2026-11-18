@@ -1,9 +1,9 @@
 import { SegmentedControl } from "../SegmentedControl";
 import { Button } from "../Button";
 import { useEffect, useRef, useState } from "react";
-import { FAN_LABELS, applySoftwareFanCurves, restoreFanProfile, setFanMode,
+import { FAN_LABELS, applySoftwareFanCurves, setFanMode,
   type FanProfile, type SoftwareCurve, type SoftwareCurves } from "../../api/client";
-import { ConfirmButton } from "../ConfirmButton";
+import { ConfigurationAction } from "../ConfigurationAction";
 import { toast } from "../use-toast";
 import { PointNumber } from "./CurvePointInputs";
 import { DiffPreview } from "./DiffPreview";
@@ -12,8 +12,8 @@ import { defaultSoftwareCurve, sameSoftware, softwareChanges } from "./softwareC
 import { ParameterHelp } from "./ParameterHelp";
 import { SOFTWARE_FAN_HELP } from "./parameterDescriptions";
 
-export function SoftwareFanPanel({ profile, refresh, onBusy }: {
-  profile: FanProfile; refresh: () => Promise<void>; onBusy: (busy: boolean) => void;
+export function SoftwareFanPanel({ visible, readValid, profile, refresh, onBusy }: {
+  visible: boolean; readValid: boolean; profile: FanProfile; refresh: () => Promise<void>; onBusy: (busy: boolean) => void;
 }) {
   const [draft, setDraft] = useState<SoftwareCurves>(() => profile.software ?? { cpu: defaultSoftwareCurve(), gpu1: defaultSoftwareCurve() });
   const [tab, setTab] = useState<"cpu" | "gpu1">("cpu");
@@ -60,12 +60,15 @@ export function SoftwareFanPanel({ profile, refresh, onBusy }: {
         <Button variant="ghost" size="compact" type="button" disabled={busy || Object.keys(draft).length <= 1} onClick={() => change()}>交还固件</Button>
       </div>
     </> : <div className="ccc-actions"><span className="ccc-chip">由固件控制</span><Button icon="add" variant="secondary" type="button" disabled={busy} onClick={() => change(defaultSoftwareCurve())}>添加曲线</Button></div>}
-    <DiffPreview items={changes} />
-    <div className="ccc-actions">
-      <ConfirmButton key={`${profile.softwareBlockedReason}-${JSON.stringify(draft)}`} label={profile.software ? "应用曲线" : "启用软件曲线"} confirmLabel="确认接管并应用这些曲线？" disabled={!dirty || !!profile.softwareBlockedReason} busy={busy} onConfirm={() => run(() => applySoftwareFanCurves(draft))} />
-      <ConfirmButton icon="undo" key={`auto-${profile.blockedReason}`} variant="secondary" label="恢复自动" confirmLabel="退出软件曲线并恢复自动？" disabled={!profile.software || !!profile.blockedReason} busy={busy} onConfirm={() => run(() => setFanMode(0))} />
-      <ConfirmButton icon="undo" key={`restore-${profile.blockedReason}`} variant="secondary" label="恢复初始" confirmLabel="恢复风扇初始设置？" disabled={!profile.canRestore || !!profile.blockedReason} busy={busy} onConfirm={() => run(restoreFanProfile)} />
-    </div>
+    <ConfigurationAction label="软件曲线" revision={JSON.stringify([profile, draft])}
+      disabled={!visible || busy || !readValid || !dirty || !!profile.softwareBlockedReason} onConfirm={() => run(() => applySoftwareFanCurves(draft))}>
+      <DiffPreview items={changes} />
+      <p>确认后软件接管所选风扇，应用运行期间生效。</p>
+    </ConfigurationAction>
+    <ConfigurationAction label="自动风扇控制" revision={JSON.stringify(profile)} restore
+      disabled={busy || !profile.software || !!profile.blockedReason} onConfirm={() => run(() => setFanMode(0))}>
+      <p>结束软件曲线，交还固件自动控制。</p>
+    </ConfigurationAction>
     <ParameterHelp title="软件曲线参数说明" items={SOFTWARE_FAN_HELP} />
   </div>;
 }

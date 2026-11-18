@@ -2,8 +2,9 @@ import { Icon } from "../Icon";
 import { applyFanDustSchedule, restoreFanDustSchedule, startFanDust } from "../../api/client";
 import { Button } from "../Button";
 import { ConfirmButton } from "../ConfirmButton";
+import { ConfigurationAction } from "../ConfigurationAction";
 import { Surface } from "../Surface";
-import { Collapsible } from "../Collapsible";
+import { DetailsDialog } from "../DetailsDialog";
 import { DustScheduleEditor, formatDustSchedule } from "./DustScheduleEditor";
 import { useFanDust } from "./useFanDust";
 
@@ -35,29 +36,28 @@ export function FanDust({ active, revision, onSettled }: { active: boolean; revi
         {profile.startBlockedReason && <p className="ccc-control-caption">{profile.startBlockedReason}</p>}
         <ConfirmButton key={`start-${profile.revision}`} label="立即除尘" confirmLabel="确认开始一次除尘？" busy={busy}
           disabled={!!profile.startBlockedReason} onConfirm={() => run(() => startFanDust(profile.revision), "除尘请求已发送", false)} />
-        <p className="ccc-control-caption">当前计划：{formatDustSchedule(profile.current)}</p>
-        {profile.initial && <p className="ccc-control-caption">恢复目标：{formatDustSchedule(profile.initial.schedule)}</p>}
-        {profile.initial?.schedule === null && <p className="ccc-control-caption">初始计划未报告。恢复将关闭本次除尘触发，无法保证还原此前未报告的计划。</p>}
+        <p className="ccc-control-caption">{formatDustSchedule(profile.current)}</p>
       </Surface>
       <Surface as="div" variant="inset" className="ccc-dust-section">
         <strong>除尘计划</strong>
         {draft && <>
           <DustScheduleEditor draft={draft} disabled={busy || !!profile.scheduleBlockedReason} onChange={setDraft} />
-          {changed && <p className="ccc-control-caption">{formatDustSchedule(profile.current)} → {formatDustSchedule(draft)}</p>}
           {softwareConflict && <p className="ccc-control-caption">请先退出软件风扇曲线，再启用除尘计划。</p>}
           {profile.scheduleBlockedReason && <p className="ccc-control-caption">{profile.scheduleBlockedReason}</p>}
-          <div className="ccc-actions">
-            <ConfirmButton key={`apply-${profile.revision}-${JSON.stringify(draft)}`} label="应用除尘计划" confirmLabel="确认应用除尘计划？" busy={busy}
-              disabled={!changed || !!profile.scheduleBlockedReason || softwareConflict}
-              onConfirm={() => run(() => applyFanDustSchedule(profile.revision, draft), "除尘计划已保存并回读", true)} />
-            <ConfirmButton icon="undo" key={`restore-${profile.revision}`} variant="secondary" label="恢复初始除尘计划" confirmLabel="确认恢复初始除尘计划？" busy={busy}
-              disabled={!profile.initial || !!profile.scheduleBlockedReason || restoreConflict}
-              onConfirm={() => run(() => restoreFanDustSchedule(profile.revision), "初始除尘计划记录已恢复", true)} />
-          </div>
+          <ConfigurationAction revision={JSON.stringify([profile.revision, draft])} label="除尘计划"
+            disabled={busy || !changed || !!profile.scheduleBlockedReason || softwareConflict}
+            onConfirm={() => run(() => applyFanDustSchedule(profile.revision, draft), "除尘计划已保存并回读", true)}>
+            <p>{formatDustSchedule(profile.current)} → {formatDustSchedule(draft)}</p>
+          </ConfigurationAction>
+          <ConfigurationAction revision={profile.revision} label="除尘计划" restore
+            disabled={busy || !profile.initial || !!profile.scheduleBlockedReason || restoreConflict}
+            onConfirm={() => run(() => restoreFanDustSchedule(profile.revision), "初始除尘计划记录已恢复", true)}>
+            <p>{profile.initial?.schedule ? formatDustSchedule(profile.initial.schedule) : "初始计划未报告。恢复会关闭本次设置的除尘触发。"}</p>
+          </ConfigurationAction>
           {restoreConflict && <p className="ccc-control-caption">请先退出软件风扇曲线，再恢复初始除尘计划。</p>}
         </>}
       </Surface>
     </div>}
-    <Collapsible summary="除尘说明"><p>开始后由固件完成，运行时暂不能修改风扇和电源模式。当前状态只取固件报告，不以请求已发送推断开始或结束。</p></Collapsible>
+    <DetailsDialog title="除尘说明"><p>开始后由固件完成，运行时暂不能修改风扇和电源模式。当前状态只取固件报告，不以请求已发送推断开始或结束。</p></DetailsDialog>
   </Surface>;
 }

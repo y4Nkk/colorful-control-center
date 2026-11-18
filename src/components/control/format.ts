@@ -1,4 +1,4 @@
-/** 控制台读数与错误文本格式化（等宽读数统一入口；不美化错误语义）。 */
+/** 监控读数与错误文本格式化（等宽读数统一入口；不美化错误语义）。 */
 
 export function errText(cause: unknown): string {
   if (cause instanceof Error) return cause.message;

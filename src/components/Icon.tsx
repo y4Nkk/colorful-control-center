@@ -1,19 +1,20 @@
 /** 界面图标唯一边界；显式导入使未使用的库图标不进入产物。 */
 import {
-  SlidersHorizontal, Layers, Settings, ChevronsLeft, ChevronRight, Minus, Square, Copy, X,
+  Layers, Settings, ChevronsLeft, ChevronRight, Minus, Square, Copy, X,
   Check, CircleCheck, Info, TriangleAlert, CircleX, RotateCcw, RefreshCw, Save, Download,
   Upload, Plus, Trash2, Play, Pause, SquarePen, Search, ShieldCheck, LoaderCircle,
   Cpu, Gpu, Fan, Keyboard, MousePointer2, Mic, Monitor, Battery, BatteryCharging,
   PlugZap, Usb, Network, Palette, Thermometer, Gauge, Zap, Power, Sparkles, Moon,
-  SunMoon, PanelsTopLeft, ScrollText, Volume2, VolumeX, Plane, ArrowRight,
+  SunMoon, PanelsTopLeft, ScrollText, Volume2, VolumeX, Plane, ArrowRight, LayoutDashboard,
   type LucideIcon,
 } from "lucide-react";
 
 const ICONS = {
   airplane: Plane,
+  overview: LayoutDashboard,
   "arrow-right": ArrowRight,
   volume: Volume2, "volume-off": VolumeX,
-  controls: SlidersHorizontal, profiles: Layers, settings: Settings,
+  profiles: Layers, settings: Settings,
   collapse: ChevronsLeft, "chevron-right": ChevronRight,
   minimize: Minus, maximize: Square, restore: Copy, close: X,
   check: Check, "check-circle": CircleCheck, info: Info, warning: TriangleAlert, error: CircleX,

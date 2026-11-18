@@ -23,7 +23,7 @@ pub(super) fn wait_for_lease(name: &str, timeout: Duration) -> Result<Controller
             return Ok(lease);
         }
         if Instant::now() >= deadline {
-            bail!("旧控制台或风扇监护尚未释放控制权；未接管硬件，请稍后重新打开应用");
+            bail!("旧主程序或风扇监护尚未释放控制权；未接管硬件，请稍后重新打开应用");
         }
         std::thread::sleep(Duration::from_millis(50));
     }

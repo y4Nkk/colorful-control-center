@@ -1,6 +1,6 @@
 import { OEM_POWER_MODES, type SupplyConditions, type OemModeGpuAction, type SupplyModeReview } from "../../api/client";
 import { Surface } from "../Surface";
-import { Collapsible } from "../Collapsible";
+import { DetailsDialog } from "../DetailsDialog";
 import { Icon } from "../Icon";
 import { ModeArtwork } from "./ModeArtwork";
 import { OemModeEffects } from "./OemModeEffects";
@@ -28,14 +28,14 @@ function Scenario({ review, condition, label }: { review: SupplyModeReview; cond
       <div className="ccc-rule-mode"><Icon name="arrow-right" /><ModeArtwork mode={target.mode} /><strong>{OEM_POWER_MODES[target.mode] ?? `未知模式 ${target.mode}`}</strong></div>
       {gpu.action && <span className="ccc-chip">独显目标 · {gpu.action.target.enabled ? "开启" : "关闭"}</span>}
       {[...new Set([target.unavailableReason, target.gpu?.status === "unavailable" ? target.gpu.value : null, gpu.unavailableReason, clocks?.unavailableReason].filter(Boolean))].map((reason, i) => <p className="ccc-control-error" key={i} role="alert">{reason}</p>)}
-      <Collapsible summary="联动目标">
+      <DetailsDialog title="联动目标">
       <OemModeEffects target={target} />
       {target.powerPlan === null && <p className="ccc-control-caption">保持当前Windows电源计划</p>}
       <p className="ccc-control-caption">{review.gpu.supported ? powerAction(gpu.action) : "无独显电源联动"}</p>
       {clocks?.decision?.target && <p className="ccc-supply-mode-clock">{gpuTarget(clocks.decision.target)}</p>}
       {clocks?.decision?.skipped && <p className="ccc-control-caption">{gpuSkipReason(clocks.decision.skipped)}</p>}
       {!clocks && <p className="ccc-control-caption">{condition.startsWith("resume") ? gpuSkipReason("resume") : "本次未读取GPU调频策略"}</p>}
-      </Collapsible>
+      </DetailsDialog>
     </> : <p className="ccc-control-caption">原厂此条件不切换模式</p>}
   </Surface>;
 }

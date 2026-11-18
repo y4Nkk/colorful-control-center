@@ -48,15 +48,17 @@ export function usePowerControl(active: boolean, revision: number, onSettled: ()
   const running = useRef(false);
   const previous = useRef<PowerProfile | null>(null);
   const loadId = useRef(0);
-  const load = useCallback(async (reset: boolean) => {
+  const load = useCallback(async (reset: PowerTarget | "all" | null) => {
     const id = ++loadId.current;
-    const next = await readPowerProfile();
+    let next: PowerProfile;
+    try { next = await readPowerProfile(); }
+    catch (error) { if (id === loadId.current) setProfile(null); throw error; }
     if (id !== loadId.current) return;
     const before = previous.current;
     setDrafts((current) => Object.fromEntries((["runtime", "saved"] as const).map((key) => {
       const draft = current[key];
       const dirty = before && draft && powerChanges(valuesOf(before, key), draft).items.length > 0;
-      return [key, !reset && dirty ? draft : draftOf(valuesOf(next, key))];
+      return [key, reset !== "all" && reset !== key && dirty ? draft : draftOf(valuesOf(next, key))];
     })) as Record<PowerTarget, PowerDraft>);
     if (!before && !next.msrRuntimeAvailable) setTarget("saved");
     previous.current = next; setProfile(next); setError(null);
@@ -64,16 +66,16 @@ export function usePowerControl(active: boolean, revision: number, onSettled: ()
   useEffect(() => {
     if (!active) return;
     let disposed = false;
-    void load(false).catch((cause) => { if (!disposed) setError(String(cause)); });
+    void load(null).catch((cause) => { if (!disposed) setError(String(cause)); });
     return () => { disposed = true; ++loadId.current; };
   }, [active, revision, load]);
-  const run = async (action: () => Promise<void>, success: string) => {
+  const run = async (action: () => Promise<void>, success: string, reset: PowerTarget | "all") => {
     if (running.current) return;
     running.current = true; setBusy(true); setError(null);
-    try { await action(); await load(true); toast({ kind: "success", title: success }); }
+    try { await action(); await load(reset); toast({ kind: "success", title: success }); }
     catch (cause) {
       const message = String(cause);
-      try { await load(false); setError(message); }
+      try { await load(null); setError(message); }
       catch (refreshError) { setError(`${message}；回读失败：${String(refreshError)}`); }
     } finally { running.current = false; setBusy(false); onSettled(); }
   };
@@ -88,12 +90,18 @@ export function usePowerControl(active: boolean, revision: number, onSettled: ()
     if (patch.pl2 != null) next.pl1 = Math.min(next.pl1, next.pl2);
     return { ...current, [target]: next };
   });
-  const apply = () => values && draft ? run(() => applyDraft(values, draft, target),
-    target === "saved" ? "设置已保存" : "实时值已回读确认") : Promise.resolve();
+  const reviews = profile ? (["runtime", "saved"] as const).flatMap(scope => {
+    const next = drafts[scope], current = valuesOf(profile, scope);
+    const changes = next && powerChanges(current, next);
+    return next && changes?.items.length && (scope === "saved" || profile.msrRuntimeAvailable)
+      ? [{ scope, items: changes.items, apply: () => run(() => applyDraft(current, next, scope),
+        scope === "saved" ? "设置已保存" : "实时值已回读确认", scope) }]
+      : [];
+  }) : [];
   const restore = () => run(async () => {
     const result = await restorePowerProfile();
     if (!result.ok) throw new Error(result.message);
-  }, "功耗与电压已恢复");
-  return { profile, draft, target, setTarget, error, busy, dirty, change, apply, restore,
-    retry: () => { void load(false).catch((cause) => setError(String(cause))); } };
+  }, "功耗与电压已恢复", "all");
+  return { profile, draft, target, setTarget, error, busy, dirty, change, reviews, restore,
+    retry: () => { void load(null).catch((cause) => setError(String(cause))); } };
 }

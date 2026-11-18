@@ -1,3 +1,5 @@
+import { openStartupParameters, openProfileResults } from "./profile-review.mjs";
+import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -10,8 +12,8 @@ async function select(page) {
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
 }
 async function apply(page) {
-  await panel(page).getByRole("button", { name: "应用", exact: true }).click();
-  await panel(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
+  await openConfigurationReview(page);
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
 }
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
@@ -29,7 +31,8 @@ test("档案完整预览、确认及后续失败恢复", async ({ page }) => {
   await expect(card(page).getByRole("meter")).toHaveCount(0);
   await page.evaluate(() => window.__uiFixture.profileSteps = [{ step: "GPU 偏移", ok: false, message: "隔离后续故障" }]);
   await apply(page);
-  await expect(panel(page).getByLabel("执行结果")).toContainText("恢复多区键盘灯效");
+  const results = await openProfileResults(page);
+  await expect(results).toContainText("恢复多区键盘灯效");
   expect(await page.evaluate(() => window.__uiFixture.multiZone.current.mode)).toBe(1);
 });
 test("捕获导出保留四区及能力，普通和逐键目标为空", async ({ page }) => {
@@ -51,10 +54,10 @@ test("启动选择共享多区预览，保存选择不执行设置", async ({ pa
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
-  await startup.locator("summary").filter({ hasText: "查看启动档案参数" }).click();
-  await expect(startup.getByLabel("档案多区键盘")).toContainText("波浪");
-  await startup.getByRole("button", { name: "保存", exact: true }).click();
-  await startup.getByRole("button", { name: "启动时应用「隔离档案」？", exact: true }).click();
+  const parameters = await openStartupParameters(page);
+  await expect(parameters.getByLabel("档案多区键盘")).toContainText("波浪");
+  await page.keyboard.press("Escape");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   expect(await page.evaluate(() => window.__uiFixture.multiZone.current.mode)).toBe(1);
 });
 test("多屏试用保留后才执行多区目标", async ({ page }) => {

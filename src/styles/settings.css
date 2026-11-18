@@ -1,10 +1,6 @@
 @import "./settings-previews.css";
 .ccc-autostart-setting { display: grid; gap: var(--ccc-space-3); padding: var(--ccc-space-4); border: var(--ccc-border); border-radius: var(--ccc-radius-card); }
-.ccc-autostart-preview { display: flex; align-items: center; gap: var(--ccc-space-3); color: var(--ccc-action); }
-.ccc-autostart-preview > span { display: grid; gap: var(--ccc-space-1); min-width: 0; }
-.ccc-autostart-preview strong { color: var(--ccc-text); font-size: var(--ccc-text-md); }
-.ccc-autostart-preview small { color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); }
-.ccc-settings { display: grid; width: 100%; max-width: var(--ccc-settings-width); min-width: 0; gap: var(--ccc-space-5); container: ccc-settings / inline-size; }
+.ccc-settings { display: grid; width: 100%; max-width: var(--ccc-settings-width); margin-inline: auto; min-width: 0; gap: var(--ccc-space-4); container: ccc-settings / inline-size; }
 .ccc-settings-group { display: grid; min-width: 0; gap: var(--ccc-space-5); padding: var(--ccc-space-5); }
 .ccc-settings-group-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ccc-space-2); }
 .ccc-settings-group-heading h2 { margin: 0; font-size: var(--ccc-text-xl); font-weight: 600; }

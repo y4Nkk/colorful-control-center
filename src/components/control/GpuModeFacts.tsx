@@ -1,5 +1,5 @@
 import type { GpuModeObservation, GpuModeRawState, GpuModeDriver, GpuTurboTarget, GpuModeCycle } from "../../api/client";
-import { Collapsible } from "../Collapsible";
+import { DetailsDialog } from "../DetailsDialog";
 import { Fragment } from "react";
 import { gpuLock, gpuMhz, gpuOffsets, gpuSkipReason } from "./gpu-values";
 
@@ -8,9 +8,9 @@ export function GpuModeRawStateFacts({ value }: { value: GpuModeRawState | null 
   return <div className="ccc-mode-clock-facts ccc-gpu-clock-readings">
     <p className="ccc-gpu-clock-main"><span className="ccc-control-caption">图形锁频：</span><strong>{gpuLock(value.locks[0])}</strong></p>
     {value.offsets.map((offset, index) => <p key={index} className="ccc-gpu-clock-offset"><span className="ccc-control-caption">GPU {index + 1}</span><span className="ccc-mono">{gpuOffsets(offset)}</span></p>)}
-    <Collapsible summary="更多频率细节"><p>第二锁频域：{gpuLock(value.locks[1])}</p>
+    <DetailsDialog title="更多频率细节"><p>第二锁频域：{gpuLock(value.locks[1])}</p>
       {value.devices.length > 2 && <p>另有 {value.devices.length - 2} 张显卡不在偏移目标内。</p>}
-    </Collapsible>
+    </DetailsDialog>
   </div>;
 }
 export function GpuModeTargetFacts({ target }: { target: GpuTurboTarget }) {
@@ -45,9 +45,9 @@ export function GpuModeObservationFacts({ value }: { value: GpuModeObservation |
   return <GpuModeRawStateFacts value={null} />;
 }
 export function GpuModeDriverRanges({ driver }: { driver: GpuModeDriver }) {
-  return <Collapsible summary="查看驱动范围">{driver.devices.map((device, index) => <div key={`${device.id.bus}-${device.id.slot}`}>
+  return <DetailsDialog title="查看驱动范围">{driver.devices.map((device, index) => <div key={`${device.id.bus}-${device.id.slot}`}>
     <strong>GPU {index + 1}</strong>
     <p>核心 {gpuMhz(device.coreRangeKhz[0])} 至 {gpuMhz(device.coreRangeKhz[1])} · {device.coreEditable ? "可编辑" : "不可编辑"}</p>
     <p>显存 {gpuMhz(device.memoryRangeKhz[0])} 至 {gpuMhz(device.memoryRangeKhz[1])} · {device.memoryEditable ? "可编辑" : "不可编辑"}</p>
-  </div>)}</Collapsible>;
+  </div>)}</DetailsDialog>;
 }

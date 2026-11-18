@@ -6,7 +6,9 @@ import type { HardwareWorkspaceProps } from "./useControlModel";
 export function AutomationWorkspace({ active, model }: HardwareWorkspaceProps) {
   return <div className="ccc-control">
     <StartupProfilePicker active={active} />
-    <SupplyModeSettings active={active} revision={model.deviceRevision} onSettled={model.refreshAll} />
-    <PowerProfilePolicy active={active} revision={model.deviceRevision} />
+    <div className="ccc-device-pair">
+      <SupplyModeSettings active={active} revision={model.deviceRevision} onSettled={model.refreshAll} />
+      <PowerProfilePolicy active={active} revision={model.deviceRevision} />
+    </div>
   </div>;
 }

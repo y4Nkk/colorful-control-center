@@ -1,4 +1,5 @@
 import { openWorkspace } from "./workspace.mjs";
+import { availableAction } from "./configuration-review.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
@@ -11,7 +12,7 @@ for (const product of [20720, 20724]) test(`未支持机型${product}保留当�
   await expect(panel(page)).toContainText(`尚未支持${product}机型`);
   await expect(panel(page).getByText("当前使用 · 性能", { exact: true })).toBeVisible();
   for (const radio of await panel(page).getByRole("radio").all()) await expect(radio).toBeDisabled();
-  await expect(panel(page).getByRole("button", { name: "确认应用模式", exact: true })).toBeDisabled();
+  await expect(availableAction(page, "预设模式")).toHaveCount(0);
   expect(await page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_|restore_)/.test(call.command)))).toEqual([]);
 });
 

@@ -61,7 +61,7 @@ pub(crate) async fn start_keymap_recording(
         .get_webview_window("main")
         .is_some_and(|window| window.is_focused().unwrap_or(false))
     {
-        return Err("请先聚焦控制台窗口，再开始录制".into());
+        return Err("请先聚焦主窗口，再开始录制".into());
     }
     tauri::async_runtime::spawn_blocking(move || {
         app.state::<keymap::Controller>().start_recording()

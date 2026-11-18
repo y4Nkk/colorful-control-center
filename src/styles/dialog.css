@@ -1,0 +1,40 @@
+.ccc-dialog {
+  width: min(var(--ccc-dialog-width), calc(100% - 2 * var(--ccc-space-4)));
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  border: var(--ccc-border);
+  border-radius: var(--ccc-radius-group);
+  background: var(--ccc-content);
+  color: var(--ccc-text);
+  overflow: visible;
+}
+
+.ccc-dialog[data-width="wide"] { width: min(var(--ccc-dialog-wide), calc(100% - 2 * var(--ccc-space-4))); }
+.ccc-dialog::backdrop { background: var(--ccc-overlay-backdrop); }
+.ccc-dialog-frame {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 2 * var(--ccc-space-4));
+  min-width: 0;
+}
+.ccc-dialog-header, .ccc-dialog-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--ccc-space-3);
+  padding: var(--ccc-space-4) var(--ccc-space-5);
+}
+.ccc-dialog-header { justify-content: space-between; border-bottom: var(--ccc-border); }
+.ccc-dialog-header h2 { font-size: var(--ccc-text-title); line-height: 1.3; margin: 0; }
+.ccc-dialog-header h2:focus-visible { box-shadow: none; }
+.ccc-dialog-footer { justify-content: flex-end; flex-wrap: wrap; border-top: var(--ccc-border); }
+.ccc-dialog-body { min-height: 0; min-width: 0; container: ccc-control / inline-size; }
+.ccc-dialog-body > :first-child { padding: var(--ccc-space-4) var(--ccc-space-5); }
+.ccc-dialog-body > :first-child > :first-child { margin-top: 0; }
+.ccc-dialog-body > :first-child > :last-child { margin-bottom: 0; }
+.ccc-dialog-body p, .ccc-dialog-body pre { overflow-wrap: anywhere; }
+.ccc-dialog-body pre { white-space: pre-wrap; }
+@media (max-width: 560px) {
+  .ccc-dialog-header, .ccc-dialog-footer, .ccc-dialog-body > :first-child { padding-inline: var(--ccc-space-3); }
+}

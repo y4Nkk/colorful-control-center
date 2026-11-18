@@ -1,7 +1,7 @@
 import type { OemModeGpuReview } from "../../api/client";
 import { Surface } from "../Surface";
 import { FactList } from "../FactList";
-import { Collapsible } from "../Collapsible";
+import { DetailsDialog } from "../DetailsDialog";
 import { GpuModeRawStateFacts, GpuModeDriverRanges, GpuModeTargetFacts } from "./GpuModeFacts";
 import { GpuPowerVisual } from "./GpuPowerVisual";
 import { GpuNodeStages } from "./GpuNodeStages";
@@ -28,13 +28,13 @@ export function OemModeGpuEffects({ review }: { review: OemModeGpuReview }) {
       <strong>确认后的GPU目标</strong>
       <GpuNodeStages stages={stages} action={action} current={node} />
       {decision?.target && (clocks.candidate.projected ? <GpuModeRawStateFacts value={clocks.candidate.projected} /> : <GpuModeTargetFacts target={decision.target} />)}
-      <Collapsible summary="联动详情">
+      <DetailsDialog title="联动详情">
         <p>{changesNode ? `${action.stage === "beforeMode" ? "模式命令前" : "调频及固件节能后"}${action.target.enabled ? "开启" : "关闭"}独显节点` : nodeSupported ? "保留当前独显节点状态" : "本次不修改独显节点"}</p>
         {action && <p>保留自动关断偏好。</p>}
         {decision?.target && <p>{gpuTarget(decision.target)}</p>}
         {clocks.deferredReason && <p>{clocks.deferredReason}</p>}
         {decision?.skipped && <p>{gpuSkipReason(decision.skipped)}。</p>}
-      </Collapsible>
+      </DetailsDialog>
       {error && <p className="ccc-control-error" role="alert">{error}</p>}
     </Surface>
   </section>;

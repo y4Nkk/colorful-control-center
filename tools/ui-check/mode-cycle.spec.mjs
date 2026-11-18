@@ -1,3 +1,4 @@
+import { availableAction, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -10,7 +11,7 @@ async function setup(page, off = false) {
   await page.addInitScript({ content: MOCK_IPC });
   await page.addInitScript(fixture => { window.__uiFixture.modeCycleFixture = fixture; }, modeCycleFixture(off));
   await page.goto("/"); await openWorkspace(page, "键盘与输入");
-  await panel(page).getByRole("checkbox", { name: "启用原厂热键接管", exact: true }).check();
+  await panel(page).getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
   await panel(page).getByRole("checkbox", { name: "电源模式循环", exact: true }).check();
   await panel(page).getByText("电源模式循环联动预览", { exact: true }).click();
 }
@@ -25,9 +26,9 @@ test("热键模式循环展示全部供电目标及独显阶段，确认只启�
   await expect(preview(page).getByRole("region", { name: "性能循环目标", exact: true })).toContainText("切换前 · 确保开启");
   await preview(page).getByText("查看驱动范围", { exact: true }).click();
   await expect(preview(page)).toContainText("可编辑");
-  await panel(page).getByRole("button", { name: "应用热键策略", exact: true }).click();
+  await openConfigurationReview(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toHaveLength(0);
-  await panel(page).getByRole("button", { name: "确认此范围的热键接管？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   await expect.poll(async () => (await calls(page, "apply_hotkeys")).length).toBe(1);
   expect(await calls(page, "apply_oem_power_mode")).toHaveLength(0);
 });
@@ -47,7 +48,7 @@ test("关闭独显时不补造频率，驱动预检错误保留事实并禁用�
     window.__uiEmit("hardware-controls-changed", null);
   });
   await expect(preview(page).getByRole("alert")).toContainText("隔离驱动范围不可用");
-  await expect(panel(page).getByRole("button", { name: "应用热键策略", exact: true })).toBeDisabled();
+  await expect(availableAction(page, "原厂热键与屏显")).toHaveCount(0);
   expect(await calls(page, "apply_hotkeys")).toHaveLength(0);
 });
 
@@ -69,7 +70,7 @@ test("不可用策略保留未知值，两步清除绑定原文件摘要", async
   await panel(page).getByRole("button", { name: "清除不可用热键策略", exact: true }).click();
   await panel(page).getByRole("button", { name: "清除该文件并停止热键监听？", exact: true }).click();
   await expect(panel(page)).not.toContainText("已保存：未知");
-  await expect(panel(page).getByRole("checkbox", { name: "启用原厂热键接管", exact: true })).not.toBeChecked();
+  await expect(panel(page).getByRole("switch", { name: "启用原厂热键接管", exact: true })).not.toBeChecked();
 });
 
 test("模式循环宽窄及深浅布局保留左右模块边框", async ({ page }, testInfo) => {

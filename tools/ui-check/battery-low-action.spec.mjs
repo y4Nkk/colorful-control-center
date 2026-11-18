@@ -1,3 +1,4 @@
+import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -19,15 +20,15 @@ test("预览两类计划动作和一次性效果，不虚构比例", async ({ pa
 });
 
 test("独立确认后启用，软件规则可以单独恢复", async ({ page }) => {
-  await panel(page).getByRole("checkbox", { name: "启用原厂热键接管", exact: true }).check();
+  await panel(page).getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
   await scope(page).check();
-  await panel(page).getByRole("button", { name: "应用热键策略", exact: true }).click();
+  await openConfigurationReview(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
-  await panel(page).getByRole("button", { name: "确认此范围的热键接管？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   expect((await calls(page, "apply_hotkeys"))[0].args.request.settings.actions).toEqual(["batteryLowAction"]);
-  await panel(page).getByRole("button", { name: "恢复初始热键策略", exact: true }).click();
+  await openConfigurationReview(page, "原厂热键与屏显", true);
   expect(await calls(page, "restore_hotkeys")).toEqual([]);
-  await panel(page).getByRole("button", { name: "确认恢复初始软件策略？", exact: true }).click();
+  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   expect(await calls(page, "restore_hotkeys")).toHaveLength(1);
 });
 

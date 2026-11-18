@@ -1,3 +1,4 @@
+import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -35,15 +36,15 @@ test("授权前展示当前显卡与全部模式目标，选择范围不写入",
 });
 
 test("GPU Turbo 独立授权并二次确认，不继承风扇或电源模式范围", async ({ page }) => {
-  const p = panel(page); await p.getByRole("checkbox", { name: "启用原厂热键接管", exact: true }).check();
+  const p = panel(page); await p.getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
   for (const label of ["风扇模式", "电源模式循环"]) {
     const input = p.getByRole("checkbox", { name: label, exact: true });
     await input.check(); await expect(scope(page)).not.toBeChecked(); await input.uncheck();
   }
   await scope(page).check();
-  await p.getByRole("button", { name: "应用热键策略", exact: true }).click();
+  await openConfigurationReview(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
-  await p.getByRole("button", { name: "确认此范围的热键接管？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   expect((await calls(page, "apply_hotkeys"))[0].args.request.settings.actions).toEqual(["gpuTurbo"]);
 });
 

@@ -1,4 +1,4 @@
-.ccc-profile-layout { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(0, 3fr); gap: var(--ccc-space-4); align-items: start; }
+.ccc-profile-layout { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(0, 3fr); gap: var(--ccc-space-4); align-items: stretch; }
 .ccc-profile-name { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-2); }
 .ccc-profile-choice { display: flex; flex-direction: column; gap: var(--ccc-space-1); padding: var(--ccc-space-3); text-align: left; }
 .ccc-profile-choice time { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }

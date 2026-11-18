@@ -1,3 +1,5 @@
+import { openStartupParameters, openProfileResults } from "./profile-review.mjs";
+import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
@@ -37,13 +39,14 @@ test("平台档案逐计划只读预览，确认提交完整PD绑定和异构USB
   await expect(usb(page)).toContainText("插电：关闭；电池：保留现值");
   await expect(panel(page).getByLabel("档案PD档位").locator("input,button")).toHaveCount(0);
   expect(await writes(page)).toEqual([]);
-  await panel(page).getByRole("button", { name: "应用", exact: true }).click();
+  await openConfigurationReview(page);
   expect(await writes(page)).toEqual([]);
-  await panel(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
   const calls = await writes(page); expect(calls).toHaveLength(1);
   expect(calls[0].args.expected.settings.powerDelivery).toEqual({ level: 4, encoding: "adapterV1", adapterWatts: 100, availableLevels: [1, 2, 4] });
   expect(calls[0].args.expected.settings.usbPolicy.plans[1]).toEqual({ id: "highPerformance", ac: false, dc: true });
-  await expect(panel(page).getByLabel("执行结果")).toContainText("USB选择性暂停");
+  const results = await openProfileResults(page);
+  await expect(results).toContainText("USB选择性暂停");
 });
 
 test("捕获导出使用当前PD和各计划原值，未知USB字段保留null", async ({ page }) => {
@@ -77,27 +80,28 @@ test("启动选择共享完整平台预览，保存选择不写平台", async ({
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
-  await startup.getByText("查看启动档案参数", { exact: true }).click();
-  await expect(startup.getByLabel("档案PD档位")).toContainText("等级 4");
-  await expect(startup.getByLabel("档案USB策略")).toContainText("保留现值");
-  await startup.getByRole("button", { name: "保存", exact: true }).click();
-  await startup.getByRole("button", { name: "启动时应用「隔离档案」？", exact: true }).click();
+  const parameters = await openStartupParameters(page);
+  await expect(parameters.getByLabel("档案PD档位")).toContainText("等级 4");
+  await expect(parameters.getByLabel("档案USB策略")).toContainText("保留现值");
+  await page.keyboard.press("Escape");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   const calls = await writes(page); expect(calls.map(call => call.command)).toEqual(["set_startup_profile"]);
   expect(calls[0].args.expected.settings.powerDelivery.level).toBe(4);
   expect(calls[0].args.expected.settings.usbPolicy.plans).toHaveLength(3);
 });
 
 test("档案变化撤销旧确认，平台失败和恢复失败保留明确步骤", async ({ page }) => {
-  await select(page); await panel(page).getByRole("button", { name: "应用", exact: true }).click();
+  await select(page); await openConfigurationReview(page);
   await page.evaluate(() => { window.__uiFixture.profile.settings.powerDelivery.adapterWatts = 65; });
-  await panel(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("档案已变化");
   await page.evaluate(() => { window.__uiFixture.profileSteps = [{ step: "USB选择性暂停", ok: false, message: "隔离字段写入失败" },
     { step: "恢复USB策略", ok: false, message: "初始快照保留，可重试" }, { step: "恢复PD档位", ok: true, message: "已确认" }]; });
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
-  await panel(page).getByRole("button", { name: "应用", exact: true }).click();
-  await panel(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
-  await expect(panel(page).getByLabel("执行结果")).toContainText("初始快照保留，可重试");
+  await openConfigurationReview(page);
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  const results = await openProfileResults(page);
+  await expect(results).toContainText("初始快照保留，可重试");
 });
 
 test("无法确认的PD或全部未知USB阻止捕获，不保存虚构目标", async ({ page }) => {

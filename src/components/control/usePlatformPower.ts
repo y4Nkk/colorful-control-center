@@ -22,9 +22,10 @@ export function usePlatformPower(active: boolean, revision: number) {
   }, []);
   useEffect(() => {
     if (!active) return;
-    void reload().catch(() => {});
+    let disposed = false;
+    void (async () => { await reading.current?.catch(() => undefined); if (!disposed) await reload(); })().catch(() => {});
     const timer = setInterval(() => { void reload().catch(() => {}); }, 5000);
-    return () => { clearInterval(timer); ++generation.current; };
+    return () => { disposed = true; clearInterval(timer); ++generation.current; };
   }, [active, revision, reload]);
   const run = async (action: () => Promise<void>, title: string) => {
     if (writing.current) return;

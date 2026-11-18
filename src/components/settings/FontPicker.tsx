@@ -19,7 +19,7 @@ export function FontPicker({ value, busy, onChange }: {
     return () => { cancelled = true; };
   }, [attempt]);
   const options = useMemo(() => ["system", ...new Set([...fonts, ...(value === "system" ? [] : [value])])]
-    .map(font => ({ value: font, label: font === "system" ? "系统默认" : font, description: "控制台 Aa 0123", style: { fontFamily: stack(font) } })), [fonts, value]);
+    .map(font => ({ value: font, label: font === "system" ? "系统默认" : font, description: "概览 Aa 0123", style: { fontFamily: stack(font) } })), [fonts, value]);
   return <Select label="选择界面字体" searchLabel="搜索字体" value={value} options={options}
     disabled={busy} loading={loading} error={error} onRetry={() => setAttempt(current => current + 1)}
     onChange={font => { void onChange(font); }} />;

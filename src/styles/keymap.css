@@ -1,6 +1,6 @@
 /* 左侧选择映射，右侧编辑动作；步骤边界表达执行顺序。 */
-.ccc-keymap-panel { grid-column: 1 / -1; display: grid; gap: var(--ccc-space-4); }
-.ccc-keymap-columns { display: grid; grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1.7fr); gap: var(--ccc-space-4); align-items: start; }
+.ccc-keymap-columns { display: grid; grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.7fr); gap: var(--ccc-space-4); align-items: start; }
+.ccc-keymap-columns:not(:has(> :nth-child(2))) { grid-template-columns: minmax(0, 1fr); }
 .ccc-keymap-section { display: grid; gap: var(--ccc-space-3); padding: var(--ccc-space-4); min-width: 0; }
 .ccc-keymap-bindings, .ccc-keymap-list, .ccc-keymap-editor, .ccc-keymap-files,
 .ccc-keymap-text, .ccc-keymap-clicks, .ccc-keymap-steps, .ccc-keymap-recorder, .ccc-keymap-program-status { display: grid; gap: var(--ccc-space-3); min-width: 0; }
@@ -16,7 +16,7 @@
 .ccc-keymap-preview-card { padding: var(--ccc-space-3); }
 .ccc-keymap-preview-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-4); }
 .ccc-keymap-preview-value { margin: var(--ccc-space-1) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--ccc-text-sm); }
-@media (max-width: 900px) { .ccc-keymap-columns { grid-template-columns: minmax(0, 1fr); } }
+@container ccc-control (max-width: 590px) { .ccc-keymap-columns { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 560px) {
   .ccc-keymap-section { padding: var(--ccc-space-3); }
   .ccc-keymap-step, .ccc-keymap-click, .ccc-keymap-preview-columns { grid-template-columns: minmax(0, 1fr); }

@@ -1,3 +1,4 @@
+import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -18,11 +19,11 @@ async function setWarning(page, id = 1) {
 test("低温提醒单独授权，展示原厂触发条件", async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与输入");
   await expect(panel(page)).toContainText("低于 11°C 且电量低于 81%");
-  await panel(page).getByRole("checkbox", { name: "启用原厂热键接管", exact: true }).check();
+  await panel(page).getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
   await scope(page).check();
-  await panel(page).getByRole("button", { name: "应用热键策略", exact: true }).click();
+  await openConfigurationReview(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
-  await panel(page).getByRole("button", { name: "确认此范围的热键接管？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   expect((await calls(page, "apply_hotkeys"))[0].args.request.settings.actions).toEqual(["batteryColdWarning"]);
 });
 

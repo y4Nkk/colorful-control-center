@@ -16,19 +16,22 @@ export function useFanControl(active: boolean, externalBusy: boolean, revision: 
   const [mode, setModeValue] = useState(0);
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [readValid, setReadValid] = useState(false);
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
   const previous = useRef<FanProfile | null>(null);
   const loadId = useRef(0);
   const load = useCallback(async (reset: boolean) => {
     const id = ++loadId.current;
-    const next = await readFanProfile();
+    let next: FanProfile;
+    try { next = await readFanProfile(); }
+    catch (cause) { if (id === loadId.current) setReadValid(false); throw cause; }
     if (id !== loadId.current) return;
     const before = previous.current;
     curves.loadDrafts(next, before, reset);
     setModeValue((current) => !reset && before && current !== before.currentMode ? current : next.currentMode);
     setOffset((current) => !reset && before && current !== before.offsetPct ? current : next.offsetPct);
-    previous.current = next; setProfile(next); setError(null);
+    previous.current = next; setProfile(next); setReadValid(true); setError(null);
   }, [curves.loadDrafts]);
   useEffect(() => {
     if (!active) return;
@@ -76,7 +79,7 @@ export function useFanControl(active: boolean, externalBusy: boolean, revision: 
     if (value === 6 && profile?.curveKind === "rpmTable") curves.ensureRpmTargets();
     setModeValue(value);
   };
-  return { profile, drafts, rpmDrafts, mode, setMode, offset, setOffset, error, busy, dirty, apply, changeCurve, changeRpm,
+  return { profile, drafts, rpmDrafts, mode, setMode, offset, setOffset, error, busy, readValid, dirty, apply, changeCurve, changeRpm,
     refresh: () => load(true),
     restore: () => run(() => checked(restoreFanProfile())),
     restoreDefault: () => run(() => checked(restoreFanDefault())),

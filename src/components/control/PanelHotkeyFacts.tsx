@@ -1,7 +1,7 @@
 import { endPanelHotkey, type PanelHotkeyKind, type PanelHotkeyProfile } from "../../api/client";
 import { ConfirmButton } from "../ConfirmButton";
 import { Surface } from "../Surface";
-import { Collapsible } from "../Collapsible";
+import { DetailsDialog } from "../DetailsDialog";
 
 type Props = { profile: PanelHotkeyProfile; busy: boolean; run: (action: () => Promise<void>, message: string, reset: boolean) => Promise<void> };
 const names: Record<PanelHotkeyKind, string> = { blankSaver: "空白屏保", pointerWake: "一次性输入唤醒" };
@@ -16,9 +16,9 @@ export function PanelHotkeyFacts({ profile, busy, run }: Props) {
           <div><strong className="ccc-panel-hotkey-value">{names[current.kind]}</strong>
             <p className="ccc-control-caption">已确认 {current.inventory.monitors.length} 台面板</p></div>
           <span className="ccc-chip">{current.kind === "blankSaver" ? "任意输入退出" : "鼠标唤醒 · 键盘取消"}</span>
-          <Collapsible summary="屏幕按键说明"><p className="ccc-control-caption">{current.kind === "blankSaver"
+          <DetailsDialog title="屏幕按键说明"><p className="ccc-control-caption">{current.kind === "blankSaver"
             ? "已匹配原厂 OLED 条件。按键启动 Windows 空白屏保，正常输入退出；不表示面板已断电。"
-            : "首个键盘按下结束等待；首个鼠标活动发送一次屏幕唤醒请求。输入照常传递。"}</p></Collapsible>
+            : "首个键盘按下结束等待；首个鼠标活动发送一次屏幕唤醒请求。输入照常传递。"}</p></DetailsDialog>
           {current.inventory.unresolved.length > 0 && <p className="ccc-control-caption">另有 {current.inventory.unresolved.length} 个面板身份未确认；已确认 OLED 的适用条件保留。</p>}
         </> : <p className="ccc-control-caption">本次适用行为不可用，请重新读取。</p>}
         {profile.error && <p className="ccc-control-error">{profile.error}</p>}

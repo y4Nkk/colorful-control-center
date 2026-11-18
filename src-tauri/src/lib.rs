@@ -217,7 +217,7 @@ fn control_plugin(
             let lease = match restart_lease {
                 Some(lease) => lease,
                 None => controller_lease::ControllerLease::try_acquire(controller_lease::NAME)?
-                    .ok_or("已有控制台或独立恢复任务仍在运行，请等待恢复结束后重试")?,
+                    .ok_or("已有主程序或独立恢复任务仍在运行，请等待恢复结束后重试")?,
             };
             app.manage(lease);
             assembly::setup(app)?;

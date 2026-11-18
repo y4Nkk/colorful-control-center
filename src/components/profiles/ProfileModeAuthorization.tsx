@@ -1,7 +1,7 @@
 import type { ProfileModeApproval } from "../../api/client";
 import { Surface } from "../Surface";
 import { Icon } from "../Icon";
-import { Collapsible } from "../Collapsible";
+import { DetailsDialog } from "../DetailsDialog";
 import { GpuModeSupplyTargets, GpuModeDriverRanges } from "../control/GpuModeFacts";
 import { GpuPowerVisual } from "../control/GpuPowerVisual";
 
@@ -24,6 +24,6 @@ export function ProfileModeAuthorization({ approval }: { approval: ProfileModeAp
       </Surface>
     </div>
     {approval.clocks.driver && <GpuModeDriverRanges driver={approval.clocks.driver} />}
-    <Collapsible summary="执行与恢复说明"><p>每次执行重新检查设备与目标；开启后的驱动身份在写入前记录。失败恢复本次前态，已有初始恢复状态保留。</p></Collapsible>
+    <DetailsDialog title="执行与恢复说明"><p>每次执行重新检查设备与目标；开启后的驱动身份在写入前记录。失败恢复本次前态，已有初始恢复状态保留。</p></DetailsDialog>
   </Surface>;
 }

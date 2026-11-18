@@ -13,6 +13,7 @@ import { BatteryWorkspace } from "./BatteryWorkspace";
 import { AutomationWorkspace } from "./AutomationWorkspace";
 import { ProfilesWorkspace } from "./ProfilesWorkspace";
 import { SettingsWorkspace } from "./SettingsWorkspace";
+import { ConfigurationPage } from "./ConfigurationPage";
 
 export function AppWorkspace({ page, requestedProfile, preferences, navigationRequest, onNavigated }: {
   page: PageId; requestedProfile: { name: string } | null; preferences: PreferencesModel;
@@ -34,5 +35,5 @@ export function AppWorkspace({ page, requestedProfile, preferences, navigationRe
     settings: <SettingsWorkspace active={page === "settings"} model={preferences} />,
   };
   return <>{PAGES.filter(entry => entry.id === page || opened.has(entry.id)).map(entry =>
-    <div key={entry.id} hidden={page !== entry.id} className="ccc-page">{workspaces[entry.id]}</div>)}</>;
+    <ConfigurationPage key={entry.id} active={page === entry.id}>{workspaces[entry.id]}</ConfigurationPage>)}</>;
 }

@@ -1,6 +1,6 @@
 import { FAN_MODES, OEM_POWER_MODES, type OemEnergyState, type OemModeRestoreTarget } from "../../api/client";
-import { Collapsible } from "../Collapsible";
-import { ConfirmButton } from "../ConfirmButton";
+import { DetailsDialog } from "../DetailsDialog";
+import { ConfigurationAction } from "../ConfigurationAction";
 import { FactList } from "../FactList";
 import { Surface } from "../Surface";
 import { ASPM_NAMES, powerPlanName } from "./power-plan-values";
@@ -8,14 +8,13 @@ import { energyValue } from "./energy-values";
 import { OemModeGpuRestore } from "./OemModeGpuRestore";
 
 const modeName = (mode: number) => OEM_POWER_MODES[mode] ?? `未知模式 ${mode}`;
-export function OemModeRestore({ target, currentMode, currentAcMode, currentEnergy, blockedReason, busy, disabled, label, onRestore }: {
+export function OemModeRestore({ target, currentMode, currentAcMode, currentEnergy, blockedReason, busy, disabled, onRestore }: {
   target: OemModeRestoreTarget; currentMode: number; currentAcMode: number | null;
   currentEnergy: OemEnergyState | null;
   blockedReason: string | null;
-  busy: boolean; disabled: boolean; label: string; onRestore: (revision: string) => Promise<void>;
+  busy: boolean; disabled: boolean; onRestore: (revision: string) => Promise<void>;
 }) {
-  return <Collapsible summary="初始模式恢复预览" className="ccc-mode-restore-fold">
-    <Surface as="section" variant="inset" className="ccc-mode-restore" aria-label="初始模式恢复目标">
+  const preview = <Surface as="section" variant="plain" className="ccc-mode-restore" aria-label="初始模式恢复目标">
       <div className="ccc-mode-restore-columns">
       <section className="ccc-mode-restore-block" aria-label="模式与性能恢复目标"><h3>模式与性能</h3>
       <FactList compact layout="tiles" facts={[
@@ -42,10 +41,15 @@ export function OemModeRestore({ target, currentMode, currentAcMode, currentEner
       </section>)}
       </div>
       <OemModeGpuRestore target={target} />
-      <Collapsible summary="查看完整风扇恢复参数"><pre className="ccc-mode-restore-raw ccc-mono">{JSON.stringify(target.fan, null, 2)}</pre></Collapsible>
-      {blockedReason && <p className="ccc-control-error" role="alert">{blockedReason}</p>}
-      <div className="ccc-actions"><ConfirmButton key={target.revision} label={label} confirmLabel="恢复以上初始模式、选项及关联设置？" busy={busy} disabled={disabled}
-        variant="secondary" onConfirm={() => onRestore(target.revision)} /></div>
-    </Surface>
-  </Collapsible>;
+      <DetailsDialog title="查看完整风扇恢复参数"><pre className="ccc-mode-restore-raw ccc-mono">{JSON.stringify(target.fan, null, 2)}</pre></DetailsDialog>
+    </Surface>;
+  return <>
+    {blockedReason && <DetailsDialog title="模式恢复暂不可用" wide>
+      <p>{blockedReason}</p>{preview}
+    </DetailsDialog>}
+    <ConfigurationAction label="模式与性能选项" revision={target.revision} restore disabled={busy || disabled}
+      onConfirm={() => onRestore(target.revision)}>
+      {preview}
+    </ConfigurationAction>
+  </>;
 }

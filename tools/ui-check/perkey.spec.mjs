@@ -1,3 +1,4 @@
+import { availableAction, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -14,8 +15,9 @@ const choose = async (panel, label, value) => {
   await panel.page().getByRole("option", { name: value, exact: true }).click();
 };
 const apply = async panel => {
-  await panel.getByRole("button", { name: "应用逐键", exact: true }).click();
-  await panel.getByRole("button", { name: "确认应用逐键灯效？", exact: true }).click();
+  const page = panel.page();
+  await openConfigurationReview(page, "逐键 RGB");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
 };
 
 test("真实大键映射、多模式草稿与确认恢复", async ({ page }) => {
@@ -24,18 +26,18 @@ test("真实大键映射、多模式草稿与确认恢复", async ({ page }) => 
   await expect(panel).toContainText("已选 4 个灯位");
   await panel.getByLabel("逐键颜色", { exact: true }).fill("#112233");
   await panel.getByRole("button", { name: "填充所选键", exact: true }).click();
-  await panel.getByRole("button", { name: "应用逐键", exact: true }).click();
+  await openConfigurationReview(page, "逐键 RGB");
   expect(await writes(page)).toBe(0);
   await choose(panel, "逐键灯效", "波浪");
-  await expect(panel.getByRole("button", { name: "应用逐键", exact: true })).toBeVisible();
+  await expect(availableAction(page, "逐键 RGB")).toBeVisible();
   await choose(panel, "逐键灯效", "逐键静态");
   await apply(panel);
-  await expect(panel.getByRole("button", { name: "应用逐键", exact: true })).toBeDisabled();
+  await expect(availableAction(page, "逐键 RGB")).toHaveCount(0);
   const colors = await page.evaluate(() => window.__uiFixture.perkey.current.pattern.colors);
   expect(colors.map((c, i) => c.r === 17 && c.g === 34 && c.b === 51 ? i : -1).filter(i => i >= 0)).toEqual([105, 106, 108, 109]);
   await panel.screenshot({ path: "target/ui-check/perkey-keycaps.png" });
-  await panel.getByRole("button", { name: "恢复逐键初始", exact: true }).click();
-  await panel.getByRole("button", { name: "恢复原始灯效与逐键颜色？", exact: true }).click();
+  await openConfigurationReview(page, "逐键 RGB", true);
+  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   expect(await page.evaluate(() => window.__uiFixture.perkey.current.pattern.colors[105])).toEqual({ r: 20, g: 80, b: 160 });
   await page.setViewportSize({ width: 360, height: 720 });
   expect(await panel.evaluate(el => el.getBoundingClientRect().right <= innerWidth)).toBe(true);
@@ -79,7 +81,7 @@ test("事务失败保留动态草稿和初始恢复入口", async ({ page }) => 
   await apply(panel);
   await expect(panel.getByRole("alert")).toContainText("隔离跨页保存失败");
   await expect(panel.getByRole("combobox", { name: "逐键灯效", exact: true })).toHaveText("按键渐灭");
-  await expect(panel.getByRole("button", { name: "恢复逐键初始", exact: true })).toBeEnabled();
+  await expect(availableAction(page, "逐键 RGB", true)).toBeEnabled();
   expect(await page.evaluate(() => window.__uiFixture.perkey.current.pattern.kind)).toBe("static");
 });
 

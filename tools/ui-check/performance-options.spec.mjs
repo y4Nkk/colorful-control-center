@@ -1,3 +1,4 @@
+import { availableAction, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -7,19 +8,18 @@ const calls = (page, command) => page.evaluate(command => window.__uiFixture.cal
 test("性能选项独立草稿、确认重置和共享模式恢复", async ({ page }) => {
   const p = panel(page);
   await p.getByRole("switch", { name: "Turbo 风扇", exact: true }).click();
-  await expect(p.getByRole("status", { name: "性能选项联动预览" })).toContainText("风扇切回自动");
+  await expect(await openConfigurationReview(page, "性能选项")).toContainText("风扇切回自动");
   expect(await calls(page, "apply_oem_performance_options")).toBe(0);
-  await p.getByRole("button", { name: "应用性能选项", exact: true }).click();
+  await page.keyboard.press("Escape");
   await p.getByRole("switch", { name: "动态调校 DTT", exact: true }).click();
-  await expect(p.getByRole("button", { name: "应用性能选项", exact: true })).toBeVisible();
-  await p.screenshot({ path: "target/ui-check/performance-options-preview.png" });
-  await p.getByRole("button", { name: "应用性能选项", exact: true }).click();
-  await p.getByRole("button", { name: "确认应用性能选项？", exact: true }).click();
+  await expect(availableAction(page, "性能选项")).toBeVisible();
+  const review = await openConfigurationReview(page, "性能选项");
+  await review.screenshot({ path: "target/ui-check/performance-options-preview.png" });
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   await expect(p).toContainText("当前开启"); expect(await calls(page, "apply_oem_performance_options")).toBe(1);
-  await p.getByText("初始模式恢复预览", { exact: true }).click();
-  await expect(p.getByRole("region", { name: "初始模式恢复目标", exact: true })).toContainText("保持当前偏好");
-  await p.getByRole("button", { name: "恢复模式与选项", exact: true }).click();
-  await p.getByRole("button", { name: "恢复以上初始模式、选项及关联设置？", exact: true }).click();
+  const recovery = await openConfigurationReview(page, "模式与性能选项", true);
+  await expect(recovery.getByRole("region", { name: "初始模式恢复目标", exact: true })).toContainText("保持当前偏好");
+  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   await expect(p.getByRole("switch", { name: "Turbo 风扇", exact: true })).not.toBeChecked();
   await expect(p.getByRole("switch", { name: "动态调校 DTT", exact: true })).not.toBeChecked();
   expect(await calls(page, "restore_oem_power_mode")).toBe(1); expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
@@ -42,8 +42,9 @@ test("自定义风扇只阻止Turbo变更，软件曲线阻止整个选项操作
   await p.getByRole("button", { name: "重新读取性能选项", exact: true }).click();
   await expect(p.getByRole("switch", { name: "Turbo 风扇", exact: true })).toHaveAttribute("aria-disabled", "true");
   await p.getByRole("switch", { name: "动态调校 DTT", exact: true }).click();
-  await expect(p.getByRole("status", { name: "性能选项联动预览" })).toHaveCount(0);
-  await expect(p.getByRole("button", { name: "应用性能选项", exact: true })).toBeEnabled();
+  await expect(availableAction(page, "性能选项")).toBeEnabled();
+  await expect(await openConfigurationReview(page, "性能选项")).not.toContainText("风扇切回自动");
+  await page.keyboard.press("Escape");
   await page.evaluate(() => window.__uiFixture.performanceOptions.softwareActive = true);
   await p.getByRole("button", { name: "重新读取性能选项", exact: true }).click();
   await expect(p.getByRole("switch", { name: "动态调校 DTT", exact: true })).toHaveAttribute("aria-disabled", "true");
@@ -51,10 +52,22 @@ test("自定义风扇只阻止Turbo变更，软件曲线阻止整个选项操作
 });
 test("失败与过期预览保留草稿，不显示应用成功", async ({ page }) => {
   const p = panel(page); await p.getByRole("switch", { name: "动态调校 DTT", exact: true }).click();
-  await p.getByRole("button", { name: "应用性能选项", exact: true }).click();
+  await openConfigurationReview(page, "性能选项");
   await page.evaluate(() => window.__uiFixture.performanceOptions.revision = "external-change");
-  await p.getByRole("button", { name: "确认应用性能选项？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   await expect(p.getByRole("alert")).toContainText("预览已变化");
   await expect(p.getByRole("switch", { name: "动态调校 DTT", exact: true })).toBeChecked();
   await expect(p).toContainText("当前关闭 → 开启");
+});
+
+test("回读保留实际编辑项，未编辑开关跟随当前状态", async ({ page }) => {
+  const p = panel(page);
+  await p.getByRole("switch", { name: "动态调校 DTT", exact: true }).check();
+  await page.evaluate(() => { window.__uiFixture.performanceOptions.current.turboFan = true; });
+  await p.getByRole("button", { name: "重新读取性能选项", exact: true }).click();
+  await expect(p.getByRole("switch", { name: "Turbo 风扇", exact: true })).toBeChecked();
+  const review = await openConfigurationReview(page, "性能选项");
+  await expect(review).not.toContainText("Turbo 风扇");
+  await expect(review).toContainText("动态调校 DTT");
+  expect(await calls(page, "apply_oem_performance_options")).toBe(0);
 });

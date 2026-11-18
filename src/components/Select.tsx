@@ -17,6 +17,6 @@ export function Select(props: SelectProps) {
       <span style={selected?.style}>{selected?.label ?? props.placeholder ?? "请选择"}</span>
       <Icon name="chevron-right" />
     </Button>
-    {model.open && createPortal(<SelectMenu props={props} model={model} />, document.body)}
+    {model.open && createPortal(<SelectMenu props={props} model={model} />, model.trigger.current?.closest("dialog") ?? document.body)}
   </span>;
 }

@@ -166,12 +166,12 @@ fn execute(shared: &Shared, store: &FileStore, app: &tauri::AppHandle, work: Wor
 fn reveal(app: &tauri::AppHandle) -> Result<()> {
     let window = app
         .get_webview_window("main")
-        .ok_or_else(|| anyhow!("控制台窗口不可用"))?;
+        .ok_or_else(|| anyhow!("主窗口不可用"))?;
     window.show()?;
     window.unminimize()?;
     window.set_focus()?;
     if !window.is_visible()? {
-        bail!("控制台窗口不可见，未开始自动显示试用");
+        bail!("主窗口不可见，未开始自动显示试用");
     }
     Ok(())
 }

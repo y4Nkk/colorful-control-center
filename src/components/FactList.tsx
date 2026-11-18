@@ -14,13 +14,13 @@ export interface Fact {
 
 export function FactList({ facts, compact = false, layout = "rows" }: { facts: Fact[]; compact?: boolean; layout?: "rows" | "tiles" }) {
   return (
-    <Surface as="div" variant={layout === "tiles" ? "plain" : "group"} className="ccc-facts" data-layout={layout} data-density={compact ? "compact" : undefined}>
-      {facts.map((fact) => (
-        <div key={fact.label} className="ccc-fact-row">
-          <span className="ccc-fact-label">{fact.label}</span>
-          <span className={fact.danger ? "ccc-fact-value is-danger" : "ccc-fact-value"}>
+    <Surface as="dl" variant="plain" className="ccc-facts" data-layout={layout} data-density={compact ? "compact" : undefined}>
+      {facts.map((fact, index) => (
+        <div key={`${fact.label}-${index}`} className="ccc-fact-row">
+          <dt className="ccc-fact-label">{fact.label}</dt>
+          <dd className={fact.danger ? "ccc-fact-value is-danger" : "ccc-fact-value"}>
             {fact.value}
-          </span>
+          </dd>
         </div>
       ))}
     </Surface>

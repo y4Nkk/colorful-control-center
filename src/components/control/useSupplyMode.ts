@@ -36,10 +36,10 @@ export function useSupplyMode(active: boolean, revision: number, onSettled: () =
     return () => { clearInterval(timer); visible.current = false; ++generation.current; };
   }, [active, revision, reload]);
   const run = async (action: () => Promise<void>) => {
-    if (writing.current || stopping.current) return;
+    if (writing.current || stopping.current) return false;
     writing.current = true; ++generation.current; setBusy(true); setPauseRequested(false); setError(null);
-    try { await action(); await reload(true); }
-    catch (error) { await reload(true); setError(String(error)); }
+    try { await action(); await reload(true); return true; }
+    catch (error) { await reload(true); setError(String(error)); return false; }
     finally { writing.current = false; setBusy(false); onSettled(); }
   };
   const pause = async () => {
@@ -53,7 +53,7 @@ export function useSupplyMode(active: boolean, revision: number, onSettled: () =
       onSettled();
     }
   };
-  const confirmed = (action: (expected: string) => Promise<void>) => view ? run(() => action(view.revision)) : Promise.resolve();
+  const confirmed = (action: (expected: string) => Promise<void>) => view ? run(() => action(view.revision)) : Promise.resolve(false);
   return { view, busy, pausing, pauseRequested, error: error ?? readError,
     reread: () => { setError(null); return reload(); }, enable: () => confirmed(enableOemSupplyMode),
     resume: () => confirmed(resumeOemSupplyMode), restore: () => confirmed(restoreOemSupplyMode), pause };

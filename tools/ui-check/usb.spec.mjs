@@ -1,3 +1,4 @@
+import { availableAction, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -8,12 +9,12 @@ async function select(page, name, option) {
   await page.getByRole("option", { name: option, exact: true }).click();
 }
 async function apply(page) {
-  await panel(page).getByRole("button", { name: "应用USB策略", exact: true }).click();
-  await panel(page).getByRole("button", { name: "确认修改这些计划的USB策略？", exact: true }).click();
+  await openConfigurationReview(page, "USB 选择性暂停");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
 }
 async function restore(page) {
-  await panel(page).getByRole("button", { name: "恢复初始USB策略", exact: true }).click();
-  await panel(page).getByRole("button", { name: "确认恢复本次修改的USB字段？", exact: true }).click();
+  await openConfigurationReview(page, "USB 选择性暂停", true);
+  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
 }
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
@@ -31,9 +32,9 @@ test("原厂建议只填草稿，六个字段完整预览后才能确认写入�
   await region.getByRole("button", { name: "将原厂建议填入草稿" }).click();
   await expect(region.getByLabel("USB变更预览").locator(".ccc-fact-row")).toHaveCount(6);
   expect(await writes(page)).toHaveLength(0);
-  await region.getByRole("button", { name: "应用USB策略", exact: true }).click();
+  await openConfigurationReview(page, "USB 选择性暂停");
   expect(await writes(page)).toHaveLength(0);
-  await region.getByRole("button", { name: "确认修改这些计划的USB策略？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   const calls = await writes(page); expect(calls).toHaveLength(1);
   expect(calls[0].args.request.values).toEqual({ ac: true, dc: true });
   await expect(region).toContainText("初始恢复目标"); await restore(page);
@@ -57,14 +58,14 @@ test("只修改AC时，初始恢复保留后来变化的DC及活动计划", asyn
 test("旧确认被撤销，读取失败时撤销执行快照并保留草稿", async ({ page }) => {
   const region = panel(page);
   await select(page, "插电USB策略", "开启选择性暂停");
-  await region.getByRole("button", { name: "应用USB策略", exact: true }).click();
+  await openConfigurationReview(page, "USB 选择性暂停");
   await page.evaluate(() => { window.__uiFixture.usb.revision = "external"; });
   await region.getByRole("button", { name: "重新读取USB策略", exact: true }).click();
-  await expect(region.getByRole("button", { name: "确认修改这些计划的USB策略？", exact: true })).toHaveCount(0);
+  await expect(configurationDialog(page).getByRole("button", { name: "确认应用", exact: true })).toHaveCount(0);
   await page.evaluate(() => { window.__uiFixture.usbReadFault = "隔离USB读取失败"; });
   await region.getByRole("button", { name: "重新读取USB策略", exact: true }).click();
   await expect(region.getByRole("alert")).toContainText("隔离USB读取失败");
-  await expect(region.getByRole("button", { name: "应用USB策略", exact: true })).toHaveCount(0);
+  await expect(availableAction(page, "USB 选择性暂停")).toHaveCount(0);
   await page.evaluate(() => { window.__uiFixture.usbReadFault = null; });
   await region.getByRole("button", { name: "重新读取USB策略", exact: true }).click();
   await expect(region.getByRole("combobox", { name: "插电USB策略", exact: true })).toHaveText("开启选择性暂停");
@@ -80,14 +81,14 @@ test("缺失计划明确列出，未知字段只能保留，校准期间禁止�
   await panel(page).getByRole("button", { name: "重新读取USB策略", exact: true }).click();
   await expect(panel(page)).toContainText("未安装：节能");
   await select(page, "插电USB策略", "开启选择性暂停");
-  await expect(panel(page).getByRole("button", { name: "应用USB策略", exact: true })).toBeDisabled();
+  await expect(availableAction(page, "USB 选择性暂停")).toHaveCount(0);
   await select(page, "插电USB策略", "保留各计划当前值");
   await select(page, "电池USB策略", "开启选择性暂停");
   await expect(panel(page).getByLabel("USB变更预览").locator(".ccc-fact-row")).toHaveCount(2);
   await page.evaluate(() => { window.__uiFixture.calibration.recoveryRequired = true; });
   await panel(page).getByRole("button", { name: "重新读取USB策略", exact: true }).click();
   await expect(panel(page)).toContainText("电池校准期间");
-  await expect(panel(page).getByRole("button", { name: "应用USB策略", exact: true })).toBeDisabled();
+  await expect(availableAction(page, "USB 选择性暂停")).toHaveCount(0);
   expect(await writes(page)).toHaveLength(0);
 });
 
@@ -101,7 +102,7 @@ test("部分失败保留原值恢复，能力丢失后仍可恢复本次字段",
     usb.plans.forEach(value => { value.ac = true; }); usb.revision = "lost";
   });
   await panel(page).getByRole("button", { name: "重新读取USB策略", exact: true }).click();
-  await expect(panel(page).getByRole("button", { name: "应用USB策略", exact: true })).toBeDisabled();
+  await expect(availableAction(page, "USB 选择性暂停")).toHaveCount(0);
   await restore(page);
   expect(await page.evaluate(() => window.__uiFixture.usb.plans.every(value => value.ac === false))).toBe(true);
 });

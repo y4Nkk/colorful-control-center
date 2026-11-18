@@ -1,3 +1,4 @@
+import { availableAction, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -21,17 +22,17 @@ test("闲置、开机及外围颜色先预览，确认后保存并能恢复初�
   await panel.getByRole("switch", { name: "覆盖开机灯效" }).check();
   await panel.getByRole("switch", { name: "灯条开关" }).check();
   await panel.getByLabel("Logo 灯颜色", { exact: true }).fill("#00ff00");
-  await expect(panel).toContainText("30 秒后关灯 → 90 秒后关灯");
-  await panel.getByRole("button", { name: "应用灯光选项", exact: true }).click();
+  await openConfigurationReview(page, "灯光策略与外围灯区");
+  await expect(configurationDialog(page)).toContainText("30 秒后关灯 → 90 秒后关灯");
   expect(await writes(page)).toHaveLength(0);
-  await panel.getByRole("button", { name: "确认应用灯光选项？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   const calls = await writes(page);
   expect(calls[0].args.request.values).toMatchObject({ idleTimer: { enabled: true, seconds: 90 }, bootOverride: true,
     logo: { enabled: true, color: { r: 0, g: 255, b: 0 } }, lightBar: { enabled: true } , topCover: null});
-  await expect(panel).toContainText("恢复目标：30 秒后关灯");
-  await panel.getByRole("button", { name: "恢复灯光选项初始", exact: true }).click();
+  await openConfigurationReview(page, "灯光策略与外围灯区", true);
+  await expect(configurationDialog(page, true)).toContainText("恢复目标：30 秒后关灯");
   expect(await writes(page)).toHaveLength(1);
-  await panel.getByRole("button", { name: "恢复本会话修改前的灯光选项？", exact: true }).click();
+  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   await expect(panel.getByRole("spinbutton", { name: "闲置等待秒数" })).toHaveValue("30");
   await expect(panel.getByRole("switch", { name: "覆盖开机灯效" })).not.toBeChecked();
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
@@ -40,14 +41,17 @@ test("闲置、开机及外围颜色先预览，确认后保存并能恢复初�
 test("草稿变化及新修订撤销确认，重新读取和切页保留草稿", async ({ page }) => {
   const panel = panelOf(page), seconds = panel.getByRole("spinbutton", { name: "闲置等待秒数" });
   await seconds.fill("60");
-  await panel.getByRole("button", { name: "应用灯光选项", exact: true }).click();
+  await openConfigurationReview(page, "灯光策略与外围灯区");
+  await page.keyboard.press("Escape");
   await seconds.fill("120");
-  await expect(panel.getByRole("button", { name: "应用灯光选项", exact: true })).toBeVisible();
-  await panel.getByRole("button", { name: "应用灯光选项", exact: true }).click();
+  await expect(availableAction(page, "灯光策略与外围灯区")).toBeVisible();
+  await openConfigurationReview(page, "灯光策略与外围灯区");
+  await page.keyboard.press("Escape");
   await page.evaluate(() => { const options = window.__uiFixture.lightingOptions; options.revision = "external"; options.current.idleTimer.seconds = 45; });
   await panel.getByRole("button", { name: "重新读取灯光选项" }).click();
-  await expect(panel).toContainText("45 秒后关灯 → 120 秒后关灯");
-  await expect(panel.getByRole("button", { name: "应用灯光选项", exact: true })).toBeVisible();
+  await expect(await openConfigurationReview(page, "灯光策略与外围灯区")).toContainText("45 秒后关灯 → 120 秒后关灯");
+  await page.keyboard.press("Escape");
+  await expect(availableAction(page, "灯光策略与外围灯区")).toBeVisible();
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByRole("button", { name: "灯光效果", exact: true }).click();
   await expect(seconds).toHaveValue("120");
@@ -58,15 +62,15 @@ test("无效秒数拒绝执行，关闭计时不清除时间草稿", async ({ pa
   const panel = panelOf(page), seconds = panel.getByRole("spinbutton", { name: "闲置等待秒数" });
   for (const value of ["4", "7200", "5.5"]) {
     await seconds.fill(value);
-    await expect(panel.getByRole("button", { name: "应用灯光选项", exact: true })).toBeDisabled();
+    await expect(availableAction(page, "灯光策略与外围灯区")).toHaveCount(0);
   }
   await seconds.fill("7199");
   await panel.getByRole("switch", { name: "启用闲置关灯" }).uncheck();
   await expect(seconds).toBeDisabled();
   await expect(seconds).toHaveValue("7199");
-  await expect(panel).toContainText("不自动关灯");
-  await panel.getByRole("button", { name: "应用灯光选项", exact: true }).click();
-  await panel.getByRole("button", { name: "确认应用灯光选项？", exact: true }).click();
+  await openConfigurationReview(page, "灯光策略与外围灯区");
+  await expect(configurationDialog(page)).toContainText("不自动关灯");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   expect((await writes(page))[0].args.request.values.idleTimer).toEqual({ enabled: false, seconds: 7199 });
 });
 
@@ -74,14 +78,14 @@ test("写入失败保留草稿与初始恢复，读取失败撤销可执行快�
   const panel = panelOf(page), seconds = panel.getByRole("spinbutton", { name: "闲置等待秒数" });
   await seconds.fill("75");
   await page.evaluate(() => { window.__uiFixture.lightingOptionsFault = "隔离部分写入失败"; });
-  await panel.getByRole("button", { name: "应用灯光选项", exact: true }).click();
-  await panel.getByRole("button", { name: "确认应用灯光选项？", exact: true }).click();
+  await openConfigurationReview(page, "灯光策略与外围灯区");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   await expect(panel.getByRole("alert")).toContainText("隔离部分写入失败");
   await expect(seconds).toHaveValue("75");
-  await expect(panel.getByRole("button", { name: "恢复灯光选项初始", exact: true })).toBeEnabled();
+  await expect(availableAction(page, "灯光策略与外围灯区", true)).toBeEnabled();
   await page.evaluate(() => { window.__uiFixture.lightingOptionsReadFault = "隔离读取失败"; });
   await panel.getByRole("button", { name: "重新读取灯光选项" }).click();
-  await expect(panel.getByRole("button", { name: "应用灯光选项", exact: true })).toHaveCount(0);
+  await expect(availableAction(page, "灯光策略与外围灯区")).toHaveCount(0);
   await page.evaluate(() => { window.__uiFixture.lightingOptionsReadFault = null; });
   await panel.getByRole("button", { name: "重新读取灯光选项" }).click();
   await expect(seconds).toHaveValue("75");
@@ -101,7 +105,7 @@ test("白光及逐键仅提供适用选项，未知外围能力不伪造设备",
   await expect(panel.getByRole("switch", { name: "覆盖开机灯效" })).toHaveCount(0);
   await expect(panel.getByRole("switch", { name: "启用闲置关灯" })).toBeVisible();
   await panel.getByRole("spinbutton", { name: "闲置等待秒数" }).fill("45");
-  await expect(panel.getByRole("button", { name: "应用灯光选项", exact: true })).toBeEnabled();
+  await expect(availableAction(page, "灯光策略与外围灯区")).toBeEnabled();
 });
 
 test("窄屏模块和颜色控件不溢出", async ({ page }) => {
@@ -109,7 +113,13 @@ test("窄屏模块和颜色控件不溢出", async ({ page }) => {
   for (const width of [1440,760,360]) {
     await page.setViewportSize({ width, height: 1000 });
     await expect(panel.getByRole("switch", { name: "灯条开关" })).toBeVisible();
-    expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    const bounds = await panel.evaluate(element => {
+      const end = element.getBoundingClientRect().right;
+      return { visible: element.clientWidth, content: element.scrollWidth,
+        overflowing: [...element.querySelectorAll("*")].filter(child => child.getBoundingClientRect().right > end + 1)
+          .map(child => child.getAttribute("class") || child.tagName) };
+    });
+    expect(bounds.content, `${width}px · ${bounds.overflowing.join(", ")}`).toBeLessThanOrEqual(bounds.visible + 1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
   await page.setViewportSize({ width: 1000, height: 1000 });
@@ -122,10 +132,13 @@ test("未知键盘类型不能手动猜测协议，重读识别后才开放", as
   const panel = page.getByRole("region", { name: "键盘灯光", exact: true });
   await expect(panel).toContainText("未能识别键盘灯类型");
   await expect(panel.getByRole("group", { name: "键盘类型" })).toHaveCount(0);
-  await expect(panel.getByRole("button", { name: "应用", exact: true })).toHaveCount(0);
+  await expect(availableAction(page, "键盘灯光")).toHaveCount(0);
   await page.evaluate(() => { window.__uiFixture.family = "zoneRgb"; });
   await panel.getByRole("button", { name: "重新读取键盘灯", exact: true }).click();
-  await expect(panel.getByRole("button", { name: "应用", exact: true })).toBeEnabled();
+  const brightness = panel.getByRole("slider", { name: "亮度", exact: true });
+  await expect(brightness).toBeEnabled();
+  await brightness.press((await brightness.inputValue()) === "4" ? "Home" : "End");
+  await expect(availableAction(page, "键盘灯光")).toBeEnabled();
   expect(await page.evaluate(() => window.__uiFixture.calls.filter(c => /^(apply|restore)_keyboard_lighting$/.test(c.command)))).toEqual([]);
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });

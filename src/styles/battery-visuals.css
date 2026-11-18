@@ -1,4 +1,4 @@
-.ccc-battery-overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-4); min-width: 0; }
+.ccc-battery-overview { min-width: 0; }
 .ccc-battery-overview-part { display: flex; flex-direction: column; justify-content: space-between; gap: var(--ccc-space-3); padding: var(--ccc-space-5); min-width: 0; }
 .ccc-battery-overview-head, .ccc-battery-overview-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ccc-space-2); font-size: var(--ccc-text-sm); color: var(--ccc-text-muted); }
 .ccc-battery-overview-head > span:first-child { display: inline-flex; align-items: center; gap: var(--ccc-space-2); color: var(--ccc-text); }
@@ -8,11 +8,4 @@
 .ccc-battery-artwork { display: block; width: 100%; height: auto; }
 .ccc-battery-level-value { position: absolute; inset: 25% 16% 25% 12%; display: flex; align-items: center; justify-content: center; gap: var(--ccc-space-1); color: var(--ccc-text); font-size: var(--ccc-text-reading); font-weight: 600; }
 .ccc-battery-level-value em { font-style: normal; font-size: var(--ccc-text-sm); font-weight: 400; }
-.ccc-battery-capacity { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; justify-items: center; gap: var(--ccc-space-3); padding-block: var(--ccc-space-4); }
-.ccc-battery-cycle { display: flex; flex-direction: column; align-items: center; gap: var(--ccc-space-2); }
-.ccc-battery-cycle > .ccc-icon, .ccc-battery-cycle > span, .ccc-battery-cycle small { color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); font-weight: 400; }
-.ccc-battery-cycle > strong { font-size: var(--ccc-text-xl); font-weight: 600; }
-.ccc-calibration-live { display: flex; flex-direction: column; gap: var(--ccc-space-2); min-width: 0; }
-.ccc-calibration-live .ccc-battery-level { max-width: 220px; }
-@container ccc-control (max-width: 650px) { .ccc-battery-overview { grid-template-columns: minmax(0, 1fr); } }
 @container ccc-control (max-width: 360px) { .ccc-battery-overview-part { padding: var(--ccc-space-3); } }

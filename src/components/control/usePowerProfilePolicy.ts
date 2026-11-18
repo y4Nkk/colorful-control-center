@@ -52,7 +52,7 @@ export function usePowerProfilePolicy(active: boolean, revision: number) {
     await pausePowerProfilePolicy();
     setView(previous => previous && { ...previous, paused: true, active: false, pending: null });
   }, "自动应用已暂停", false);
-  return { view, draft, setDraft, profiles, choices, busy, error: error ?? readError ?? listError, request,
+  return { view, draft, setDraft, profiles, choices, busy, edited: dirty.current, error: error ?? readError ?? listError, request,
     save: () => request ? run(() => savePowerProfilePolicy(request), draft.enabled ? "自动档案规则已启用" : "自动档案规则已保存") : Promise.resolve(),
     pause, restore: () => view?.record ? run(() => restorePowerProfilePolicy(view.record!), "初始规则已恢复，自动应用已暂停") : Promise.resolve(),
     reset: () => view?.resetRevision ? run(() => resetPowerProfilePolicy(view.resetRevision!), "旧规则已清除，自动应用保持停用") : Promise.resolve(),

@@ -2,8 +2,9 @@ import { Icon } from "../Icon";
 import { ProfileModeAuthorization } from "../profiles/ProfileModeAuthorization";
 import type { PowerPolicyRecord, ProfileApplication } from "../../api/client";
 import { Button } from "../Button";
-import { Checkbox } from "../Checkbox";
-import { Collapsible } from "../Collapsible";
+import { Switch } from "../Switch";
+import { ConfigurationAction } from "../ConfigurationAction";
+import { DetailsDialog } from "../DetailsDialog";
 import { ConfirmButton } from "../ConfirmButton";
 import { Select } from "../Select";
 import { Surface } from "../Surface";
@@ -15,61 +16,73 @@ import { PowerSourceVisual } from "./PowerSourceVisual";
 export function PowerProfilePolicy({ active, revision }: { active: boolean; revision: number }) {
   const p = usePowerProfilePolicy(active, revision), latest = useAutomaticProfileReport(active);
   const { view, draft } = p;
-  const status = view?.active ? "自动应用已启用" : view?.paused ? "自动应用已暂停" : "自动应用未启用";
+  const status = view?.active ? "已启用" : view?.paused ? "已暂停" : view ? "未启用" : "未读取";
   const issues = Array.from(new Set([p.error, view?.configurationError, view?.listenerError, view?.lastIssue, latest.error].filter(Boolean)));
-  const blocked = !view?.record || Boolean(view.configurationError) || (draft.enabled && (!view.route || Boolean(view.listenerError)));
-  return <Surface as="section" variant="group" className="ccc-panel ccc-power-policy" aria-label="供电与唤醒档案">
-    <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="plug" />供电与唤醒</h2><span className="ccc-chip">{status}</span></div>
-    <div className="ccc-power-policy-columns">
-      <div className="ccc-power-policy-current">
-        <Surface variant="inset" className="ccc-power-policy-summary">
-          <h3>当前状态</h3><PowerSourceVisual source={view?.source === "ac" || view?.source === "battery" || view?.source === "ups" ? view.source : "unknown"} />
-          {view?.sleeping && <span className="ccc-control-caption">设备处于睡眠状态，等待恢复</span>}
-          {view?.pending && <span className="ccc-control-caption">等待供电稳定或当前档案结束</span>}
+  const blocked = !view?.record || !!view.configurationError || (draft.enabled && (!view.route || !!view.listenerError));
+  const changed = !!view?.record && (p.edited || view.paused && draft.enabled);
+  return <Surface as="section" variant="group" className="ccc-panel" aria-label="供电与唤醒档案">
+    <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="profiles" />供电与唤醒</h2>
+      <div className="ccc-module-tools"><DetailsDialog title="供电档案状态与记录" label="详情" wide>
+        <div className="ccc-detail-stack">
           <SavedRules record={view?.record ?? null} />
-          <Button icon="pause" variant="secondary" disabled={p.busy || !view?.active} onClick={() => { void p.pause(); }}>暂停自动应用</Button>
-        </Surface>
-        {latest.report && <AutomaticReport report={latest.report} />}
-        {issues.map((issue, index) => <p key={index} className="ccc-control-error" role="alert">{issue}</p>)}
-        {view?.route?.warnings.map(warning => <p key={warning} className="ccc-control-caption">{warning}</p>)}
-        <Button icon="refresh" variant="secondary" disabled={p.busy} onClick={() => { void p.reread(); }}>重新读取并暂停</Button>
-        {view?.resetRevision && <ConfirmButton icon="delete" key={view.resetRevision} label="清除不可用规则" confirmLabel="清除旧规则并保持停用？"
-          variant="secondary" busy={p.busy} onConfirm={p.reset} />}
-        {view?.initial && <Collapsible summary="查看初始规则">
-          <SavedRules record={view.initial} />
-          <p className="ccc-control-caption">恢复后暂停自动应用，设备现值保留。</p>
-          <ConfirmButton icon="undo" key={JSON.stringify([view.record, view.initial])} label="恢复初始规则" confirmLabel="恢复初始规则并暂停？"
-            disabled={!view.record || Boolean(view.configurationError)} busy={p.busy} variant="secondary" onConfirm={p.restore} />
-        </Collapsible>}
-      </div>
-      <div className="ccc-power-policy-editor">
-        <Checkbox label="启用自动档案" checked={draft.enabled} disabled={p.busy || !view?.record}
-          onChange={event => p.setDraft({ ...draft, enabled: event.currentTarget.checked })} />
-        {POWER_RULES.map(rule => {
-          const choice = p.choices[rule.key], selection = choice.selection, name = draft[rule.key];
-          const options = [{ value: "", label: "不应用档案" }, ...p.profiles.map(profile => ({ value: profile.name, label: profile.name }))];
-          if (name && !options.some(option => option.value === name)) options.push({ value: name, label: `${name}（不可读取）` });
-          return <Surface key={rule.key} variant="inset" className="ccc-power-policy-rule">
-            <div className="ccc-power-policy-select"><label htmlFor={`power-profile-${rule.key}`}>{rule.label}</label>
-              <Select id={`power-profile-${rule.key}`} label={rule.label} value={name} options={options} disabled={p.busy || !view?.record}
-                onChange={value => p.setDraft({ ...draft, [rule.key]: value })} /></div>
-            {choice.error && <p className="ccc-control-error" role="alert">{choice.error}</p>}
-            {selection && [selection.modeError, selection.displayError, selection.gpuPowerError, selection.graphicsModeError].filter(Boolean)
-              .map((error, index) => <p className="ccc-control-error" role="alert" key={index}>{error}</p>)}
-            <ProfileModeAuthorization approval={selection?.modeAuthorization ?? null} />
-            {selection && <Collapsible summary={`查看「${selection.file.name}」参数`}>
-              <ProfilePreview settings={selection.file.settings} modeTarget={selection.modeTarget} displayReview={selection.displayReview}
-                gpuPowerReview={selection.gpuPowerReview} graphicsModeReview={selection.graphicsModeReview} />
-            </Collapsible>}
-          </Surface>;
-        })}
-        <span className="ccc-chip">启用时保持当前设置</span>
-        <div className="ccc-actions"><ConfirmButton key={JSON.stringify([p.request, view?.paused])} label={draft.enabled ? "保存并启用" : "保存规则"}
-          confirmLabel={draft.enabled ? "按以上条件自动应用档案？" : "保存规则并停用自动应用？"} disabled={blocked || !p.request} busy={p.busy} onConfirm={p.save} /></div>
-        <Collapsible summary="自动档案说明"><p>档案修改后需重新确认；显示试用、系统授权和重启仍分别确认。启用时不立即应用档案。</p></Collapsible>
-      </div>
+          {latest.report && <AutomaticReport report={latest.report} />}
+          {issues.map(issue => <p key={issue} className="ccc-control-error">{issue}</p>)}
+          {view?.route?.warnings.map(warning => <p key={warning} className="ccc-control-caption">{warning}</p>)}
+          <Button icon="refresh" variant="secondary" disabled={p.busy} onClick={() => void p.reread()}>重新读取并暂停</Button>
+        </div>
+      </DetailsDialog></div>
     </div>
+    <PowerSourceVisual source={view?.source === "ac" || view?.source === "battery" || view?.source === "ups" ? view.source : "unknown"}
+      label={status} />
+    {view?.pending && <p className="ccc-control-caption" role="status">等待供电稳定或当前档案结束</p>}
+    {issues.length > 0 && <p className="ccc-control-caption">部分规则需要处理 · 查看详情</p>}
+    <div className="ccc-keyboard-setting"><strong>自动应用档案</strong>
+      <Switch label="启用自动档案" checked={draft.enabled} disabled={p.busy || !view?.record}
+        onChange={enabled => p.setDraft({ ...draft, enabled })} /></div>
+    <PolicyFields model={p} />
+    {view?.active && <Button className="ccc-inline-tool" icon="pause" variant="secondary" size="compact" disabled={p.busy}
+      onClick={() => void p.pause()}>暂停自动应用</Button>}
+    {view?.resetRevision && <ConfirmButton icon="delete" key={view.resetRevision} label="清除不可用规则" confirmLabel="清除规则并停用"
+      busy={p.busy} onConfirm={p.reset} />}
+    <ConfigurationAction label="供电与唤醒档案" revision={JSON.stringify([p.request, view?.paused])} disabled={p.busy || blocked || !p.request || !changed}
+      onConfirm={p.save}>
+      <p>{draft.enabled ? "按下列条件应用档案。当前设备设置会保留到下次触发。" : "保存规则并停用自动应用。"}</p>
+      <PolicyTargets model={p} />
+    </ConfigurationAction>
+    <ConfigurationAction label="供电与唤醒档案" revision={JSON.stringify([view?.record, view?.initial])} restore
+      disabled={p.busy || !view?.initial || !view.record || !!view.configurationError} onConfirm={p.restore}>
+      <SavedRules record={view?.initial ?? null} />
+      <p>恢复后暂停自动应用，设备现值保留。</p>
+    </ConfigurationAction>
   </Surface>;
+}
+
+function PolicyFields({ model: p }: { model: ReturnType<typeof usePowerProfilePolicy> }) {
+  return <div className="ccc-display-controls">{POWER_RULES.map(rule => {
+    const choice = p.choices[rule.key], selection = choice.selection, name = p.draft[rule.key];
+    const options = [{ value: "", label: "不应用档案" }, ...p.profiles.map(profile => ({ value: profile.name, label: profile.name }))];
+    if (name && !options.some(option => option.value === name)) options.push({ value: name, label: `${name}（不可读取）` });
+    const issues = [choice.error, selection?.modeError, selection?.displayError, selection?.gpuPowerError, selection?.graphicsModeError].filter(Boolean);
+    return <div key={rule.key}>
+      <label className="ccc-config-field">{rule.label}<Select label={rule.label} value={name} options={options}
+        disabled={p.busy || !p.view?.record} onChange={value => p.setDraft({ ...p.draft, [rule.key]: value })} /></label>
+      {issues.length > 0 && <DetailsDialog title={`${rule.label} · 档案不可用`}>{issues.map(error => <p key={error}>{error}</p>)}</DetailsDialog>}
+    </div>;
+  })}</div>;
+}
+
+function PolicyTargets({ model: p }: { model: ReturnType<typeof usePowerProfilePolicy> }) {
+  return <div className="ccc-detail-stack">{POWER_RULES.map(rule => {
+    const selection = p.choices[rule.key].selection;
+    return <section className="ccc-review-section" key={rule.key}>
+      <h3>{rule.label}</h3><p>{p.draft[rule.key] || "不应用档案"}</p>
+      <ProfileModeAuthorization approval={selection?.modeAuthorization ?? null} />
+      {selection && <DetailsDialog title={`查看「${selection.file.name}」参数`} wide>
+        <ProfilePreview settings={selection.file.settings} modeTarget={selection.modeTarget} displayReview={selection.displayReview}
+          gpuPowerReview={selection.gpuPowerReview} graphicsModeReview={selection.graphicsModeReview} />
+      </DetailsDialog>}
+    </section>;
+  })}</div>;
 }
 
 function SavedRules({ record }: { record: PowerPolicyRecord | null }) {

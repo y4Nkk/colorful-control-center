@@ -1,3 +1,5 @@
+import { openStartupParameters, openProfileResults } from "./profile-review.mjs";
+import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
@@ -42,12 +44,13 @@ test("电池档案以真实阈值环和时段预览，确认提交完整目标",
   await expect(energy(page).getByRole("img", { name: "档案节能时段：08:00到18:00，20:00到22:00", exact: true })).toBeVisible();
   await expect(energy(page)).toContainText("计划关闭");
   await expect(energy(page).locator("input,button")).toHaveCount(0); expect(await writes(page)).toEqual([]);
-  await panel(page).getByRole("button", { name: "应用", exact: true }).click(); expect(await writes(page)).toEqual([]);
-  await panel(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
+  await openConfigurationReview(page); expect(await writes(page)).toEqual([]);
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
   const calls = await writes(page); expect(calls).toHaveLength(1);
   expect(calls[0].args.expected.settings.batteryCharge.values).toEqual({ enabled: true, start: 70, stop: 90 });
   expect(calls[0].args.expected.settings.batteryEnergy.policy.slots).toEqual([{ start: 8, end: 18 }, { start: 20, end: 22 }]);
-  await expect(panel(page).getByLabel("执行结果")).toContainText("电池配置");
+  const results = await openProfileResults(page);
+  await expect(results).toContainText("电池配置");
 });
 
 test("捕获关闭原始零阈值并导出候选，不填充默认阈值", async ({ page }) => {
@@ -91,26 +94,27 @@ test("启动档案共享电池预览，保存选择不发送充电或节能命�
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
-  await startup.getByText("查看启动档案参数", { exact: true }).click();
-  await expect(startup.getByLabel("档案充电保护")).toContainText("启用阈值控制");
-  await expect(startup.getByLabel("档案电池节能")).toContainText("停止节能时段");
-  await startup.getByRole("button", { name: "保存", exact: true }).click();
-  await startup.getByRole("button", { name: "启动时应用「隔离档案」？", exact: true }).click();
+  const parameters = await openStartupParameters(page);
+  await expect(parameters.getByLabel("档案充电保护")).toContainText("启用阈值控制");
+  await expect(parameters.getByLabel("档案电池节能")).toContainText("停止节能时段");
+  await page.keyboard.press("Escape");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   const calls = await writes(page); expect(calls.map(call => call.command)).toEqual(["set_startup_profile"]);
   expect(calls[0].args.expected.settings.batteryCharge.values.stop).toBe(90);
 });
 
 test("旧电池目标确认失效，恢复失败记录保持可见", async ({ page }) => {
-  await select(page); await panel(page).getByRole("button", { name: "应用", exact: true }).click();
+  await select(page); await openConfigurationReview(page);
   await page.evaluate(() => { window.__uiFixture.profile.settings.batteryCharge.values.start = 60; });
-  await panel(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("档案已变化");
   await page.evaluate(() => { window.__uiFixture.profileSteps = [{ step: "电池配置", ok: false, message: "节能记录已变化" },
     { step: "恢复电池配置", ok: false, message: "旧操作不再拥有写入权，记录保留" }]; });
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
-  await panel(page).getByRole("button", { name: "应用", exact: true }).click();
-  await panel(page).getByRole("button", { name: "应用「隔离档案」？", exact: true }).click();
-  await expect(panel(page).getByLabel("执行结果")).toContainText("旧操作不再拥有写入权，记录保留");
+  await openConfigurationReview(page);
+  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  const results = await openProfileResults(page);
+  await expect(results).toContainText("旧操作不再拥有写入权，记录保留");
 });
 
 test("校准和待恢复节能记录阻止捕获，不创建替代档案", async ({ page }) => {

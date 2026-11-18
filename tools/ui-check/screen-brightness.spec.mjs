@@ -1,3 +1,4 @@
+import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -34,16 +35,16 @@ test("实际亮度与插电电池保存值分开，完整目标及零档在确�
 
 test("屏幕策略独立授权并确认，键盘亮度和原厂反馈不会自动包含", async ({ page }) => {
   const p = panel(page);
-  await p.getByRole("checkbox", { name: "启用原厂热键接管", exact: true }).check();
+  await p.getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
   for (const title of ["键盘亮度", "原厂亮度循环与反馈", "原厂状态通知"]) {
     const checkbox = p.getByRole("checkbox", { name: title, exact: true });
     if (await checkbox.isEnabled()) { await checkbox.check(); await expect(scope(page)).not.toBeChecked(); await checkbox.uncheck(); }
   }
   await scope(page).check();
   await expect(p).toContainText("同步修改活动计划的插电和电池亮度保存值");
-  await p.getByRole("button", { name: "应用热键策略", exact: true }).click();
+  await openConfigurationReview(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
-  await p.getByRole("button", { name: "确认此范围的热键接管？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   expect((await calls(page, "apply_hotkeys"))[0].args.request.settings.actions).toEqual(["screenBrightness"]);
   expect(await calls(page, "restore_screen_brightness")).toEqual([]);
 });

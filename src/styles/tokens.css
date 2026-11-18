@@ -10,20 +10,21 @@
 [data-preview-theme="light"] {
   color-scheme: light;
   /* 核心色板 */
-  --ccc-action: #0a6cf5;
-  --ccc-action-hover: #0959c9;
+  --ccc-action: #0066cc;
+  --ccc-action-hover: #0755aa;
   --ccc-text-on-action: #ffffff;
-  --ccc-focus-ring: rgba(10, 108, 245, 0.42);
+  --ccc-focus-ring: rgba(0, 102, 204, 0.46);
   --ccc-safe: #1e8e3e;
   --ccc-warning: #b25000;
   --ccc-danger: #d70015;
 
   /* 语义色 —— 浅色主题 */
-  --ccc-canvas: #ececf0;
-  --ccc-chrome-bg: rgba(236, 236, 240, 0.6);
-  --ccc-content: hsl(0 0% 98%);
-  --ccc-content-muted: hsl(240 16% 96%);
-  --ccc-text: #14161b;
+  --ccc-canvas: #eaedf2;
+  --ccc-chrome-bg: rgba(234, 237, 242, 0.86);
+  --ccc-workspace-bg: #f3f5f8;
+  --ccc-content: #ffffff;
+  --ccc-content-muted: #f1f3f6;
+  --ccc-text: #1b2130;
   --ccc-text-muted: rgba(20, 22, 27, 0.62);
   --ccc-hairline: rgba(20, 22, 27, 0.12);
   --ccc-row-hover: color-mix(in srgb, var(--ccc-text) 3%, var(--ccc-content));
@@ -112,6 +113,9 @@
   --ccc-icon-size: 20px;
   --ccc-icon-size-nav: 24px;
   --ccc-settings-width: 960px;
+  --ccc-workspace-width: 1320px;
+  --ccc-dialog-width: 600px;
+  --ccc-dialog-wide: 860px;
   --ccc-keyboard-min-width: 640px;
   --ccc-settings-preview-height: 124px;
   --ccc-meter-ring-size: 80px;
@@ -141,14 +145,16 @@
   color-scheme: dark;
   --ccc-action: #409cff;
   --ccc-action-hover: #66b1ff;
+  --ccc-text-on-action: #101923;
   --ccc-focus-ring: rgba(64, 156, 255, 0.45);
   --ccc-safe: #4fae62;
   --ccc-warning: #d97f2a;
   --ccc-danger: #ff5d5d;
 
   --ccc-canvas: #16171b;
-  --ccc-chrome-bg: rgba(22, 23, 27, 0.68);
-  --ccc-content: #1e1f24;
+  --ccc-chrome-bg: rgba(22, 23, 27, 0.86);
+  --ccc-workspace-bg: #191b22;
+  --ccc-content: #22252d;
   --ccc-content-muted: #26272d;
   --ccc-text: #e8e9ec;
   --ccc-text-muted: rgba(232, 233, 236, 0.6);

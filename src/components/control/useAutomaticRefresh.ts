@@ -24,10 +24,10 @@ export function useAutomaticRefresh(active: boolean, revision: number) {
     return () => { clearInterval(timer); ++generation.current; };
   }, [active, revision, reload, trialId]);
   const run = async (action: (revision: string) => Promise<void>) => {
-    if (!view || writing.current) return;
+    if (!view || writing.current) return false;
     writing.current = true; ++generation.current; setBusy(true); setError(null);
-    try { await action(view.revision); await reload(true); }
-    catch (error) { await reload(true); setError(String(error)); }
+    try { await action(view.revision); await reload(true); return true; }
+    catch (error) { await reload(true); setError(String(error)); return false; }
     finally { writing.current = false; setBusy(false); }
   };
   return { view, busy, error, retry: () => reload(), enable: () => run(enableAutomaticRefresh), restore: () => run(restoreAutomaticRefresh) };

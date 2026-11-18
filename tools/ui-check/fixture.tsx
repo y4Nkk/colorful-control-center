@@ -35,7 +35,7 @@ function Fixture() {
       <output aria-label="已选模式">{value}</output>
       <Select label="选择字体" searchLabel="搜索字体" value={font} onChange={setFont}
         options={["Consolas", "Arial", "Monospace", ...Array.from({ length: 60 }, (_, i) => `Font ${i}`)].map(value => ({ value, label: value,
-          description: "控制台 Aa 0123", style: { fontFamily: value } }))} />
+          description: "概览 Aa 0123", style: { fontFamily: value } }))} />
       <output aria-label="已选字体">{font}</output>
       <SegmentedControl label="测试单选" value={group} onChange={setGroup}
         options={[{ value: "one", label: "第一项" }, { value: "two", label: "第二项" }, { value: "three", label: "不可选项", disabled: true }]} />

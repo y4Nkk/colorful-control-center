@@ -8,7 +8,7 @@ export const UI_CONTRACT = [
   { name: "Slider", style: "slider", prefixes: ["range"], native: ["input"] },
   { name: "Surface", style: "surface", prefixes: ["surface"], native: [] },
   { name: "Switch", style: "switch", prefixes: ["switch"], native: ["input"] },
-  { name: "Collapsible", style: "collapsible", prefixes: ["collapsible"], native: ["details", "summary"] },
+  { name: "Dialog", style: "dialog", prefixes: ["dialog"], native: ["dialog"] },
   { name: "ScrollArea", style: "scroll-area", prefixes: ["scroll-area", "scroll-viewport"], native: [] },
 ];
 

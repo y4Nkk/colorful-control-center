@@ -2,10 +2,11 @@ import { Icon } from "../Icon";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { applyKeyboardSettings, readKeyboardSettings, restoreKeyboardSettings, type KeyboardSettingsProfile, type KeyboardValues } from "../../api/client";
 import { Button } from "../Button";
-import { Checkbox } from "../Checkbox";
-import { ConfirmButton } from "../ConfirmButton";
+import { Switch } from "../Switch";
+import { ConfigurationAction } from "../ConfigurationAction";
 import { Surface } from "../Surface";
-import { Collapsible } from "../Collapsible";
+import { DetailsDialog } from "../DetailsDialog";
+import { DiffPreview } from "./DiffPreview";
 import { toast } from "../use-toast";
 import { FIELDS, stateText } from "./keyboard-values";
 
@@ -28,16 +29,16 @@ function useKeyboardSettings(active: boolean, revision: number) {
     return () => { ++generation.current; };
   }, [active, revision, reload]);
   const run = async (action: () => Promise<void>, message: string) => {
-    if (running.current) return;
+    if (running.current) return false;
     running.current = true; ++generation.current; setBusy(true); setError(null);
-    try { await action(); await reload(true); toast({ kind: "success", title: message }); }
-    catch (e) { setError(String(e)); await reload(false).catch(readError => setError(previous => `${previous}；回读失败：${readError}`)); }
+    try { await action(); await reload(true); toast({ kind: "success", title: message }); return true; }
+    catch (e) { setError(String(e)); await reload(false).catch(readError => setError(previous => `${previous}；回读失败：${readError}`)); return false; }
     finally { running.current = false; setBusy(false); }
   };
   const reread = async () => {
     if (running.current) return;
     running.current = true; setBusy(true); setError(null);
-    try { await reload(true); } catch (e) { setError(String(e)); }
+    try { await reload(false); } catch (e) { setError(String(e)); }
     finally { running.current = false; setBusy(false); }
   };
   return { profile, draft, setDraft, busy, error, run, reread };
@@ -48,22 +49,29 @@ export function KeyboardSettings({ active, revision = 0 }: { active: boolean; re
   const request = profile && draft ? { expectedRevision: profile.revision, values: draft } : null;
   const change = (key: keyof KeyboardValues, value: boolean) => setDraft(previous => previous ? { ...previous, [key]: value } : previous);
   return <Surface as="section" variant="group" className="ccc-panel ccc-keyboard-editor" aria-label="键盘功能">
-    <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="keyboard" />键盘功能</h2><Button icon="refresh" variant="ghost" size="compact" disabled={busy} onClick={reread}>重新读取键盘</Button></div>
+    <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="keyboard" />键盘功能</h2>
+      <div className="ccc-module-tools">
+        <DetailsDialog title="键盘功能说明" label="详情">{FIELDS.map(field => <p key={field.key}><strong>{field.title}</strong> · {field.description}</p>)}</DetailsDialog>
+        <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取键盘" disabled={busy} onClick={reread} />
+      </div>
+    </div>
     {error && <p className="ccc-control-error" role="alert">{error}</p>}
     {!profile || !draft ? <p className="ccc-control-caption">{error ? "暂时无法读取，请重试。" : "正在读取键盘功能。"}</p> : <>
       <div className="ccc-setting-tiles">{FIELDS.map(({ key, title }) => <Surface as="div" variant="inset" className="ccc-keyboard-setting" key={key}>
         <div><strong>{title}</strong>
           <p className="ccc-control-caption">{profile.current[key] === null ? "此设备未提供" : `当前${stateText(profile.current[key])}${draft[key] !== profile.current[key] ? ` → ${stateText(draft[key])}` : ""}`}</p></div>
-        <Checkbox label={stateText(draft[key])} aria-label={title} checked={draft[key] ?? false}
-          disabled={busy || profile.current[key] === null} onChange={event => change(key, event.target.checked)} />
+        <Switch label={title} checked={draft[key] ?? false}
+          disabled={busy || profile.current[key] === null} onChange={value => change(key, value)} />
       </Surface>)}</div>
-      <div className="ccc-actions">
-        <ConfirmButton key={JSON.stringify(request)} label="应用键盘设置" confirmLabel="确认应用键盘设置？" busy={busy} disabled={!dirty || !request}
-          onConfirm={() => request ? run(() => applyKeyboardSettings(request), "键盘设置已应用") : undefined} />
-        <ConfirmButton icon="undo" variant="secondary" label="恢复键盘初始" confirmLabel="恢复本会话修改前的键盘设置？" busy={busy} disabled={!profile.canRestore}
-          onConfirm={() => run(restoreKeyboardSettings, "键盘初始设置已恢复")} />
-      </div>
-      <Collapsible summary="键盘功能说明">{FIELDS.map(field => <p key={field.key}><strong>{field.title}</strong> · {field.description}</p>)}</Collapsible>
+      <ConfigurationAction label="键盘功能" revision={JSON.stringify(request)} together disabled={busy || !dirty || !request}
+        onConfirm={() => request ? run(() => applyKeyboardSettings(request), "键盘设置已应用") : Promise.resolve(false)}>
+        <DiffPreview items={FIELDS.filter(({ key }) => profile.current[key] !== draft[key]).map(({ key, title }) =>
+          ({ label: title, from: stateText(profile.current[key]), to: stateText(draft[key]) }))} />
+      </ConfigurationAction>
+      <ConfigurationAction label="键盘功能" revision={profile.revision} restore disabled={busy || !profile.canRestore}
+        onConfirm={() => run(restoreKeyboardSettings, "键盘初始设置已恢复")}>
+        <p>恢复首次修改前的 Fn 锁、Win 锁和交换设置。</p>
+      </ConfigurationAction>
     </>}
   </Surface>;
 }

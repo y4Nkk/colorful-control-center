@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
 
-test("配置主位保留控件与状态，帮助折叠且浏览不写硬件", async ({ page }) => {
+test("配置主位保留控件与状态，详情弹窗且浏览不写硬件", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await openWorkspace(page, "性能调校");
   const modes = page.getByRole("region", { name: "预设模式", exact: true });
@@ -22,13 +22,14 @@ test("配置主位保留控件与状态，帮助折叠且浏览不写硬件", as
   const left = await cpu.boundingBox(), right = await gpu.boundingBox();
   expect(Math.abs(left.y - right.y)).toBeLessThan(2);
   expect(right.x).toBeGreaterThan(left.x + left.width);
-  await expect(cpu.locator("details").first()).not.toHaveAttribute("open", "");
-  await cpu.getByText("CPU 调节参数说明", { exact: true }).click();
-  await expect(cpu.locator("details").first()).toHaveAttribute("open", "");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await cpu.getByRole("button", { name: "详情", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "CPU 参数与诊断", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
   await openWorkspace(page, "键盘与输入");
   const keyboard = page.getByRole("region", { name: "键盘功能", exact: true });
-  await expect(keyboard.locator("details")).not.toHaveAttribute("open", "");
-  await expect(keyboard.getByRole("checkbox", { name: "Fn 锁", exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(keyboard.getByRole("switch", { name: "Fn 锁", exact: true })).toBeVisible();
   const writes = await page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_|set_|enable_|restore_)/.test(call.command) && call.command !== "set_shortcut_recording"));
   expect(writes).toEqual([]);
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);

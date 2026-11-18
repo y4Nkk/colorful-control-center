@@ -57,7 +57,8 @@ export function useKeyboardLighting(active: boolean, revision = 0) {
   const family: LightingFamily | null = profile?.detectedFamily === "white" || profile?.detectedFamily === "zoneRgb" ? profile.detectedFamily : null;
   const request: KeyboardLightingRequest | null = family === "white" ? { family, brightness: draft.brightness }
     : family === "zoneRgb" && draft.effect ? { family, ...draft, effect: draft.effect } : null;
-  return { profile, family, ...draft, request, error: error ?? readError, busy, reload, run,
+  const dirty = profile?.current != null && JSON.stringify(draft) !== JSON.stringify(fromProfile(profile));
+  return { profile, family, ...draft, request, dirty, error: error ?? readError, busy, reload, run,
     setBrightness: (brightness: number) => setDraft(previous => ({ ...previous, brightness })),
     setEffect: (effect: KeyboardEffect) => setDraft(previous => ({ ...previous, effect })),
     setAllColor: (allColor: RgbColor) => setDraft(previous => ({ ...previous, allColor })),

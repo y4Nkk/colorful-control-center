@@ -356,7 +356,7 @@ pub(super) fn execute(app: &AppHandle, action: Action, expected: &str) -> Result
             require("main-window".into(), expected)?;
             let handle = app.clone();
             app.run_on_main_thread(move || crate::tray::show_main(&handle))?;
-            Ok(osd::Message::result("控制台", "已请求显示窗口"))
+            Ok(osd::Message::result("主窗口", "已请求显示窗口"))
         }
     }?;
     Ok(Completion {

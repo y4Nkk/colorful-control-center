@@ -16,8 +16,4 @@
 .ccc-preview-reading { display: flex; gap: var(--ccc-space-1); }
 .ccc-preview-reading > i { width: var(--ccc-space-6); height: var(--ccc-space-3); border-radius: var(--ccc-radius-full); background: var(--ccc-content-muted); }
 .ccc-preview-content > svg { flex: 1; min-height: 0; width: 100%; }
-.ccc-motion-preview { animation: ccc-preference-motion calc(var(--ccc-motion-slow) * 5) var(--ccc-easing) infinite alternate; }
-@keyframes ccc-preference-motion { to { transform: translateX(90px); } }
-@media (prefers-reduced-motion: reduce) { .ccc-motion-preview { animation: none; } }
-:root[data-motion="reduce"] .ccc-motion-preview { animation: none; }
 @container ccc-settings (max-width: 480px) { .ccc-theme-scene { padding: var(--ccc-space-1); } }

@@ -1,3 +1,4 @@
+import { availableAction, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -8,12 +9,12 @@ const cover = page => panel(page).getByRole("region", { name: "独立顶盖灯",
 const slider = page => cover(page).getByRole("slider", { name: "顶盖亮度", exact: true });
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(c => /^(apply|restore)_lighting_options$/.test(c.command)));
 async function apply(page) {
-  await panel(page).getByRole("button", { name: "应用灯光选项", exact: true }).click();
-  await panel(page).getByRole("button", { name: "确认应用灯光选项？", exact: true }).click();
+  await openConfigurationReview(page, "灯光策略与外围灯区");
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
 }
 async function restore(page) {
-  await panel(page).getByRole("button", { name: "恢复灯光选项初始", exact: true }).click();
-  await panel(page).getByRole("button", { name: "恢复本会话修改前的灯光选项？", exact: true }).click();
+  await openConfigurationReview(page, "灯光策略与外围灯区", true);
+  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
 }
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
@@ -27,9 +28,9 @@ test("顶盖亮度与颜色先预览，确认写入后回读并恢复", async ({
   await slider(page).fill("1");
   await expect(panel(page)).toContainText("亮度3级 · #0A141E → 亮度1级 · #00FE81");
   await expect(cover(page).getByRole("img").locator("rect").nth(1)).toHaveAttribute("fill", "#0a141e");
-  await panel(page).getByRole("button", { name: "应用灯光选项", exact: true }).click();
+  await openConfigurationReview(page, "灯光策略与外围灯区");
   expect(await writes(page)).toHaveLength(0);
-  await panel(page).getByRole("button", { name: "确认应用灯光选项？", exact: true }).click();
+  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
   expect((await writes(page))[0].args.request.values.topCover).toEqual({ brightness: 1, color: { r: 0, g: 254, b: 129 } });
   await expect(cover(page)).toContainText("当前亮度1级");
   await expect(panel(page)).toContainText("独立顶盖亮度3级 · #0A141E");
@@ -55,11 +56,11 @@ test("关闭保留颜色，多次应用仍恢复首次值", async ({ page }) => 
 
 test("外部修订撤销旧确认，干净状态更新而草稿保留", async ({ page }) => {
   await slider(page).fill("2");
-  await panel(page).getByRole("button", { name: "应用灯光选项", exact: true }).click();
+  await openConfigurationReview(page, "灯光策略与外围灯区");
   await page.evaluate(() => { const options = window.__uiFixture.lightingOptions; options.current.topCover.brightness = 4; options.revision = "external-cover"; });
   await panel(page).getByRole("button", { name: "重新读取灯光选项", exact: true }).click();
   await expect(panel(page)).toContainText("亮度4级 · #0A141E → 亮度2级 · #0A141E");
-  await expect(panel(page).getByRole("button", { name: "应用灯光选项", exact: true })).toBeVisible();
+  await expect(availableAction(page, "灯光策略与外围灯区")).toBeVisible();
   expect(await writes(page)).toHaveLength(0);
   await slider(page).fill("4");
   await page.evaluate(() => { const options = window.__uiFixture.lightingOptions; options.current.topCover.brightness = 1; options.revision = "clean-cover"; });

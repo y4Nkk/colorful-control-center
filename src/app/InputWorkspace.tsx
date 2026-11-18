@@ -8,12 +8,14 @@ import type { HardwareWorkspaceProps } from "./useControlModel";
 export function InputWorkspace({ active, model }: HardwareWorkspaceProps) {
   return <div className="ccc-control">
     <KeyboardSettings active={active} revision={model.deviceRevision} />
-    <div className="ccc-device-pair">
+    <div className="ccc-device-grid">
       <TouchpadSettings active={active} revision={model.deviceRevision} />
       <MicrophoneSettings active={active} revision={model.deviceRevision} />
+      <AirplaneSettings active={active} revision={model.deviceRevision} />
     </div>
-    <AirplaneSettings active={active} revision={model.deviceRevision} />
-    <KeymapSettings active={active} revision={model.deviceRevision} />
-    <HotkeySettings active={active} revision={model.deviceRevision} />
+    <div className="ccc-device-pair">
+      <KeymapSettings active={active} revision={model.deviceRevision} />
+      <HotkeySettings active={active} revision={model.deviceRevision} />
+    </div>
   </div>;
 }
