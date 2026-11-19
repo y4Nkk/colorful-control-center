@@ -9,7 +9,7 @@ export function invokeUsb(data, command, args) {
   }
   const profile = data.usb;
   const expected = args.request?.expectedRevision ?? args.expectedRevision;
-  if (!profile || expected !== profile.revision) throw new Error("USB策略、计划或固件建议已变化，请重新预览确认");
+  if (!profile || expected !== profile.revision) throw new Error("USB 选择性暂停、系统计划或固件建议已变化，请重新读取后重试");
   const restoring = command === "restore_usb_policy";
   if (restoring ? profile.restoreBlockedReason : profile.blockedReason) throw new Error(restoring ? profile.restoreBlockedReason : profile.blockedReason);
   if (data.calibration.workerRunning || data.calibration.recoveryRequired) throw new Error("电池校准期间不能修改系统电源计划");
@@ -20,7 +20,7 @@ export function invokeUsb(data, command, args) {
       for (const field of ["ac", "dc"]) if (initial[field] !== null) current[field] = initial[field];
     }
   } else {
-    if (!profile.supported) throw new Error("固件未声明USB策略");
+    if (!profile.supported) throw new Error("固件未声明 USB 选择性暂停");
     const target = args.request.values;
     for (const plan of profile.plans) {
       for (const field of ["ac", "dc"]) {

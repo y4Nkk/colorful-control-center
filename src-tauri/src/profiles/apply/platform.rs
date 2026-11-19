@@ -88,7 +88,7 @@ impl Plan {
             guard(steps, review)?;
             stage(
                 steps,
-                "USB选择性暂停",
+                "USB 选择性暂停",
                 devices.usb.execute(hal, plan, &mut touched.usb),
             )?;
         }
@@ -121,7 +121,7 @@ impl Plan {
         if !touched.usb.is_empty() {
             let _ = stage(
                 steps,
-                "恢复USB策略",
+                "恢复 USB 选择性暂停",
                 devices.usb.rollback(hal, &touched.usb),
             );
         }

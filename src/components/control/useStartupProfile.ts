@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getStartupProfile, listProfiles, setStartupProfile, type ProfileMeta, type BackgroundProfileBinding, type ProfileModeApproval } from "../../api/client";
-import { loadProfileSelection, type ProfileSelection } from "../../app/useProfileReads";
+import { loadBackgroundProfile, type ProfileSelection } from "../../app/useProfileReads";
 import { useProfileApplicationState } from "../../app/profile-application";
 import { toast } from "../use-toast";
 
@@ -15,6 +15,7 @@ export function useStartupProfile(active: boolean) {
   const [error, setError] = useState<string | null>(null);
   const [lastRun, setLastRun] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const writing = useRef(false);
   const [ready, setReady] = useState(false);
   const [readRevision, reread] = useState(0);
   const reportRevision = useRef(0);
@@ -45,24 +46,33 @@ export function useStartupProfile(active: boolean) {
     if (!active) return;
     let cancelled = false;
     setSelection(null);
-    if (selected) loadProfileSelection(selected, "background").then(next => {
+    if (selected) loadBackgroundProfile(selected).then(next => {
       if (!cancelled) setSelection(next);
     }).catch(error => { if (!cancelled) setError(String(error)); });
     return () => { cancelled = true; };
   }, [selected, active, readRevision]);
-  const apply = async () => {
+  const save = async (name: string, preview: ProfileSelection | null) => {
+    if (!active || !ready || writing.current) return;
+    writing.current = true;
     setBusy(true); setError(null); ++reportRevision.current;
     try {
-      const preview = selection?.file ?? null;
-      if (selected && (!preview || preview.name !== selected)) throw new Error("请先读取所选启动档案");
-      const binding = await setStartupProfile(selected ? preview : null, selected ? selection?.modeAuthorization ?? null : null);
-      lastSaved.current = selected;
+      if (name && (!preview || preview.file.name !== name || preview.modeError || preview.displayError || preview.graphicsModeError || preview.gpuPowerError)) {
+        throw new Error("请先检查所选启动档案");
+      }
+      const binding = await setStartupProfile(preview?.file ?? null, preview?.modeAuthorization ?? null);
+      lastSaved.current = name;
       setSavedBinding(binding); setBindingIssue(null); toast({ kind: "success", title: "启动档案已保存" });
-    } catch (error) { setError(String(error)); }
-    finally { setBusy(false); }
+    } catch (error) { setError(String(error)); if (!name) setSelected(lastSaved.current); }
+    finally { writing.current = false; setBusy(false); }
+  };
+  const choose = (name: string) => {
+    if (!active || !ready || writing.current) return;
+    setSelected(name);
+    if (!name && saved !== "") void save("", null);
   };
   const unchanged = selected === saved && !bindingIssue && sameMode(savedBinding?.mode ?? null, selection?.modeAuthorization ?? null);
-  return { profiles, selected, saved, selection, unchanged, error: error ?? bindingIssue, lastRun, busy, ready, setSelected, apply, reread: () => reread(value => value + 1) };
+  return { profiles, selected, saved, selection, unchanged, error: error ?? bindingIssue, lastRun, busy, ready, choose,
+    apply: () => selected ? save(selected, selection) : Promise.resolve(), reread: () => reread(value => value + 1) };
 }
 
 function sameMode(grant: BackgroundProfileBinding["mode"], approval: ProfileModeApproval | null) {

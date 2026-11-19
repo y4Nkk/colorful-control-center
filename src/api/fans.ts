@@ -55,12 +55,13 @@ export interface CurvePointsDto {
 }
 
 
+export const NOISELESS_FAN_LABEL = "寂静模式";
 export const FAN_MODES: ReadonlyArray<{ id: number; label: string }> = [
   { id: 0, label: "自动" },
   { id: 1, label: "全速" },
   { id: 5, label: "能效优先" },
   { id: 6, label: "自定义" },
-  { id: 8, label: "静音" },
+  { id: 8, label: NOISELESS_FAN_LABEL },
 ];
 
 export const readFanProfile = (): Promise<FanProfile> => invoke("read_fan_profile");

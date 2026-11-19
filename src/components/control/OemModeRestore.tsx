@@ -1,4 +1,4 @@
-import { FAN_MODES, OEM_POWER_MODES, type OemEnergyState, type OemModeRestoreTarget } from "../../api/client";
+import { FAN_MODES, NOISELESS_FAN_LABEL, OEM_POWER_MODES, PERFORMANCE_OPTION_LABELS, type OemEnergyState, type OemModeRestoreTarget } from "../../api/client";
 import { DetailsDialog } from "../DetailsDialog";
 import { ConfigurationAction } from "../ConfigurationAction";
 import { FactList } from "../FactList";
@@ -20,8 +20,9 @@ export function OemModeRestore({ target, currentMode, currentAcMode, currentEner
       <FactList compact layout="tiles" facts={[
         { label: "模式", value: `${modeName(currentMode)} → ${modeName(target.mode)}` },
         { label: "插电模式偏好", value: target.acMode === null ? "保持当前偏好" : `${currentAcMode === null ? "未知" : modeName(currentAcMode)} → ${modeName(target.acMode)}` },
-        { label: "Turbo风扇偏好", value: target.turbo ? "开启" : "关闭" },
-        { label: "DTT偏好", value: target.dtt ? "开启" : "关闭" },
+        { label: `${PERFORMANCE_OPTION_LABELS.turboFan}偏好`, value: target.turbo ? "开启" : "关闭" },
+        { label: `${PERFORMANCE_OPTION_LABELS.dtt} 偏好`, value: target.dtt ? "开启" : "关闭" },
+        ...(target.entertainmentQuiet === null ? [] : [{ label: `娱乐 · ${NOISELESS_FAN_LABEL}`, value: target.entertainmentQuiet ? "开启" : "关闭" }]),
         ...(target.energy === null ? [] : [{ label: "固件节能", value: `${currentEnergy ? energyValue(currentEnergy) : "当前未知"} → ${energyValue(target.energy)}` }]),
       ]} /></section>
       <section className="ccc-mode-restore-block" aria-label="风扇恢复目标"><h3>散热策略</h3>

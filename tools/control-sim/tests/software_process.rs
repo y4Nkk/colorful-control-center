@@ -1,8 +1,8 @@
 //! 生产 apply/tick/恢复与真实独立监护组合；DCHU 为内存外部函数桩。
 #![allow(dead_code, unused_imports)]
 include!("../src/modules.rs");
-#[path = "support/full_speed_tests.rs"]
-mod full_speed_tests;
+#[path = "support/firmware_handoff_tests.rs"]
+mod firmware_handoff_tests;
 #[path = "support/software_lan_tests.rs"]
 mod lan_tests;
 #[path = "support/process.rs"]
@@ -31,7 +31,6 @@ struct Device {
     unjournaled: usize,
     hold_on_duty: bool,
     journal_hold: Option<fs::File>,
-    guard_directory: Option<PathBuf>,
 }
 static DEVICE: Mutex<Device> = Mutex::new(Device {
     pages: [[0; 256]; 16],
@@ -43,7 +42,6 @@ static DEVICE: Mutex<Device> = Mutex::new(Device {
     unjournaled: 0,
     hold_on_duty: false,
     journal_hold: None,
-    guard_directory: None,
 });
 static SERIAL: Mutex<()> = Mutex::new(());
 
@@ -102,11 +100,6 @@ unsafe extern "system" fn write(page: i32, offset: i32, length: i32, data: *cons
     let mut device = DEVICE.lock().unwrap();
     device.pages[page as usize][offset as usize..offset as usize + bytes.len()]
         .copy_from_slice(bytes);
-    if page == 4 && offset <= 5 && offset + length > 5 {
-        if let Some(directory) = &device.guard_directory {
-            fs::write(directory.join("mode"), device.pages[4][5].to_string()).unwrap();
-        }
-    }
     1
 }
 unsafe extern "system" fn set(command: i32, data: *const u8, length: i32) -> i32 {
@@ -187,7 +180,6 @@ impl Fixture {
             unjournaled: 0,
             hold_on_duty: false,
             journal_hold: None,
-            guard_directory: None,
         };
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/software-tests");
         fs::create_dir_all(&root).unwrap();
@@ -201,31 +193,28 @@ impl Fixture {
                 .as_nanos()
         ));
         fs::create_dir(&dir).unwrap();
-        let mut command = Command::new(env!("CARGO_BIN_EXE_watchdog-fixture"));
-        command.arg(&dir).arg("mode-mirror");
-        DEVICE.lock().unwrap().guard_directory = Some(dir.clone());
-        let mut guard =
-            watchdog::Watchdog::spawn(command, false, watchdog::GuardPolicy::Protected).unwrap();
-        guard.arm().unwrap();
         let io =
             hal::oem_dchu::Dchu::test_io(buffer, read, set, write).with_test_exchange(exchange);
-        let mut hal = hal::Hal::test_instance(io, Some(guard));
+        let mut hal = hal::Hal::test_instance(io, None);
         hal.bind_software_fan_record(dir.join(hal::SOFTWARE_FAN_RECORD_NAME));
         DEVICE.lock().unwrap().journal_path = Some(dir.join(hal::SOFTWARE_FAN_RECORD_NAME));
-        let guards = std::sync::Arc::new(Mutex::new(vec![dir.clone()]));
+        let guards = std::sync::Arc::new(Mutex::new(Vec::new()));
         let owned = guards.clone();
         let owner = dir.clone();
-        hal.test_fan_guard = Some(std::sync::Arc::new(move |policy| {
+        hal.test_fan_guard = Some(std::sync::Arc::new(move || {
             let mut directories = owned.lock().unwrap();
-            let directory = owner.join(format!("guard-{}", directories.len()));
-            fs::create_dir(&directory)?;
+            let directory = if directories.is_empty() {
+                owner.clone()
+            } else {
+                let directory = owner.join(format!("guard-{}", directories.len()));
+                fs::create_dir(&directory)?;
+                directory
+            };
+            let temperature = DEVICE.lock().unwrap().cpu;
+            fs::write(directory.join("temperature"), temperature.to_string())?;
             let mut command = Command::new(env!("CARGO_BIN_EXE_watchdog-fixture"));
-            command.arg(&directory).arg("mode-mirror");
-            let mut device = DEVICE.lock().unwrap();
-            fs::write(directory.join("mode"), device.pages[4][5].to_string())?;
-            device.guard_directory = Some(directory.clone());
-            drop(device);
-            let guard = watchdog::Watchdog::spawn(command, false, policy)?;
+            command.arg(&directory).arg("sensor-file");
+            let guard = watchdog::Watchdog::spawn(command)?;
             directories.push(directory);
             Ok(guard)
         }));

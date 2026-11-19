@@ -1,27 +1,95 @@
 .ccc-range {
+  --range-motion: var(--ccc-motion-range);
   position: relative;
-  z-index: 2;
-  appearance: none;
   width: 100%;
+  min-width: var(--ccc-range-thumb);
   height: var(--ccc-control-height-compact);
+  touch-action: none;
+}
+.ccc-range[data-disabled="true"] { opacity: 0.45; }
+.ccc-range-track {
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  height: var(--ccc-range-track);
+  overflow: hidden;
+  border-radius: var(--ccc-radius-full);
+  background: var(--ccc-range-cavity);
+  box-shadow: var(--ccc-range-edge);
+  transform: translateY(-50%);
+}
+.ccc-range[data-appearance="hue"] .ccc-range-track {
+  background: linear-gradient(to right, var(--ccc-color-hue-stops));
+}
+.ccc-range-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--ccc-action);
+  clip-path: inset(0 calc(100% - var(--range-fill)) 0 0);
+  transition: clip-path var(--range-motion) var(--ccc-easing);
+}
+.ccc-range-ticks {
+  position: absolute;
+  inset-block: 0;
+  inset-inline: calc(var(--ccc-range-thumb) / 2);
+}
+.ccc-range-tick, .ccc-range-thumb, .ccc-range-marker {
+  position: absolute;
+  top: 50%;
+  border-radius: var(--ccc-radius-full);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+.ccc-range-tick {
+  width: var(--ccc-space-1);
+  height: var(--ccc-space-1);
+  background: color-mix(in srgb, var(--ccc-text) 42%, transparent);
+  transition: opacity var(--ccc-motion-range) var(--ccc-easing), scale var(--ccc-motion-fast) var(--ccc-easing-press);
+}
+.ccc-range-tick[data-filled="true"] { opacity: 0; }
+.ccc-range:hover:not([data-disabled]) .ccc-range-tick[data-filled="false"] { scale: 1.08; }
+.ccc-range-thumb {
+  left: var(--range-position);
+  width: var(--ccc-range-thumb);
+  height: var(--ccc-range-thumb);
+  border: var(--ccc-border-strong);
+  background: var(--ccc-color-white);
+  box-shadow: var(--ccc-range-shadow);
+  transition: left var(--range-motion) var(--ccc-easing), box-shadow var(--ccc-motion-fast) var(--ccc-easing), scale var(--ccc-motion-fast) var(--ccc-easing-press);
+}
+.ccc-range-marker {
+  width: var(--ccc-space-3);
+  height: var(--ccc-space-3);
+  border: 2px solid var(--ccc-text-muted);
+}
+.ccc-range:hover:not([data-disabled]) .ccc-range-thumb { box-shadow: var(--ccc-range-shadow-hover); }
+.ccc-range:has(.ccc-range-input:active) { --range-motion: var(--ccc-motion-press); }
+.ccc-range:has(.ccc-range-input:active) .ccc-range-thumb { scale: 0.96; }
+.ccc-range:has(.ccc-range-input:focus-visible) .ccc-range-thumb { box-shadow: var(--ccc-range-shadow), var(--ccc-focus-shadow); }
+.ccc-range-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   margin: 0;
-  border-radius: var(--ccc-radius-control);
+  appearance: none;
   background: transparent;
   cursor: pointer;
 }
-.ccc-range:disabled { cursor: not-allowed; opacity: 0.5; }
-.ccc-range::-webkit-slider-runnable-track { height: var(--ccc-range-track); border-radius: var(--ccc-radius-full); background: var(--ccc-hairline); }
-.ccc-range::-webkit-slider-thumb {
+.ccc-range-input:focus-visible { box-shadow: none; }
+.ccc-range-input:disabled { cursor: default; }
+.ccc-range-input::-webkit-slider-runnable-track {
+  height: var(--ccc-range-track);
+  background: transparent;
+}
+.ccc-range-input::-webkit-slider-thumb {
   appearance: none;
   width: var(--ccc-range-thumb);
   height: var(--ccc-range-thumb);
   margin-top: calc((var(--ccc-range-track) - var(--ccc-range-thumb)) / 2);
-  border: 2px solid var(--ccc-content);
-  border-radius: var(--ccc-radius-full);
-  background: var(--ccc-action);
-  box-shadow: 0 0 0 var(--ccc-border-width) var(--ccc-hairline);
-  transition: background var(--ccc-motion-fast) var(--ccc-easing);
+  border: 0;
+  background: transparent;
 }
-.ccc-range:hover:enabled::-webkit-slider-thumb { background: var(--ccc-action-hover); }
-.ccc-range::-moz-range-track { height: var(--ccc-range-track); border-radius: var(--ccc-radius-full); background: var(--ccc-hairline); }
-.ccc-range::-moz-range-thumb { box-sizing: border-box; width: var(--ccc-range-thumb); height: var(--ccc-range-thumb); border: 2px solid var(--ccc-content); border-radius: var(--ccc-radius-full); background: var(--ccc-action); }
+.ccc-range-input::-moz-range-track { height: var(--ccc-range-track); background: transparent; }
+.ccc-range-input::-moz-range-thumb { width: var(--ccc-range-thumb); height: var(--ccc-range-thumb); border: 0; background: transparent; }

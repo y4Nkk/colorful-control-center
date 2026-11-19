@@ -1,6 +1,6 @@
-import { openStartupParameters, openProfileResults } from "./profile-review.mjs";
-import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { openProfileResults, openProfileSave, openStartupParameters, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
+import { openDeviceRestore } from "./device-settings.mjs";
+import { openWorkspace, openSystemArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -8,15 +8,15 @@ import { installTouchpadFixture } from "./touchpad-fixture.mjs";
 const preview = page => page.getByRole("region", { name: "档案预览", exact: true });
 const navigate = (page, title) => page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: title, exact: true }).click();
 async function select(page) {
-  await navigate(page, "性能档案");
+  await openSystemArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
+  await showProfileSettings(page);
 }
 async function apply(page) {
-  await openConfigurationReview(page);
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await preview(page).getByRole("button", { name: "应用档案", exact: true }).click();
 }
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript({ content: MOCK_IPC }); await page.addInitScript(installTouchpadFixture); await page.goto("/"); await openWorkspace(page, "键盘与输入");
+  await page.addInitScript({ content: MOCK_IPC }); await page.addInitScript(installTouchpadFixture); await page.goto("/"); await openWorkspace(page, "设备配置");
 });
 test("档案预览分别展示目标与保存偏好，确认后与控制台共用恢复", async ({ page }) => {
   await select(page);
@@ -26,24 +26,27 @@ test("档案预览分别展示目标与保存偏好，确认后与控制台共�
   await apply(page);
   const results = await openProfileResults(page);
   await expect(results).toContainText("触摸板开关");
-  await navigate(page, "键盘与输入");
-  const panel = page.getByRole("region", { name: "触摸板设置", exact: true });
-  await expect(panel.getByRole("region", { name: "当前触摸板状态", exact: true })).toContainText("系统触摸板已关闭");
-  await openConfigurationReview(page, "触摸板", true);
-  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
-  await expect(panel.getByRole("region", { name: "当前触摸板状态", exact: true })).toContainText("保存偏好已关闭");
+  await page.keyboard.press("Escape");
+  await navigate(page, "设备配置");
+  const panel = page.getByRole("region", { name: "触摸板", exact: true });
+  const current = panel.getByLabel("当前触摸板状态", { exact: true });
+  await expect(current).toContainText("已关闭");
+  const restore = await openDeviceRestore(panel);
+  await expect(restore.getByText("保存偏好", { exact: true })).toBeVisible();
+  await restore.getByRole("button", { name: "确认恢复", exact: true }).click();
+  await expect(current).toContainText("已启用");
   expect(await page.evaluate(() => window.__uiFixture.touchpad.current.enabled)).toBe(true);
 });
 test("捕获导出导入保留设备身份、系统值和独立保存值", async ({ page }) => {
-  await navigate(page, "性能档案");
-  await page.getByPlaceholder("游戏 / 静音").fill("完整触摸板");
-  await page.getByRole("button", { name: "保存当前", exact: true }).click();
-  await page.getByRole("button", { name: "保存当前设置？", exact: true }).click();
-  const pending = page.waitForEvent("download"); await preview(page).getByRole("button", { name: "导出", exact: true }).click();
+  await openSystemArea(page, "配置档案");
+  await openProfileSave(page, "完整触摸板", ["设备功能"]);
+  await saveProfileButton(page).click();
+  const pending = page.waitForEvent("download"); await (await showProfileMenu(page)).getByRole("button", { name: "导出档案", exact: true }).click();
   const file = JSON.parse(await readFile(await (await pending).path(), "utf8"));
   expect(file.settings.touchpad).toEqual({ devices: ["ACPI\\I2C0001\\0"], enabled: true, savedEnabled: false });
   file.name = "导入触摸板"; file.settings.touchpad.enabled = false;
   await page.locator('input[type="file"]').setInputFiles({ name: "触摸板.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+  await showProfileSettings(page);
   await expect(preview(page).getByRole("region", { name: "档案触摸板", exact: true })).toContainText("系统目标 · 关闭");
   expect(await page.evaluate(() => window.__uiFixture.touchpad.current.enabled)).toBe(true);
 });
@@ -60,14 +63,14 @@ test("后续独显失败恢复触摸板本次前态并保留首次基线", async
   expect(await page.evaluate(() => window.__uiFixture.touchpad.initial)).not.toBeNull();
 });
 test("启动档案预览含触摸板目标，保存选择不立即执行", async ({ page }) => {
-  await openWorkspace(page, "自动策略");
+  await openWorkspace(page, "电源");
   const panel = page.getByRole("region", { name: "启动档案", exact: true });
   await panel.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
   const parameters = await openStartupParameters(page);
   await expect(parameters.getByRole("region", { name: "档案触摸板", exact: true })).toContainText("系统目标 · 关闭");
   await page.keyboard.press("Escape");
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await panel.getByRole("button", { name: "授权启动应用档案", exact: true }).click();
   const calls = await page.evaluate(() => window.__uiFixture.calls.filter(call => call.command === "set_startup_profile"));
   expect(calls[0].args.expected.settings.touchpad).toMatchObject({ enabled: false, savedEnabled: true });
   expect(await page.evaluate(() => window.__uiFixture.touchpad.initial)).toBeNull();

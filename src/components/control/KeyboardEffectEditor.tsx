@@ -1,49 +1,69 @@
 import { Select } from "../Select";
 import { Button } from "../Button";
-import { Input } from "../Input";
 import { useState } from "react";
 import type { KeyboardEffect, KeyboardZones, RgbColor } from "../../api/client";
 import { Checkbox } from "../Checkbox";
-import { EFFECTS, hexOf, rgbOf } from "./useKeyboardLighting";
+import { KeyboardLightingPreview } from "./KeyboardLightingPreview";
+import { LightingHueWheel } from "./LightingHueWheel";
+import { EFFECTS, KEYBOARD_ZONE_NAMES, usesZoneColors } from "./useKeyboardLighting";
 
-const ZONE_NAMES = ["左区", "中区", "右区"];
-export function KeyboardEffectEditor({ effect, setEffect, allColor, setAllColor, zones, setZones, brightness, disabled }: {
+const MAX_BRIGHTNESS = 4;
+const BRIGHTNESS_LEVELS = Array.from({ length: MAX_BRIGHTNESS + 1 }, (_, level) => level);
+const EFFECT_OPTIONS = EFFECTS.map(item => ({ value: item.id, label: item.label }));
+
+export function KeyboardEffectEditor({ effect, setEffect, allColor, setAllColor, zones, setZones, toggleZone,
+  brightness, setBrightness, unavailable, disabled: busy, dirty }: {
   effect: KeyboardEffect | null; setEffect: (effect: KeyboardEffect) => void;
   allColor: RgbColor; setAllColor: (color: RgbColor) => void;
-  zones: KeyboardZones; setZones: (zones: KeyboardZones) => void; brightness: number; disabled: boolean;
+  zones: KeyboardZones; setZones: (zones: KeyboardZones) => void;
+  toggleZone: (index: number, enabled: boolean) => void;
+  brightness: number; setBrightness: (brightness: number) => void;
+  unavailable: boolean; disabled: boolean; dirty: boolean;
 }) {
   const [selected, setSelected] = useState(0);
-  const zoned = effect === "zones" || effect === "breath";
+  const disabled = busy || unavailable;
+  const zoned = usesZoneColors(effect);
   const editable = zoned || effect === "solid";
-  const updateZone = (patch: Partial<KeyboardZones[number]>) => setZones(zones.map((zone, index) => index === selected ? { ...zone, ...patch } : zone) as KeyboardZones);
-  return <div className="ccc-keyboard-editor">
-    <label className="ccc-lighting-mode">灯效
-      <Select label="灯效" value={effect ?? ""} disabled={disabled} placeholder="选择灯效"
-        options={EFFECTS.map(item => ({ value: item.id, label: item.label }))}
-        onChange={value => setEffect(value as KeyboardEffect)} />
-    </label>
-    <div className="ccc-keyboard-zones" aria-label="键盘灯光草稿预览">
-      {zones.map((zone, index) => <Button variant="selection" type="button" key={index} className="ccc-keyboard-zone" aria-label={`编辑${ZONE_NAMES[index]}`}
-        aria-pressed={zoned ? selected === index : undefined} disabled={disabled || !zoned} onClick={() => setSelected(index)}>
-        <svg className="ccc-keyboard-zone-art" viewBox="0 0 124 72" aria-hidden="true" data-keyboard-zone={index}
-          data-zone-color={editable ? hexOf(zoned ? zone.color : allColor) : "firmware"} data-zone-brightness={brightness}
-          opacity={brightness === 0 || zoned && !zone.enabled ? .3 : 1}>
-          <rect x="1" y="1" width="122" height="70" rx="8" fill="var(--ccc-content-muted)" stroke="var(--ccc-hairline)" />
-          {Array.from({ length: 16 }, (_, key) => <g key={key}>
-            <rect x={7 + key % 4 * 28} y={6 + Math.floor(key / 4) * 16} width="25" height="13" rx="3" fill="var(--ccc-content)" stroke="var(--ccc-hairline)" strokeWidth=".6" />
-            <rect x={9 + key % 4 * 28} y={15 + Math.floor(key / 4) * 16} width="21" height="2" rx="1"
-              fill={editable ? hexOf(zoned ? zone.color : allColor) : "var(--ccc-text-muted)"} opacity={brightness === 0 ? .2 : .5 + brightness * .125} />
-          </g>)}
-        </svg><span>{ZONE_NAMES[index]}</span>
-      </Button>)}
+  const zoneName = KEYBOARD_ZONE_NAMES[selected];
+  const updateZone = (patch: Partial<KeyboardZones[number]>) => {
+    const next: KeyboardZones = [...zones];
+    next[selected] = { ...next[selected], ...patch };
+    setZones(next);
+  };
+  const preview = zoned ? zones : zones.map(() => ({ enabled: true, color: effect === "solid" ? allColor : null }));
+  return <div className="ccc-lighting-editor">
+    <div className="ccc-lighting-controls" data-editable-color={editable}>
+      <div className="ccc-lighting-mode">
+        <span>灯效</span>
+        <Select label="灯效" value={effect ?? ""} disabled={disabled} placeholder="选择灯效" options={EFFECT_OPTIONS}
+          onChange={value => setEffect(value as KeyboardEffect)} />
+        {zoned && <div className="ccc-lighting-zone-controls">
+          <div className="ccc-lighting-zones" role="group" aria-label="选择灯区">
+            {KEYBOARD_ZONE_NAMES.map((name, index) => <Button key={name} variant="secondary" size="compact"
+              aria-label={`编辑${name}`} aria-pressed={selected === index} disabled={disabled} onClick={() => setSelected(index)}>{name}</Button>)}
+          </div>
+          <Checkbox label={`${zoneName}开关`} checked={zones[selected].enabled} disabled={disabled}
+            onChange={event => toggleZone(selected, event.target.checked)} />
+        </div>}
+        {!editable && effect && <span className="ccc-control-caption">固件配色</span>}
+      </div>
+      {editable && <LightingHueWheel label={zoned ? `${zoneName}颜色` : "键盘颜色"} color={zoned ? zones[selected].color : allColor}
+        disabled={disabled} onChange={zoned ? color => updateZone({ color }) : setAllColor} />}
+      <div className="ccc-lighting-brightness">
+        <div className="ccc-lighting-brightness-head">
+          <span>亮度</span>
+          {unavailable && <span className="ccc-control-caption">未上报</span>}
+        </div>
+        <div className="ccc-lighting-brightness-levels" role="group" aria-label="亮度">
+          {BRIGHTNESS_LEVELS.map(level => {
+            const selected = !unavailable && level === brightness;
+            return <Button key={level} className="ccc-lighting-level" variant={selected ? "primary" : "secondary"} size="compact"
+              aria-label={level === 0 ? "关闭" : `${level} 级`} aria-pressed={selected}
+              disabled={disabled || !effect} onClick={() => setBrightness(level)}>{level === 0 ? "关闭" : level}</Button>;
+          })}
+        </div>
+      </div>
     </div>
-    {editable ? <div className="ccc-lighting-color-row">
-      <label className="ccc-color-picker">{zoned ? `${ZONE_NAMES[selected]}颜色` : "键盘颜色"}
-        <Input type="color" aria-label={zoned ? `${ZONE_NAMES[selected]}颜色` : "键盘颜色"} value={hexOf(zoned ? zones[selected].color : allColor)}
-          disabled={disabled} onChange={(e) => { const color = rgbOf(e.target.value); if (zoned) updateZone({ color }); else setAllColor(color); }} />
-      </label>
-      {zoned && <Checkbox label={`${ZONE_NAMES[selected]}开关`} checked={zones[selected].enabled} disabled={disabled}
-        onChange={(event) => updateZone({ enabled: event.target.checked })} />}
-    </div> : effect && <span className="ccc-chip">固件配色</span>}
+    <KeyboardLightingPreview zones={preview} brightness={unavailable ? null : brightness} maximum={MAX_BRIGHTNESS} selected={zoned ? selected : null} dirty={dirty} />
   </div>;
 }

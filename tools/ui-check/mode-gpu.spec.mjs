@@ -1,11 +1,11 @@
-import { availableAction, configurationDialog, confirmConfiguration, openConfigurationReview } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { availableAction, configurationView, previewConfiguration } from "./configuration-review.mjs";
+import { openSystemArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { modeGpuFixture } from "./mode-gpu-fixture.mjs";
 
 const modes = page => page.getByRole("region", { name: "预设模式", exact: true });
-const gpuPreview = review => review.getByRole("region", { name: "模式GPU联动预览", exact: true });
+const entertainment = page => modes(page).getByRole("radio", { name: /^娱乐/ });
 const calls = (page, command) => page.evaluate(command => window.__uiFixture.calls.filter(call => call.command === command), command);
 async function setup(page, options = {}) {
   await page.addInitScript({ content: MOCK_IPC });
@@ -15,89 +15,85 @@ async function setup(page, options = {}) {
     if (options.deferred) {
       fixture.value.clocks.driver = null; fixture.value.clocks.candidate.projected = null;
       fixture.value.clocks.deferredReason = "独显已关闭；驱动范围和实际频率在已确认模式事务的写前检查点核对";
-      data.modeApplyFault = "确认后驱动不可用，已恢复原独显节点";
+      data.modeApplyFault = "切换时驱动不可用，已恢复原独显节点";
     }
     if (options.driverError) fixture.value.clocks.driverError = "隔离驱动范围已变化";
     data.modeGpuOverrides = { 3: fixture };
   }, { fixture: modeGpuFixture(), options });
-  await page.goto("/"); await openWorkspace(page, "性能调校");
-  await modes(page).getByRole("radio", { name: /娱乐/ }).click();
+  await page.goto("/"); await openSystemArea(page, "性能调校");
+  await expect(entertainment(page)).toBeEnabled();
 }
 
-test("完整模式GPU左右预览、驱动范围、两步确认和完整初始恢复", async ({ page }) => {
+test("直接切换发送完整GPU目标与修订，并保留初始恢复", async ({ page }) => {
   await setup(page);
-  const review = await openConfigurationReview(page, "预设模式");
-  const gpu = gpuPreview(review);
-  await expect(gpu.getByText("当前GPU", { exact: true })).toBeVisible();
-  await expect(gpu.getByText("确认后的GPU目标", { exact: true })).toBeVisible();
-  await gpu.getByRole("button", { name: "查看驱动范围", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "查看驱动范围" }).getByText(/可编辑/).first()).toBeVisible();
-  await page.keyboard.press("Escape");
   expect(await calls(page, "apply_oem_power_mode")).toHaveLength(0);
-  await confirmConfiguration(review);
-  const expected = (await calls(page, "apply_oem_power_mode"))[0].args.expected;
+  await entertainment(page).click();
+  await expect(entertainment(page)).toBeChecked();
+  const requests = await calls(page, "apply_oem_power_mode");
+  expect(requests).toHaveLength(1);
+  const expected = requests[0].args.expected;
   expect(expected.fromMode).toBe(2); expect(expected.revision).toBeTruthy();
   expect(expected.gpu.status).toBe("ready"); expect(expected.gpu.value.clocks.driver.current).toEqual(modeGpuFixture().value.clocks.driver.current);
-  const recovery = await openConfigurationReview(page, "模式与性能选项", true);
+  const recovery = await previewConfiguration(page, "模式与性能选项", true);
   const restore = recovery.getByRole("region", { name: "GPU初始恢复目标", exact: true });
   await expect(restore.getByText("当前频率", { exact: true })).toBeVisible();
   await expect(restore.getByText("初始频率目标", { exact: true })).toBeVisible();
   expect(await calls(page, "restore_oem_power_mode")).toHaveLength(0);
-  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
+  await configurationView(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   await expect(restore).toHaveCount(0);
 });
 
 test("关闭独显的延后检查不伪造频率，失败后保留重试", async ({ page }) => {
   await setup(page, { off: true, deferred: true });
-  const review = await openConfigurationReview(page, "预设模式");
-  const gpu = gpuPreview(review);
-  const steps = gpu.getByRole("list", { name: "独显联动步骤", exact: true });
-  await expect(steps).toContainText("切换前");
-  await expect(steps).toContainText("开启");
-  await expect(gpu.getByText("开启后核对频率", { exact: true })).toBeVisible();
-  await gpu.getByRole("button", { name: "联动详情", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "联动详情" })).toContainText("驱动范围和实际频率在已确认模式事务");
-  await page.keyboard.press("Escape");
-  await confirmConfiguration(review);
-  await expect(modes(page).getByText(/确认后驱动不可用，已恢复原独显节点/)).toBeVisible();
+  await entertainment(page).click();
+  await expect(modes(page).getByRole("alert")).toContainText("切换时驱动不可用，已恢复原独显节点");
+  const { gpu } = (await calls(page, "apply_oem_power_mode"))[0].args.expected;
+  expect(gpu.value.action).toMatchObject({ stage: "beforeMode", target: { enabled: true } });
+  expect(gpu.value.clocks.driver).toBeNull();
   expect(await page.evaluate(() => window.__uiFixture.gpuPower.devices[0].enabled)).toBe(false);
   expect(await page.evaluate(() => window.__uiFixture.modeInitial)).toBeNull();
-  await expect(availableAction(page, "预设模式")).toBeEnabled();
+  await expect(entertainment(page)).toBeEnabled();
 });
 
-test("驱动错误禁用确认并保留已有GPU事实", async ({ page }) => {
+test("已知驱动错误时点卡片显示原因，未发出写入", async ({ page }) => {
   await setup(page, { driverError: true });
+  await entertainment(page).click();
   await expect(modes(page).getByRole("alert")).toContainText("隔离驱动范围已变化");
   await expect(availableAction(page, "预设模式")).toHaveCount(0);
-  await modes(page).getByRole("button", { name: "模式联动详情", exact: true }).click();
-  const detail = page.getByRole("dialog", { name: "模式联动详情", exact: true });
-  await expect(gpuPreview(detail).getByText(/图形锁频：/).first()).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(await calls(page, "apply_oem_power_mode")).toHaveLength(0);
 });
 
-test("确认前核心前态变化拒绝旧完整目标，重读后再确认", async ({ page }) => {
+test("联动条件突变拒绝旧目标，回读后可再点卡片", async ({ page }) => {
   await setup(page);
   await page.evaluate(() => { window.__uiFixture.acMode = 3; });
-  await confirmConfiguration(await openConfigurationReview(page, "预设模式"));
-  await expect(modes(page).getByText(/完整模式预览已变化/)).toBeVisible();
+  await entertainment(page).click();
+  await expect(modes(page).getByRole("alert")).toContainText("模式联动条件已变化");
   expect(await page.evaluate(() => window.__uiFixture.performanceOptions.currentMode)).toBe(2);
   expect(await page.evaluate(() => window.__uiFixture.modeInitial)).toBeNull();
-  await expect(availableAction(page, "预设模式")).toBeEnabled();
+  await entertainment(page).click();
+  await expect(entertainment(page)).toBeChecked();
+  await expect(modes(page).getByRole("alert")).toHaveCount(0);
 });
 
-test("GPU模块宽窄及深浅布局保留独立边框和间距", async ({ page }, testInfo) => {
+test("GPU恢复模块宽窄及深浅布局保留独立边框", async ({ page }, testInfo) => {
   await setup(page);
-  const gpu = gpuPreview(await openConfigurationReview(page, "预设模式"));
+  await entertainment(page).click();
+  const recovery = await previewConfiguration(page, "模式与性能选项", true);
+  const gpu = recovery.getByRole("region", { name: "GPU初始恢复目标", exact: true });
   for (const [width, theme] of [[1440, "light"], [360, "dark"]]) {
     await page.setViewportSize({ width, height: 1100 });
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
     await gpu.scrollIntoViewIfNeeded();
-    const cards = gpu.locator(":scope > .ccc-mode-gpu-part");
-    expect(await cards.count()).toBe(2);
-    const boxes = await cards.evaluateAll(cards => cards.map(card => { const box = card.getBoundingClientRect(), style = getComputedStyle(card); return { x: box.x, y: box.y, width: box.width, border: parseFloat(style.borderTopWidth) }; }));
-    expect(boxes.every(box => box.border > 0)).toBeTruthy();
-    if (width === 1440) expect(boxes[1].x).toBeGreaterThan(boxes[0].x + boxes[0].width);
-    else expect(boxes[1].y).toBeGreaterThan(boxes[0].y);
+    const cards = gpu.locator(".ccc-mode-gpu-columns > .ccc-mode-gpu-part");
+    await expect(cards).toHaveCount(2);
+    const fits = await cards.evaluateAll(cards => cards.every(card => {
+      const bounds = card.getBoundingClientRect();
+      const column = card.parentElement.getBoundingClientRect();
+      return parseFloat(getComputedStyle(card).borderTopWidth) > 0 && bounds.left >= column.left - 1
+        && bounds.right <= column.right + 1 && card.scrollWidth <= card.clientWidth + 1;
+    }));
+    expect(fits).toBe(true);
     await gpu.screenshot({ path: testInfo.outputPath(`gpu-mode-${theme}-${width}.png`) });
   }
 });

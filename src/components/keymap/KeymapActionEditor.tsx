@@ -34,7 +34,7 @@ export function KeymapActionEditor({ active, binding, device, configuration, dis
       disabled={locked} onChange={value => onChange({ ...binding, trigger: Number(value) })} /></label>
     <label className="ccc-keymap-field">执行动作 <Select label="执行动作" value={action.kind} options={ACTIONS} disabled={locked}
       onChange={kind => onChange({ ...binding, action: newAction(kind, configuration) })} /></label>
-    {action.kind === "disable" && <span className="ccc-chip is-warn">应用后禁用此按键</span>}
+    {action.kind === "disable" && <span className="ccc-control-caption is-warn">应用后禁用此按键</span>}
     {action.kind === "keys" && <>
       <MacroRecorder active={active} disabled={disabled} onRecordingChange={onRecordingChange}
         onAdopt={steps => onChange({ ...binding, action: { kind: "keys", steps } })} />

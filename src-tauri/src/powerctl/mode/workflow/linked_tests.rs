@@ -77,6 +77,18 @@ fn linked_effects_run_after_mode_and_before_fan_and_system_policy() {
 }
 
 #[test]
+fn dust_starting_after_preview_rejects_mode_before_any_write() {
+    let f = setup();
+    f.device.0.lock().unwrap().bios[10] = 128;
+    let _gate = f.hal.begin_write().unwrap();
+    let plan = checkpoint(&f.hal, 3).unwrap();
+    f.device.0.lock().unwrap().dust_running = true;
+    let error = plan.execute_guarded(&f.hal, &mut || Ok(())).unwrap_err();
+    assert!(error.to_string().contains("固件正在除尘"));
+    assert!(f.device.0.lock().unwrap().events.is_empty());
+}
+
+#[test]
 fn partially_failed_link_is_compensated_before_original_mode() {
     let f = setup();
     let _gate = f.hal.begin_write().unwrap();

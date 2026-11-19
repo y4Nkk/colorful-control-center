@@ -1,40 +1,48 @@
-import { applyAirplane, restoreAirplane } from "../../api/client";
+import { useId } from "react";
+import { applyAirplane, readAirplane, restoreAirplane } from "../../api/client";
 import { Button } from "../Button";
-import { ConfigurationAction } from "../ConfigurationAction";
+import { ConfirmButton } from "../ConfirmButton";
 import { DetailsDialog } from "../DetailsDialog";
 import { Icon } from "../Icon";
 import { Surface } from "../Surface";
-import { SegmentedControl } from "../SegmentedControl";
-import { useAirplaneSettings } from "./useAirplaneSettings";
+import { Switch } from "../Switch";
 import { AirplaneArtwork } from "./AirplaneArtwork";
-const text = (enabled: boolean) => enabled ? "已开启" : "已关闭";
-const options = [{ value: "keep", label: "保留当前" }, { value: "on", label: "开启" }, { value: "off", label: "关闭" }];
+import { useDeviceSettings } from "./useDeviceSettings";
+
+const stateText = (enabled: boolean) => enabled ? "已开启" : "已关闭";
+
 export function AirplaneSettings({ active, revision }: { active: boolean; revision: number }) {
-  const { profile, choice, setChoice, busy, error, run, reread } = useAirplaneSettings(active, revision);
-  const current = profile?.current, enabled = choice === "on";
-  const request = profile?.revision && choice !== "keep" ? { expectedRevision: profile.revision, enabled } : null;
-  return <Surface as="section" variant="group" className="ccc-panel ccc-airplane" aria-label="飞行模式">
+  const { profile, busy, error, run, reread } = useDeviceSettings(readAirplane, active, revision, 5000);
+  const current = profile?.current, expectedRevision = profile?.revision, restoreRevision = profile?.restoreRevision;
+  const hintId = useId();
+  const issues = Array.from(new Set([error, profile?.error, profile?.restoreError].filter((issue): issue is string => !!issue)));
+  const change = (enabled: boolean) => {
+    if (!expectedRevision || !current || current.enabled === enabled) return;
+    void run(() => applyAirplane({ expectedRevision, enabled }), "飞行模式已应用");
+  };
+
+  return <Surface as="section" variant="group" className="ccc-panel ccc-airplane" aria-label="飞行模式" aria-busy={busy || undefined}>
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="airplane" />飞行模式</h2>
       <div className="ccc-module-tools">
-        {(error || profile?.error || profile?.restoreError) && <DetailsDialog title="飞行模式诊断" label="详情">
-          {Array.from(new Set([error, profile?.error, profile?.restoreError].filter(Boolean))).map(issue => <p key={issue}>{issue}</p>)}
+        {issues.length > 0 && <DetailsDialog title="飞行模式诊断" label="详情">
+          {issues.map(issue => <p key={issue}>{issue}</p>)}
         </DetailsDialog>}
         <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取飞行模式" disabled={busy} onClick={reread} />
       </div>
     </div>
-    <div className="ccc-device-status" aria-label="系统飞行模式"><AirplaneArtwork /><div>
-      <strong>{current ? text(current.enabled) : "状态未知"}</strong>
-      {(error || profile?.error || profile?.restoreError) && <p className="ccc-control-caption" role="status">查看诊断或重新读取</p>}
-    </div></div>
-    <SegmentedControl className="ccc-module-control-end" label="飞行模式目标" value={choice} options={options} disabled={busy || !current || !profile?.revision} onChange={setChoice} />
-    <ConfigurationAction label="飞行模式" revision={JSON.stringify(request)} together disabled={busy || !request || !current || current.enabled === enabled}
-      onConfirm={() => request ? run(() => applyAirplane(request), "飞行模式已应用") : Promise.resolve(false)}>
-      {current && <p>{text(current.enabled)} → {text(enabled)}</p>}
-      {enabled && <p className="ccc-control-caption">开启后可能断开无线连接。</p>}
-    </ConfigurationAction>
-    <ConfigurationAction label="飞行模式" revision={profile?.restoreRevision ?? ""} restore disabled={busy || !profile?.restoreRevision}
-      onConfirm={() => profile?.restoreRevision ? run(() => restoreAirplane(profile.restoreRevision!), "飞行模式初始状态已恢复") : undefined}>
-      {profile?.initial && <p>恢复至{ text(profile.initial.enabled) }。</p>}
-    </ConfigurationAction>
+    <div className="ccc-device-status ccc-airplane-switch" aria-label="系统飞行模式">
+      <AirplaneArtwork />
+      {!current && <strong>状态未知</strong>}
+      {current?.enabled === false && <p id={hintId} className="ccc-control-caption">开启后可能断开无线连接</p>}
+      <Switch label="飞行模式" describedBy={current?.enabled === false ? hintId : undefined}
+        checked={!!current?.enabled} disabled={busy || !current || !expectedRevision} onChange={change} />
+    </div>
+    {issues.length > 0 && <p className="ccc-control-error" role="alert">{issues[0]}</p>}
+    {restoreRevision && <div className="ccc-actions">
+      <ConfirmButton key={restoreRevision} label="恢复初始设置" confirmLabel="确认恢复" size="compact" icon="undo" busy={busy}
+        onConfirm={() => run(() => restoreAirplane(restoreRevision), "飞行模式初始状态已恢复")}>
+        {profile.initial && <p>恢复至{stateText(profile.initial.enabled)}。</p>}
+      </ConfirmButton>
+    </div>}
   </Surface>;
 }

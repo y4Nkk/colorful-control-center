@@ -22,7 +22,6 @@ fn main() -> Result<()> {
     let scenario = args.get(2).context("缺少场景")?;
     if ![
         "disarm",
-        "direct-disarm",
         "killed-parent",
         "timeout",
         "child-exit",
@@ -33,12 +32,7 @@ fn main() -> Result<()> {
         "initial-invalid",
         "initial-hot",
         "ready-timeout",
-        "full-speed-hot",
-        "full-speed-killed-parent",
-        "full-speed-pending",
-        "full-speed-lost-mode",
-        "full-speed-sensor-loss",
-        "mode-mirror",
+        "sensor-file",
         "arm-timeout",
     ]
     .contains(&scenario.as_str())
@@ -46,16 +40,8 @@ fn main() -> Result<()> {
         bail!("未知隔离场景");
     }
     if args.iter().any(|a| a == "--fan-watchdog") {
-        let mut expected = if scenario == "direct-disarm" {
-            vec!["--fan-watchdog", "--direct-fan-watchdog"]
-        } else {
-            vec!["--fan-watchdog"]
-        };
-        if args.iter().any(|a| a == "--full-speed-fan-watchdog") {
-            expected.push("--full-speed-fan-watchdog");
-        }
-        if args[3..] != expected {
-            bail!("监护角色参数必须位于角色选项之前");
+        if args[3..] != ["--fan-watchdog"] {
+            bail!("监护角色参数不一致");
         }
         fs::write(root.join("child.pid"), std::process::id().to_string())?;
         let result = child(root, scenario);
@@ -72,12 +58,7 @@ fn main() -> Result<()> {
 fn parent(root: &Path, scenario: &str) -> Result<()> {
     let mut command = Command::new(std::env::current_exe()?);
     command.arg(root).arg(scenario);
-    let policy = if scenario.starts_with("full-speed-") {
-        protocol::GuardPolicy::FirmwareFullSpeed
-    } else {
-        protocol::GuardPolicy::Protected
-    };
-    let guard = client::Watchdog::spawn(command, scenario == "direct-disarm", policy);
+    let guard = client::Watchdog::spawn(command);
     if matches!(
         scenario,
         "initial-invalid" | "initial-hot" | "ready-timeout"
@@ -88,27 +69,8 @@ fn parent(root: &Path, scenario: &str) -> Result<()> {
     }
     let mut guard = guard?;
     guard.arm()?;
-    if scenario.starts_with("full-speed-") && scenario != "full-speed-pending" {
-        fs::write(root.join("mode"), "1")?;
-        guard.commit_full_speed()?;
-    }
     fs::write(root.join("parent.ready"), "ARMED")?;
-    if scenario == "full-speed-hot" {
-        for _ in 0..35 {
-            guard.pulse()?;
-            std::thread::sleep(Duration::from_millis(100));
-        }
-        let rejected = guard.prepare(protocol::GuardPolicy::Protected).unwrap_err();
-        fs::write(root.join("rejected"), format!("{rejected:#}"))?;
-        guard.pulse()?;
-        guard.disarm()?;
-        fs::write(root.join("parent.result"), "DISARMED")?;
-        return Ok(());
-    }
-    if matches!(scenario, "full-speed-lost-mode" | "full-speed-sensor-loss") {
-        fs::write(root.join("trigger"), "1")?;
-    }
-    if matches!(scenario, "disarm" | "direct-disarm") {
+    if scenario == "disarm" {
         for _ in 0..4 {
             guard.pulse()?;
             std::thread::sleep(Duration::from_millis(100));
@@ -126,9 +88,7 @@ fn parent(root: &Path, scenario: &str) -> Result<()> {
             fs::write(root.join("parent.result"), format!("{error:#}"))?;
             return Ok(());
         }
-        if !matches!(scenario, "killed-parent" | "full-speed-killed-parent")
-            && Instant::now() >= deadline
-        {
+        if scenario != "killed-parent" && Instant::now() >= deadline {
             bail!("监护未按期报告退出");
         }
         std::thread::sleep(Duration::from_millis(50));
@@ -148,15 +108,10 @@ fn child(root: &Path, scenario: &str) -> Result<()> {
             match (scenario, index) {
                 ("initial-invalid", _) | ("sensor-loss", 1..) => None,
                 ("initial-hot", _) => Some((99.0, None)),
-                ("mode-mirror", _) => Some((
-                    fs::read_to_string(root.join("temperature"))
-                        .ok()
-                        .and_then(|v| v.parse().ok())
-                        .unwrap_or(50.0),
-                    None,
-                )),
-                ("full-speed-sensor-loss", _) if root.join("trigger").exists() => None,
-                (scenario, _) if scenario.starts_with("full-speed-") => Some((99.0, Some(98.0))),
+                ("sensor-file", _) => fs::read_to_string(root.join("temperature"))
+                    .ok()
+                    .and_then(|value| value.parse().ok())
+                    .map(|temperature| (temperature, None)),
                 ("late-gpu-loss", index) => Some((50.0, (index == 1).then_some(45.0))),
                 ("ready-timeout", 0) => {
                     std::thread::sleep(Duration::from_secs(6));
@@ -179,7 +134,7 @@ fn child(root: &Path, scenario: &str) -> Result<()> {
                 .open(root.join("restore.log"))?;
             writeln!(log, "restore")?;
             log.sync_all()?;
-            if scenario == "mode-mirror" && root.join("hold-recovery").exists() {
+            if scenario == "sensor-file" && root.join("hold-recovery").exists() {
                 let deadline = Instant::now() + Duration::from_secs(6);
                 while !root.join("release-recovery").exists() && Instant::now() < deadline {
                     std::thread::sleep(Duration::from_millis(10));
@@ -189,15 +144,6 @@ fn child(root: &Path, scenario: &str) -> Result<()> {
                 bail!("隔离恢复被拒绝");
             }
             Ok(())
-        },
-        if std::env::args().any(|arg| arg == "--full-speed-fan-watchdog") {
-            protocol::GuardPolicy::FirmwareFullSpeed
-        } else {
-            protocol::GuardPolicy::Protected
-        },
-        || {
-            fs::read_to_string(root.join("mode")).is_ok_and(|s| s == "1")
-                && !(scenario == "full-speed-lost-mode" && root.join("trigger").exists())
         },
     )
 }

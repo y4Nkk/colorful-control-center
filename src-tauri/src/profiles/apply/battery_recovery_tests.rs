@@ -6,7 +6,7 @@ fn absent_original_plan_is_not_captured_as_empty_and_later_failure_releases_only
     let f = Fixture::new();
     f.battery.enable();
     f.battery.io.state.lock().unwrap().original = None;
-    let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     assert!(captured.battery_energy.is_none());
     assert!(captured.battery_charge.is_some());
     f.device.0.lock().unwrap().fail_gpu = true;
@@ -345,7 +345,11 @@ fn calibration_pending_or_corrupt_record_blocks_capture_and_all_profile_targets(
             ..Default::default()
         };
         assert!(apply_settings(&f.hal, &f.gpu, f.devices(), &settings).is_err());
-        assert!(crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).is_err());
+        assert!(crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).is_err());
+        let group = crate::profiles::ProfileGroup::Performance;
+        let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &[group]).unwrap();
+        assert_eq!(crate::profiles::ProfileGroup::captured(&captured), [group]);
+        assert!(captured.runtime_cpu.is_some());
         assert!(f.battery.io.state.lock().unwrap().events.is_empty());
         assert!(f.device.0.lock().unwrap().events.is_empty());
     }

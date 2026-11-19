@@ -255,4 +255,8 @@ impl Controller {
     pub fn stop_recording(&self) -> Result<Option<recording::Snapshot>> {
         self.recording.stop()
     }
+
+    pub(crate) fn release_programs_on_exit(&self) -> Result<()> {
+        self.launchers.replace(None)
+    }
 }

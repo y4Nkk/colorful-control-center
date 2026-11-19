@@ -1,30 +1,29 @@
 import { expect } from "@playwright/test";
 
-export const pageActions = page => page.getByLabel("页面操作", { exact: true }).filter({ visible: true });
-export const changeButton = page => pageActions(page).getByRole("button", { name: "预览更改", exact: true });
-export const restoreButton = page => pageActions(page).getByRole("button", { name: "恢复设置", exact: true });
-export const configurationDialog = (page, restore = false) => page.getByRole("dialog", {
-  name: restore ? "恢复设置" : "预览更改", exact: true,
-});
+export const pageActions = page => page.locator(".ccc-page-actions, [aria-label='页面操作']");
+const moduleAction = (page, scope, restore = false) =>
+  page.locator(`[data-module-${restore ? "restore" : "action"}${scope ? "=" + JSON.stringify(scope) : ""}]:visible`);
+export const changeButton = page => moduleAction(page).locator("[data-configuration-apply]");
+export const restoreButton = (page, scope) => moduleAction(page, scope, true).locator(":scope > button");
+export const configurationView = (page, restore = false) => restore
+  ? page.locator("dialog[open]").filter({ has: page.getByRole("button", { name: "确认恢复", exact: true }) })
+  : moduleAction(page);
 
 export function availableAction(page, scope, restore = false) {
-  const list = [`[aria-description=${JSON.stringify(scope)}]`, `[aria-description^=${JSON.stringify(scope + "、")}]`,
-    `[aria-description*=${JSON.stringify("、" + scope + "、")}]`, `[aria-description$=${JSON.stringify("、" + scope)}]`];
-  return (restore ? restoreButton(page) : changeButton(page)).and(page.locator(list.join(",")));
+  return restore ? restoreButton(page, scope) : moduleAction(page, scope).locator("[data-configuration-apply]");
 }
 
-export async function openConfigurationReview(page, scope, restore = false) {
-  await (restore ? restoreButton(page) : changeButton(page)).click();
-  const dialog = configurationDialog(page, restore);
-  if (scope) {
-    const choice = dialog.getByRole("button", { name: scope, exact: true });
-    if (await choice.count()) await choice.click();
-    await expect(dialog.getByRole("heading", { name: scope, exact: true })).toBeVisible();
-  }
-  return dialog;
+export async function previewConfiguration(page, scope, restore = false) {
+  if (restore) await restoreButton(page, scope).click();
+  const view = restore ? configurationView(page, true) : moduleAction(page, scope);
+  await expect(view).toBeVisible();
+  return view;
 }
 
-export async function confirmConfiguration(dialog, label = "确认应用") {
-  await dialog.getByRole("button", { name: label, exact: true }).click();
-  await expect(dialog).toHaveCount(0);
+export async function submitConfiguration(view, label) {
+  const button = label === "确认恢复" || label && label !== "应用更改"
+    ? view.getByRole("button", { name: label, exact: true }) : view.locator("[data-configuration-apply]");
+  await button.click();
+  if (label === "确认恢复") await expect(view).toHaveCount(0);
+  else await expect(view.locator("[data-configuration-apply]:disabled")).toHaveCount(0);
 }

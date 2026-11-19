@@ -35,7 +35,7 @@ fn platform_capture_and_strict_file_roundtrip_preserve_encoding_and_heterogeneou
         .usb_values
         .get_mut(&SCHEMES[2])
         .unwrap()[1] = 99;
-    let capture = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let capture = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     let target = capture.power_delivery.as_ref().unwrap();
     assert_eq!(target.level, 1);
     assert_eq!(
@@ -47,7 +47,7 @@ fn platform_capture_and_strict_file_roundtrip_preserve_encoding_and_heterogeneou
     assert_eq!((plans[1].ac, plans[1].dc), (Some(true), Some(false)));
     assert_eq!((plans[2].ac, plans[2].dc), (Some(false), None));
     let dir = tempfile::tempdir().unwrap();
-    crate::profiles::save_in(dir.path(), capture.clone(), "平台").unwrap();
+    crate::profiles::save_in(dir.path(), capture.clone(), "平台", None).unwrap();
     assert!(
         crate::profiles::load_from(dir.path(), "平台")
             .unwrap()
@@ -68,7 +68,7 @@ fn profile_platform_success_uses_distinct_plans_and_keeps_unselected_fields() {
             .iter()
             .map(|step| step.step.as_str())
             .collect::<Vec<_>>(),
-        ["PD档位", "USB选择性暂停"]
+        ["PD档位", "USB 选择性暂停"]
     );
     let state = f.device.0.lock().unwrap();
     assert_eq!(state.pd_level[0], 4);
@@ -94,7 +94,7 @@ fn later_gpu_failure_restores_pd_and_only_attempted_usb_fields() {
     assert!(
         steps
             .iter()
-            .any(|step| step.step == "恢复USB策略" && step.ok)
+            .any(|step| step.step == "恢复 USB 选择性暂停" && step.ok)
     );
     assert!(
         steps
@@ -212,7 +212,7 @@ fn mode_authorized_plan_switch_precedes_usb_and_failure_restores_original_mode_p
         assert!(
             steps
                 .iter()
-                .any(|step| step.step == "USB选择性暂停" && step.ok)
+                .any(|step| step.step == "USB 选择性暂停" && step.ok)
         );
         let state = f.device.0.lock().unwrap();
         assert_eq!(state.active_plan, SCHEMES[if fail_gpu { 0 } else { 2 }]);
@@ -296,7 +296,7 @@ fn partial_platform_failure_compensates_locally_without_duplicate_outer_writes()
             == if pd {
                 "恢复PD档位"
             } else {
-                "恢复USB策略"
+                "恢复 USB 选择性暂停"
             }));
         let state = f.device.0.lock().unwrap();
         assert_eq!(state.pd_level[0], 1);
@@ -314,7 +314,7 @@ fn usb_failed_local_compensation_is_retried_by_profile_and_initial_restore_remai
     assert!(
         steps
             .iter()
-            .any(|step| step.step == "恢复USB策略" && step.ok)
+            .any(|step| step.step == "恢复 USB 选择性暂停" && step.ok)
     );
     assert_eq!(f.device.0.lock().unwrap().usb_values, original);
     assert!(!f.usb.read(&f.hal).unwrap().unwrap().initial.is_empty());

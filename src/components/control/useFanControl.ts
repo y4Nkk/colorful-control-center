@@ -13,7 +13,6 @@ const checked = async (action: Promise<{ ok: boolean; message: string }>) => {
 export function useFanControl(active: boolean, externalBusy: boolean, revision: number, onSettled: () => void) {
   const [profile, setProfile] = useState<FanProfile | null>(null);
   const curves = useFanDrafts(profile);
-  const [mode, setModeValue] = useState(0);
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [readValid, setReadValid] = useState(false);
@@ -29,15 +28,14 @@ export function useFanControl(active: boolean, externalBusy: boolean, revision: 
     if (id !== loadId.current) return;
     const before = previous.current;
     curves.loadDrafts(next, before, reset);
-    setModeValue((current) => !reset && before && current !== before.currentMode ? current : next.currentMode);
     setOffset((current) => !reset && before && current !== before.offsetPct ? current : next.offsetPct);
     previous.current = next; setProfile(next); setReadValid(true); setError(null);
   }, [curves.loadDrafts]);
   useEffect(() => {
     if (!active) return;
     let disposed = false;
-    void load(false).catch((cause) => { if (!disposed) setError(String(cause)); });
-    return () => { disposed = true; ++loadId.current; };
+    if (!running.current) void load(false).catch((cause) => { if (!disposed) setError(String(cause)); });
+    return () => { disposed = true; if (!running.current) ++loadId.current; };
   }, [active, revision, load]);
   const softwareRunning = profile?.software != null;
   useEffect(() => {
@@ -45,10 +43,10 @@ export function useFanControl(active: boolean, externalBusy: boolean, revision: 
     const timer = window.setInterval(() => { if (!running.current) void load(false).catch((cause) => setError(String(cause))); }, 5000);
     return () => window.clearInterval(timer);
   }, [active, softwareRunning, externalBusy, load]);
-  const run = async (action: () => Promise<void>) => {
-    if (running.current) return;
-    running.current = true; setBusy(true); setError(null);
-    try { await action(); await load(true); toast({ kind: "success", title: "风扇设置已写入" }); }
+  const run = async (action: () => Promise<void>, reset = true) => {
+    if (!active || running.current || externalBusy || !readValid || !profile || profile.blockedReason) return;
+    running.current = true; ++loadId.current; setBusy(true); setError(null);
+    try { await action(); await load(reset); toast({ kind: "success", title: "风扇设置已写入" }); }
     catch (cause) {
       const message = String(cause);
       try { await load(false); setError(message); }
@@ -56,30 +54,31 @@ export function useFanControl(active: boolean, externalBusy: boolean, revision: 
     } finally { running.current = false; setBusy(false); onSettled(); }
   };
   const { drafts, rpmDrafts, curveDirty, rpmDirty } = curves;
-  const dirty = profile != null && (profile.software != null || curveDirty || rpmDirty || mode !== profile.currentMode || offset !== profile.offsetPct);
+  const dirty = profile != null && (curveDirty || rpmDirty || offset !== profile.offsetPct);
   const apply = () => run(async () => {
     if (!profile) return;
     if (curveDirty) await checked(applyFanCurve(drafts.cpu ?? null, drafts.gpu1 ?? null, drafts.gpu2 ?? null));
-    const writeRpm = profile.curveKind === "rpmTable" && (rpmDirty || (mode === 6 && profile.currentMode !== 6));
-    if (writeRpm) await checked(applyRpmFanCurves(Object.fromEntries(profile.rpmFans
-      .filter((fan) => !rpmDirty || !sameRpmCurve(fan.points, rpmDrafts[fan.id]!))
+    if (rpmDirty) await checked(applyRpmFanCurves(Object.fromEntries(profile.rpmFans
+      .filter((fan) => rpmDrafts[fan.id] && !sameRpmCurve(fan.points, rpmDrafts[fan.id]!))
       .map((fan) => [fan.id, rpmDrafts[fan.id]!]))));
-    if (mode !== (curveDirty || writeRpm ? 6 : profile.currentMode) || (profile.software && !curveDirty && !writeRpm)) await checked(setFanMode(mode));
+    if (profile.software && !curveDirty && !rpmDirty) await checked(setFanMode(profile.currentMode));
     if (offset !== profile.offsetPct) await checked(setFanOffset(offset));
   });
   const changeCurve = (id: FanId, value: CurveDraft) => {
     if (running.current) return;
-    curves.changeCurve(id, value); setModeValue(6);
+    curves.changeCurve(id, value);
   };
   const changeRpm = (id: FanId, value: RpmPoint[]) => {
     if (running.current) return;
-    curves.changeRpm(id, value); setModeValue(6);
+    curves.changeRpm(id, value);
   };
   const setMode = (value: number) => {
-    if (value === 6 && profile?.curveKind === "rpmTable") curves.ensureRpmTargets();
-    setModeValue(value);
+    if (!profile || !profile.availableModes.includes(value) || value === 6 && !profile.customSupported ||
+      value === profile.currentMode && !profile.software) return;
+    void run(() => checked(setFanMode(value)), false);
   };
-  return { profile, drafts, rpmDrafts, mode, setMode, offset, setOffset, error, busy, readValid, dirty, apply, changeCurve, changeRpm,
+  return { profile, drafts, rpmDrafts, setMode, offset, setOffset, error, busy: busy || externalBusy, readValid, dirty,
+    curveChanged: curveDirty || rpmDirty, apply, changeCurve, changeRpm,
     refresh: () => load(true),
     restore: () => run(() => checked(restoreFanProfile())),
     restoreDefault: () => run(() => checked(restoreFanDefault())),

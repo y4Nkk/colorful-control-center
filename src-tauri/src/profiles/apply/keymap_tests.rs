@@ -11,18 +11,18 @@ mod session_tests;
 #[test]
 fn capture_keeps_only_owned_devices_current_flags_and_program_intent_without_starting_events() {
     let h = Harness::new();
-    let captured = crate::profiles::capture_current(&h.f.hal, &h.f.gpu, h.f.devices()).unwrap();
+    let captured = crate::profiles::capture_current(&h.f.hal, &h.f.gpu, h.f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     assert_eq!(captured.keymap.unwrap().configuration.devices.len(), 2);
     assert!(!h.path.exists());
     assert_eq!(h.programs.prepared.load(Ordering::SeqCst), 0);
     h.apply(&h.wanted(false)).unwrap();
     h.f.device.0.lock().unwrap().pages[1][8] = 0;
-    let captured = crate::profiles::capture_current(&h.f.hal, &h.f.gpu, h.f.devices()).unwrap();
+    let captured = crate::profiles::capture_current(&h.f.hal, &h.f.gpu, h.f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     let target = captured.keymap.as_ref().unwrap();
     assert_eq!(target.configuration.devices.len(), 1);
     assert!(!target.configuration.devices[0].enabled && !target.programs_enabled);
     let dir = tempfile::tempdir().unwrap();
-    crate::profiles::save_in(dir.path(), captured.clone(), "映射").unwrap();
+    crate::profiles::save_in(dir.path(), captured.clone(), "映射", None).unwrap();
     assert!(
         crate::profiles::load_from(dir.path(), "映射")
             .unwrap()

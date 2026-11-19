@@ -16,7 +16,6 @@ export interface CurveAnchors {
   d1Pct: number;
 }
 
-export const CURVE_TEMP_MIN = 30;
 export const CURVE_TEMP_MAX = 100;
 export const CURVE_DUTY_MIN = 20;
 export const CURVE_DUTY_MAX = 100;

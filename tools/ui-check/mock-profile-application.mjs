@@ -9,10 +9,30 @@ export function previewProfileDisplay(data, settings) {
     return { before: structuredClone(actual.current), target: { ...actual.current, frequency: saved.frequency } };
   }) };
 }
-export function profileApplicationSteps(data) {
-  const s = data.profile.settings;
+export async function previewManualProfile(data, settings) {
+  const preview = { before: emptyProfileSettings(), modeTarget: null, displayReview: null, gpuPowerReview: null,
+    graphicsModeReview: null, blocked: null };
+  for (const group of profileGroups(settings).filter(group => group !== "display")) {
+    try {
+      const current = captureProfileDevices(data, [group]).settings;
+      for (const key of profileFields()[group]) preview.before[key] = current[key];
+    } catch { /* Unavailable settings carry no current value. */ }
+  }
+  try {
+    preview.modeTarget = await previewProfileMode(data, settings);
+    preview.displayReview = previewProfileDisplay(data, settings);
+    preview.gpuPowerReview = previewProfileGpuPower(data, settings);
+    preview.graphicsModeReview = previewProfileGraphicsMode(data, settings);
+    reviewProfileLan(data, settings.lanPolicy);
+  } catch (error) {
+    preview.blocked = error instanceof Error ? error.message : String(error);
+  }
+  return preview;
+}
+
+export function profileApplicationSteps(data, s) {
   return data.profileSteps ?? [[s.lanPolicy, "网络驱动策略"], [s.performanceOptions, "性能选项"],
-    [s.batteryCharge ?? s.batteryEnergy, "电池配置"], [s.powerDelivery, "PD档位"], [s.usbPolicy, "USB选择性暂停"],
+    [s.batteryCharge ?? s.batteryEnergy, "电池配置"], [s.powerDelivery, "PD档位"], [s.usbPolicy, "USB 选择性暂停"],
     [s.multiZoneLighting, "多区键盘灯效"], [s.lightBar, "独立灯条"], [s.dustSchedule, "除尘计划"], [s.microphones, "麦克风静音"], [s.touchpad, "触摸板开关"], [s.keyboard, "键盘功能"], [s.keyboardLighting, "键盘灯效"],
     [s.lightingOptions, "灯光策略与外围灯区"], [s.perkeyLighting, "逐键灯效"], [s.keymap, "按键映射与宏"],
     [s.keymap, "提交映射与程序监听"], [s.display, "显示刷新率复核"], [s.gpuPower, "独显目标复核"], [s.graphicsMode, "显卡模式选择请求（重启后核对）"], [s.gpu, "GPU 偏移"]]
@@ -45,7 +65,7 @@ export function syncProfileApplication(data) {
 export async function beginProfileApplication(data, args) {
   if (data.profileApplication && ["ac", "battery", "resume"].includes(data.profileApplication.origin)) data.lastAutomaticProfileApplication = structuredClone(data.profileApplication);
   if (syncProfileApplication(data)?.pending) throw new Error("先结束当前档案显示确认或恢复");
-  if (JSON.stringify(args.expected) !== JSON.stringify(data.profile)) throw new Error("档案已变化，请重新预览后确认");
+  if (JSON.stringify(args.expected) !== JSON.stringify(profileFiles(data).find(file => file.name === args.expected.name))) throw new Error("档案已变化，请重新预览后确认");
   if (JSON.stringify(args.expectedMode) !== JSON.stringify(await previewProfileMode(data, args.expected.settings))) throw new Error("模式联动已变化，请重新预览");
   const review = previewProfileDisplay(data, args.expected.settings);
   if (JSON.stringify(args.expectedDisplay) !== JSON.stringify(review)) throw new Error("档案显示预览已变化");
@@ -64,7 +84,7 @@ export async function beginProfileApplication(data, args) {
     data.profileApplication.pending = { before: changes.map(change => change.before), targets: changes.map(change => change.target), rotation: false, automatic: false, trialId: id, remainingMs: 15_000, profileSession: id, error: null };
     data.display.pending = data.profileApplication.pending;
   } else {
-    await commitProfileTargets(data);
+    await commitProfileTargets(data, args.expected.settings);
   }
   return structuredClone(data.profileApplication);
 }
@@ -84,13 +104,13 @@ export async function invokeProfileApplication(data, command, args) {
     try {
       const session = data.profileApplicationSession;
       if (report.steps.some(step => !step.ok)) throw new Error("请先恢复本次显示变更");
-      if (JSON.stringify(data.profile) !== JSON.stringify(session.file)) throw new Error("档案已变化");
+      if (JSON.stringify(profileFiles(data).find(file => file.name === session.file.name)) !== JSON.stringify(session.file)) throw new Error("档案已变化");
       if (JSON.stringify(await previewProfileMode(data, session.file.settings)) !== JSON.stringify(session.mode)) throw new Error("模式联动已变化");
       reviewProfileLan(data, session.file.settings.lanPolicy);
       if (JSON.stringify(previewProfileGpuPower(data, session.file.settings)) !== JSON.stringify(session.gpuReview)) throw new Error("独显预览已变化");
       if (JSON.stringify(previewProfileGraphicsMode(data, session.file.settings)) !== JSON.stringify(session.muxReview)) throw new Error("显卡模式预览已变化");
       previewProfileDisplay(data, session.file.settings);
-      await commitProfileTargets(data);
+      await commitProfileTargets(data, session.file.settings);
       if (!data.profileApplication.targetsApplied) data.profileApplication.steps.push(recoverProfileDisplay(data));
       else { data.profileApplication.pending = null; data.display.pending = null; }
     } catch (error) {

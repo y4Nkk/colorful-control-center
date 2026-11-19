@@ -1,7 +1,7 @@
 import type { PerkeyTarget, RgbColor } from "../../api/client";
 import { perkeyLayout } from "../../lib/perkey-layout";
 import { PERKEY_NAMES, SNAKE_DIRECTIONS, WAVE_DIRECTIONS } from "../../lib/perkey-pattern";
-import { hexOf } from "../control/useKeyboardLighting";
+import { hexOf } from "../../lib/color";
 import { Surface } from "../Surface";
 import { FactList } from "../FactList";
 

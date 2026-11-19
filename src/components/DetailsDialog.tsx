@@ -9,10 +9,12 @@ export function DetailsDialog({ title, label = title, icon = "info", className, 
 }) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
+  const information = icon === "info";
   return <>
-    <Button className={className} icon={icon} variant={editor ? "secondary" : "ghost"} size="compact" aria-haspopup="dialog"
-      onClick={() => setOpen(true)}>{label}</Button>
-    <Dialog title={title} wide={wide} open={open} busy={busy} onClose={close}
+    <Button className={className} icon={icon} variant={editor ? "secondary" : "ghost"}
+      size={information ? "icon-compact" : "compact"} aria-haspopup="dialog" aria-label={information ? label : undefined}
+      title={information ? title : undefined} onClick={() => setOpen(true)}>{!information && label}</Button>
+    <Dialog title={title} width={wide ? "wide" : "standard"} open={open} busy={busy} onClose={close} dismissOnBackdrop={!editor}
       actions={editor && <Button disabled={busy} onClick={close}>完成编辑</Button>}>{children}</Dialog>
   </>;
 }

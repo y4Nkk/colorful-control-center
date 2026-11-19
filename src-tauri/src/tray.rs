@@ -1,118 +1,98 @@
-//! 托盘只请求档案预览，硬件写入仍经应用内确认与同一事务入口。
-use tauri::{
-    Emitter, Manager, WindowEvent,
-    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
-    tray::TrayIconBuilder,
-};
+mod controls;
+mod native;
 
-fn menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
-    let menu = Menu::new(app)?;
-    menu.append(&MenuItem::with_id(
-        app,
-        "show",
-        "显示主窗口",
-        true,
-        None::<&str>,
-    )?)?;
-    let profiles = Submenu::new(app, "性能档案", true)?;
-    match crate::profiles::list(app) {
-        Ok(list) if !list.is_empty() => {
-            for profile in list {
-                profiles.append(&MenuItem::with_id(
-                    app,
-                    format!("profile:{}", profile.name),
-                    &profile.name,
-                    true,
-                    None::<&str>,
-                )?)?;
-            }
-        }
-        Ok(_) => profiles.append(&MenuItem::with_id(
-            app,
-            "empty",
-            "暂无档案",
-            false,
-            None::<&str>,
-        )?)?,
-        Err(error) => {
-            log::error!("[tray] 档案列表：{error:#}");
-            profiles.append(&MenuItem::with_id(
-                app,
-                "error",
-                "档案读取失败",
-                false,
-                None::<&str>,
-            )?)?;
-        }
-    }
-    menu.append(&profiles)?;
-    menu.append(&PredefinedMenuItem::separator(app)?)?;
-    menu.append(&MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?)?;
-    Ok(menu)
+use crate::{preferences, shutdown};
+use anyhow::Result;
+use native::{Action, Tray};
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, Manager, WindowEvent};
+
+pub(crate) use controls::sample;
+
+#[derive(Serialize, Clone)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+enum NavigationRequest {
+    Profile { name: String },
+    Cooling,
 }
 
-pub fn refresh(app: &tauri::AppHandle) {
-    if let Some(tray) = app.tray_by_id("main-tray") {
-        if let Err(error) = menu(app).and_then(|menu| tray.set_menu(Some(menu))) {
-            log::error!("[tray] 更新菜单失败：{error}");
+pub(crate) fn start(app: &AppHandle) -> Result<()> {
+    let handle = app.clone();
+    let dispatch = move |action| match action {
+        Action::Quit => shutdown::request(),
+        Action::Control(control) => controls::dispatch(&handle, control),
+        action if !shutdown::closing() => {
+            let app = handle.clone();
+            let _ = handle.run_on_main_thread(move || {
+                if shutdown::closing() {
+                    return;
+                }
+                show_main(&app);
+                let request = match action {
+                    Action::Profile(name) => Some(NavigationRequest::Profile { name }),
+                    Action::Cooling => Some(NavigationRequest::Cooling),
+                    _ => None,
+                };
+                if let Some(request) = request
+                    && let Err(error) = app.emit_to("main", "tray-navigation-request", request)
+                {
+                    log::error!("[tray] 打开设置：{error:#}");
+                }
+            });
         }
+        _ => (),
+    };
+    app.manage(Tray::start(
+        Some(tauri::utils::platform::WINDOWS_APP_ICON_RESOURCE_ID),
+        dispatch,
+        shutdown::closing,
+    )?);
+    Ok(())
+}
+
+pub fn refresh_profiles(app: &AppHandle) {
+    if let Some(tray) = app.try_state::<Tray>() {
+        tray.set_profiles(match crate::profiles::list(app) {
+            Ok(list) => Some(list.into_iter().map(|profile| profile.name).collect()),
+            Err(error) => {
+                log::error!("[tray] 档案列表：{error:#}");
+                None
+            }
+        });
     }
 }
 
-pub fn setup(app: &tauri::AppHandle) -> tauri::Result<()> {
-    TrayIconBuilder::with_id("main-tray")
-        .icon(
-            app.default_window_icon()
-                .cloned()
-                .ok_or_else(|| tauri::Error::AssetNotFound("icon".into()))?,
-        )
-        .tooltip("Colorful Control Center")
-        .menu(&menu(app)?)
-        .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| {
-            let id = event.id.as_ref();
-            if id == "quit" {
-                app.exit(0);
-            } else if id == "show" {
-                show_main(app);
-            } else if let Some(name) = id.strip_prefix("profile:") {
-                show_main(app);
-                let _ = app.emit("profile-preview-request", name);
-            }
-        })
-        .on_tray_icon_event(|tray, event| {
-            if let tauri::tray::TrayIconEvent::Click {
-                button: tauri::tray::MouseButton::Left,
-                button_state: tauri::tray::MouseButtonState::Up,
-                ..
-            } = event
-            {
-                show_main(tray.app_handle());
-            }
-        })
-        .build(app)?;
+pub(crate) fn bind_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let close = window.clone();
         window.on_window_event(move |event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
+                if shutdown::closing() {
+                    return;
+                }
                 let app = close.app_handle();
-                let preferences = app.state::<crate::preferences::Controller>().snapshot();
+                let preferences = app.state::<preferences::Controller>().snapshot();
                 if preferences.is_ok_and(|s| {
-                    s.settings.close_behavior == crate::preferences::model::CloseBehavior::Exit
+                    s.settings.close_behavior == preferences::model::CloseBehavior::Exit
                 }) {
-                    app.exit(0);
+                    shutdown::request();
                 } else if let Err(error) = close.hide() {
-                    log::error!("隐藏到托盘失败：{error}");
+                    log::error!("[tray] 隐藏失败：{error}");
                 }
             }
         });
     }
-    Ok(())
 }
 
-pub(crate) fn show_main(app: &tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
+pub(crate) fn stop(app: &AppHandle) -> Result<()> {
+    app.try_state::<Tray>().map_or(Ok(()), |tray| tray.stop())
+}
+
+pub(crate) fn show_main(app: &AppHandle) {
+    if !shutdown::closing()
+        && let Some(window) = app.get_webview_window("main")
+    {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();

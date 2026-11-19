@@ -6,11 +6,30 @@ import { pathToFileURL } from 'node:url';
 const hash = path => createHash('sha256').update(readFileSync(path)).digest('hex');
 const literal = value => `@"${value.replaceAll('"', '""')}"`;
 
+function installerExitCodes(hooks) {
+  const source = readFileSync(resolve('src-tauri', hooks), 'utf8');
+  const names = {
+    ControllerRunningExitCode: 'CCC_EXIT_CONTROLLER_RUNNING',
+    ProcessCheckFailedExitCode: 'CCC_EXIT_PROCESS_CHECK_FAILED',
+  };
+  const codes = Object.fromEntries(Object.entries(names).map(([field, macro]) => {
+    const matches = [...source.matchAll(new RegExp(`^!define[ \\t]+${macro}[ \\t]+(\\d+)[ \\t]*$`, 'gm'))];
+    const code = Number(matches[0]?.[1]);
+    if (matches.length !== 1 || code < 3 || code > 255) throw new Error(`Invalid installer exit code: ${macro}`);
+    return [field, code];
+  }));
+  if (new Set(Object.values(codes)).size !== Object.keys(codes).length) throw new Error('Duplicate installer exit codes.');
+  return codes;
+}
+
 export function prepareInstaller(engine, applicationPayload, directory) {
   const config = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8'));
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
   if (!/^\d+\.\d+\.\d+$/.test(config.version) || config.version !== pkg.version)
     throw new Error('Installer package and Tauri versions must match and use three numeric components.');
+  const mainWindow = config.app.windows.find(window => window.label === 'main');
+  if (!mainWindow?.title) throw new Error('Missing controller window title.');
+  const exitCodes = installerExitCodes(config.bundle.windows.nsis.installerHooks);
   const source = readFileSync('src/styles/tokens.css', 'utf8');
   const colors = {
     Canvas: 'canvas', Surface: 'content', MutedSurface: 'content-muted', Ink: 'text',
@@ -31,9 +50,13 @@ export function prepareInstaller(engine, applicationPayload, directory) {
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sys="clr-namespace:System;assembly=mscorlib">\n${brushes.join('\n')}\n${metrics.join('\n')}\n</ResourceDictionary>\n`);
   const fields = {
     ProductName: config.productName, Version: config.version, ApplicationFileStem: pkg.name,
+    ControllerWindowTitle: mainWindow.title,
     EngineSha256: hash(engine), ApplicationSha256: hash(applicationPayload),
+    ...exitCodes,
   };
-  const constants = Object.entries(fields).map(([name, value]) => `        internal const string ${name} = ${literal(value)};`);
+  const constants = Object.entries(fields).map(([name, value]) => typeof value === 'number'
+    ? `        internal const int ${name} = ${value};`
+    : `        internal const string ${name} = ${literal(value)};`);
   writeFileSync(join(directory, 'Product.cs'), `using System.Reflection;
 [assembly: AssemblyVersion("${config.version}.0")]
 [assembly: AssemblyFileVersion("${config.version}.0")]

@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.IO;
 using System.Text;
 
 namespace ColorfulControlCenter.Installer
@@ -7,8 +8,37 @@ namespace ColorfulControlCenter.Installer
     internal sealed class InstallFailure : Exception
     {
         internal string LogPath { get; private set; }
+        internal int? EngineExitCode
+        {
+            get
+            {
+                var engine = InnerException as EngineExitFailure;
+                return engine == null ? (int?)null : engine.Code;
+            }
+        }
         internal InstallFailure(Exception cause, string logPath)
             : base(cause.Message, cause) { LogPath = logPath; }
+    }
+
+    internal sealed class EngineExitFailure : IOException
+    {
+        internal const string ControllerExitInstructions = "请从系统托盘退出控制台后重试安装。";
+        internal int Code { get; private set; }
+
+        internal EngineExitFailure(int code) : base(MessageFor(code))
+        {
+            Code = code;
+            Data["EngineExitCode"] = code;
+        }
+
+        private static string MessageFor(int code)
+        {
+            if (code == Product.ControllerRunningExitCode)
+                return "控制台仍在使用安装文件。" + ControllerExitInstructions;
+            if (code == Product.ProcessCheckFailedExitCode)
+                return "安装引擎未能检查控制台的退出状态。请查看诊断日志后重试。";
+            return "安装引擎已中止，错误代码 " + code + "。请查看诊断日志。";
+        }
     }
 
     internal static class InstallerDiagnostics

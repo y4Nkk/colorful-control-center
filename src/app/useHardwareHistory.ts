@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { getHardwareSnapshot, onHardwareSnapshot, type HardwareSnapshot } from "../api/client";
 
-const HISTORY_MS = 5 * 60 * 1000;
+export const HARDWARE_HISTORY_MS = 5 * 60_000;
 export function useHardwareHistory(active: boolean) {
   const [live, setLive] = useState<HardwareSnapshot | null>(null);
   const [samples, setSamples] = useState<HardwareSnapshot[]>([]);
@@ -18,7 +18,7 @@ export function useHardwareHistory(active: boolean) {
       if (disposed || snapshot.sampledAtMs <= (history.current[history.current.length - 1]?.sampledAtMs ?? 0)) return;
       setLive(snapshot); setError(null);
       history.current = [...history.current, snapshot]
-        .filter((item) => item.sampledAtMs >= snapshot.sampledAtMs - HISTORY_MS).slice(-301);
+        .filter((item) => item.sampledAtMs >= snapshot.sampledAtMs - HARDWARE_HISTORY_MS).slice(-301);
       setSamples(history.current);
     };
     void onHardwareSnapshot(accept).then((unlisten) => { if (disposed) unlisten(); else off = unlisten; }).catch(fail);

@@ -10,7 +10,7 @@ use crate::{
 use anyhow::{Result, anyhow, bail};
 use std::{
     thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 use tauri::{Emitter, Manager};
 
@@ -37,7 +37,7 @@ impl Controller {
         );
         Ok(())
     }
-    pub fn stop_worker(&self) -> Result<()> {
+    pub fn request_stop(&self) -> Result<()> {
         self.shared.lock()?.scheduler.stop()?;
         self.shared.wake.notify_all();
         if let Some(stopper) = self
@@ -49,20 +49,16 @@ impl Controller {
         {
             stopper.stop();
         }
-        let mut worker = self
+        Ok(())
+    }
+
+    pub fn join_worker(&self) -> Result<()> {
+        let worker = self
             .worker
             .lock()
-            .map_err(|_| anyhow!("供电模式工作线程状态异常"))?;
-        let deadline = Instant::now() + Duration::from_secs(2);
-        while worker.as_ref().is_some_and(|worker| !worker.is_finished())
-            && Instant::now() < deadline
-        {
-            thread::sleep(Duration::from_millis(5));
-        }
-        if worker.as_ref().is_some_and(|worker| !worker.is_finished()) {
-            bail!("供电模式仍在结束授权或恢复，后续执行权限已撤销");
-        }
-        if let Some(worker) = worker.take() {
+            .map_err(|_| anyhow!("供电模式工作线程状态异常"))?
+            .take();
+        if let Some(worker) = worker {
             worker
                 .join()
                 .map_err(|_| anyhow!("供电模式工作线程退出异常"))?;
@@ -119,6 +115,9 @@ fn run_loop(app: &tauri::AppHandle, listener: &Session) -> Result<()> {
             return Ok(());
         }
         drop(state);
+        if crate::shutdown::closing() {
+            return Ok(());
+        }
         listener.status()?;
         if crate::startup::profile_in_progress(app)? {
             continue;

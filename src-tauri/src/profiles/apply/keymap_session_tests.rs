@@ -198,7 +198,7 @@ fn changed_file_and_failed_candidate_reject_before_any_target_writes() {
     for failed_candidate in [false, true] {
         let h = Harness::new();
         let dir = tempfile::tempdir().unwrap();
-        crate::profiles::save_in(dir.path(), h.wanted(true), "映射").unwrap();
+        crate::profiles::save_in(dir.path(), h.wanted(true), "映射", None).unwrap();
         let expected = crate::profiles::load_from(dir.path(), "映射").unwrap();
         let mut changed = expected.clone();
         changed.saved_at_ms += 1;
@@ -328,6 +328,6 @@ fn partial_profile_cannot_enable_programs_on_a_device_missing_from_its_preview()
             },
         )
         .unwrap();
-    let captured = crate::profiles::capture_current(&h.f.hal, &h.f.gpu, h.f.devices()).unwrap();
+    let captured = crate::profiles::capture_current(&h.f.hal, &h.f.gpu, h.f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     assert_eq!(captured.keymap.unwrap().configuration.devices.len(), 2);
 }

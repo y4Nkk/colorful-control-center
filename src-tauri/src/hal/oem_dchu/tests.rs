@@ -63,6 +63,8 @@ fn fake() -> ManuallyDrop<Dchu> {
         set_data_ex: Some(exchange),
         read_settings: read,
         write_settings: write,
+        acknowledged_mode: Default::default(),
+        test_entertainment_options: Default::default(),
     })
 }
 

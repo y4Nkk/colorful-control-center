@@ -1,5 +1,6 @@
 import { Icon } from "../Icon";
 import type { ProfileSettings } from "../../api/profiles";
+import { USB_POLICY_LABEL } from "../../api/usb";
 import { FactList } from "../FactList";
 import { Surface } from "../Surface";
 import { pdLevelText, USB_PLAN_NAMES } from "../control/platform-values";
@@ -25,9 +26,9 @@ export function ProfilePlatformPreview({ settings }: { settings: ProfileSettings
         </div>
       </div>
     </Surface>}
-    {usb && <Surface as="section" variant="group" className="ccc-profile-device" aria-label="档案USB策略">
-      <div className="ccc-profile-values"><h3 className="ccc-icon-title"><Icon name="usb" />USB 选择性暂停</h3><strong>{usb.plans.length} 个标准计划</strong>
-        <DetailsDialog title="USB应用检查"><p className="ccc-control-caption">按计划分别应用插电和电池设置，不创建缺失计划。</p>
+    {usb && <Surface as="section" variant="group" className="ccc-profile-device" aria-label={`档案 ${USB_POLICY_LABEL}`}>
+      <div className="ccc-profile-values"><h3 className="ccc-icon-title"><Icon name="usb" />{USB_POLICY_LABEL}</h3><strong>{usb.plans.length} 个标准计划</strong>
+        <DetailsDialog title={`${USB_POLICY_LABEL}应用检查`}><p className="ccc-control-caption">按计划分别应用插电和电池设置，不创建缺失计划。</p>
         <p className="ccc-control-caption">跟随档案已确认的模式切换；其他活动计划变化会中止执行。</p></DetailsDialog>
       </div>
       <FactList compact facts={usb.plans.map(plan => ({ label: USB_PLAN_NAMES[plan.id],

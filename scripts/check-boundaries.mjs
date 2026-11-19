@@ -18,6 +18,7 @@ const rootDir = fileURLToPath(new URL("..", import.meta.url));
 const srcDir = join(rootDir, "src");
 const violations = [];
 const aliases = new Map();
+const moduleClasses = new Set();
 const styles = [];
 
 function* walk(dir) {
@@ -38,6 +39,7 @@ for (const file of walk(srcDir)) {
     const ui = inspectUiSource(path, content);
     violations.push(...ui.violations);
     for (const [name, owner] of ui.aliases) aliases.set(name, owner);
+    for (const name of ui.moduleClasses) moduleClasses.add(name);
     if (!path.startsWith("src/api/")) {
       if (/\binvoke\s*\(/.test(content)) {
         violations.push(`${path}: invoke() 只允许出现在 src/api/（IPC 唯一边界，见 AGENTS.md）`);
@@ -60,7 +62,7 @@ for (const file of walk(srcDir)) {
     });
   }
 }
-for (const [path, content] of styles) violations.push(...inspectUiStyles(path, content, aliases));
+for (const [path, content] of styles) violations.push(...inspectUiStyles(path, content, { aliases, moduleClasses }));
 
 /** 3. 页面接线一致：PAGES ↔ AppWorkspace 分支 */
 const navigation = readFileSync(join(srcDir, "app", "navigation.ts"), "utf8");

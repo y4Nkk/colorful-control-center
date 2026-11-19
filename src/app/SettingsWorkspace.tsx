@@ -9,7 +9,7 @@ import { DetailsDialog } from "../components/DetailsDialog";
 
 export function SettingsWorkspace({ active, model }: { active: boolean; model: PreferencesModel }) {
   return (
-    <div className="ccc-settings" aria-label="应用设置" aria-busy={model.busy}>
+    <div className="ccc-module-grid" data-module-layout="settings" aria-label="应用设置" aria-busy={model.busy}>
       {(model.error || model.snapshot?.desktopError) && <div className="ccc-settings-feedback">
         <p className="ccc-settings-error" role="alert">部分偏好未能加载或保存。</p>
         <DetailsDialog title="软件偏好诊断" label="查看原因"><p>{model.error ?? model.snapshot?.desktopError}</p></DetailsDialog>

@@ -60,6 +60,6 @@ impl Binding {
             .bind_driver(identity)
     }
 }
-fn digest(file: &ProfileFile) -> Result<String> {
+pub(super) fn digest(file: &ProfileFile) -> Result<String> {
     Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(file)?)))
 }

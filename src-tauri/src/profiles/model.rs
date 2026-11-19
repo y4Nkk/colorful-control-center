@@ -1,4 +1,7 @@
 //! 档案数据与校验的唯一契约；运行时执行与磁盘入口复用。
+#[path = "groups.rs"]
+mod groups;
+pub use groups::ProfileGroup;
 use crate::{fanctl, powerctl};
 use anyhow::{Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
@@ -61,7 +64,8 @@ pub struct ProfileFile {
 #[serde(rename_all = "camelCase")]
 pub struct ProfileMeta {
     pub name: String,
-    pub saved_at_ms: u64,
+    pub groups: Vec<ProfileGroup>,
+    pub revision: String,
 }
 
 #[derive(Clone, Serialize)]
@@ -113,36 +117,9 @@ pub fn validate(settings: &ProfileSettings) -> Result<()> {
             bail!("GPU 设置为空");
         }
     }
-    if settings.oem_power_mode.is_none()
-        && settings.performance_options.is_none()
-        && settings.fan_mode.is_none()
-        && settings.fan_curves.is_none()
-        && settings.fan_rpm_curves.is_none()
-        && settings.fan_software_curves.is_none()
-        && settings.pl1_w.is_none()
-        && settings.pl2_w.is_none()
-        && settings.core_offset_mv.is_none()
-        && settings.gt_offset_mv.is_none()
-        && settings.runtime_cpu.is_none()
-        && settings.gpu.is_none()
-        && settings.light_bar.is_none()
-        && settings.dust_schedule.is_none()
-        && settings.keyboard.is_none()
-        && settings.microphones.is_none()
-        && settings.touchpad.is_none()
-        && settings.keyboard_lighting.is_none()
-        && settings.multi_zone_lighting.is_none()
-        && settings.lighting_options.is_none()
-        && settings.perkey_lighting.is_none()
-        && settings.keymap.is_none()
-        && settings.power_delivery.is_none()
-        && settings.usb_policy.is_none()
-        && settings.battery_charge.is_none()
-        && settings.battery_energy.is_none()
-        && settings.lan_policy.is_none()
-        && settings.display.is_none()
-        && settings.gpu_power.is_none()
-        && settings.graphics_mode.is_none()
+    if !ProfileGroup::ALL
+        .into_iter()
+        .any(|group| group.includes(settings))
     {
         bail!("档案没有设置");
     }

@@ -13,19 +13,27 @@ use ccc_core::{
 };
 pub(crate) use checkpoint::StoredCheckpoint;
 pub use checkpoint::{FanCheckpoint, checkpoint, restore_checkpoint};
+pub(crate) use profile::supports_noiseless;
 pub use profile::{CurveKind, FanProfile};
 
 pub const FAN_MODE_AUTO: u8 = 0;
+pub(crate) const FAN_MODE_FULL_SPEED: u8 = 1;
 pub const FAN_MODE_CUSTOM: u8 = 6;
+pub(crate) const FAN_MODE_NOISELESS: u8 = 8;
+pub(crate) const NOISELESS_FAN_LABEL: &str = "寂静模式";
 
-pub fn read_profile(hal: &Hal) -> Result<FanProfile> {
-    let mut profile = hal.with_dchu(|d| {
+pub(crate) fn read_firmware_profile(hal: &Hal) -> Result<FanProfile> {
+    hal.with_dchu(|d| {
         profile::decode(
             &d.read_package(13)?,
             &d.read_settings(4, 0, 256)?,
             &d.read_bios_capabilities(0, 256)?,
         )
-    })?;
+    })
+}
+
+pub fn read_profile(hal: &Hal) -> Result<FanProfile> {
+    let mut profile = read_firmware_profile(hal)?;
     if profile.curve_kind == CurveKind::RpmTable && profile.custom_supported {
         profile.rpm_fans = rpm::read(hal)?;
     }
@@ -68,21 +76,27 @@ fn capture_baseline(hal: &Hal, current: &FanProfile, patches: &[Patch]) -> Resul
     } else {
         None
     };
-    let before = hal.with_dchu(|d| {
-        patches
+    let (before, mode) = hal.with_dchu(|d| {
+        let fields = patches
             .iter()
             .map(|p| {
                 d.read_settings(4, p.offset as i32, p.data.len())
                     .map(|bytes| Patch::new(p.offset, bytes))
             })
-            .collect::<Result<Vec<_>>>()
+            .collect::<Result<Vec<_>>>()?;
+        let mode = saved::effective_mode(
+            d,
+            current.current_mode,
+            current.available_modes.contains(&FAN_MODE_NOISELESS),
+        )?;
+        Ok((fields, mode))
     })?;
     let mut state = hal.recovery()?;
     if state.rpm_fan_pairs.is_none() {
         state.rpm_fan_pairs = rpm_pairs;
     }
     if state.fan_mode.is_none() {
-        state.fan_mode = Some(current.current_mode);
+        state.fan_mode = Some(mode);
     }
     if state.fan_package.is_none() {
         state.fan_package = profile::prepare(current, [None; 3])
@@ -125,8 +139,7 @@ fn fail_safe(hal: &Hal, result: Result<()>) -> Result<()> {
 pub(crate) fn release_on_exit(hal: &Hal) -> Result<()> {
     hal.close_software_fan_session()?;
     let _gate = hal.begin_write()?;
-    software::stop_safely(hal)?;
-    hal.disarm_fan_guard()
+    software::stop_safely(hal)
 }
 
 pub fn apply_curve(
@@ -142,8 +155,7 @@ pub fn apply_curve(
     let mut patches = profile::page_patches(&inputs);
     patches.extend(hal.with_dchu(|io| saved::mode(io, FAN_MODE_CUSTOM))?);
     capture_baseline(hal, &current, &patches)?;
-    hal.arm_fan_guard(crate::watchdog::GuardPolicy::Protected)?;
-    fail_safe(hal, software::stop(hal))?;
+    software::stop_safely(hal)?;
     let result = hal.with_dchu(|d| {
         d.set_package(14, &package)?;
         settings::apply(d, 4, &patches, None).map_err(|e| anyhow!(e))?;
@@ -152,20 +164,37 @@ pub fn apply_curve(
     fail_safe(hal, result)
 }
 
-pub fn set_mode(hal: &Hal, mode: u8) -> Result<()> {
-    apply_mode_policy(hal, mode, mode)
+pub(crate) fn automatic_mode(hal: &Hal) -> Result<u8> {
+    hal.with_dchu(|d| {
+        let caps = d.read_bios_capabilities(0, 22)?;
+        let quiet = supports_noiseless(&caps) && !crate::powerctl::mode::boost::turbo_enabled(d)?;
+        saved::effective_mode(d, FAN_MODE_AUTO, quiet)
+    })
+}
+
+pub fn set_mode(hal: &Hal, mode: u8) -> Result<u8> {
+    let effective = if mode == FAN_MODE_AUTO {
+        automatic_mode(hal)?
+    } else {
+        mode
+    };
+    apply_mode_policy(hal, mode, effective)?;
+    Ok(effective)
 }
 
 pub fn apply_mode_policy(hal: &Hal, saved_mode: u8, mode: u8) -> Result<()> {
     dust::ensure_manual_allowed(hal)?;
     validate_mode(mode)?;
     validate_mode(saved_mode)?;
-    if saved_mode != mode && (saved_mode != 0 || mode != 8) {
+    if saved_mode != mode && (saved_mode != FAN_MODE_AUTO || mode != FAN_MODE_NOISELESS) {
         bail!("风扇保存策略与即时模式不一致");
     }
     let current = read_profile(hal)?;
     if !current.available_modes.contains(&mode) {
         bail!("固件未声明支持此风扇模式");
+    }
+    if mode == FAN_MODE_NOISELESS {
+        crate::powerctl::mode::boost::ensure_noiseless_allowed(hal)?;
     }
     if mode == FAN_MODE_CUSTOM {
         if current.curve_kind == CurveKind::RpmTable {
@@ -180,22 +209,13 @@ pub fn apply_mode_policy(hal: &Hal, saved_mode: u8, mode: u8) -> Result<()> {
     }
     let patches = hal.with_dchu(|io| saved::mode(io, saved_mode))?;
     capture_baseline(hal, &current, &patches)?;
-    if mode != FAN_MODE_AUTO {
-        hal.arm_fan_guard(watchdog::GuardPolicy::for_mode(mode))?;
-    } else {
-        hal.prepare_fan_auto()?;
-    }
-    fail_safe(hal, software::stop(hal))?;
+    software::stop_safely(hal)?;
     let result = hal.with_dchu(|d| {
         d.set_data_sub(121, 1, mode as u32)?;
         settings::apply(d, 4, &patches, None).map_err(|e| anyhow!(e))?;
         Ok(())
     });
-    fail_safe(hal, result.and_then(|_| hal.commit_fan_guard(mode)))?;
-    if mode == FAN_MODE_AUTO {
-        hal.disarm_fan_guard()?;
-    }
-    Ok(())
+    fail_safe(hal, result)
 }
 
 pub fn set_offset(hal: &Hal, pct: u32) -> Result<()> {
@@ -206,22 +226,15 @@ pub fn set_offset(hal: &Hal, pct: u32) -> Result<()> {
     let current = read_profile(hal)?;
     let patches = hal.with_dchu(|io| saved::offset(io, pct as u8))?;
     capture_baseline(hal, &current, &patches)?;
-    if current.current_mode != FAN_MODE_AUTO || pct != 0 {
-        hal.arm_fan_guard(watchdog::GuardPolicy::for_mode(current.current_mode))?;
-    }
-    fail_safe(hal, software::stop(hal))?;
+    software::stop_safely(hal)?;
     fail_safe(
         hal,
         hal.with_dchu(|d| {
             d.set_data_sub(121, 14, oem_duty_byte(pct as f64) as u32)?;
             settings::apply(d, 4, &patches, None).map_err(|e| anyhow!(e))?;
-            hal.commit_fan_guard(current.current_mode)
+            Ok(())
         }),
-    )?;
-    if current.current_mode == FAN_MODE_AUTO && pct == 0 {
-        hal.disarm_fan_guard()?;
-    }
-    Ok(())
+    )
 }
 
 pub fn restore_initial(hal: &Hal) -> Result<()> {
@@ -239,13 +252,10 @@ pub fn restore_initial(hal: &Hal) -> Result<()> {
         return Ok(());
     };
     validate_mode(mode)?;
-    if mode == FAN_MODE_AUTO {
-        hal.prepare_fan_auto()?;
+    if mode == FAN_MODE_NOISELESS {
+        crate::powerctl::mode::boost::ensure_noiseless_allowed(hal)?;
     }
-    fail_safe(hal, software::stop(hal))?;
-    if mode != FAN_MODE_AUTO {
-        hal.arm_fan_guard(watchdog::GuardPolicy::for_mode(mode))?;
-    }
+    software::stop_safely(hal)?;
     fail_safe(
         hal,
         hal.with_dchu(|d| {
@@ -267,13 +277,9 @@ pub fn restore_initial(hal: &Hal) -> Result<()> {
             if !patches.is_empty() {
                 settings::apply(d, 4, &patches, None).map_err(|e| anyhow!(e))?;
             }
-            d.set_data_sub(121, 1, mode as u32)?;
-            hal.commit_fan_guard(mode)
+            d.set_data_sub(121, 1, mode as u32)
         }),
     )?;
-    if mode == FAN_MODE_AUTO {
-        hal.disarm_fan_guard()?;
-    }
     let mut state = hal.recovery()?;
     state.fan_page.clear();
     state.fan_package = None;
@@ -307,8 +313,7 @@ pub fn restore_default(hal: &Hal) -> Result<()> {
 }
 
 fn reset_two_point(hal: &Hal) -> Result<()> {
-    hal.prepare_fan_auto()?;
-    fail_safe(hal, software::stop(hal))?;
+    software::stop_safely(hal)?;
     hal.with_dchu(|io| {
         io.set_data_sub(121, 34, 1)?;
         let defaults = profile::decode(
@@ -320,6 +325,5 @@ fn reset_two_point(hal: &Hal) -> Result<()> {
         fields.extend(saved::mode(io, 0)?);
         settings::apply(io, 4, &fields, None).map_err(|e| anyhow!(e))?;
         watchdog::restore_auto(io, hal.reviewed_dsdt)
-    })?;
-    hal.disarm_fan_guard()
+    })
 }

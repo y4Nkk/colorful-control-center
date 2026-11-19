@@ -42,29 +42,11 @@ fn mode_targets_require_an_explicit_ac_preference_field() {
     );
 }
 
-fn change(io: &impl ModeIo, wanted: u8) -> Result<CoreSnapshot> {
-    let target = policy::target(io, wanted, hardware_energy())?;
-    let before = capture(io, true)?;
-    write(
-        io,
-        CoreSnapshot {
-            mode: wanted,
-            command: target.command(),
-            preferences: before.preferences,
-            ac_mode: target.ac_mode,
-        },
-        &mut || Ok(()),
-        &mut false,
-    )?;
-    Ok(before)
-}
-
 struct Memory {
     features: Cell<[u32; 2]>,
     pages: RefCell<[[u8; 256]; 8]>,
     commands: RefCell<Vec<u32>>,
     fail_command: Cell<bool>,
-    fail_save: Cell<bool>,
     tables: RefCell<std::collections::BTreeMap<u8, [u8; 256]>>,
 }
 
@@ -79,7 +61,6 @@ impl Memory {
             pages: RefCell::new(pages),
             commands: RefCell::new(vec![]),
             fail_command: Cell::new(false),
-            fail_save: Cell::new(false),
             tables: RefCell::new(Default::default()),
         }
     }
@@ -90,9 +71,6 @@ impl SettingsAccess for Memory {
         Ok(self.pages.borrow()[page as usize][offset..offset + length].to_vec())
     }
     fn write(&self, page: u8, offset: usize, data: &[u8]) -> Result<(), String> {
-        if self.fail_save.replace(false) {
-            return Err("模拟保存失败".into());
-        }
         self.pages.borrow_mut()[page as usize][offset..offset + data.len()].copy_from_slice(data);
         Ok(())
     }
@@ -123,62 +101,41 @@ impl ModeIo for Memory {
 }
 
 #[test]
-fn performance_preserves_turbo_and_dtt_flags() {
-    let io = Memory::new(3);
+fn performance_encoding_and_recovery_preserve_turbo_and_dtt_flags() {
+    let io = Memory::new(2);
     io.pages.borrow_mut()[1][32] = 1;
     io.pages.borrow_mut()[4][8] = 1;
-    let before = change(&io, 2).unwrap();
+    let target = policy::target(&io, 2, hardware_energy()).unwrap();
+    let before = capture(&io, true).unwrap();
+    assert_eq!(target.command(), 0xc2);
+    io.pages.borrow_mut()[1][1] = 3;
+    io.pages.borrow_mut()[1][32] = 0;
+    io.pages.borrow_mut()[4][8] = 0;
+    recover(&io, before).unwrap();
     assert_eq!(*io.commands.borrow(), [0xc2]);
     assert_eq!(byte(&io, 1, 1).unwrap(), 2);
-    recover(&io, before).unwrap();
-    assert_eq!(*io.commands.borrow(), [0xc2, 3]);
-    assert_eq!(byte(&io, 1, 1).unwrap(), 3);
     assert_eq!(byte(&io, 1, 32).unwrap(), 1);
     assert_eq!(byte(&io, 4, 8).unwrap(), 1);
-}
-
-#[test]
-fn failed_save_restores_command_and_saved_mode() {
-    let io = Memory::new(2);
-    io.pages.borrow_mut()[4][8] = 1;
-    io.fail_save.set(true);
-    let before = capture(&io, true).unwrap();
-    let error = change(&io, 0).err().unwrap().to_string();
-    assert!(error.contains("模拟保存失败"));
-    recover(&io, before).unwrap();
-    assert_eq!(*io.commands.borrow(), [0, 0x42]);
-    assert_eq!(byte(&io, 1, 1).unwrap(), 2);
-}
-
-#[test]
-fn failed_command_still_attempts_recovery() {
-    let io = Memory::new(1);
-    io.fail_command.set(true);
-    let before = capture(&io, true).unwrap();
-    assert!(change(&io, 3).is_err());
-    recover(&io, before).unwrap();
-    assert_eq!(*io.commands.borrow(), [3, 1]);
-    assert_eq!(byte(&io, 1, 1).unwrap(), 1);
 }
 
 #[test]
 fn unknown_modes_and_unsupported_capabilities_never_write() {
     let io = Memory::new(0);
     for mode in [4, 255] {
-        assert!(change(&io, mode).is_err());
+        assert!(policy::target(&io, mode, hardware_energy()).is_err());
     }
     io.pages.borrow_mut()[7][17] = 0;
-    assert!(change(&io, 2).is_err());
+    assert!(policy::target(&io, 2, hardware_energy()).is_err());
     io.pages.borrow_mut()[7][17] = 15;
     io.pages.borrow_mut()[7][0] = 2;
-    assert!(change(&io, 2).is_err());
+    assert!(policy::target(&io, 2, hardware_energy()).is_err());
     assert!(io.commands.borrow().is_empty());
 }
 
 #[test]
 fn unknown_initial_mode_rejects_before_write() {
     let io = Memory::new(5);
-    assert!(change(&io, 2).is_err());
+    assert!(capture(&io, true).is_err());
     assert!(io.commands.borrow().is_empty());
 }
 
@@ -206,12 +163,14 @@ fn quiet_plus_is_distinct_saved_mode_with_quiet_immediate_command() {
     let io = Memory::new(4);
     io.pages.borrow_mut()[7][17] = 0x8f;
     assert_eq!(available(&io).unwrap(), [1, 2, 3, 4]);
-    let before = change(&io, 2).unwrap();
+    let target = policy::target(&io, 4, hardware_energy()).unwrap();
+    assert_eq!(target.mode, 4);
+    assert_eq!(target.command(), 0);
+    let before = capture(&io, true).unwrap();
+    io.pages.borrow_mut()[1][1] = 2;
     recover(&io, before).unwrap();
-    assert_eq!(*io.commands.borrow(), [2, 0]);
+    assert_eq!(*io.commands.borrow(), [0]);
     assert_eq!(byte(&io, 1, 1).unwrap(), 4);
-    change(&io, 4).unwrap();
-    assert_eq!(io.commands.borrow().last(), Some(&0));
 }
 #[test]
 fn policy_uses_distinct_quiet_plus_aspm_and_power_plan_slots() {

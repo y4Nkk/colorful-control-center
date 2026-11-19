@@ -16,7 +16,7 @@ export async function savePowerPolicy(data, request) {
   for (const key of ["ac", "battery", "resume"]) {
     const selected = request[key];
     if (!selected) continue;
-    if (JSON.stringify(selected.file) !== JSON.stringify(data.profile)) throw new Error("自动档案内容已变化，请重新预览");
+    if (JSON.stringify(selected.file) !== JSON.stringify(profileFiles(data).find(file => file.name === selected.file.name))) throw new Error("自动档案内容已变化，请重新预览");
     const mode = selected.file.settings.oemPowerMode == null ? null : await previewProfileAuthorization(data, selected.file.settings);
     if (JSON.stringify(selected.mode) !== JSON.stringify(mode)) throw new Error("自动档案模式联动已变化，请重新预览");
     target[key] = await backgroundProfileBinding(selected.file, mode);
@@ -41,6 +41,23 @@ export async function invokePowerPolicy(data, command, args) {
   }
   if (data.powerPolicyFault) { const error = data.powerPolicyFault; data.powerPolicyFault = null; throw new Error(error); }
   if (command === "save_power_profile_policy") return savePowerPolicy(data, args.request);
+  if (command === "set_power_profile_policy_enabled") {
+    if (view.configurationError || JSON.stringify(args.expected) !== JSON.stringify(view.record)) throw new Error("自动档案规则已变化");
+    if (args.enabled) {
+      if (!view.route || view.listenerError) throw new Error("电源通知尚未就绪");
+      const rules = [view.record.ac, view.record.battery, view.record.resume].filter(Boolean);
+      if (!rules.length) throw new Error("至少选择一条规则");
+      for (const rule of rules) {
+        const file = profileFiles(data).find(file => file.name === rule.profile);
+        if (!file) throw new Error("档案内容已变化");
+        const binding = await backgroundProfileBinding(file, rule.mode ? await previewProfileAuthorization(data, file.settings) : null);
+        if (rule.digest !== binding.digest || rule.mode?.identity !== binding.mode?.identity) throw new Error("档案内容或模式授权已变化");
+      }
+    }
+    view.record.enabled = args.enabled;
+    view.active = args.enabled; view.paused = false; view.lastIssue = null; view.pending = null;
+    return null;
+  }
   if (command === "reset_power_profile_policy") {
     if (!view.configurationError || !view.resetRevision || args.expectedRevision !== view.resetRevision) throw new Error("不可用自动档案规则已变化，请重新读取后确认清除");
     Object.assign(view, { record: { version: 2, enabled: false, ac: null, battery: null, resume: null }, initial: null,

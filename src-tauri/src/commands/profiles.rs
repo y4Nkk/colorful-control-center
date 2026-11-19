@@ -1,16 +1,18 @@
-//! 性能档案命令层（薄委托 → profiles；应用流水线每步独立报告）。
+//! 配置档案命令层。应用流水线逐步报告结果。
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
 use crate::hal::Hal;
-use crate::profiles::{Application, ProfileMeta, ProfileSettings};
+use crate::profiles::{Application, ProfileGroup, ProfileMeta, ProfileSettings};
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SaveProfileArgs {
     pub name: String,
     pub settings: ProfileSettings,
+    #[serde(deserialize_with = "Option::deserialize")]
+    pub expected_revision: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -20,11 +22,22 @@ pub struct OpResult {
     pub message: String,
 }
 
+#[derive(Serialize)]
+pub(crate) struct CapturedProfile {
+    settings: ProfileSettings,
+    groups: Vec<ProfileGroup>,
+}
+
 #[tauri::command]
 pub(crate) fn save_profile(app: AppHandle, args: SaveProfileArgs) -> Result<OpResult, String> {
-    match crate::profiles::save(&app, args.settings, &args.name) {
+    match crate::profiles::save(
+        &app,
+        args.settings,
+        &args.name,
+        args.expected_revision.as_deref(),
+    ) {
         Ok(()) => {
-            crate::tray::refresh(&app);
+            crate::tray::refresh_profiles(&app);
             Ok(OpResult {
                 ok: true,
                 message: "档案已保存".into(),
@@ -51,10 +64,14 @@ pub(crate) fn load_profile(
 }
 
 #[tauri::command]
-pub(crate) fn delete_profile(app: AppHandle, name: String) -> Result<OpResult, String> {
-    match crate::profiles::delete(&app, &name) {
+pub(crate) fn delete_profile(
+    app: AppHandle,
+    name: String,
+    expected_revision: String,
+) -> Result<OpResult, String> {
+    match crate::profiles::delete(&app, &name, &expected_revision) {
         Ok(unlinked) => {
-            crate::tray::refresh(&app);
+            crate::tray::refresh_profiles(&app);
             Ok(OpResult {
                 ok: true,
                 message: if unlinked {
@@ -73,13 +90,21 @@ pub(crate) fn delete_profile(app: AppHandle, name: String) -> Result<OpResult, S
 }
 
 #[tauri::command]
-pub(crate) async fn capture_profile_settings(app: AppHandle) -> Result<ProfileSettings, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+pub(crate) async fn capture_profile_settings(
+    app: AppHandle,
+    groups: Vec<ProfileGroup>,
+) -> Result<CapturedProfile, String> {
+    crate::shutdown::blocking(move || {
         crate::profiles::capture_current(
             &app.state::<Hal>(),
             &app.state::<crate::gpuctl::GpuController>(),
             crate::profiles::Devices::from_app(&app),
+            &groups,
         )
+        .map(|settings| CapturedProfile {
+            groups: ProfileGroup::captured(&settings),
+            settings,
+        })
         .map_err(|e| format!("{e:#}"))
     })
     .await
@@ -87,11 +112,29 @@ pub(crate) async fn capture_profile_settings(app: AppHandle) -> Result<ProfileSe
 }
 
 #[tauri::command]
+pub(crate) async fn preview_profile_application(
+    app: AppHandle,
+    settings: ProfileSettings,
+) -> Result<crate::profiles::ManualPreview, String> {
+    crate::shutdown::blocking(move || {
+        crate::profiles::preview_manual(
+            &app.state::<Hal>(),
+            &app.state::<crate::gpuctl::GpuController>(),
+            crate::profiles::Devices::from_app(&app),
+            &settings,
+        )
+        .map_err(|error| format!("{error:#}"))
+    })
+    .await
+    .map_err(|error| format!("档案变更预览任务失败：{error}"))?
+}
+
+#[tauri::command]
 pub(crate) async fn preview_profile_authorization(
     app: AppHandle,
     settings: ProfileSettings,
 ) -> Result<Option<crate::powerctl::mode::profile::ApprovalPreview>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         let hal = app.state::<Hal>();
         let gpu = app.state::<crate::gpuctl::GpuController>();
         let power = app.state::<crate::gpu_power::Controller>();
@@ -106,25 +149,6 @@ pub(crate) async fn preview_profile_authorization(
 }
 
 #[tauri::command]
-pub(crate) async fn preview_profile_mode(
-    app: AppHandle,
-    settings: ProfileSettings,
-) -> Result<Option<crate::powerctl::mode::Target>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let hal = app.state::<Hal>();
-        let gpu = app.state::<crate::gpuctl::GpuController>();
-        let power = app.state::<crate::gpu_power::Controller>();
-        let session =
-            crate::powerctl::mode::links::Context::native(&hal, &gpu, &power).session()?;
-        let _gate = hal.begin_write()?;
-        crate::profiles::preview_mode(&session.context, &settings)
-    })
-    .await
-    .map_err(|error| format!("档案模式预览任务失败：{error}"))?
-    .map_err(|error| format!("{error:#}"))
-}
-
-#[tauri::command]
 pub(crate) async fn apply_profile(
     app: AppHandle,
     expected: crate::profiles::ProfileFile,
@@ -133,7 +157,7 @@ pub(crate) async fn apply_profile(
     expected_gpu_power: Option<crate::gpu_power::profile::Review>,
     expected_graphics_mode: Option<crate::graphics_mode::profile::Review>,
 ) -> Result<Application, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         crate::profiles::apply_preview(
             &app,
             &app.state::<Hal>(),
@@ -155,7 +179,7 @@ pub(crate) async fn preview_profile_display(
     app: AppHandle,
     settings: ProfileSettings,
 ) -> Result<Option<crate::display::profile::Review>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         crate::profiles::validate(&settings)?;
         let hal = app.state::<Hal>();
         let _gate = hal.begin_write()?;
@@ -177,7 +201,7 @@ pub(crate) async fn preview_profile_gpu_power(
     app: AppHandle,
     settings: ProfileSettings,
 ) -> Result<Option<crate::gpu_power::profile::Review>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         crate::profiles::validate(&settings)?;
         let controller = app.state::<crate::gpu_power::Controller>();
         let scope = controller.scope()?;
@@ -197,7 +221,7 @@ pub(crate) async fn preview_profile_gpu_power(
 pub(crate) async fn read_profile_application(
     app: AppHandle,
 ) -> Result<Option<Application>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         let report = app
             .state::<crate::profiles::application::Controller>()
             .read(&app.state::<crate::display::Controller>())?;
@@ -209,7 +233,7 @@ pub(crate) async fn read_profile_application(
 }
 #[tauri::command]
 pub(crate) async fn keep_profile_display(app: AppHandle, id: u64) -> Result<Application, String> {
-    tauri::async_runtime::spawn_blocking(move || crate::profiles::application::keep(&app, id))
+    crate::shutdown::blocking(move || crate::profiles::application::keep(&app, id))
         .await
         .map_err(|error| format!("档案确认任务失败：{error}"))?
         .map_err(|error| format!("{error:#}"))
@@ -219,7 +243,7 @@ pub(crate) async fn cancel_profile_application(
     app: AppHandle,
     id: u64,
 ) -> Result<Application, String> {
-    tauri::async_runtime::spawn_blocking(move || crate::profiles::application::cancel(&app, id))
+    crate::shutdown::blocking(move || crate::profiles::application::cancel(&app, id))
         .await
         .map_err(|error| format!("档案恢复任务失败：{error}"))?
         .map_err(|error| format!("{error:#}"))
@@ -229,7 +253,7 @@ pub(crate) async fn preview_profile_graphics_mode(
     app: AppHandle,
     settings: ProfileSettings,
 ) -> Result<Option<crate::graphics_mode::profile::Review>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         crate::profiles::validate(&settings)?;
         let controller = app.state::<crate::graphics_mode::Controller>();
         let scope = controller.scope()?;

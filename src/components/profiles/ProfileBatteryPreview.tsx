@@ -1,4 +1,5 @@
 import { Icon } from "../Icon";
+import { ENERGY_POLICY_LABEL } from "../../api/battery";
 import type { ProfileSettings } from "../../api/profiles";
 import { ENERGY_DAYS, energyHour } from "../../lib/energy-policy";
 import { Surface } from "../Surface";
@@ -21,8 +22,8 @@ export function ProfileBatteryPreview({ settings }: { settings: ProfileSettings 
         <MetricReadout label="停止充电阈值" value={charge.values.stop} maximum={100} unit="%" colorVar="var(--ccc-safe)" />
       </div> : <FactList compact facts={[{ label: "原始开始阈值", value: `${charge.values.start}%` }, { label: "原始停止阈值", value: `${charge.values.stop}%` }]} />}
     </Surface>}
-    {energy && policy && <Surface as="section" variant="group" className="ccc-profile-device" aria-label="档案电池节能">
-      <div className="ccc-profile-values"><h3 className="ccc-icon-title"><Icon name="sleep" />电池节能计划</h3><strong>{policy.enabled ? "启用节能时段" : "停止节能时段"}</strong>
+    {energy && policy && <Surface as="section" variant="group" className="ccc-profile-device" aria-label={`档案${ENERGY_POLICY_LABEL}`}>
+      <div className="ccc-profile-values"><h3 className="ccc-icon-title"><Icon name="sleep" />{ENERGY_POLICY_LABEL}</h3><strong>{policy.enabled ? "启用节能时段" : "停止节能时段"}</strong>
         <p className="ccc-control-caption">{policy.everyDay ? "每天" : ENERGY_DAYS.filter((_, index) => policy.weekdays & (1 << index)).map(day => `周${day}`).join("、") || "未选择星期"}</p>
         <p className="ccc-control-caption">{policy.automatic ? energy.capability.factoryDefaulted ? "原厂默认" : "原厂自动" : "自定义"} · {policy.limits.floor}–{policy.limits.ceiling}%</p>
         <DetailsDialog title="节能策略说明"><p>{policy.enabled ? "计划管理充电阈值，需保持固件能力一致。" : "先停止并清空固件时段，恢复启用前充电策略。"}</p></DetailsDialog>

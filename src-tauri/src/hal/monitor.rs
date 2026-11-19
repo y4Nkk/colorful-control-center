@@ -2,7 +2,7 @@ use super::{FanSnapshot, Hal, HardwareSnapshot, memory};
 
 impl Hal {
     pub fn display_snapshot(&self) -> HardwareSnapshot {
-        let mut snapshot = self.snapshot();
+        let mut snapshot = self.sample_hardware(true);
         let reading = self
             .cpu_utility
             .lock()
@@ -19,6 +19,9 @@ impl Hal {
         snapshot
     }
     pub fn snapshot(&self) -> HardwareSnapshot {
+        self.sample_hardware(false)
+    }
+    fn sample_hardware(&self, display: bool) -> HardwareSnapshot {
         let mut snapshot = HardwareSnapshot {
             sampled_at_ms: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -27,6 +30,14 @@ impl Hal {
             ..Default::default()
         };
         if let Err(error) = self.with_dchu(|io| {
+            if display {
+                match crate::powerctl::mode::current_mode(io) {
+                    Ok(mode) => snapshot.oem_power_mode = Some(mode),
+                    Err(error) => snapshot
+                        .warnings
+                        .push(format!("当前模式读取失败：{error:#}")),
+                }
+            }
             let package = io.read_package(12)?;
             decode_fans(&mut snapshot, &package);
             snapshot.dchu_available = true;

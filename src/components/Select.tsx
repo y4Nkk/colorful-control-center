@@ -10,12 +10,13 @@ export function Select(props: SelectProps) {
   const model = useSelect(props);
   const selected = props.options.find(option => option.value === props.value);
   return <span className="ccc-select">
-    <Button id={props.id} ref={model.trigger} variant="field" size={props.size} className="ccc-field ccc-select-trigger"
+    <Button id={props.id} ref={model.trigger} variant="field" size={props.size} className="ccc-select-trigger"
       role="combobox" aria-label={props.label} aria-expanded={model.open} aria-haspopup="listbox"
       aria-controls={model.open ? model.listId : undefined} aria-activedescendant={model.open ? model.activeId : undefined}
+      data-placeholder={selected === undefined || undefined}
       aria-disabled={props.disabled || undefined} tabIndex={props.disabled ? -1 : 0} onClick={model.toggle} onKeyDown={model.keyDown}>
       <span style={selected?.style}>{selected?.label ?? props.placeholder ?? "请选择"}</span>
-      <Icon name="chevron-right" />
+      <Icon name="chevron-down" size={16} />
     </Button>
     {model.open && createPortal(<SelectMenu props={props} model={model} />, model.trigger.current?.closest("dialog") ?? document.body)}
   </span>;

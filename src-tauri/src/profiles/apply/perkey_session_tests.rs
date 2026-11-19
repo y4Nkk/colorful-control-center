@@ -186,7 +186,7 @@ fn file_changed_while_preparing_rejects_manual_confirmation_without_writes() {
     let h = Harness::new();
     h.start_old();
     let dir = tempfile::tempdir().unwrap();
-    crate::profiles::save_in(dir.path(), h.settings(true), "逐键").unwrap();
+    crate::profiles::save_in(dir.path(), h.settings(true), "逐键", None).unwrap();
     let expected = crate::profiles::load_from(dir.path(), "逐键").unwrap();
     let mut changed = expected.clone();
     changed.saved_at_ms += 1;

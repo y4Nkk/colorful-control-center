@@ -18,6 +18,6 @@ export function MacroRecorder({ active, disabled, onAdopt, onRecordingChange }: 
     </div>
     <p className="ccc-control-caption" role="status">{recording ? `正在录制 · ${model.capture?.steps.length ?? 0} 步 · ${Math.floor((model.capture?.elapsedMs ?? 0) / 1000)} 秒，按 Esc 停止` : model.capture?.reason ?? "最多256步 · 2分钟"}</p>
     {model.error && <p className="ccc-control-error" role="alert">{model.error}</p>}
-    {recording && <span className="ccc-chip is-warn">按键照常输入 · 失焦停止</span>}
+    {recording && <span className="ccc-control-caption is-warn">按键照常输入 · 失焦停止</span>}
   </div>;
 }

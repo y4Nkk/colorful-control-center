@@ -9,13 +9,15 @@ export function ProfilePerformancePreview({ settings }: { settings: ProfileSetti
   const values = settings.performanceOptions;
   if (!values) return null;
   const mode = settings.oemPowerMode;
+  const canApplyOptions = mode == null || mode === 2 || mode === 3;
+  const summary = mode === 2 ? "随性能模式应用" : mode === 3 ? "按娱乐模式能力应用" : mode == null ? "按当前模式应用" : "保存性能选项偏好";
   return <Surface as="section" variant="group" className="ccc-profile-device" aria-label="档案性能选项">
     <div className="ccc-profile-values"><h3 className="ccc-icon-title"><Icon name="performance" />性能选项</h3>
-      <strong>{mode === 2 ? "随性能模式应用" : mode == null ? "按当前模式应用" : "保存性能模式偏好"}</strong>
+      <strong>{summary}</strong>
       <DetailsDialog title="应用顺序">
-      <p className="ccc-control-caption">{mode === 2 ? "选项合入已预览的模式命令。" : mode == null ? "性能模式立即应用；其他模式只保存偏好。" : "进入性能模式后使用这些偏好；本次不激活它们。"}</p>
-      {(mode == null || mode === 2) && <p className="ccc-control-caption">Turbo 变更先切回自动风扇，再应用档案风扇目标。</p>}
-      {(mode == null || mode === 2) && settings.fanMode == null && !settings.fanCurves && !settings.fanRpmCurves && !settings.fanSoftwareCurves
+      <p className="ccc-control-caption">{canApplyOptions ? "娱乐与性能模式按固件能力应用性能选项。模式联动目标会列出将开启的选项。" : "将选项保存为偏好。"}</p>
+      {canApplyOptions && <p className="ccc-control-caption">Turbo 风扇生效时，先应用自动风扇策略，再应用档案风扇目标。</p>}
+      {canApplyOptions && settings.fanMode == null && !settings.fanCurves && !settings.fanRpmCurves && !settings.fanSoftwareCurves
         && <p className="ccc-control-caption">未指定风扇目标时，临时释放的软件曲线会恢复。</p>}
       </DetailsDialog>
     </div>

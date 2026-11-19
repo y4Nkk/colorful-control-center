@@ -2,8 +2,8 @@ import { invokeDisplay } from "./mock-display.mjs";
 import { invokeAirplane } from "./mock-airplane.mjs";
 import { invokeAutoRefresh } from "./mock-auto-refresh.mjs";
 import { invokeSupplyMode } from "./mock-supply-mode.mjs";
-import { invokePerformance } from "./mock-performance.mjs";
-import { modeGpuReview, modePreviewTarget, modeRestoreTarget, modeRestoreIssue, rememberMode, applyModeGpu } from "./mock-mode-state.mjs";
+import { applyPerformanceOptions, invokePerformance } from "./mock-performance.mjs";
+import { modeGpuReview, appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, modeRestoreTarget, modeRestoreIssue, rememberMode, applyModeGpu } from "./mock-mode-state.mjs";
 import { initPowerPolicy, savePowerPolicy, invokePowerPolicy } from "./mock-profile-policy.mjs";
 import { invokeLightingOptions, applyProfileLightingOptions } from "./mock-lighting-options.mjs";
 import { invokeTouchpad, applyTouchpadTarget, applyProfileTouchpad } from "./mock-touchpad.mjs";
@@ -14,24 +14,22 @@ import { stopHotkeysFixture, restoreBatteryAlertFixture, batteryThresholdFixture
 import { invokeLightBar } from "./mock-lightbar.mjs";
 import { invokeUsb } from "./mock-usb.mjs";
 import { invokeLan } from "./mock-lan.mjs";
-import { captureProfileDevices } from "./mock-profile-capture.mjs";
+import { captureProfileDevices, captureProfilePower, captureProfileLighting, captureProfileInputs, profileFields, profileGroups, emptyProfileSettings } from "./mock-profile-capture.mjs";
+import { invokeProfileStorage, profileFiles } from "./mock-profile-storage.mjs";
 import { previewProfileMode, applyProfileMode, profileNodeStages } from "./mock-profile-mode.mjs";
 import { profileDigest, backgroundProfileBinding, previewProfileAuthorization, invokeStartup } from "./mock-profile-authorization.mjs";
 import { captureProfileLan, reviewProfileLan } from "./mock-profile-lan.mjs";
 import { captureProfileGraphicsMode, previewProfileGraphicsMode, applyProfileGraphicsMode, restoreProfileGraphicsMode } from "./mock-profile-mux.mjs";
 import { captureProfileGpuPower, previewProfileGpuPower, applyProfileGpuPower, commitProfileTargets } from "./mock-profile-gpu.mjs";
-import { previewProfileDisplay, profileApplicationSteps, recoverProfileDisplay, syncProfileApplication, beginProfileApplication, invokeProfileApplication } from "./mock-profile-application.mjs";
+import { previewProfileDisplay, previewManualProfile, profileApplicationSteps, recoverProfileDisplay, syncProfileApplication, beginProfileApplication, invokeProfileApplication } from "./mock-profile-application.mjs";
 
 function fixtureData() {
-  const settings = { runtimeCpu: null, oemPowerMode: null, fanMode: null, fanSoftwareCurves: null, fanRpmCurves: null,
-    fanCurves: null, pl1W: null, pl2W: null, coreOffsetMv: null, gtOffsetMv: null, gpu: null, lightBar: null, dustSchedule: null,
-    keyboard: null, microphones: null, touchpad: null, keyboardLighting: null, lightingOptions: null, perkeyLighting: null, keymap: null, powerDelivery: null, usbPolicy: null,
-    batteryCharge: null, batteryEnergy: null, performanceOptions: null, lanPolicy: null, display: null, gpuPower: null };
+  const settings = { ...emptyProfileSettings(), fanMode: 0 };
   const color = { r: 0, g: 100, b: 255 };
   window.__uiFixture = { calls: [], faults: [], fanKind: "twoPoint", family: "zoneRgb", delay: 0, acMode: 2, modeInitial: null, modeEnergy: { hardwarePState: false, energyStar: 2 },
     preferences: { theme: "light", interfaceFont: "system", interfaceScale: 100, motion: "reduce", closeBehavior: "hideToTray",
       alwaysOnTop: false, startMinimized: false, startupPage: "dashboard", globalShortcut: "", runtimeLogLevel: "info", hardwareAcceleration: true },
-    profile: { version: 1, name: "隔离档案", savedAtMs: 1, settings },
+    profile: { version: 1, name: "隔离档案", savedAtMs: 1, settings }, otherProfiles: [],
     fan: { softwareSupported: true, software: null, curveKind: "twoPoint", rpmFans: [], availableModes: [0, 1, 6], fanCount: 1,
       customSupported: true, currentMode: 0, offsetPct: 0, canRestore: true, warnings: ["隔离风扇诊断"], safetyStatus: "已读取", blockedReason: null, softwareBlockedReason: null,
       fans: [{ id: "cpu", present: true, t1: 30, d1Pct: 20, t2: 60, d2Pct: 50, t3: 90, d3Pct: 99 }] },
@@ -76,7 +74,7 @@ function fixtureData() {
       recoveryRequired: false, chargeOnStop: { current: { enabled: false, start: 95, stop: 100 }, startValues: [40, 50, 60, 70, 80, 95], stopValues: [60, 70, 80, 90, 100] },
       chargeReported: { enabled: false, start: 95, stop: 100 }, hasInitialPlan: true, initialCharge: { enabled: false, start: 95, stop: 100 }, error: null, canWrite: true }, energySupported: true, energyRevision: 0, energyFault: null, energyRecoveryFault: false,
     performanceOptions: { current: { turboFan: false, dtt: false }, currentMode: 2, customFan: false, softwareActive: false, blockedReason: null,
-      dttDriverAvailable: true, revision: "options-0", canRestore: false, warnings: [] }, performanceRevision: 0, performanceFault: null,
+      dttDriverAvailable: true, revision: "options-0", canRestore: false, warnings: [] }, performanceRevision: 0, performanceFault: null, performanceFanMode: null, entertainmentQuiet: false,
     perkey: { revision: "perkey-0", current: { brightness: 3, enabled: true, speed: 1,
       pattern: { kind: "static", colors: Array.from({ length: 120 }, () => ({ r: 20, g: 80, b: 160 })) } },
       device: { newEffects: true, language: 0, narrowBorder: true, threeColumn: false, compact: false, physicalThreeColumn: false },
@@ -113,18 +111,25 @@ function installIpc() {
         case "read_osd": case "preview_osd": case "read_hotkeys": case "read_hotkey_status": case "dismiss_battery_cold_warning": case "acknowledge_hotkey_navigation": case "apply_hotkeys": case "restore_hotkeys": case "reset_invalid_hotkeys": case "stop_hotkeys": case "restore_screen_brightness": case "restore_battery_alert_audio": case "restore_low_battery_brightness": case "end_panel_hotkey": case "restore_gpu_turbo": case "restore_battery_thresholds": case "restore_pd_event": return invokeHotkeys(data, command, args, emit);
         case "plugin:event|listen": { const id = nextId++; listeners.set(id, args); return id; }
         case "plugin:event|unlisten": return null;
-        case "read_power_profile_policy": case "save_power_profile_policy": case "pause_power_profile_policy":
+        case "read_power_profile_policy": case "save_power_profile_policy": case "set_power_profile_policy_enabled": case "pause_power_profile_policy":
         case "restore_power_profile_policy": case "reload_power_profile_policy": case "reset_power_profile_policy": case "read_automatic_profile_application": return invokePowerPolicy(data, command, args);
         case "read_hardware_snapshot": return hardwareSnapshot(data);
         case "read_system_overview": return { cpu: { vendor: "intel", name: "Isolated CPU" }, memory: { totalBytes: 17179869184, availableBytes: 8589934592 }, volumes: [], warnings: [] };
         case "read_fan_profile": return fanProfile(data);
+        case "set_fan_mode": {
+          if (data.dust?.running || !data.fan.availableModes.includes(args.mode)) return { ok: false, message: "风扇模式不可用" };
+          data.fan.currentMode = args.mode;
+          data.fan.software = null;
+          return { ok: true, message: "风扇模式已写入" };
+        }
         case "read_power_profile": return data.power;
         case "read_gpu_profile": return data.gpu;
         case "read_touchpad": case "apply_touchpad": case "restore_touchpad": return invokeTouchpad(data, command, args);
         case "read_microphones": case "apply_microphones": case "restore_microphones": return invokeMicrophones(data, command, args);
         case "read_airplane": case "apply_airplane": case "restore_airplane": return invokeAirplane(data, command, args);
         case "restore_fan_default": return { ok: true, message: "隔离恢复完成" };
-        case "read_multi_zone_lighting": case "apply_multi_zone_lighting": case "restore_multi_zone_lighting": case "read_keyboard_lighting": case "read_lighting_options":
+        case "read_multi_zone_lighting": case "apply_multi_zone_lighting": case "restore_multi_zone_lighting": case "read_lighting_options":
+        case "read_keyboard_lighting": case "apply_keyboard_lighting": case "restore_keyboard_lighting":
         case "apply_lighting_options": case "restore_lighting_options":
         case "read_keyboard_settings": case "apply_keyboard_settings": case "restore_keyboard_settings":
         case "read_perkey_lighting": case "apply_perkey_lighting": case "restore_perkey_lighting":
@@ -151,8 +156,8 @@ function installIpc() {
         case "read_gpu_power": case "apply_gpu_power": case "restore_gpu_power":
           return invokeGpuPower(data, command, args, emitSnapshot);
         case "get_startup_profile": case "set_startup_profile": case "get_autostart": case "set_autostart":
-        case "get_backend_info": case "list_profiles": case "load_profile": case "preview_profile_import": case "preview_profile_mode": case "preview_profile_authorization":
-        case "capture_profile_settings": case "save_profile": case "apply_profile": case "export_profile": case "import_profile":
+        case "get_backend_info": case "list_profiles": case "load_profile": case "preview_profile_import": case "preview_profile_application": case "preview_profile_authorization":
+        case "capture_profile_settings": case "save_profile": case "apply_profile": case "export_profile": case "delete_profile":
         case "preview_profile_display": case "preview_profile_graphics_mode": case "preview_profile_gpu_power": case "read_profile_application": case "keep_profile_display": case "cancel_profile_application":
         case "get_app_preferences": case "set_app_preferences":
         case "list_system_fonts": case "set_shortcut_recording": return invokeSoftware(data, command, args);
@@ -172,7 +177,25 @@ function installIpc() {
 async function invokeLighting(data, command, args) {
   switch (command) {
     case "read_multi_zone_lighting": case "apply_multi_zone_lighting": case "restore_multi_zone_lighting": return invokeMultiZone(data, command, args);
-    case "read_keyboard_lighting": return { ...data.keyboard, detectedFamily: data.family };
+    case "read_keyboard_lighting": return structuredClone({ ...data.keyboard, detectedFamily: data.family });
+    case "apply_keyboard_lighting": {
+      const { request } = args, keyboard = data.keyboard;
+      if (!keyboard.current || request.family !== data.family) return { ok: false, message: "键盘灯配置不可用", rollbackError: null };
+      keyboard.baseline ??= structuredClone(keyboard.current);
+      if (request.brightness > 0) keyboard.current.brightnessLevel = request.brightness;
+      keyboard.current.enabled = request.brightness > 0;
+      if (request.family === "zoneRgb") {
+        keyboard.current.effect = request.effect;
+        keyboard.current.allColor = structuredClone(request.allColor);
+        keyboard.current.zones = structuredClone(request.zones);
+      }
+      return { ok: true, message: "键盘灯设置已写入", rollbackError: null };
+    }
+    case "restore_keyboard_lighting":
+      if (!data.keyboard.baseline) return { ok: false, message: "没有初始键盘灯设置", rollbackError: null };
+      data.keyboard.current = structuredClone(data.keyboard.baseline);
+      data.keyboard.baseline = null;
+      return { ok: true, message: "键盘灯设置已恢复", rollbackError: null };
     case "read_lighting_options": case "apply_lighting_options": case "restore_lighting_options": return invokeLightingOptions(data, command, args);
     case "read_keyboard_settings": return structuredClone(data.keyboardSettings);
     case "apply_keyboard_settings":
@@ -342,16 +365,12 @@ async function invokeSoftware(data, command, args) {
         legacy: args.restore ? data.autostartInitial.legacy : false, canRestore: !args.restore };
       return structuredClone(data.autostart);
     }
-    case "get_backend_info": return { name: "Isolated UI", version: "0.1.0" };
-    case "list_profiles": return [{ name: data.profile.name, savedAtMs: data.profile.savedAtMs }];
-    case "load_profile": return structuredClone(data.profile);
-    case "preview_profile_mode": return previewProfileMode(data, args.settings);
+    case "get_backend_info": return { name: "Isolated UI", version: "1.0.0" };
+    case "list_profiles": case "load_profile": case "preview_profile_import":
+    case "save_profile": case "export_profile": case "delete_profile": return invokeProfileStorage(data, command, args);
+    case "preview_profile_application": return previewManualProfile(data, args.settings);
     case "preview_profile_authorization": return previewProfileAuthorization(data, args.settings);
-    case "preview_profile_import": return args.json === "{}" ? { ...structuredClone(data.profile), name: "导入草稿" } : JSON.parse(args.json);
-    case "capture_profile_settings": return captureProfileDevices(data);
-    case "save_profile": data.profile = { version: 1, name: args.args.name, savedAtMs: Date.now(), settings: structuredClone(args.args.settings) }; return { ok: true, message: "档案已保存" };
-    case "export_profile": return JSON.stringify(data.profile);
-    case "import_profile": data.profile = JSON.parse(args.json); return { ok: true, message: "档案已导入" };
+    case "capture_profile_settings": return captureProfileDevices(data, args.groups);
     case "apply_profile": case "preview_profile_display": case "preview_profile_graphics_mode": case "preview_profile_gpu_power": case "read_profile_application":
     case "keep_profile_display": case "cancel_profile_application": return invokeProfileApplication(data, command, args);
     case "get_app_preferences": return { settings: data.preferences, desktopError: null, restartRequired: false };
@@ -385,7 +404,8 @@ async function invokePlatform(data, command, args) {
 
 function hardwareSnapshot(data) {
   const sampledAtMs = Date.now();
-  return { dchuAvailable: true, cpuTempC: 50, cpuRemoteRaw: 50, sampledAtMs, warnings: ["隔离监控诊断"],
+  return { dchuAvailable: true, oemPowerMode: data.performanceOptions.currentMode,
+    cpuTempC: 50, cpuRemoteRaw: 50, sampledAtMs, warnings: ["隔离监控诊断"],
     cpuUtility: data.cpuUtility === undefined ? { valuePct: 42, sampledAtMs } : structuredClone(data.cpuUtility),
     oemMemory: data.oemMemory === undefined ? { reportedClockMhz: 2400, referenceClockMhz: 3200 } : structuredClone(data.oemMemory),
     fan: { cpuRpm: 1800, gpuRpm: 1500, cpuDutyPct: 30, gpuDutyPct: 25 },
@@ -437,5 +457,5 @@ async function invokeDust(data, command, args) {
   if (data.dustFault) { const error = data.dustFault; data.dustFault = null; if (command === "start_fan_dust") dust.lastStart = "uncertain"; throw new Error(error); }
   return null;
 }
-export const MOCK_IPC = `(() => {${[invokeAirplane, modeGpuReview, modePreviewTarget, modeRestoreTarget, modeRestoreIssue, rememberMode, applyModeGpu, invokeSupplyMode, profileDigest, backgroundProfileBinding, previewProfileAuthorization, invokeStartup, initPowerPolicy, savePowerPolicy, invokePowerPolicy, fixtureData, installIpc, invokeTouchpad, applyTouchpadTarget, applyProfileTouchpad, invokeMicrophones, applyMicrophoneTarget, applyProfileMicrophones, invokeLightingOptions, applyProfileLightingOptions, invokeLighting, invokeCalibration, invokeEnergy, invokeBattery, invokePerformance, invokeDisplay, invokeAutoRefresh, invokeGraphics, invokeGpuPower, invokeSoftware, invokePlatform, hardwareSnapshot, fanProfile, dustProfile, invokeDust, invokeKeymap, batteryThresholdFixture, restoreBatteryThresholdFixture, lowBatteryBrightnessFixture, restoreLowBatteryBrightnessFixture, restorePdEventFixture, dismissColdWarningFixture, acknowledgeNavigationFixture, gpuTurboFixture, initializeHotkeys, invokeHotkeys, invokeLightBar, invokeUsb, invokeLan, invokeMultiZone, captureMultiZone, applyProfileMultiZone, captureProfileDevices, captureProfileGraphicsMode, previewProfileGraphicsMode, applyProfileGraphicsMode, restoreProfileGraphicsMode, captureProfileGpuPower, previewProfileGpuPower, applyProfileGpuPower, commitProfileTargets, profileNodeStages, previewProfileMode, applyProfileMode, captureProfileLan, reviewProfileLan, previewProfileDisplay, profileApplicationSteps, recoverProfileDisplay, syncProfileApplication, beginProfileApplication, invokeProfileApplication, restoreBatteryAlertFixture, stopHotkeysFixture].map(fn => fn.toString()).join("\n")}; fixtureData(); installIpc();})();`;
+export const MOCK_IPC = `(() => {${[invokeAirplane, modeGpuReview, appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, modeRestoreTarget, modeRestoreIssue, rememberMode, applyModeGpu, invokeSupplyMode, profileDigest, backgroundProfileBinding, previewProfileAuthorization, invokeStartup, initPowerPolicy, savePowerPolicy, invokePowerPolicy, fixtureData, installIpc, invokeTouchpad, applyTouchpadTarget, applyProfileTouchpad, invokeMicrophones, applyMicrophoneTarget, applyProfileMicrophones, invokeLightingOptions, applyProfileLightingOptions, invokeLighting, invokeCalibration, invokeEnergy, invokeBattery, applyPerformanceOptions, invokePerformance, invokeDisplay, invokeAutoRefresh, invokeGraphics, invokeGpuPower, invokeSoftware, invokePlatform, hardwareSnapshot, fanProfile, dustProfile, invokeDust, invokeKeymap, batteryThresholdFixture, restoreBatteryThresholdFixture, lowBatteryBrightnessFixture, restoreLowBatteryBrightnessFixture, restorePdEventFixture, dismissColdWarningFixture, acknowledgeNavigationFixture, gpuTurboFixture, initializeHotkeys, invokeHotkeys, invokeLightBar, invokeUsb, invokeLan, invokeMultiZone, captureMultiZone, applyProfileMultiZone, profileFields, profileGroups, emptyProfileSettings, captureProfileDevices, captureProfilePower, captureProfileLighting, captureProfileInputs, profileFiles, invokeProfileStorage, captureProfileGraphicsMode, previewProfileGraphicsMode, applyProfileGraphicsMode, restoreProfileGraphicsMode, captureProfileGpuPower, previewProfileGpuPower, applyProfileGpuPower, commitProfileTargets, profileNodeStages, previewProfileMode, applyProfileMode, captureProfileLan, reviewProfileLan, previewProfileDisplay, previewManualProfile, profileApplicationSteps, recoverProfileDisplay, syncProfileApplication, beginProfileApplication, invokeProfileApplication, restoreBatteryAlertFixture, stopHotkeysFixture].map(fn => fn.toString()).join("\n")}; fixtureData(); installIpc();})();`;
 

@@ -2,6 +2,50 @@ use super::*;
 use crate::display::profile::Review;
 use std::path::Path;
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ManualPreview {
+    pub before: Option<ProfileSettings>,
+    pub mode_target: Option<powerctl::mode::Target>,
+    pub display_review: Option<Review>,
+    pub gpu_power_review: Option<crate::gpu_power::profile::Review>,
+    pub graphics_mode_review: Option<crate::graphics_mode::profile::Review>,
+    pub blocked: Option<String>,
+}
+
+pub(crate) fn preview_manual(
+    hal: &Hal,
+    gpu: &GpuController,
+    devices: Devices<'_>,
+    settings: &ProfileSettings,
+) -> Result<ManualPreview> {
+    crate::profiles::validate(settings)?;
+    let current = crate::profiles::capture::compare_current(hal, gpu, devices, settings).ok();
+    let prepared = (|| {
+        let mut scopes = devices.scopes(hal, gpu)?;
+        let _gate = hal.begin_write()?;
+        preflight(hal, gpu, settings, &mut scopes, None).map(|(checkpoint, _)| checkpoint)
+    })();
+    match prepared {
+        Ok(checkpoint) => Ok(ManualPreview {
+            before: current,
+            mode_target: checkpoint.mode.map(|plan| plan.target),
+            display_review: checkpoint.display,
+            gpu_power_review: checkpoint.graphics.power,
+            graphics_mode_review: checkpoint.mux,
+            blocked: None,
+        }),
+        Err(error) => Ok(ManualPreview {
+            before: current,
+            mode_target: None,
+            display_review: None,
+            gpu_power_review: None,
+            graphics_mode_review: None,
+            blocked: Some(format!("{error:#}")),
+        }),
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(in crate::profiles) struct Reviewed<'a> {
     pub permission: Option<&'a super::super::application::Permission>,

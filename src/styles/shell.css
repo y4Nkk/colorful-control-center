@@ -101,6 +101,7 @@
   display: flex;
   align-items: center;
   min-width: 0;
+  margin: 0;
   gap: var(--ccc-space-2);
   font-size: var(--ccc-text-sm);
   font-weight: 600;
@@ -109,23 +110,14 @@
 .ccc-brand-icon {
   pointer-events: none;
   flex: none;
-  width: var(--ccc-icon-size-nav);
-  height: var(--ccc-icon-size-nav);
+  width: var(--ccc-space-6);
+  height: var(--ccc-space-6);
 }
 
 .ccc-brand-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.ccc-topbar-title {
-  flex: none;
-  margin: 0;
-  padding-left: var(--ccc-space-4);
-  border-left: var(--ccc-border);
-  font-size: var(--ccc-text-title);
-  font-weight: 600;
 }
 
 .ccc-topbar-spacer {

@@ -20,10 +20,10 @@ fn guard(f: &mut Fixture) -> tempfile::TempDir {
     assert_eq!(executable.canonicalize().unwrap(), expected);
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path().to_owned();
-    f.hal.test_fan_guard = Some(Arc::new(move |policy| {
+    f.hal.test_fan_guard = Some(Arc::new(move || {
         let mut command = std::process::Command::new(&executable);
         command.arg(&root).arg("disarm");
-        crate::watchdog::Watchdog::spawn(command, false, policy)
+        crate::watchdog::Watchdog::spawn(command)
     }));
     directory
 }

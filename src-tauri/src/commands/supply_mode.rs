@@ -4,7 +4,7 @@ use tauri::{AppHandle, Manager};
 
 #[tauri::command]
 pub(crate) async fn read_oem_supply_mode(app: AppHandle) -> Result<supply::Status, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<supply::Controller>().read(
             &app.state::<Hal>(),
             &app.state::<GpuController>(),
@@ -20,7 +20,7 @@ pub(crate) async fn enable_oem_supply_mode(
     app: AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<supply::Controller>().enable(
             &app.state::<Hal>(),
             &app.state::<GpuController>(),
@@ -38,7 +38,7 @@ pub(crate) async fn resume_oem_supply_mode(
     app: AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<supply::Controller>().resume(
             &app.state::<Hal>(),
             &app.state::<GpuController>(),
@@ -62,7 +62,7 @@ pub(crate) async fn restore_oem_supply_mode(
     app: AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<supply::Controller>().restore(
             &app.state::<Hal>(),
             &app.state::<GpuController>(),

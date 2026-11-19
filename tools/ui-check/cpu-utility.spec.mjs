@@ -29,7 +29,9 @@ test("首次采样和读取失败显示未知，真实零值保留为零并可�
   await publish(page, null); await expect(missing(page)).toBeVisible();
   await publish(page, 0); await expect(usage(page)).toHaveAttribute("aria-valuenow", "0");
   await publish(page, null, 0, "CPU效用读取失败：隔离计数器不可用"); await expect(missing(page)).toBeVisible();
-  await expect(page.getByText("CPU效用读取失败：隔离计数器不可用")).toHaveCount(1);
+  await page.getByRole("button", { name: "监控诊断", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "监控诊断", exact: true })).toContainText("CPU效用读取失败：隔离计数器不可用");
+  await page.keyboard.press("Escape");
   await publish(page, 76); await expect(usage(page)).toHaveAttribute("aria-valuenow", "76");
 });
 test("过期和未来时间戳不显示为当前利用率", async ({ page }) => {
@@ -47,13 +49,15 @@ test("深浅宽窄布局保留卡片间距，CPU 转速和比例读数不溢出"
         const ratios = el.querySelector(".ccc-sensor-ratios"), rr = ratios.getBoundingClientRect();
         return { overflow: el.scrollWidth > el.clientWidth + 1, right: bounds.right,
           border: parseFloat(getComputedStyle(el).borderTopWidth), gap: parseFloat(getComputedStyle(el.parentElement).gap),
-          sideBySide: rr.left >= summary.right - 1, ringsFit: [...ratios.querySelectorAll(".ccc-meter-ring")].every(ring => {
+          sideBySide: rr.left >= summary.right - 1, stacked: rr.top >= summary.bottom - 1,
+          ringsFit: [...ratios.querySelectorAll(".ccc-meter-ring")].every(ring => {
             const r = ring.getBoundingClientRect(); return r.left >= rr.left - 1 && r.right <= rr.right + 1;
           }) };
       });
       expect(layout.overflow).toBe(false); expect(layout.right).toBeLessThanOrEqual(width);
       expect(layout.border).toBeGreaterThan(0); expect(layout.gap).toBeGreaterThan(0);
-      expect(layout.sideBySide).toBe(true); expect(layout.ringsFit).toBe(true);
+      expect(width === 360 ? layout.stacked : layout.sideBySide).toBe(true);
+      expect(layout.ringsFit).toBe(true);
       if (width !== 760) await cpu(page).screenshot({ path: `target/ui-check/cpu-utility-${theme}-${width}.png` });
     }
   }

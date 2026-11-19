@@ -16,7 +16,7 @@ fn target(f: &Fixture, enabled: bool) -> crate::touchpad::Target {
 #[test]
 fn capture_and_strict_roundtrip_keep_system_and_preference_independent() {
     let f = setup();
-    let settings = crate::profiles::capture::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let settings = crate::profiles::capture::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     let touchpad = settings.touchpad.as_ref().unwrap();
     assert!(touchpad.enabled && !touchpad.saved_enabled);
     assert!(

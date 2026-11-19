@@ -15,38 +15,51 @@ import { PowerSourceVisual } from "./PowerSourceVisual";
 
 export function PowerProfilePolicy({ active, revision }: { active: boolean; revision: number }) {
   const p = usePowerProfilePolicy(active, revision), latest = useAutomaticProfileReport(active);
-  const { view, draft } = p;
-  const status = view?.active ? "已启用" : view?.paused ? "已暂停" : view ? "未启用" : "未读取";
+  const { view } = p;
+  const source = view?.source === "ac" || view?.source === "battery" || view?.source === "ups" ? view.source : "unknown";
+  const status = view?.paused && view.record?.enabled ? "已暂停" : !view && !p.error ? "读取中…" : null;
   const issues = Array.from(new Set([p.error, view?.configurationError, view?.listenerError, view?.lastIssue, latest.error].filter(Boolean)));
-  const blocked = !view?.record || !!view.configurationError || (draft.enabled && (!view.route || !!view.listenerError));
-  const changed = !!view?.record && (p.edited || view.paused && draft.enabled);
-  return <Surface as="section" variant="group" className="ccc-panel" aria-label="供电与唤醒档案">
-    <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="profiles" />供电与唤醒</h2>
-      <div className="ccc-module-tools"><DetailsDialog title="供电档案状态与记录" label="详情" wide>
-        <div className="ccc-detail-stack">
-          <SavedRules record={view?.record ?? null} />
-          {latest.report && <AutomaticReport report={latest.report} />}
-          {issues.map(issue => <p key={issue} className="ccc-control-error">{issue}</p>)}
-          {view?.route?.warnings.map(warning => <p key={warning} className="ccc-control-caption">{warning}</p>)}
-          <Button icon="refresh" variant="secondary" disabled={p.busy} onClick={() => void p.reread()}>重新读取并暂停</Button>
-        </div>
-      </DetailsDialog></div>
+  const savedRules = !!view?.record && POWER_RULES.some(rule => view.record?.[rule.key]);
+  const canEnable = savedRules && !!view?.route && !view.listenerError;
+  const blocked = !view?.record || !!view.configurationError;
+  return <section aria-label="供电与唤醒档案">
+    <div className="ccc-power-setting">
+      <div>
+        <strong>启用自动档案</strong>
+        {status && <p className="ccc-control-caption" role="status">{status}</p>}
+      </div>
+      <div className="ccc-power-setting-tools">
+        <DetailsDialog title="供电档案状态与记录" label="详情" wide>
+          <div className="ccc-detail-stack">
+            <PowerSourceVisual source={source} />
+            <SavedRules record={view?.record ?? null} />
+            {latest.report && <AutomaticReport report={latest.report} />}
+            {issues.map(issue => <p key={issue} className="ccc-control-error">{issue}</p>)}
+            {view?.route?.warnings.map(warning => <p key={warning} className="ccc-control-caption">{warning}</p>)}
+            <Button icon="refresh" variant="secondary" disabled={p.busy} onClick={() => void p.reread()}>重新读取并暂停</Button>
+          </div>
+        </DetailsDialog>
+        <Switch label="启用自动档案" checked={!!view?.record?.enabled}
+          disabled={p.busy || blocked || !view?.record?.enabled && (!canEnable || !!p.staleRules.length)} onChange={enabled => void p.toggle(enabled)} />
+      </div>
     </div>
-    <PowerSourceVisual source={view?.source === "ac" || view?.source === "battery" || view?.source === "ups" ? view.source : "unknown"}
-      label={status} />
     {view?.pending && <p className="ccc-control-caption" role="status">等待供电稳定或当前档案结束</p>}
     {issues.length > 0 && <p className="ccc-control-caption">部分规则需要处理 · 查看详情</p>}
-    <div className="ccc-keyboard-setting"><strong>自动应用档案</strong>
-      <Switch label="启用自动档案" checked={draft.enabled} disabled={p.busy || !view?.record}
-        onChange={enabled => p.setDraft({ ...draft, enabled })} /></div>
+    {view?.record && !savedRules && <p className="ccc-control-caption">保存一条规则后可开启自动档案。</p>}
     <PolicyFields model={p} />
-    {view?.active && <Button className="ccc-inline-tool" icon="pause" variant="secondary" size="compact" disabled={p.busy}
-      onClick={() => void p.pause()}>暂停自动应用</Button>}
-    {view?.resetRevision && <ConfirmButton icon="delete" key={view.resetRevision} label="清除不可用规则" confirmLabel="清除规则并停用"
-      busy={p.busy} onConfirm={p.reset} />}
-    <ConfigurationAction label="供电与唤醒档案" revision={JSON.stringify([p.request, view?.paused])} disabled={p.busy || blocked || !p.request || !changed}
+    {(view?.active || view?.paused && view.record?.enabled || view?.resetRevision) && <div className="ccc-power-setting-actions">
+      {view.active &&
+        <Button icon="pause" variant="secondary" size="compact" disabled={p.busy}
+          onClick={() => void p.pause()}>暂停自动应用</Button>}
+      {view.paused && view.record?.enabled && <Button icon="play" variant="secondary" size="compact" disabled={p.busy || blocked || !canEnable || !!p.staleRules.length}
+        onClick={() => void p.toggle(true)}>继续自动应用</Button>}
+      {view.resetRevision && <ConfirmButton icon="delete" key={view.resetRevision} label="清除不可用规则" confirmLabel="清除规则并停用"
+        busy={p.busy} onConfirm={p.reset} />}
+    </div>}
+    <ConfigurationAction label="供电与唤醒档案" applyLabel={p.request?.enabled && view?.paused ? "保存规则并继续自动应用" : "保存自动档案规则"}
+      revision={JSON.stringify([p.request, view?.paused])} disabled={p.busy || blocked || !p.request || (!p.edited && !p.staleRules.length) || !!p.request?.enabled && !canEnable}
       onConfirm={p.save}>
-      <p>{draft.enabled ? "按下列条件应用档案。当前设备设置会保留到下次触发。" : "保存规则并停用自动应用。"}</p>
+      {p.request?.enabled && <p>新规则从下次触发时生效。</p>}
       <PolicyTargets model={p} />
     </ConfigurationAction>
     <ConfigurationAction label="供电与唤醒档案" revision={JSON.stringify([view?.record, view?.initial])} restore
@@ -54,18 +67,23 @@ export function PowerProfilePolicy({ active, revision }: { active: boolean; revi
       <SavedRules record={view?.initial ?? null} />
       <p>恢复后暂停自动应用，设备现值保留。</p>
     </ConfigurationAction>
-  </Surface>;
+  </section>;
 }
 
 function PolicyFields({ model: p }: { model: ReturnType<typeof usePowerProfilePolicy> }) {
-  return <div className="ccc-display-controls">{POWER_RULES.map(rule => {
+  return <div className="ccc-power-subsettings">{POWER_RULES.map(rule => {
     const choice = p.choices[rule.key], selection = choice.selection, name = p.draft[rule.key];
     const options = [{ value: "", label: "不应用档案" }, ...p.profiles.map(profile => ({ value: profile.name, label: profile.name }))];
     if (name && !options.some(option => option.value === name)) options.push({ value: name, label: `${name}（不可读取）` });
     const issues = [choice.error, selection?.modeError, selection?.displayError, selection?.gpuPowerError, selection?.graphicsModeError].filter(Boolean);
     return <div key={rule.key}>
-      <label className="ccc-config-field">{rule.label}<Select label={rule.label} value={name} options={options}
-        disabled={p.busy || !p.view?.record} onChange={value => p.setDraft({ ...p.draft, [rule.key]: value })} /></label>
+      <label className="ccc-power-setting"><span>{rule.label}</span><span className="ccc-power-setting-picker">
+        <Select label={rule.label} size="compact" value={name} options={options}
+          disabled={p.busy || !p.view?.record} onChange={value => p.setDraft({ ...p.draft, [rule.key]: value })} />
+      </span></label>
+      {p.staleRules.some(stale => stale.key === rule.key) && <p className="ccc-control-caption is-warn">
+        {p.profiles.some(profile => profile.name === name) ? "档案有更新，请核对并保存规则" : "档案已不可用，请重新选择"}
+      </p>}
       {issues.length > 0 && <DetailsDialog title={`${rule.label} · 档案不可用`}>{issues.map(error => <p key={error}>{error}</p>)}</DetailsDialog>}
     </div>;
   })}</div>;

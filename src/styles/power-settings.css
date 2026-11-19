@@ -1,0 +1,23 @@
+.ccc-power-profiles { gap: var(--ccc-space-2); }
+.ccc-charge-board { display: grid; gap: var(--ccc-space-2); }
+
+.ccc-power-setting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) min(52%, 14rem);
+  align-items: center;
+  gap: var(--ccc-space-2);
+  min-block-size: var(--ccc-control-height);
+  padding-block: var(--ccc-space-1);
+}
+.ccc-power-setting > :first-child { min-width: 0; overflow-wrap: anywhere; }
+.ccc-power-setting > :last-child { justify-self: end; }
+.ccc-power-setting-picker { display: grid; width: 100%; min-width: 0; }
+.ccc-power-setting-label, .ccc-power-setting-tools, .ccc-power-setting-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ccc-space-1);
+}
+.ccc-power-setting-tools, .ccc-power-setting-actions { justify-content: flex-end; }
+.ccc-power-setting-actions { margin-block-start: var(--ccc-space-2); }
+.ccc-power-subsettings .ccc-power-setting > :first-child { padding-inline-start: var(--ccc-space-3); }

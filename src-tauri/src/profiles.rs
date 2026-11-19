@@ -12,13 +12,16 @@ pub(crate) use application::apply_startup;
 pub use application::{Application, apply_preview};
 #[cfg(test)]
 pub(crate) use apply::apply_reviewed;
+pub(crate) use apply::review::{ManualPreview, preview_manual};
 pub(crate) use devices::Devices;
-pub(crate) use preview::{preview_authorization, preview_mode};
+pub(crate) use preview::preview_authorization;
+#[cfg(test)]
+pub(crate) use preview::preview_mode;
 use std::path::{Path, PathBuf};
 use tauri::Manager;
 static PROFILE_MUTATION: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-pub use model::{ApplyStep, ProfileFile, ProfileMeta, ProfileSettings, validate};
+pub use model::{ApplyStep, ProfileFile, ProfileGroup, ProfileMeta, ProfileSettings, validate};
 
 pub fn sanitize_name(name: &str) -> Result<String> {
     let name = name.trim();
@@ -99,11 +102,21 @@ fn check_existing_spelling(dir: &Path, path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn save(app: &tauri::AppHandle, settings: ProfileSettings, name: &str) -> Result<()> {
-    save_in(&profiles_dir(app)?, settings, name)
+pub(crate) fn save(
+    app: &tauri::AppHandle,
+    settings: ProfileSettings,
+    name: &str,
+    expected_revision: Option<&str>,
+) -> Result<()> {
+    save_in(&profiles_dir(app)?, settings, name, expected_revision)
 }
 
-fn save_in(dir: &Path, settings: ProfileSettings, name: &str) -> Result<()> {
+fn save_in(
+    dir: &Path,
+    settings: ProfileSettings,
+    name: &str,
+    expected_revision: Option<&str>,
+) -> Result<()> {
     let _lock = PROFILE_MUTATION
         .lock()
         .map_err(|_| anyhow!("档案存储状态异常"))?;
@@ -119,7 +132,31 @@ fn save_in(dir: &Path, settings: ProfileSettings, name: &str) -> Result<()> {
     };
     std::fs::create_dir_all(dir)?;
     check_existing_spelling(dir, &path)?;
+    check_revision(&path, &file.name, expected_revision)?;
     crate::storage::write(&path, &serde_json::to_vec_pretty(&file)?).context("保存档案失败")
+}
+
+fn check_revision(path: &Path, name: &str, expected: Option<&str>) -> Result<()> {
+    match std::fs::read(path) {
+        Ok(bytes) => {
+            let Some(expected) = expected else {
+                bail!("已存在同名档案，请重新读取并确认覆盖");
+            };
+            let file: ProfileFile = serde_json::from_slice(&bytes).context("当前档案损坏")?;
+            validate_file(&file)?;
+            if file.name != name || authorization::digest(&file)? != expected {
+                bail!("档案已变化，请重新读取并确认");
+            }
+            Ok(())
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            if expected.is_some() {
+                bail!("档案已移除，请重新读取");
+            }
+            Ok(())
+        }
+        Err(error) => Err(error).context("核对档案修订失败"),
+    }
 }
 
 pub fn list(app: &tauri::AppHandle) -> Result<Vec<ProfileMeta>> {
@@ -137,9 +174,14 @@ fn list_in(dir: &Path) -> Result<Vec<ProfileMeta>> {
         let file: ProfileFile = serde_json::from_slice(&data)
             .with_context(|| format!("档案 {} 损坏", path.display()))?;
         validate_file(&file)?;
+        if profile_path(dir, &file.name)? != path {
+            bail!("档案名与文件名不一致");
+        }
+        let revision = authorization::digest(&file)?;
         files.push(ProfileMeta {
+            groups: ProfileGroup::captured(&file.settings),
             name: file.name,
-            saved_at_ms: file.saved_at_ms,
+            revision,
         });
     }
     files.sort_by(|a, b| a.name.cmp(&b.name));
@@ -159,12 +201,13 @@ fn load_from(dir: &Path, name: &str) -> Result<ProfileFile> {
     Ok(file)
 }
 
-pub fn delete(app: &tauri::AppHandle, name: &str) -> Result<bool> {
+pub(crate) fn delete(app: &tauri::AppHandle, name: &str, expected_revision: &str) -> Result<bool> {
     // 删除先锁档案，再解除启动引用；启动选择的只读校验不取档案写锁。
     let _lock = PROFILE_MUTATION
         .lock()
         .map_err(|_| anyhow!("档案存储状态异常"))?;
     let path = profile_path(&profiles_dir(app)?, name)?;
+    check_revision(&path, name, Some(expected_revision))?;
     crate::startup::delete_linked_profile(app, name, || {
         std::fs::remove_file(path).context("删除档案文件失败")
     })

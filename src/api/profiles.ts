@@ -1,4 +1,4 @@
-/** 性能档案（对应 src-tauri/src/profiles；应用流水线每步独立报告）。 */
+/** 配置档案，应用流水线逐步报告结果。 */
 import type { RpmPoint, SoftwareCurves, DustSchedule } from "./fans";
 import type { RuntimeCpuSettings, OemModeTarget, OemPerformanceValues } from "./power";
 import type { LightBarValues } from "./lightbar";
@@ -13,7 +13,7 @@ import type { KeyboardLightingTarget, LightingOptionsTarget, PerkeyTarget } from
 import type { TouchpadTarget } from "./touchpad";
 import type { MicrophoneTarget } from "./microphone";
 import type { MultiZoneTarget } from "./multizone";
-import { invoke, listenEvent } from "./client";
+import { invoke } from "./client";
 
 export interface ProfileFanPoints {
   t2: number;
@@ -66,9 +66,22 @@ export interface ProfileGpuPowerReview { before: GpuPowerDevice; target: NonNull
 export interface ProfileDisplayReview { displays: { before: DisplayMode; target: DisplayMode }[] }
 export interface ProfileApplication { id: number; revision: number; origin: "manual" | "startup" | "ac" | "battery" | "resume"; targetsApplied: boolean; name: string; steps: ApplyStep[]; pending: DisplayProfile["pending"] }
 
+export type ProfileGroup = "performance" | "display" | "lighting" | "power" | "devices";
+export interface CapturedProfile { settings: ProfileSettings; groups: ProfileGroup[] }
+
 export interface ProfileMeta {
   name: string;
-  savedAtMs: number;
+  groups: ProfileGroup[];
+  revision: string;
+}
+
+export interface ManualProfilePreview {
+  before: ProfileSettings | null;
+  modeTarget: OemModeTarget | null;
+  displayReview: ProfileDisplayReview | null;
+  gpuPowerReview: ProfileGpuPowerReview | null;
+  graphicsModeReview: ProfileGraphicsModeReview | null;
+  blocked: string | null;
 }
 
 export interface ApplyStep {
@@ -78,12 +91,13 @@ export interface ApplyStep {
 }
 
 export const listProfiles = (): Promise<ProfileMeta[]> => invoke("list_profiles");
-export const saveProfile = (name: string, settings: ProfileSettings): Promise<{ ok: boolean; message: string }> =>
-  invoke("save_profile", { args: { name, settings } });
-export const deleteProfile = (name: string): Promise<{ ok: boolean; message: string }> =>
-  invoke("delete_profile", { name });
-export const captureProfileSettings = (): Promise<ProfileSettings> => invoke("capture_profile_settings");
-export const previewProfileMode = (settings: ProfileSettings): Promise<OemModeTarget | null> => invoke("preview_profile_mode", { settings });
+export const saveProfile = (name: string, settings: ProfileSettings, expectedRevision: string | null): Promise<{ ok: boolean; message: string }> =>
+  invoke("save_profile", { args: { name, settings, expectedRevision } });
+export const deleteProfile = (name: string, expectedRevision: string): Promise<{ ok: boolean; message: string }> =>
+  invoke("delete_profile", { name, expectedRevision });
+export const captureProfileSettings = (groups: ProfileGroup[]): Promise<CapturedProfile> => invoke("capture_profile_settings", { groups });
+export const previewProfileApplication = (settings: ProfileSettings): Promise<ManualProfilePreview> =>
+  invoke("preview_profile_application", { settings });
 export const previewProfileAuthorization = (settings: ProfileSettings): Promise<ProfileModeApproval | null> => invoke("preview_profile_authorization", { settings });
 export const previewProfileDisplay = (settings: ProfileSettings): Promise<ProfileDisplayReview | null> => invoke("preview_profile_display", { settings });
 export const previewProfileGpuPower = (settings: ProfileSettings): Promise<ProfileGpuPowerReview | null> => invoke("preview_profile_gpu_power", { settings });
@@ -95,6 +109,4 @@ export const cancelProfileApplication = (id: number): Promise<ProfileApplication
 
 export interface ProfileFile { version: number; name: string; savedAtMs: number; settings: ProfileSettings }
 export const loadProfile = (name: string): Promise<ProfileFile> => invoke("load_profile", { name });
-export const onProfilePreviewRequest = (handler: (name: string) => void): Promise<() => void> =>
-  listenEvent<string>("profile-preview-request", handler);
 export const previewProfileImport = (json: string): Promise<ProfileFile> => invoke("preview_profile_import", { json });

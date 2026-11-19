@@ -1,5 +1,5 @@
 import { Icon } from "../Icon";
-import { applyMultiZoneLighting, restoreMultiZoneLighting } from "../../api/client";
+import { applyMultiZoneLighting, restoreMultiZoneLighting, type MultiZoneValues } from "../../api/client";
 import { Button } from "../Button";
 import { ConfigurationAction } from "../ConfigurationAction";
 import { Surface } from "../Surface";
@@ -15,6 +15,11 @@ export function MultiZoneLighting({ active, revision }: { active: boolean; revis
   const compatible = !!profile && !!draft && JSON.stringify(profile.capabilities) === JSON.stringify(draft.capabilities);
   const dirty = !!current && !!draft && JSON.stringify(current) !== JSON.stringify(draft.values);
   const disabled = busy || !!profile?.blockedReason || !compatible || !current;
+  const apply = (patch: Partial<MultiZoneValues>) => {
+    if (!profile || !current || disabled) return;
+    const target = { capabilities: profile.capabilities, values: { ...current, ...patch } };
+    void run(() => applyMultiZoneLighting(profile.revision, target), "多区键盘设置已回读", false);
+  };
   return <Surface as="section" variant="group" className="ccc-panel" aria-label="多区键盘灯">
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="lighting" />多区键盘灯</h2>
       <Button icon="refresh" variant="ghost" size="compact" disabled={busy} onClick={model.reread}>重新读取多区键盘</Button></div>
@@ -22,7 +27,8 @@ export function MultiZoneLighting({ active, revision }: { active: boolean; revis
     {profile ? <div className="ccc-multi-zone-columns">
       <Surface variant="group" className="ccc-multi-zone-section">
         <strong>当前保存配置</strong>
-        {current ? <><p className="ccc-control-caption">{multiZoneSummary(current)}</p><MultiZoneColors values={current} label="当前多区颜色预设" /></>
+        {current ? <><p className="ccc-control-caption">{multiZoneSummary(current, !compatible || current.enabled !== draft?.values.enabled)}</p>
+          <MultiZoneColors values={current} label="当前多区颜色预设" /></>
           : <p className="ccc-control-error">{profile.unavailableReason ?? "保存值未知，未开放新设置"}</p>}
         {!profile.capabilities.lightBarEnabled && <p className="ccc-control-caption">平台已关闭灯条区，保留其原有颜色。</p>}
         {profile.blockedReason && <p className="ccc-control-error">{profile.blockedReason}</p>}
@@ -34,8 +40,8 @@ export function MultiZoneLighting({ active, revision }: { active: boolean; revis
       </Surface>
       <Surface variant="group" className="ccc-multi-zone-section">
         {current && compatible && draft ? <>
-          <MultiZoneEditor current={current} draft={draft.values} disabled={disabled} onChange={values => model.setDraft({ ...draft, values })} />
-          <ConfigurationAction revision={JSON.stringify([profile.revision, draft])} label="多区键盘灯"
+          <MultiZoneEditor current={current} draft={draft.values} disabled={disabled} onChange={values => model.setDraft({ ...draft, values })} onApply={apply} />
+          <ConfigurationAction revision={JSON.stringify([profile.revision, draft])} label="多区键盘灯" applyLabel="应用多区灯光参数"
             disabled={disabled || !dirty} onConfirm={() => run(() => applyMultiZoneLighting(profile.revision, draft), "多区命令已发送并核对保存值")}>
             <p>{multiZoneChanges(current, draft.values)}</p>
             <MultiZoneColors values={draft.values} label="目标多区颜色预设" />

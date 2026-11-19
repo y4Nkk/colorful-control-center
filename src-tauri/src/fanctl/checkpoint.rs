@@ -1,5 +1,6 @@
+use super::{FAN_MODE_NOISELESS, NOISELESS_FAN_LABEL, saved};
 use crate::hal::Hal;
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, ensure};
 use ccc_core::{
     fan::{build_curve_package, oem_duty_byte},
     settings::{self, Patch},
@@ -26,6 +27,21 @@ impl FanCheckpoint {
     pub(crate) fn offset(&self) -> u8 {
         self.offset
     }
+    pub(crate) fn entertainment_quiet(&self) -> Option<bool> {
+        self.fields
+            .iter()
+            .find(|patch| patch.offset == saved::ENTERTAINMENT_QUIET_OFFSET)
+            .map(|patch| patch.data == [1])
+    }
+    pub(crate) fn remember_entertainment_quiet(&mut self, enabled: bool) {
+        settings::remember(
+            &mut self.fields,
+            vec![Patch::new(
+                saved::ENTERTAINMENT_QUIET_OFFSET,
+                [u8::from(enabled)],
+            )],
+        );
+    }
     pub(crate) fn saved_settings_differ(&self, other: &Self) -> bool {
         self.package != other.package
             || self.rpm_pairs != other.rpm_pairs
@@ -45,13 +61,15 @@ impl FanCheckpoint {
 pub fn checkpoint(hal: &Hal, include_curve: bool) -> Result<FanCheckpoint> {
     let current = super::read_profile(hal)?;
     super::validate_mode(current.current_mode)?;
+    let capture_curve = include_curve
+        && (current.custom_supported || current.current_mode == super::FAN_MODE_CUSTOM);
     let rpm_layout = current.curve_kind == super::CurveKind::RpmTable;
-    let inputs = if include_curve && !rpm_layout {
+    let inputs = if capture_curve && !rpm_layout {
         Some(super::profile::prepare(&current, [None; 3])?)
     } else {
         None
     };
-    let rpm_pairs = if include_curve && rpm_layout {
+    let rpm_pairs = if capture_curve && rpm_layout {
         Some(super::rpm::checkpoint(hal)?.pairs)
     } else {
         None
@@ -62,35 +80,45 @@ pub fn checkpoint(hal: &Hal, include_curve: bool) -> Result<FanCheckpoint> {
         .unwrap_or_default();
     layout.push(Patch::new(5, [0]));
     layout.push(Patch::new(7, [0]));
-    let fields = hal.with_dchu(|d| {
+    let (fields, mode) = hal.with_dchu(|d| {
         layout.extend(super::saved::capture_slots(d)?);
-        layout
+        let fields = layout
             .iter()
             .map(|p| {
                 d.read_settings(4, p.offset as i32, p.data.len())
                     .map(|bytes| Patch::new(p.offset, bytes))
             })
-            .collect::<Result<Vec<_>>>()
+            .collect::<Result<Vec<_>>>()?;
+        let mode = saved::effective_mode(
+            d,
+            current.current_mode,
+            current.available_modes.contains(&FAN_MODE_NOISELESS)
+                && !crate::powerctl::mode::boost::turbo_enabled(d)?,
+        )?;
+        Ok((fields, mode))
     })?;
     Ok(FanCheckpoint {
         software: current.software,
         rpm_pairs,
         package: inputs.as_ref().map(build_curve_package),
         fields,
-        mode: current.current_mode,
+        mode,
         offset: current.offset_pct,
     })
 }
 
 pub fn restore_checkpoint(hal: &Hal, checkpoint: &FanCheckpoint) -> Result<()> {
     super::dust::ensure_manual_allowed(hal)?;
-    if checkpoint.mode == 0 {
-        hal.prepare_fan_auto()?;
+    if checkpoint.entertainment_quiet().is_some() {
+        ensure!(
+            hal.with_dchu(|d| Ok(super::supports_noiseless(&d.read_bios_capabilities(0, 22)?)))?,
+            "固件未声明支持恢复娱乐模式的{NOISELESS_FAN_LABEL}"
+        );
     }
-    super::fail_safe(hal, super::software::stop(hal))?;
-    if checkpoint.mode != 0 {
-        hal.arm_fan_guard(crate::watchdog::GuardPolicy::for_mode(checkpoint.mode))?;
+    if checkpoint.mode == super::FAN_MODE_NOISELESS {
+        crate::powerctl::mode::boost::ensure_noiseless_allowed(hal)?;
     }
+    super::software::stop_safely(hal)?;
     let result = hal.with_dchu(|d| {
         if let Some(pairs) = &checkpoint.rpm_pairs {
             super::rpm::restore_pairs(d, pairs)?;
@@ -102,12 +130,7 @@ pub fn restore_checkpoint(hal: &Hal, checkpoint: &FanCheckpoint) -> Result<()> {
         d.set_data_sub(121, 14, oem_duty_byte(checkpoint.offset as f64) as u32)?;
         d.set_data_sub(121, 1, checkpoint.mode as u32)
     });
-    if let Err(error) = result.and_then(|_| hal.commit_fan_guard(checkpoint.mode)) {
-        return super::fail_safe(hal, Err(error));
-    }
-    if checkpoint.mode == 0 && checkpoint.software.is_none() {
-        hal.disarm_fan_guard()?;
-    }
+    super::fail_safe(hal, result)?;
     if let Some(curves) = &checkpoint.software {
         super::fail_safe(hal, hal.ensure_software_fan_restart_allowed())?;
         super::software::apply(hal, curves)?;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readKeymap, type KeymapConfiguration, type KeymapProfile } from "../../api/client";
+import { applyKeymap, readKeymap, type KeymapConfiguration, type KeymapDevice, type KeymapDeviceSettings, type KeymapProfile } from "../../api/client";
 import { toast } from "../use-toast";
+import { preserveEditedFields } from "../control/settings-draft";
 
 export function useKeymap(active: boolean, revision = 0) {
   const [profile, setProfile] = useState<KeymapProfile | null>(null), [draft, setDraft] = useState<KeymapConfiguration | null>(null);
@@ -16,8 +17,15 @@ export function useKeymap(active: boolean, revision = 0) {
       if (id !== generation.current) return;
       setProfile(next); setLoaded(true); setReadError(null);
       const before = accepted.current; accepted.current = next?.configuration ?? null;
-      setDraft(previous => reset || previous === null || JSON.stringify(previous) === JSON.stringify(before)
-        ? next?.configuration ? structuredClone(next.configuration) : null : previous);
+      setDraft(previous => {
+        if (reset || !previous || !before) return structuredClone(next?.configuration ?? null);
+        if (!next?.configuration) return previous;
+        return { devices: next.configuration.devices.map(device => {
+          const edited = previous.devices.find(group => group.device === device.device);
+          const baseline = before.devices.find(group => group.device === device.device);
+          return edited && baseline ? preserveEditedFields(baseline, edited, device) : device;
+        }) };
+      });
     } catch (error) {
       if (id === generation.current) { setProfile(null); setReadError(String(error)); setLoaded(true); }
       throw error;
@@ -31,12 +39,19 @@ export function useKeymap(active: boolean, revision = 0) {
     return () => { disposed = true; clearInterval(timer); ++generation.current; };
   }, [active, revision, reload]);
   const run = async (action: () => Promise<void>, title: string, resetDraft = true) => {
-    if (writing.current) return;
+    if (!active || writing.current) return;
     writing.current = true; ++generation.current; setBusy(true); setActionError(null);
     try { await reading.current?.catch(() => undefined); await action(); await reload(resetDraft, true); toast({ kind: "success", title }); }
     catch (error) { setActionError(String(error)); await reload(false, true).catch(() => {}); }
     finally { writing.current = false; setBusy(false); }
   };
-  return { profile, draft, setDraft, loaded, busy, error: [actionError, readError].filter(Boolean).join("；") || null, run,
+  const toggle = (device: KeymapDevice, enabled: boolean) => {
+    const current = profile?.configuration?.devices.find(group => group.device === device);
+    if (!profile || !current || Number(enabled) === profile.enabledFlags[device === "keyboard" ? 0 : 1]) return;
+    return run(() => applyKeymap(profile.revision, { devices: [{ ...current, enabled }] }), "映射开关已回读", false);
+  };
+  const changeGroup = (next: KeymapDeviceSettings) => setDraft(previous => previous &&
+    { devices: previous.devices.map(group => group.device === next.device ? next : group) });
+  return { profile, draft, setDraft, changeGroup, loaded, busy, error: [actionError, readError].filter(Boolean).join("；") || null, run, toggle,
     reread: () => { if (!writing.current) void reload().catch(() => {}); } };
 }

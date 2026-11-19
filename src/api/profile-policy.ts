@@ -13,6 +13,8 @@ export interface PowerPolicyView {
 }
 export const readPowerProfilePolicy = () => invoke<PowerPolicyView>("read_power_profile_policy");
 export const savePowerProfilePolicy = (request: PowerPolicyRequest) => invoke<void>("save_power_profile_policy", { request });
+export const setPowerProfilePolicyEnabled = (expected: PowerPolicyRecord, enabled: boolean) =>
+  invoke<void>("set_power_profile_policy_enabled", { expected, enabled });
 export const pausePowerProfilePolicy = () => invoke<void>("pause_power_profile_policy");
 export const restorePowerProfilePolicy = (expected: PowerPolicyRecord) => invoke<void>("restore_power_profile_policy", { expected });
 export const reloadPowerProfilePolicy = () => invoke<void>("reload_power_profile_policy");

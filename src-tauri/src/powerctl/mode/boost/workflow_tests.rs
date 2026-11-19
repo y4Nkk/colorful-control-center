@@ -16,18 +16,282 @@ fn setup() -> Fixture {
     f
 }
 fn request(f: &Fixture, turbo: bool, dtt: bool) -> Request {
-    let revision = f
-        .hal
-        .with_dchu(|io| preview(io, Some(true)).map(|p| p.revision))
-        .unwrap();
     Request {
-        expected_revision: revision,
+        expected_revision: revision(&f.hal).unwrap(),
+        quiet_fan: None,
+        replace_custom_fan: false,
         values: Values {
             turbo_fan: Some(turbo),
             dtt: Some(dtt),
         },
     }
 }
+#[test]
+fn entertainment_saves_preferences_without_sending_the_mode_or_fan_command() {
+    let mut f = setup();
+    {
+        let mut state = f.device.0.lock().unwrap();
+        state.pages[1][1] = 3;
+        state.pages[1][16] = 3;
+        state.pages[4][7] = 20;
+        state.pages[4][9] = 1;
+        state.pages[4][72] = FAN_MODE_NOISELESS;
+        state.bios[11] |= 2;
+        state.bios[20] |= 1;
+        state.bios[21] |= 1;
+    }
+    f.hal.set_test_dtt_driver(std::sync::Arc::new(|| Ok(false)));
+    f.hal.system_power = std::sync::Arc::new(crate::hal::power_plan::UnavailablePower);
+    let _gate = f.hal.begin_write().unwrap();
+    apply(&f.hal, &request(&f, true, true)).unwrap();
+    {
+        let s = f.device.0.lock().unwrap();
+        assert_eq!(s.events, ["PAGE4:8:[1]", "PAGE1:32:[1]"]);
+        assert_eq!(s.pages[1][1], 3);
+        assert_eq!(s.pages[1][16], 3);
+        assert_eq!(s.pages[4][7..10], [20, 1, 1]);
+        assert_eq!(s.pages[4][72], FAN_MODE_NOISELESS);
+    }
+    let modes = super::super::read(&f.hal).unwrap();
+    let performance = modes
+        .targets
+        .iter()
+        .find(|target| target.mode == 2)
+        .unwrap();
+    assert!(performance.turbo && performance.dtt);
+    assert_eq!(performance.fan_mode, FAN_MODE_AUTO);
+    let error = super::super::checkpoint(&f.hal, 2).err().unwrap();
+    assert!(error.to_string().contains("Dynamic Tuning"));
+}
+
+#[path = "workflow_tests/entertainment.rs"]
+mod entertainment;
+
+#[test]
+fn performance_noiseless_compensates_failure_and_restores_fan_and_turbo() {
+    let f = setup();
+    {
+        let mut s = f.device.0.lock().unwrap();
+        s.bios[20] |= 1;
+        s.bios[21] |= 1;
+        s.pages[4][8] = 1;
+        s.pages[4][9] = 1;
+        s.pages[4][73] = 5;
+        s.fan_count = 1;
+        s.cpu_temperature = 99;
+        s.fail_fan_mode = true;
+    }
+    let _gate = f.hal.begin_write().unwrap();
+    assert!(!fanctl::read_profile(&f.hal).unwrap().custom_supported);
+    let mut quiet = request(&f, false, false);
+    quiet.quiet_fan = Some(true);
+    assert!(
+        apply(&f.hal, &quiet)
+            .unwrap_err()
+            .to_string()
+            .contains("失败")
+    );
+    {
+        let s = f.device.0.lock().unwrap();
+        assert!(s.events.iter().any(|event| event == "FAN_MODE_FAILURE"));
+        assert_eq!([s.pages[4][5], s.pages[4][8], s.pages[4][72]], [0, 1, 0]);
+    }
+    apply(&f.hal, &quiet).unwrap();
+    assert!(!f.hal.fan_guard_armed().unwrap());
+    let status = read(&f.hal).unwrap().quiet_fan.unwrap();
+    assert!(status.active && status.enabled && status.remembered);
+    assert_eq!(f.device.0.lock().unwrap().pages[4][72], FAN_MODE_NOISELESS);
+    assert!(
+        super::super::read(&f.hal)
+            .unwrap()
+            .targets
+            .iter()
+            .any(|target| target.mode == 2 && target.fan_mode == FAN_MODE_NOISELESS)
+    );
+
+    let expected = super::super::workflow::restore_target(&f.hal)
+        .unwrap()
+        .unwrap()
+        .revision;
+    f.device.0.lock().unwrap().events.clear();
+    super::super::restore(&f.hal, &expected).unwrap();
+    let s = f.device.0.lock().unwrap();
+    assert_eq!([s.pages[4][5], s.pages[4][8], s.pages[4][72]], [0, 1, 0]);
+    assert_eq!([s.pages[4][9], s.pages[4][73]], [1, 5]);
+    let fan_auto = s
+        .events
+        .iter()
+        .position(|event| event == "PAGE4:5:[0]")
+        .unwrap();
+    let turbo = s
+        .events
+        .iter()
+        .position(|event| event == "MODE:66")
+        .unwrap();
+    assert!(fan_auto < turbo);
+}
+
+#[test]
+fn confirmed_custom_curve_handoff_applies_and_restores_quiet_in_both_modes() {
+    for mode in [2_u8, 3] {
+        let f = setup();
+        {
+            let mut state = f.device.0.lock().unwrap();
+            state.pages[1][1] = mode;
+            state.bios[20] |= 1;
+            state.bios[21] |= 1;
+            state.pages[4][5] = FAN_MODE_CUSTOM;
+            state.pages[4][70 + usize::from(mode)] = FAN_MODE_CUSTOM;
+            state.pages[4][9] = u8::from(mode == 3);
+        }
+        let _gate = f.hal.begin_write().unwrap();
+        let mut quiet = request(&f, false, false);
+        quiet.quiet_fan = Some(true);
+        assert!(apply(&f.hal, &quiet).is_err());
+        assert!(f.device.0.lock().unwrap().events.is_empty());
+
+        quiet.replace_custom_fan = true;
+        quiet.values.dtt = Some(true);
+        assert!(apply(&f.hal, &quiet).is_err());
+        quiet.values.dtt = Some(false);
+        assert!(f.device.0.lock().unwrap().events.is_empty());
+        f.device.0.lock().unwrap().fail_fan_mode = true;
+        assert!(apply(&f.hal, &quiet).is_err());
+        assert_eq!(f.device.0.lock().unwrap().pages[4][5], FAN_MODE_CUSTOM);
+        apply(&f.hal, &quiet).unwrap();
+        assert!(apply(&f.hal, &quiet).is_err());
+        let active = read(&f.hal).unwrap();
+        assert_eq!(active.current_mode, mode);
+        assert!(active.quiet_fan.as_ref().unwrap().active);
+        assert_eq!(
+            f.device.0.lock().unwrap().fan_command,
+            Some(FAN_MODE_NOISELESS)
+        );
+
+        let target = active.restore.unwrap();
+        super::super::restore(&f.hal, &target.revision).unwrap();
+        let state = f.device.0.lock().unwrap();
+        assert_eq!(state.pages[4][5], FAN_MODE_CUSTOM);
+        assert_eq!(state.fan_command, Some(FAN_MODE_CUSTOM));
+        assert_eq!(state.pages[4][9], u8::from(mode == 3));
+    }
+}
+
+#[test]
+fn entertainment_noiseless_remembers_its_own_preference_across_mode_changes() {
+    let f = setup();
+    {
+        let mut state = f.device.0.lock().unwrap();
+        state.bios[20] |= 1;
+        state.bios[21] |= 1;
+    }
+    let _gate = f.hal.begin_write().unwrap();
+    let mut performance = request(&f, false, false);
+    performance.quiet_fan = Some(true);
+    apply(&f.hal, &performance).unwrap();
+
+    super::super::checkpoint(&f.hal, 3)
+        .unwrap()
+        .execute(&f.hal)
+        .unwrap();
+    assert!(!read(&f.hal).unwrap().quiet_fan.unwrap().enabled);
+    let mut entertainment = request(&f, false, false);
+    entertainment.quiet_fan = Some(true);
+    apply(&f.hal, &entertainment).unwrap();
+    {
+        let state = f.device.0.lock().unwrap();
+        assert_eq!((state.pages[4][5], state.pages[4][9]), (0, 1));
+        assert_eq!((state.pages[4][72], state.pages[4][73]), (8, 0));
+        assert_eq!(state.fan_command, Some(FAN_MODE_NOISELESS));
+    }
+    super::super::checkpoint(&f.hal, 2)
+        .unwrap()
+        .execute(&f.hal)
+        .unwrap();
+    assert!(read(&f.hal).unwrap().quiet_fan.unwrap().enabled);
+    let target = super::super::workflow::restore_target(&f.hal)
+        .unwrap()
+        .unwrap();
+    assert_eq!(target.entertainment_quiet, Some(false));
+    super::super::restore(&f.hal, &target.revision).unwrap();
+    let state = f.device.0.lock().unwrap();
+    assert_eq!(
+        (state.pages[1][1], state.pages[4][9], state.pages[4][72]),
+        (2, 0, 0)
+    );
+}
+
+#[test]
+fn entertainment_noiseless_can_switch_off_and_restore_after_save_failure() {
+    let f = setup();
+    {
+        let mut state = f.device.0.lock().unwrap();
+        state.pages[1][1] = 3;
+        state.bios[20] |= 1;
+        state.pages[4][8] = 1;
+        state.pages[4][9] = 1;
+        state.fail_option_save = Some((4, 9));
+    }
+    let _gate = f.hal.begin_write().unwrap();
+    let mut quiet = request(&f, true, false);
+    quiet.quiet_fan = Some(false);
+    assert!(apply(&f.hal, &quiet).is_err());
+    {
+        let state = f.device.0.lock().unwrap();
+        assert_eq!(
+            (state.pages[4][5], state.pages[4][8], state.pages[4][9]),
+            (0, 1, 1)
+        );
+        assert_eq!(state.fan_command, Some(FAN_MODE_NOISELESS));
+    }
+    apply(&f.hal, &quiet).unwrap();
+    {
+        let state = f.device.0.lock().unwrap();
+        assert_eq!(
+            (state.pages[4][5], state.pages[4][8], state.pages[4][9]),
+            (0, 1, 0)
+        );
+        assert_eq!(state.fan_command, Some(FAN_MODE_AUTO));
+    }
+    let target = super::super::workflow::restore_target(&f.hal)
+        .unwrap()
+        .unwrap();
+    assert_eq!(target.entertainment_quiet, Some(true));
+    super::super::restore(&f.hal, &target.revision).unwrap();
+    let state = f.device.0.lock().unwrap();
+    assert_eq!((state.pages[4][5], state.pages[4][9]), (0, 1));
+    assert_eq!(state.fan_command, Some(FAN_MODE_NOISELESS));
+}
+
+#[test]
+fn hot_performance_selection_applies_remembered_noiseless_mode_and_offset() {
+    let f = setup();
+    {
+        let mut state = f.device.0.lock().unwrap();
+        state.pages[1][1] = 3;
+        state.bios[20] |= 1;
+        state.bios[21] |= 1;
+        state.pages[4][72] = FAN_MODE_NOISELESS;
+        state.pages[4][76] = 20;
+        state.cpu_temperature = 99;
+    }
+    let _gate = f.hal.begin_write().unwrap();
+    let target = super::super::read(&f.hal)
+        .unwrap()
+        .targets
+        .into_iter()
+        .find(|target| target.mode == 2)
+        .unwrap();
+    assert_eq!(target.fan_mode, FAN_MODE_NOISELESS);
+    assert_eq!(target.fan_offset_pct, 20);
+    super::super::apply_preview(&f.hal, &target).unwrap();
+    assert!(!f.hal.fan_guard_armed().unwrap());
+    let state = f.device.0.lock().unwrap();
+    assert_eq!(state.pages[1][1], 2);
+    assert_eq!(state.pages[4][5], FAN_MODE_NOISELESS);
+    assert_eq!(state.pages[4][7], 20);
+}
+
 #[test]
 fn real_workflow_sends_independent_dtt_without_touching_windows_or_fan() {
     let f = setup();
@@ -136,7 +400,7 @@ fn revoked_before_first_mode_output_does_not_write_or_create_baseline() {
     let mut checks = 0;
     let result = plan.execute_guarded(&f.hal, &mut || {
         checks += 1;
-        if checks == 4 {
+        if checks == 3 {
             bail!("隔离许可撤销");
         }
         Ok(())

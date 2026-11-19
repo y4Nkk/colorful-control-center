@@ -26,7 +26,7 @@ function Scenario({ review, condition, label }: { review: SupplyModeReview; cond
     <h3 className="ccc-rule-heading"><Icon name={condition.toLowerCase().includes("battery") ? "battery" : "plug"} />{label}</h3>
     {target ? <>
       <div className="ccc-rule-mode"><Icon name="arrow-right" /><ModeArtwork mode={target.mode} /><strong>{OEM_POWER_MODES[target.mode] ?? `未知模式 ${target.mode}`}</strong></div>
-      {gpu.action && <span className="ccc-chip">独显目标 · {gpu.action.target.enabled ? "开启" : "关闭"}</span>}
+      {gpu.action && <span className="ccc-control-caption">独显目标 · {gpu.action.target.enabled ? "开启" : "关闭"}</span>}
       {[...new Set([target.unavailableReason, target.gpu?.status === "unavailable" ? target.gpu.value : null, gpu.unavailableReason, clocks?.unavailableReason].filter(Boolean))].map((reason, i) => <p className="ccc-control-error" key={i} role="alert">{reason}</p>)}
       <DetailsDialog title="联动目标">
       <OemModeEffects target={target} />

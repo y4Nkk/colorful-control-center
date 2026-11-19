@@ -60,7 +60,7 @@ impl Scope<'_> {
     ) -> Result<Plan> {
         hal.ensure_mode_change_allowed()?;
         self.with_io(hal, |io| {
-            let before = capture(io, false)?.context("固件未声明USB策略")?;
+            let before = capture(io, false)?.context("固件未声明 USB 选择性暂停")?;
             let changes = before.changes_for(target)?;
             io.ensure_write()?;
             let active_after_mode = active_after_mode.unwrap_or(before.active);

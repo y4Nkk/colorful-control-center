@@ -11,6 +11,7 @@ pub struct RestoreTarget {
     pub ac_mode: Option<u8>,
     pub turbo: bool,
     pub dtt: bool,
+    pub entertainment_quiet: Option<bool>,
     pub fan: crate::fanctl::StoredCheckpoint,
     pub system: Option<(String, Option<[u32; 2]>)>,
     pub system_plans: Vec<system::RestorePlan>,
@@ -83,6 +84,7 @@ impl RestoreTarget {
             ac_mode: snapshot.core.ac_mode,
             turbo: snapshot.core.preferences[0] != 0,
             dtt: snapshot.core.preferences[1] != 0,
+            entertainment_quiet: snapshot.fan.entertainment_quiet(),
             fan: snapshot.fan.stored(),
             system: snapshot.system.as_ref().map(system::Snapshot::summary),
             system_plans: snapshot
@@ -195,10 +197,16 @@ impl StoredModeSnapshot {
         if let Some(energy) = self.energy {
             energy.validate()?;
         }
+        let expected = mode_command(self.core.mode, self.core.preferences);
+        let valid_command = if self.core.mode == 3 {
+            self.core.command & 0x3f == 3 && self.core.command & !expected == 0
+        } else {
+            self.core.command == expected
+        };
         if self.core.mode > 4
             || self.core.ac_mode.is_some() && self.energy.is_none()
             || self.core.preferences.iter().any(|value| *value > 1)
-            || self.core.command != mode_command(self.core.mode, self.core.preferences)
+            || !valid_command
         {
             bail!("原厂模式恢复记录无效");
         }

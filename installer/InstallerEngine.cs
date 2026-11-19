@@ -16,7 +16,8 @@ namespace ColorfulControlCenter.Installer
 
     internal sealed class InstallerEngine
     {
-        internal async Task Run(InstallationRequest request, IProgress<InstallProgress> progress)
+        internal async Task<bool> Run(InstallationRequest request, IProgress<InstallProgress> progress,
+            Func<bool> confirmClose)
         {
             string staging = Path.Combine(Path.GetTempPath(), "ccc-setup-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(staging);
@@ -30,15 +31,25 @@ namespace ColorfulControlCenter.Installer
                     await Extract(engine, progress);
                     if (!String.Equals(Hash(engine), Product.EngineSha256, StringComparison.OrdinalIgnoreCase))
                         throw new IOException("安装引擎校验失败，请重新下载安装包。");
-                    log.WriteLine("Payload verified. Starting NSIS.");
-                    progress.Report(new InstallProgress { Phase = "正在安装程序与运行组件…" });
-                    int code = await RunProcess(engine, request.EngineArguments());
-                    log.WriteLine("NSIS exit code: " + code);
-                    if (code != 0) throw new IOException("安装引擎退出，错误代码 " + code
-                        + "。请确认控制台已退出、目录可写，且网络可用于准备 WebView2，然后重试。");
+                    log.WriteLine("Payload verified.");
+                    int code = await InstallFiles(engine, request, progress, log);
+                    if (code == Product.ControllerRunningExitCode)
+                    {
+                        progress.Report(new InstallProgress { Phase = "等待确认关闭控制台…" });
+                        if (!confirmClose())
+                        {
+                            log.WriteLine("User canceled before requesting controller exit.");
+                            return false;
+                        }
+                        progress.Report(new InstallProgress { Phase = "正在关闭控制台，等待安装文件解除占用…" });
+                        await ReleaseController(request, log);
+                        code = await InstallFiles(engine, request, progress, log);
+                    }
+                    if (code != 0) throw new EngineExitFailure(code);
                     progress.Report(new InstallProgress { Phase = "正在核对安装文件…" });
                     VerifyInstallation(request.Directory);
                     log.WriteLine("Application hash and uninstaller verified. Installation complete.");
+                    return true;
                 }
                 catch (Exception error)
                 {
@@ -51,6 +62,22 @@ namespace ColorfulControlCenter.Installer
                     catch (Exception error) { log.WriteLine("Payload cleanup: " + error.Message); }
                 }
             }
+        }
+
+        private static async Task<int> InstallFiles(string engine, InstallationRequest request,
+            IProgress<InstallProgress> progress, StreamWriter log)
+        {
+            log.WriteLine("Starting NSIS.");
+            progress.Report(new InstallProgress { Phase = "正在安装程序与运行组件…" });
+            int code = await RunProcess(engine, request.EngineArguments());
+            log.WriteLine("NSIS exit code: " + code);
+            return code;
+        }
+
+        private static async Task ReleaseController(InstallationRequest request, StreamWriter log)
+        {
+            try { await Task.Run(() => ControllerShutdown.ReleaseExecutable(request.Directory, log.WriteLine)); }
+            catch (Exception error) { throw new IOException(EngineExitFailure.ControllerExitInstructions, error); }
         }
 
         private static async Task Extract(string outputPath, IProgress<InstallProgress> progress)

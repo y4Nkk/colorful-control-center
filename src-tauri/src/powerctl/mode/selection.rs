@@ -57,6 +57,18 @@ pub(crate) fn apply_preview(
 ) -> Result<()> {
     apply_checkpoint(context, expected, &mut |_, _, _| Ok(()), permit)
 }
+
+pub(crate) fn checked_target(
+    context: &links::Context<'_>,
+    expected: &Target,
+) -> Result<links::Plan> {
+    let plan = checkpoint(context, expected.mode, None)?;
+    if plan.target != *expected {
+        bail!("模式联动条件已变化，请重新读取后再切换");
+    }
+    Ok(plan)
+}
+
 pub(crate) fn apply_checkpoint(
     context: links::Context<'_>,
     expected: &Target,
@@ -70,10 +82,7 @@ pub(crate) fn apply_checkpoint(
     let session = context.session()?;
     let gate = session.context.hal.begin_write()?;
     permit()?;
-    let plan = checkpoint(&session.context, expected.mode, None)?;
-    if plan.target != *expected {
-        bail!("完整模式预览已变化或缺少GPU联动，请重新读取并确认");
-    }
+    let plan = checked_target(&session.context, expected)?;
     if let Some(action) = plan.effects.node_action {
         let current = expected
             .gpu
@@ -91,7 +100,7 @@ pub(crate) fn apply_checkpoint(
         permit()?;
         let current = checkpoint(&session.context, expected.mode, None)?;
         if current.target != *expected {
-            bail!("授权后完整模式预览已变化，未执行模式联动");
+            bail!("授权期间模式联动条件已变化，请重新读取后再切换");
         }
         plan.execute(&session, frequency_checkpoint, permit)
     })();

@@ -1,6 +1,12 @@
-//! 原厂以Dynamic Tuning设备描述或安装项识别驱动；这里只读。
+//! 只读识别已启动的固件 DTT 设备或原厂的驱动安装条件。
 use anyhow::{Result, bail};
-use windows_sys::Win32::{Devices::DeviceAndDriverInstallation::*, System::Registry::*};
+use windows_sys::Win32::{
+    Devices::{
+        DeviceAndDriverInstallation::*,
+        Properties::{DEVPKEY_Device_BiosDeviceName, DEVPROP_TYPE_STRING},
+    },
+    System::Registry::*,
+};
 fn matches(name: &str) -> bool {
     name.to_ascii_lowercase().contains("dynamic tuning")
 }
@@ -15,7 +21,7 @@ impl Drop for Devices {
         }
     }
 }
-fn devices() -> Result<bool> {
+fn find_device(qualifies: impl Fn(HDEVINFO, &SP_DEVINFO_DATA) -> Result<bool>) -> Result<bool> {
     let handle = unsafe {
         SetupDiGetClassDevsW(
             std::ptr::null(),
@@ -38,32 +44,81 @@ fn devices() -> Result<bool> {
             }
             return Err(error.into());
         }
-        let mut text = [0u16; 4096];
-        if unsafe {
-            SetupDiGetDeviceRegistryPropertyW(
-                set.0,
-                &info,
-                SPDRP_DEVICEDESC,
-                std::ptr::null_mut(),
-                text.as_mut_ptr().cast(),
-                size_of_val(&text) as u32,
-                std::ptr::null_mut(),
-            )
-        } == 0
-        {
-            let error = std::io::Error::last_os_error();
-            if error.raw_os_error() == Some(13) {
-                continue;
-            }
-            return Err(error.into());
-        }
-        let end = text.iter().position(|v| *v == 0).unwrap_or(text.len());
-        if matches(&String::from_utf16_lossy(&text[..end])) {
+        if qualifies(set.0, &info)? {
             return Ok(true);
         }
     }
     bail!("DTT设备枚举未正常结束")
 }
+fn dtt_description(set: HDEVINFO, info: &SP_DEVINFO_DATA) -> Result<bool> {
+    let mut text = [0u16; 4096];
+    if unsafe {
+        SetupDiGetDeviceRegistryPropertyW(
+            set,
+            info,
+            SPDRP_DEVICEDESC,
+            std::ptr::null_mut(),
+            text.as_mut_ptr().cast(),
+            size_of_val(&text) as u32,
+            std::ptr::null_mut(),
+        )
+    } == 0
+    {
+        let error = std::io::Error::last_os_error();
+        if error.raw_os_error() == Some(13) {
+            return Ok(false);
+        }
+        return Err(error.into());
+    }
+    let end = text.iter().position(|v| *v == 0).unwrap_or(text.len());
+    Ok(matches(&String::from_utf16_lossy(&text[..end])))
+}
+
+pub(super) fn active_platform() -> Result<bool> {
+    find_device(|_, info| {
+        let mut name = [0u16; 512];
+        let (mut kind, mut length) = (0, size_of_val(&name) as u32);
+        let result = unsafe {
+            CM_Get_DevNode_PropertyW(
+                info.DevInst,
+                &DEVPKEY_Device_BiosDeviceName,
+                &mut kind,
+                name.as_mut_ptr().cast(),
+                &mut length,
+                0,
+            )
+        };
+        match result {
+            CR_SUCCESS => (),
+            CR_NO_SUCH_VALUE | CR_NO_SUCH_DEVNODE | CR_INVALID_DEVNODE => return Ok(false),
+            _ => bail!("读取 ACPI 设备路径失败，CONFIGRET={result:#x}"),
+        }
+        let end = name
+            .iter()
+            .position(|value| *value == 0)
+            .unwrap_or(name.len());
+        let path = String::from_utf16_lossy(&name[..end]);
+        if kind != DEVPROP_TYPE_STRING
+            || !path
+                .trim_start_matches('\\')
+                .eq_ignore_ascii_case("_SB.IETM")
+        {
+            return Ok(false);
+        }
+        // DptfTabl exposes IETM only when DPTF is enabled on the reviewed platform.
+        let (mut status, mut problem) = (0, 0);
+        let result = unsafe { CM_Get_DevNode_Status(&mut status, &mut problem, info.DevInst, 0) };
+        match result {
+            CR_SUCCESS => {
+                let active = DN_STARTED | DN_DRIVER_LOADED;
+                Ok(problem == 0 && status & active == active)
+            }
+            CR_NO_SUCH_DEVNODE | CR_INVALID_DEVNODE => Ok(false),
+            _ => bail!("读取 IETM 设备状态失败，CONFIGRET={result:#x}"),
+        }
+    })
+}
+
 struct Key(HKEY);
 impl Drop for Key {
     fn drop(&mut self) {
@@ -156,7 +211,7 @@ fn uninstall(root: HKEY, view: u32) -> Result<bool> {
 pub(super) fn installed() -> Result<bool> {
     let mut errors = Vec::new();
     for result in [
-        devices(),
+        find_device(dtt_description),
         uninstall(HKEY_LOCAL_MACHINE, KEY_WOW64_64KEY),
         uninstall(HKEY_LOCAL_MACHINE, KEY_WOW64_32KEY),
         uninstall(HKEY_CURRENT_USER, KEY_WOW64_64KEY),

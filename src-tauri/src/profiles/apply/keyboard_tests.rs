@@ -68,7 +68,7 @@ fn capture_disk_and_json_keep_keyboard_flags_and_disabled_nonzero_light_level() 
         let f = Fixture::new();
         setup(&f, kind);
         f.device.0.lock().unwrap().pages[2][80] = 0;
-        let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+        let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
         assert_eq!(captured.keyboard.as_ref().unwrap().fn_locked, Some(false));
         let target = captured.keyboard_lighting.as_ref().unwrap();
         assert!(!target.enabled);
@@ -76,7 +76,7 @@ fn capture_disk_and_json_keep_keyboard_flags_and_disabled_nonzero_light_level() 
         let json = serde_json::to_value(target).unwrap();
         assert_eq!(json["settings"]["brightness"], 3);
         let dir = tempfile::tempdir().unwrap();
-        crate::profiles::save_in(dir.path(), captured.clone(), "键盘灯").unwrap();
+        crate::profiles::save_in(dir.path(), captured.clone(), "键盘灯", None).unwrap();
         let restored = crate::profiles::load_from(dir.path(), "键盘灯").unwrap();
         assert!(restored.settings == captured);
         assert!(f.device.0.lock().unwrap().events.is_empty());

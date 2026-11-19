@@ -32,9 +32,7 @@ pub(super) fn execute(
         if app.state::<crate::display::Controller>().trial_pending()? {
             bail!("显示试用中，模式循环已取消");
         }
-        let hal = app.state::<hal::Hal>();
-        hal.ensure_mode_change_allowed()?;
-        crate::fanctl::dust::ensure_manual_allowed(&hal)?;
+        app.state::<hal::Hal>().ensure_mode_change_allowed()?;
         hal::oem_owner::ensure_owner_absent()
     };
     let hal = app.state::<hal::Hal>();
@@ -50,7 +48,7 @@ pub(super) fn execute(
     .map(|mode| actions::Completion {
         message: Some(osd::Message::result(
             "电源模式",
-            ["安静", "省电", "性能", "娱乐", "静音增强"][mode as usize],
+            powerctl::mode::MODE_LABELS[mode as usize],
         )),
         show_osd: true,
     });

@@ -1,13 +1,9 @@
 use super::*;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 static FAIL: AtomicBool = AtomicBool::new(false);
 static MEMORY_READS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 static MEMORY_FAIL: AtomicBool = AtomicBool::new(false);
-
-unsafe extern "system" fn buffer(command: i32, output: *mut u8) -> i32 {
-    if FAIL.load(Ordering::SeqCst) {
-        return 0;
-    }
+unsafe extern "system" fn healthy_buffer(command: i32, output: *mut u8) -> i32 {
     let mut bytes = [0; 257];
     bytes[18] = 60;
     bytes[16] = 100;
@@ -15,6 +11,12 @@ unsafe extern "system" fn buffer(command: i32, output: *mut u8) -> i32 {
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), output, bytes.len());
     }
     command
+}
+unsafe extern "system" fn buffer(command: i32, output: *mut u8) -> i32 {
+    if FAIL.load(Ordering::SeqCst) {
+        return 0;
+    }
+    unsafe { healthy_buffer(command, output) }
 }
 unsafe extern "system" fn read(page: i32, offset: i32, length: i32, output: *mut u8) -> i32 {
     MEMORY_READS.fetch_add(1, Ordering::SeqCst);
@@ -34,6 +36,41 @@ unsafe extern "system" fn set(_: i32, _: *const u8, _: i32) -> i32 {
 }
 unsafe extern "system" fn write(_: i32, _: i32, _: i32, _: *const u8) -> i32 {
     0
+}
+
+#[test]
+fn display_snapshots_read_current_mode_and_keep_other_readings_when_it_fails() {
+    static MODE: AtomicU8 = AtomicU8::new(3);
+    unsafe extern "system" fn read_mode(
+        page: i32,
+        offset: i32,
+        length: i32,
+        output: *mut u8,
+    ) -> i32 {
+        let mode = MODE.load(Ordering::SeqCst);
+        if (page, offset, length) != (1, 1, 1) || mode == u8::MAX {
+            return 0;
+        }
+        unsafe { output.write(mode) };
+        4096
+    }
+    let io = oem_dchu::Dchu::test_io(healthy_buffer, read_mode, set, write);
+    let hal = Hal::test_instance(io, None);
+    assert!(hal.snapshot().oem_power_mode.is_none());
+    assert_eq!(hal.display_snapshot().oem_power_mode, Some(3));
+    MODE.store(2, Ordering::SeqCst);
+    let changed = serde_json::to_value(hal.display_snapshot()).unwrap();
+    assert_eq!(changed["oemPowerMode"], 2);
+    MODE.store(u8::MAX, Ordering::SeqCst);
+    let failed = hal.display_snapshot();
+    assert!(failed.oem_power_mode.is_none());
+    assert_eq!(failed.cpu_temp_c, Some(60.0));
+    assert!(
+        failed
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("当前模式读取失败"))
+    );
 }
 
 #[test]

@@ -18,7 +18,7 @@ try {
   $fixture = Join-Path $root 'engine-fixture.exe'
   $csc = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
   $fixtureSource = (Resolve-Path -LiteralPath tools/installer-check/ControllerFixture.cs).Path
-  & $csc /nologo /target:exe /platform:x64 "/out:$controller" $fixtureSource
+  & $csc /nologo /target:winexe /platform:x64 /reference:System.Windows.Forms.dll "/out:$controller" $fixtureSource
   if ($LASTEXITCODE -ne 0) { throw 'Fixture compiler failed.' }
   $config = Get-Content -LiteralPath src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
   $package = Get-Content -LiteralPath package.json -Raw | ConvertFrom-Json
@@ -40,7 +40,7 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Installer check compilation failed.' }
   if (-not $RenderOnly) {
     $guardSource = (Resolve-Path -LiteralPath tools/installer-check/running-guard.nsi).Path
-    & $makensis /V2 "/DHOOKS=$hooks" "/DOUTPUT=$root\running-guard.exe" "/DCONTROLLER=$root\colorful-control-center.exe" $guardSource
+    & $makensis /V2 "/DHOOKS=$hooks" "/DOUTPUT=$root\running-guard.exe" "/DCONTROLLER=$root\running-target\$($package.name).exe" $guardSource
     if ($LASTEXITCODE -ne 0) { throw 'NSIS running guard compilation failed.' }
   }
   $arguments = '"' + $root + '"' + $(if ($RenderOnly) { ' render' } else { '' })

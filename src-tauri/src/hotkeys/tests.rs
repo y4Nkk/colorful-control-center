@@ -198,13 +198,13 @@ fn successful_apply_captures_initial_policy_and_disabled_target_stops_runtime() 
     transaction::change(
         &io,
         &io.revision(),
-        |facts| Record::authorize(enabled(), facts),
+        |_, facts| Record::authorize(enabled(), facts),
         &mut initial,
     )
     .unwrap();
     assert!(io.running.get());
     assert_eq!(initial, Some(Record::default()));
-    transaction::change(&io, &io.revision(), |_| Ok(Record::default()), &mut initial).unwrap();
+    transaction::change(&io, &io.revision(), |_, _| Ok(Record::default()), &mut initial).unwrap();
     assert!(!io.running.get());
     assert_eq!(initial, Some(Record::default()));
 }
@@ -225,7 +225,7 @@ fn prepare_save_and_activation_failures_restore_old_policy_and_listener() {
             transaction::change(
                 &io,
                 &io.revision(),
-                |facts| Record::authorize(settings, facts),
+                |_, facts| Record::authorize(settings, facts),
                 &mut initial
             )
             .is_err()
@@ -244,7 +244,7 @@ fn failed_compensation_keeps_initial_policy_for_explicit_retry() {
     let error = transaction::change(
         &io,
         &io.revision(),
-        |facts| Record::authorize(enabled(), facts),
+        |_, facts| Record::authorize(enabled(), facts),
         &mut initial,
     )
     .unwrap_err();
@@ -255,7 +255,7 @@ fn failed_compensation_keeps_initial_policy_for_explicit_retry() {
     transaction::change(
         &io,
         &io.revision(),
-        |_| Ok(initial.clone().unwrap()),
+        |_, _| Ok(initial.clone().unwrap()),
         &mut None,
     )
     .unwrap();
@@ -267,10 +267,10 @@ fn stale_preview_and_changed_initial_authorization_do_not_stop_existing_listener
     let revision = io.revision();
     let initial = io.loaded.borrow().record.clone();
     io.facts.borrow_mut().capabilities[0].identity = Some("new".into());
-    assert!(transaction::change(&io, &revision, |_| Ok(Record::default()), &mut None).is_err());
+    assert!(transaction::change(&io, &revision, |_, _| Ok(Record::default()), &mut None).is_err());
     assert!(io.running.get());
     assert_eq!(io.saves.get(), 0);
-    assert!(transaction::change(&io, &io.revision(), |_| Ok(initial), &mut None).is_err());
+    assert!(transaction::change(&io, &io.revision(), |_, _| Ok(initial), &mut None).is_err());
     assert!(io.running.get());
     assert_eq!(io.saves.get(), 0);
 }

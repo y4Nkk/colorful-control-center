@@ -21,6 +21,7 @@ export const applyBatteryCharge = (expectedRevision: string, values: BatteryChar
   invoke<void>("apply_battery_charge", { request: { expectedRevision, values } });
 export const restoreBatteryCharge = (expectedRevision: string) => invoke<void>("restore_battery_charge", { expectedRevision });
 
+export const ENERGY_POLICY_LABEL = "电池节能计划";
 export interface EnergyLimits { floor: number; ceiling: number }
 export interface EnergySlot { start: number; end: number }
 export interface EnergyPolicy {

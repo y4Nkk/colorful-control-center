@@ -9,7 +9,7 @@ pub(crate) async fn retry_keymap_programs(
     app: tauri::AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<keymap::Controller>()
             .retry_programs(&app.state::<Hal>(), &expected_revision)
     })
@@ -19,7 +19,7 @@ pub(crate) async fn retry_keymap_programs(
 }
 #[tauri::command]
 pub(crate) async fn read_keymap(app: tauri::AppHandle) -> Result<Option<keymap::Profile>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<keymap::Controller>().read(&app.state::<Hal>())
     })
     .await
@@ -31,7 +31,7 @@ pub(crate) async fn apply_keymap(
     app: tauri::AppHandle,
     request: keymap::Request,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<keymap::Controller>()
             .apply(&app.state::<Hal>(), &request)
     })
@@ -44,7 +44,7 @@ pub(crate) async fn restore_keymap(
     app: tauri::AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<keymap::Controller>()
             .restore(&app.state::<Hal>(), &expected_revision)
     })
@@ -63,7 +63,7 @@ pub(crate) async fn start_keymap_recording(
     {
         return Err("请先聚焦主窗口，再开始录制".into());
     }
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<keymap::Controller>().start_recording()
     })
     .await
@@ -74,7 +74,7 @@ pub(crate) async fn start_keymap_recording(
 pub(crate) async fn read_keymap_recording(
     app: tauri::AppHandle,
 ) -> Result<Option<keymap::recording::Snapshot>, String> {
-    tauri::async_runtime::spawn_blocking(move || app.state::<keymap::Controller>().read_recording())
+    crate::shutdown::blocking(move || app.state::<keymap::Controller>().read_recording())
         .await
         .map_err(|e| e.to_string())?
         .map_err(|e| format!("{e:#}"))
@@ -83,7 +83,7 @@ pub(crate) async fn read_keymap_recording(
 pub(crate) async fn stop_keymap_recording(
     app: tauri::AppHandle,
 ) -> Result<Option<keymap::recording::Snapshot>, String> {
-    tauri::async_runtime::spawn_blocking(move || app.state::<keymap::Controller>().stop_recording())
+    crate::shutdown::blocking(move || app.state::<keymap::Controller>().stop_recording())
         .await
         .map_err(|e| e.to_string())?
         .map_err(|e| format!("{e:#}"))

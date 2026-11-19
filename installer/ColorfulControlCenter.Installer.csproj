@@ -24,12 +24,13 @@
     <Reference Include="PresentationCore" /><Reference Include="PresentationFramework" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="InstallationRequest.cs" /><Compile Include="InstalledApplication.cs" />
+    <Compile Include="InstallationRequest.cs" /><Compile Include="InstalledApplication.cs" /><Compile Include="ControllerShutdown.cs" />
     <Compile Include="InstallerEngine.cs" /><Compile Include="InstallerFailure.cs" /><Compile Include="InstallerWindow.cs" />
     <Compile Include="InstallerWindowLayout.cs" /><Compile Include="InstallerWindowMotion.cs" /><Compile Include="Program.cs" />
     <Compile Include="$(InstallerBuildDirectory)\Product.cs" />
     <Compile Include="$(InstallerTestSource)" Condition="'$(InstallerTestSource)' != ''" />
     <Compile Include="..\tools\installer-check\InstallerMotionChecks.cs" Condition="'$(InstallerTestSource)' != ''" />
+    <Compile Include="..\tools\installer-check\InstallerShutdownChecks.cs" Condition="'$(InstallerTestSource)' != ''" />
     <EmbeddedResource Include="Theme.xaml"><LogicalName>CCC.Theme</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="$(InstallerBuildDirectory)\Palette.xaml"><LogicalName>CCC.Palette</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="assets\installer-artwork.png"><LogicalName>CCC.Artwork</LogicalName></EmbeddedResource>

@@ -1,25 +1,26 @@
-import { openStartupParameters, openProfileResults } from "./profile-review.mjs";
-import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { openProfileResults, openProfileSave, openStartupParameters, profileSaveDialog, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
+import { openWorkspace, openSystemArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
 const panel = page => page.getByRole("region", { name: "档案预览", exact: true });
 const charge = page => panel(page).getByRole("region", { name: "档案充电保护", exact: true });
-const energy = page => panel(page).getByRole("region", { name: "档案电池节能", exact: true });
+const energy = page => panel(page).getByRole("region", { name: "档案电池节能计划", exact: true });
+const apply = page => panel(page).getByRole("button", { name: "应用档案", exact: true });
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_|save_|import_|set_startup|start_battery)/.test(call.command)));
 async function select(page) {
-  await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: "性能档案", exact: true }).click();
+  await openSystemArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
+  await showProfileSettings(page);
 }
 async function capture(page, name) {
-  await page.getByPlaceholder("游戏 / 静音").fill(name);
-  await page.getByRole("button", { name: "保存当前", exact: true }).click();
-  await page.getByRole("button", { name: "保存当前设置？", exact: true }).click();
+  await openProfileSave(page, name, ["充电与供电"]);
+  await saveProfileButton(page).click();
+  await showProfileSettings(page);
 }
 async function exported(page) {
-  const download = page.waitForEvent("download"); await panel(page).getByRole("button", { name: "导出", exact: true }).click();
+  const download = page.waitForEvent("download"); await (await showProfileMenu(page)).getByRole("button", { name: "导出档案", exact: true }).click();
   return JSON.parse(await readFile(await (await download).path(), "utf8"));
 }
 test.beforeEach(async ({ page }) => {
@@ -32,20 +33,22 @@ test.beforeEach(async ({ page }) => {
     policy.everyDay = false; policy.weekdays = 62; policy.slots = [{ start: 8, end: 18 }, { start: 20, end: 22 }];
     data.profile.settings.batteryEnergy = { policy, capability: data.energy.capability };
   });
-  await page.goto("/"); await openWorkspace(page, "电池与节能");
+  await page.goto("/"); await openWorkspace(page, "电源");
 });
 
 test("电池档案以真实阈值环和时段预览，确认提交完整目标", async ({ page }) => {
   await select(page);
   await expect(charge(page).getByRole("meter", { name: "开始充电阈值", exact: true })).toHaveAttribute("aria-valuenow", "70");
   await expect(charge(page).getByRole("meter", { name: "停止充电阈值", exact: true })).toHaveAttribute("aria-valuenow", "90");
-  await expect(charge(page)).toContainText("先停止节能计划");
+  await charge(page).getByRole("button", { name: "充电策略应用顺序", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "充电策略应用顺序", exact: true })).toContainText("先停止节能计划");
+  await page.keyboard.press("Escape");
   await expect(energy(page)).toContainText("周一、周二、周三、周四、周五");
   await expect(energy(page).getByRole("img", { name: "档案节能时段：08:00到18:00，20:00到22:00", exact: true })).toBeVisible();
   await expect(energy(page)).toContainText("计划关闭");
-  await expect(energy(page).locator("input,button")).toHaveCount(0); expect(await writes(page)).toEqual([]);
-  await openConfigurationReview(page); expect(await writes(page)).toEqual([]);
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await expect(energy(page).locator('input,button:not([aria-haspopup="dialog"])')).toHaveCount(0);
+  expect(await writes(page)).toEqual([]);
+  await apply(page).click();
   const calls = await writes(page); expect(calls).toHaveLength(1);
   expect(calls[0].args.expected.settings.batteryCharge.values).toEqual({ enabled: true, start: 70, stop: 90 });
   expect(calls[0].args.expected.settings.batteryEnergy.policy.slots).toEqual([{ start: 8, end: 18 }, { start: 20, end: 22 }]);
@@ -84,44 +87,54 @@ test("导入无手动阈值的节能档案，展示完整配置且不触发校�
     const file = structuredClone(window.__uiFixture.profile); file.name = "节能导入";
     file.settings.batteryCharge = null; file.settings.batteryEnergy.policy.enabled = true; return file;
   });
-  await page.getByLabel("导入性能档案", { exact: true }).setInputFiles({ name: "节能.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
-  await expect(energy(page)).toContainText("计划管理充电阈值"); await expect(charge(page)).toHaveCount(0);
+  await page.getByLabel("导入配置档案", { exact: true }).setInputFiles({ name: "节能.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+  await showProfileSettings(page);
+  await energy(page).getByRole("button", { name: "节能策略说明", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "节能策略说明", exact: true })).toContainText("计划管理充电阈值");
+  await page.keyboard.press("Escape");
+  await expect(charge(page)).toHaveCount(0);
   await expect(energy(page)).toContainText("20:00–22:00"); expect(await writes(page)).toEqual([]);
 });
 
 test("启动档案共享电池预览，保存选择不发送充电或节能命令", async ({ page }) => {
-  await openWorkspace(page, "自动策略");
+  await openWorkspace(page, "电源");
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
   const parameters = await openStartupParameters(page);
   await expect(parameters.getByLabel("档案充电保护")).toContainText("启用阈值控制");
-  await expect(parameters.getByLabel("档案电池节能")).toContainText("停止节能时段");
+  await expect(parameters.getByRole("region", { name: "档案电池节能计划", exact: true })).toContainText("停止节能时段");
   await page.keyboard.press("Escape");
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await startup.getByRole("button", { name: "授权启动应用档案", exact: true }).click();
   const calls = await writes(page); expect(calls.map(call => call.command)).toEqual(["set_startup_profile"]);
   expect(calls[0].args.expected.settings.batteryCharge.values.stop).toBe(90);
 });
 
 test("旧电池目标确认失效，恢复失败记录保持可见", async ({ page }) => {
-  await select(page); await openConfigurationReview(page);
+  await select(page);
+  await expect(apply(page)).toBeEnabled();
   await page.evaluate(() => { window.__uiFixture.profile.settings.batteryCharge.values.start = 60; });
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await apply(page).click();
   await expect(page.getByRole("alert")).toContainText("档案已变化");
   await page.evaluate(() => { window.__uiFixture.profileSteps = [{ step: "电池配置", ok: false, message: "节能记录已变化" },
     { step: "恢复电池配置", ok: false, message: "旧操作不再拥有写入权，记录保留" }]; });
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
-  await openConfigurationReview(page);
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await showProfileSettings(page);
+  await apply(page).click();
   const results = await openProfileResults(page);
   await expect(results).toContainText("旧操作不再拥有写入权，记录保留");
 });
 
 test("校准和待恢复节能记录阻止捕获，不创建替代档案", async ({ page }) => {
   await select(page); await page.evaluate(() => { window.__uiFixture.calibration.recoveryRequired = true; });
-  await capture(page, "待恢复电池"); await expect(page.getByRole("alert")).toContainText("电池校准正在接管");
+  await openProfileSave(page, "待恢复电池", ["充电与供电"]);
+  const editor = profileSaveDialog(page);
+  await expect(editor.getByRole("alert")).toContainText("电池校准正在接管");
+  await expect(saveProfileButton(page)).toBeDisabled();
   await page.evaluate(() => { window.__uiFixture.calibration.recoveryRequired = false; window.__uiFixture.energy.recoveryRequired = true; });
-  await capture(page, "待恢复节能"); await expect(page.getByRole("alert")).toContainText("节能操作尚需恢复");
+  await editor.getByRole("button", { name: "重试读取", exact: true }).click();
+  await expect(editor.getByRole("alert")).toContainText("节能操作尚需恢复");
+  await expect(saveProfileButton(page)).toBeDisabled();
   expect(await writes(page)).toEqual([]);
 });
 

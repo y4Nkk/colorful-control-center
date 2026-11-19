@@ -1,19 +1,12 @@
 use super::*;
-use crate::watchdog::GuardPolicy;
 
 impl Hal {
-    pub(crate) fn prepare_fan_auto(&self) -> Result<()> {
-        let mut guard = self
-            .fan_guard
-            .lock()
-            .map_err(|_| anyhow!("风扇监护状态异常"))?;
-        if let Some(client) = guard.as_mut() {
-            client.prepare_auto()?;
-        }
-        Ok(())
+    pub(crate) fn fan_recovery_pending(&self) -> bool {
+        self.fan_recovery_needed.load(Ordering::SeqCst)
     }
 
-    pub fn arm_fan_guard(&self, policy: GuardPolicy) -> Result<()> {
+    pub fn arm_fan_guard(&self) -> Result<()> {
+        self.pulse_fan_guard()?;
         let mut guard = self
             .fan_guard
             .lock()
@@ -21,32 +14,10 @@ impl Hal {
         if self.fan_recovery_needed.load(Ordering::SeqCst) {
             return Err(anyhow!("风扇正在恢复自动模式"));
         }
-        if let Some(client) = guard.as_mut() {
-            if let Err(error) = client.pulse() {
-                client.stop_heartbeats();
-                self.fan_recovery_needed.store(true, Ordering::SeqCst);
-                if self
-                    .software_progress
-                    .lock()
-                    .map_err(|_| anyhow!("软件曲线进度异常"))?
-                    .take()
-                    .is_some()
-                {
-                    self.latch_software_fan_fault();
-                }
-                return Err(error);
-            }
-            let result = client.prepare(policy);
-            if result
-                .as_ref()
-                .is_err_and(|error| !error.is::<crate::watchdog::PolicyRejected>())
-            {
-                client.stop_heartbeats();
-                self.fan_recovery_needed.store(true, Ordering::SeqCst);
-            }
-            return result;
+        if guard.is_some() {
+            return Ok(());
         }
-        *guard = Some(self.start_fan_guard(policy)?);
+        *guard = Some(self.start_fan_guard()?);
         let client = guard.as_mut().ok_or_else(|| anyhow!("风扇监护未启动"))?;
         if let Err(error) = client.arm() {
             client.stop_heartbeats();
@@ -57,21 +28,22 @@ impl Hal {
         Ok(())
     }
 
-    fn start_fan_guard(&self, policy: GuardPolicy) -> Result<crate::watchdog::Watchdog> {
+    fn start_fan_guard(&self) -> Result<crate::watchdog::Watchdog> {
         #[cfg(test)]
         {
             let factory = self
                 .test_fan_guard
                 .as_ref()
                 .ok_or_else(|| anyhow!("隔离测试未注入风扇监护，未启动生产监护进程"))?;
-            factory(policy)
+            factory()
         }
         #[cfg(not(test))]
         {
-            crate::watchdog::Watchdog::start(self.reviewed_dsdt, policy)
+            crate::watchdog::Watchdog::start()
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn fan_guard_armed(&self) -> Result<bool> {
         Ok(self
             .fan_guard
@@ -85,6 +57,9 @@ impl Hal {
             .fan_guard
             .lock()
             .map_err(|_| anyhow!("风扇监护状态异常"))?;
+        if guard.is_none() && !self.fan_recovery_needed.load(Ordering::SeqCst) {
+            return Ok(());
+        }
         let result = guard
             .as_mut()
             .map(|client| client.disarm())
@@ -95,8 +70,8 @@ impl Hal {
             guard.take();
         }
         *self.safety.lock().map_err(|_| anyhow!("监护状态不可用"))? = match &result {
-            Ok(()) => "自动".into(),
-            Err(error) => format!("自动 · 监护退出异常：{error:#}"),
+            Ok(()) => "固件控制".into(),
+            Err(error) => format!("风扇监护退出异常：{error:#}"),
         };
         result?;
         if self
@@ -178,8 +153,9 @@ impl Hal {
         let result = self
             .with_dchu(|d| crate::watchdog::restore_auto(d, self.reviewed_dsdt))
             .and_then(|_| {
+                let recorded = self.record_software_fan_stopped();
                 self.fan_recovery_needed.store(false, Ordering::SeqCst);
-                self.record_software_fan_stopped()
+                recorded
             });
         let message = match &result {
             Ok(()) => "监护退出，已恢复自动模式".into(),
@@ -193,17 +169,5 @@ impl Hal {
             log::error!("[watchdog] {error:#}；{message}");
         }
         result
-    }
-
-    pub fn commit_fan_guard(&self, mode: u8) -> Result<()> {
-        if GuardPolicy::for_mode(mode) != GuardPolicy::FirmwareFullSpeed {
-            return Ok(());
-        }
-        self.fan_guard
-            .lock()
-            .map_err(|_| anyhow!("风扇监护状态异常"))?
-            .as_mut()
-            .ok_or_else(|| anyhow!("全速监护未启动"))?
-            .commit_full_speed()
     }
 }

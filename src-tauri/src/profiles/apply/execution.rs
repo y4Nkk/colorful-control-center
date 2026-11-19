@@ -244,7 +244,7 @@ fn apply_fan(
     guard(steps, review)?;
     if let Some(mode) = settings.fan_mode {
         if mode != 6 || (settings.fan_curves.is_none() && settings.fan_rpm_curves.is_none()) {
-            stage(steps, "风扇模式", fanctl::set_mode(hal, mode))?;
+            stage(steps, "风扇模式", fanctl::set_mode(hal, mode).map(|_| ()))?;
         }
     }
     Ok(())

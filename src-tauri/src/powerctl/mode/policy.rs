@@ -53,32 +53,36 @@ pub(super) fn target_for(
     let info = io.fan_info()?;
     let keep_fan = crate::fanctl::saved::keeps_mode(&caps);
     let slot = if mode == 4 { 0 } else { mode as usize };
-    let mut fan_mode = if keep_fan {
-        byte(io, 4, 70 + slot)?
-    } else if mode == 3 && info[14] == 5 {
-        5
-    } else {
-        0
-    };
+    let [turbo_supported, dtt_supported] = super::boost::runtime_options(io, mode)?;
+    let turbo = turbo_supported && byte(io, 4, 8)? == 1;
+    let mut fan_mode = crate::fanctl::saved::remembered_mode(io, &caps, mode)?
+        .unwrap_or(if mode == 3 && info[14] == 5 { 5 } else { 0 });
     let fan_offset_pct = if keep_fan {
         byte(io, 4, 74 + slot)?
     } else {
         byte(io, 4, 7)?
     };
+    if turbo && (mode == 3 || fan_mode == crate::fanctl::FAN_MODE_NOISELESS) {
+        fan_mode = crate::fanctl::FAN_MODE_AUTO;
+    }
     let fan_saved_mode = fan_mode;
     if mode == 3
+        && !turbo
         && fan_mode == 0
-        && caps[..2] == [1, 0]
-        && caps[20] & 1 != 0
-        && byte(io, 4, 9)? == 1
+        && crate::fanctl::supports_noiseless(&caps)
+        && crate::fanctl::saved::entertainment_quiet(io)?
     {
-        fan_mode = 8;
+        fan_mode = crate::fanctl::FAN_MODE_NOISELESS;
     }
     crate::fanctl::validate_mode(fan_mode)?;
     if fan_offset_pct > 100 {
         bail!("原厂分模式风扇偏移超出范围");
     }
-    let (aspm, power_plan) = system_policy(io, mode, &caps, activate_plan)?;
+    let (aspm, power_plan) = if energy.is_some() || turbo_supported || dtt_supported {
+        system_policy(io, mode, &caps, activate_plan)?
+    } else {
+        (None, None)
+    };
     Ok(Target {
         mode,
         from_mode: None,
@@ -89,8 +93,8 @@ pub(super) fn target_for(
         energy: energy
             .map(|state| super::energy::desired(mode, state))
             .transpose()?,
-        turbo: mode == 2 && byte(io, 4, 8)? == 1,
-        dtt: mode == 2 && byte(io, 1, 32)? == 1,
+        turbo,
+        dtt: dtt_supported && byte(io, 1, 32)? == 1,
         fan_mode,
         fan_saved_mode,
         fan_offset_pct,

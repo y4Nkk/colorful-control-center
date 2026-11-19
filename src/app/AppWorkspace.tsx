@@ -1,39 +1,39 @@
 import { useEffect, useState } from "react";
-import { PAGES, type PageId } from "./navigation";
+import { PAGES, type PageId, type SystemArea, type WorkspaceLocation } from "./navigation";
 import { useControlModel } from "./useControlModel";
 import type { PreferencesModel } from "./useAppPreferences";
 import type { HotkeyNavigationRequest } from "../api/client";
-import { ControlWorkspace } from "./ControlWorkspace";
-import { CoolingWorkspace } from "./CoolingWorkspace";
-import { PerformanceWorkspace } from "./PerformanceWorkspace";
-import { GraphicsWorkspace } from "./GraphicsWorkspace";
-import { LightingWorkspace } from "./LightingWorkspace";
-import { InputWorkspace } from "./InputWorkspace";
-import { BatteryWorkspace } from "./BatteryWorkspace";
-import { AutomationWorkspace } from "./AutomationWorkspace";
-import { ProfilesWorkspace } from "./ProfilesWorkspace";
+import { SystemWorkspace } from "./SystemWorkspace";
+import { DeviceConfigurationWorkspace } from "./DeviceConfigurationWorkspace";
+import { KeyboardWorkspace } from "./KeyboardWorkspace";
+import { PowerWorkspace } from "./PowerWorkspace";
 import { SettingsWorkspace } from "./SettingsWorkspace";
-import { ConfigurationPage } from "./ConfigurationPage";
+import { WorkspaceActivity } from "../components/Dialog";
 
-export function AppWorkspace({ page, requestedProfile, preferences, navigationRequest, onNavigated }: {
-  page: PageId; requestedProfile: { name: string } | null; preferences: PreferencesModel;
+export function AppWorkspace({ location, onSystemAreaChange, onOpenPower, requestedProfile, preferences, navigationRequest, onNavigated }: {
+  location: WorkspaceLocation; onSystemAreaChange: (area: SystemArea) => void;
+  requestedProfile: { name: string } | null; preferences: PreferencesModel;
+  onOpenPower: () => void;
   navigationRequest: HotkeyNavigationRequest | null; onNavigated: (id: number) => Promise<boolean>;
 }) {
+  const { page, systemArea } = location;
   const [opened, setOpened] = useState<ReadonlySet<PageId>>(() => new Set([page]));
   useEffect(() => { setOpened(current => current.has(page) ? current : new Set([...current, page])); }, [page]);
-  const model = useControlModel(page === "dashboard" || page === "cooling");
+  const model = useControlModel(page === "dashboard" && systemArea !== "profiles");
   const workspaces = {
-    dashboard: <ControlWorkspace active={page === "dashboard"} model={model} />,
-    cooling: <CoolingWorkspace active={page === "cooling"} model={model} />,
-    performance: <PerformanceWorkspace active={page === "performance"} model={model} />,
-    graphics: <GraphicsWorkspace active={page === "graphics"} model={model} navigationRequest={navigationRequest} onNavigated={onNavigated} />,
-    lighting: <LightingWorkspace active={page === "lighting"} model={model} navigationRequest={navigationRequest} onNavigated={onNavigated} />,
-    input: <InputWorkspace active={page === "input"} model={model} />,
-    battery: <BatteryWorkspace active={page === "battery"} model={model} />,
-    automation: <AutomationWorkspace active={page === "automation"} model={model} />,
-    profiles: <ProfilesWorkspace active={page === "profiles"} requestedProfile={requestedProfile} />,
+    dashboard: <SystemWorkspace active={page === "dashboard"} model={model}
+      area={systemArea} onAreaChange={onSystemAreaChange} onOpenPower={onOpenPower} requestedProfile={requestedProfile} />,
+    graphics: <DeviceConfigurationWorkspace active={page === "graphics"} model={model} navigationRequest={navigationRequest} onNavigated={onNavigated} />,
+    keyboard: <KeyboardWorkspace active={page === "keyboard"} model={model} navigationRequest={navigationRequest} onNavigated={onNavigated} />,
+    power: <PowerWorkspace active={page === "power"} model={model} />,
     settings: <SettingsWorkspace active={page === "settings"} model={preferences} />,
   };
-  return <>{PAGES.filter(entry => entry.id === page || opened.has(entry.id)).map(entry =>
-    <ConfigurationPage key={entry.id} active={page === entry.id}>{workspaces[entry.id]}</ConfigurationPage>)}</>;
+  return <>{PAGES.filter(entry => entry.id === page || opened.has(entry.id)).map(entry => {
+    const active = page === entry.id;
+    return <WorkspaceActivity.Provider key={entry.id} value={active}>
+      <div hidden={!active} className="ccc-page">
+        {workspaces[entry.id]}
+      </div>
+    </WorkspaceActivity.Provider>;
+  })}</>;
 }

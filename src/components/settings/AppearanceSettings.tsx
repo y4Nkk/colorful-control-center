@@ -13,7 +13,7 @@ export function AppearanceSettings({ model }: { model: PreferencesModel }) {
   if (!snapshot) return null;
   const settings = snapshot.settings;
   return <Surface as="section" variant="group" className="ccc-settings-group" aria-label="外观">
-    <header className="ccc-settings-group-heading"><h2 className="ccc-icon-title"><Icon name="appearance" />外观</h2></header>
+    <header className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="appearance" />外观</h2></header>
     <PreferenceCards label="界面主题" value={settings.theme} busy={busy}
       options={[{ value: "light", label: "浅色" },
         { value: "system", label: "跟随系统" },

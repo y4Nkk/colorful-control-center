@@ -1,31 +1,21 @@
-.ccc-page-actions {
-  position: sticky;
-  bottom: var(--ccc-space-2);
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--ccc-space-2);
-  padding: var(--ccc-space-2) var(--ccc-space-3);
-  margin-top: var(--ccc-space-4);
-}
-.ccc-page-action-status { flex: 1; min-width: min(100%, 6rem); font-size: var(--ccc-text-sm); color: var(--ccc-text-muted); }
-.ccc-page-action-status:empty { min-width: 0; }
-.ccc-review-choices { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-2); margin-bottom: var(--ccc-space-4); }
+.ccc-module-action { margin-block-start: var(--ccc-space-4); }
 .ccc-review-section { display: grid; gap: var(--ccc-space-2); min-width: 0; }
-.ccc-review-section + .ccc-review-section { border-top: var(--ccc-border); margin-top: var(--ccc-space-4); padding-top: var(--ccc-space-4); }
+.ccc-review-section + .ccc-review-section { margin-block-start: var(--ccc-space-5); }
 .ccc-review-section > h3 { margin: 0; font-size: var(--ccc-text-lg); }
 .ccc-review-section > p { margin: 0; }
 .ccc-review-section + [role="alert"] { margin-top: var(--ccc-space-3); }
-.ccc-detail-stack, .ccc-battery-workflows { display: grid; gap: var(--ccc-space-4); min-width: 0; }
-.ccc-device-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
-  align-items: stretch;
-  gap: var(--ccc-space-4);
+.ccc-detail-stack { display: grid; gap: var(--ccc-space-4); min-width: 0; }
+.ccc-system-areas { justify-self: start; }
+@container ccc-control (max-width: 320px) {
+  .ccc-system-areas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-self: stretch; }
 }
-.ccc-device-grid > .ccc-panel { grid-column: auto; }
+.ccc-fan-layout { display: grid; gap: var(--ccc-space-4); align-items: start; }
+.ccc-fan-curve, .ccc-fan-side { display: grid; min-width: 0; gap: var(--ccc-space-3); }
+.ccc-fan-selector { justify-self: start; }
+.ccc-fan-side { padding: var(--ccc-space-3); }
+@container ccc-control (min-width: 54rem) {
+  .ccc-fan-layout { grid-template-columns: minmax(0, 1.75fr) minmax(16rem, 1fr); }
+}
 .ccc-module-tools { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-1); margin-inline-start: auto; }
 .ccc-module-summary { display: grid; gap: var(--ccc-space-1); align-content: start; min-width: 0; }
 .ccc-module-summary > strong { font-size: var(--ccc-text-xl); }
@@ -43,12 +33,27 @@
   padding-block: var(--ccc-space-2);
 }
 .ccc-display-board > .ccc-display-mode-visual { max-width: 300px; width: 100%; justify-self: center; }
+.ccc-display-trial, .ccc-restart-notice {
+  padding: var(--ccc-space-3);
+  border-radius: var(--ccc-radius-control);
+  background: var(--ccc-content-muted);
+}
+.ccc-display-trial { display: grid; gap: var(--ccc-space-2); }
+.ccc-restart-notice { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ccc-space-2); }
+.ccc-restart-notice strong { color: var(--ccc-text); }
+.ccc-refresh-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--ccc-space-3); }
+.ccc-refresh-control > div { display: grid; }
+.ccc-graphics-choices { display: flex; flex-wrap: wrap; gap: var(--ccc-space-2); margin-block: auto; }
+.ccc-graphics-choices > [aria-pressed] { flex: 1 1 calc(50% - var(--ccc-space-2)); align-items: center; }
+@container ccc-control (min-width: 62rem) {
+  .ccc-graphics-choices > [aria-pressed] { flex-basis: calc(25% - var(--ccc-space-2)); }
+}
 .ccc-device-status { display: grid; grid-template-columns: minmax(0, 72px) 1fr; align-items: center; gap: var(--ccc-space-3); min-width: 0; min-height: 64px; }
+.ccc-airplane-switch { grid-template-columns: minmax(0, 64px) minmax(0, 1fr) auto; }
+.ccc-airplane-switch > :last-child { grid-column: -2 / -1; }
 .ccc-device-status strong { font-size: var(--ccc-text-xl); }
 .ccc-device-status > svg { width: 100%; max-width: none; color: var(--ccc-action); }
 .ccc-overview-head > .ccc-control-status { margin-inline-start: auto; }
-.ccc-overview-head > .ccc-trend-hint { margin-inline-start: 0; }
-.ccc-profile-identity { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-4); }
 .ccc-profile-art { width: min(42%, 200px); color: var(--ccc-action); }
 .ccc-perkey-color-preview > svg { display: block; width: min(100%, 360px); }
 @container ccc-control (max-width: 600px) {

@@ -1,6 +1,7 @@
 export const UI_CONTRACT = [
   { name: "Button", style: "button", prefixes: ["button"], native: ["button"] },
   { name: "Input", style: "field", prefixes: ["input", "field"], files: ["Textarea"], native: ["input", "textarea"] },
+  { name: "ColorPicker", style: "color-picker", prefixes: ["color-picker", "color-swatch"], files: ["ColorSwatch", "ColorPickerEditor"], native: [] },
   { name: "Select", style: "select", prefixes: ["select"], files: ["SelectMenu"], native: [] },
   { name: "Checkbox", style: "choice", prefixes: ["checkbox"], native: ["input"] },
   { name: "Radio", style: "choice", prefixes: ["radio"], native: ["input"] },

@@ -21,6 +21,8 @@ fn options(f: &Fixture) {
         &f.hal,
         &boost::Request {
             expected_revision: current.revision,
+            quiet_fan: None,
+            replace_custom_fan: false,
             values: boost::Values {
                 turbo_fan: Some(true),
                 dtt: None,
@@ -81,7 +83,7 @@ fn cancellation_before_output_does_not_expand_an_existing_options_restore_target
     assert!(
         plan.execute_guarded(&f.hal, &mut || {
             checks += 1;
-            if checks == 4 {
+            if checks == 3 {
                 bail!("隔离首个模式输出前撤销");
             }
             Ok(())

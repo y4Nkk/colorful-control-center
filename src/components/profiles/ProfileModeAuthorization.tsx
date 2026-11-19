@@ -11,7 +11,7 @@ export function ProfileModeAuthorization({ approval }: { approval: ProfileModeAp
   const rules = approval.nodeRules.filter(rule => approval.allowedAutomaticPowerOff?.includes(rule.automaticPowerOff));
   return <Surface as="section" variant="group" className="ccc-profile-mode-authorization" aria-label="后台模式GPU联动">
     <div className="ccc-panel-head"><strong className="ccc-icon-title"><Icon name="confirm" />自动使用时的 GPU 联动</strong>
-      <span className="ccc-chip">{approval.clocks.deferredReason ? "开启后核对驱动" : approval.clocks.driver ? "驱动已核对" : "本模式不调频"}</span></div>
+      <span className="ccc-control-caption">{approval.clocks.deferredReason ? "开启后核对驱动" : approval.clocks.driver ? "驱动已核对" : "本模式不调频"}</span></div>
     <div className="ccc-mode-gpu-columns">
       <Surface variant="inset" className="ccc-mode-gpu-part"><strong>供电目标</strong><GpuModeSupplyTargets choices={approval.clocks.choices} /></Surface>
       <Surface variant="inset" className="ccc-mode-gpu-part">

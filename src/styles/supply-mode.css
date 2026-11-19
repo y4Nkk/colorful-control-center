@@ -1,4 +1,3 @@
-.ccc-control-devices > .ccc-supply-mode { grid-column: 1 / -1; }
 .ccc-supply-mode-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--ccc-space-4); align-items: start; }
 .ccc-supply-mode-current, .ccc-supply-mode-stack, .ccc-supply-mode-summary, .ccc-supply-mode-case, .ccc-supply-mode-recovery { display: flex; flex-direction: column; gap: var(--ccc-space-3); min-width: 0; }
 .ccc-supply-mode-summary, .ccc-supply-mode-case { padding: var(--ccc-space-4); }

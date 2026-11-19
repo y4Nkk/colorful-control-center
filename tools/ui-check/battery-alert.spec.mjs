@@ -1,4 +1,4 @@
-import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
+import { configurationView, previewConfiguration } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -6,7 +6,7 @@ const panel = page => page.getByRole("region", { name: "原厂热键与屏显", 
 const facts = page => page.getByRole("region", { name: "原厂电池音频事实与预览", exact: true });
 const scope = page => panel(page).getByRole("checkbox", { name: "原厂电池音频事件", exact: true });
 const calls = (page, command) => page.evaluate(command => window.__uiFixture.calls.filter(call => call.command === command), command);
-test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与输入"); });
+test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与灯光"); });
 async function applied(page) {
   await scope(page).check();
   await page.evaluate(() => {
@@ -18,7 +18,7 @@ async function applied(page) {
   });
   await expect(facts(page).getByRole("button", { name: "恢复初始电池音频", exact: true })).toBeEnabled();
 }
-test("独立范围二次确认，绝对亮度预览不伪造零目标", async ({ page }) => {
+test("独立范围预览与应用，绝对亮度保留真实目标", async ({ page }) => {
   await scope(page).check();
   await expect(facts(page)).toBeVisible();
   await expect(panel(page).getByRole("checkbox", { name: "原厂低电量亮度", exact: true })).not.toBeChecked();
@@ -26,9 +26,9 @@ test("独立范围二次确认，绝对亮度预览不伪造零目标", async ({
   await expect(brightness).toContainText("事件指定亮度");
   expect(await brightness.getByRole("meter").count()).toBe(2);
   await panel(page).getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
-  await openConfigurationReview(page, "原厂热键与屏显");
+  await previewConfiguration(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true }).click();
   expect((await calls(page, "apply_hotkeys"))[0].args.request.settings.actions).toEqual(["batteryAlert"]);
 });
 test("初始codec恢复保留二次确认，失败后记录仍可重试", async ({ page }) => {

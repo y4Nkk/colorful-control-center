@@ -39,6 +39,8 @@ impl Memory {
     fn request(&self, turbo: Option<bool>, dtt: Option<bool>) -> Request {
         Request {
             expected_revision: preview(self, Some(true)).unwrap().revision,
+            quiet_fan: None,
+            replace_custom_fan: false,
             values: Values {
                 turbo_fan: turbo,
                 dtt,
@@ -87,7 +89,7 @@ fn independent_flag_combinations_pack_source_bits_without_cpu_boost_alias() {
     ] {
         let io = Memory::new();
         let p = preview(&io, Some(true)).unwrap();
-        let target = p.target(&io.request(Some(turbo), Some(dtt))).unwrap();
+        let (target, _) = p.target(&io.request(Some(turbo), Some(dtt))).unwrap();
         write_target(&io, target).unwrap();
         assert_eq!(*io.commands.borrow(), [command]);
         assert_eq!(
@@ -124,18 +126,56 @@ fn capabilities_are_versioned_and_unsupported_fields_cannot_be_written() {
     assert!(io.commands.borrow().is_empty());
 }
 #[test]
-fn nonperformance_and_unknown_preference_refuse() {
+fn other_modes_and_unknown_preference_refuse() {
     let io = Memory::new();
-    io.pages.borrow_mut()[1][1] = 3;
-    assert!(
-        preview(&io, Some(true))
-            .unwrap()
-            .target(&io.request(Some(true), Some(true)))
-            .is_err()
-    );
+    for mode in [0, 1, 4] {
+        io.pages.borrow_mut()[1][1] = mode;
+        assert!(
+            preview(&io, Some(true))
+                .unwrap()
+                .target(&io.request(Some(true), Some(true)))
+                .is_err()
+        );
+    }
     io.pages.borrow_mut()[4][8] = 2;
     assert!(preview(&io, Some(true)).is_err());
     assert!(capture(&io, false).is_err());
+}
+#[test]
+fn noiseless_is_bound_to_capability_mode_and_remembered_preference() {
+    let io = Memory::new();
+    let mut request = io.request(Some(false), Some(false));
+    request.quiet_fan = Some(true);
+    assert!(preview(&io, Some(true)).unwrap().target(&request).is_err());
+    io.pages.borrow_mut()[7][20] = 1;
+    let p = preview(&io, Some(true)).unwrap();
+    assert!(!p.quiet_fan.as_ref().unwrap().remembered);
+    request.expected_revision = p.revision.clone();
+    assert_eq!(p.target(&request).unwrap().1, Some(FAN_MODE_NOISELESS));
+    request.values.turbo_fan = Some(true);
+    assert!(p.target(&request).is_err());
+
+    io.pages.borrow_mut()[7][21] = 1;
+    io.pages.borrow_mut()[4][72] = FAN_MODE_NOISELESS;
+    let saved = preview(&io, Some(true)).unwrap();
+    let quiet = saved.quiet_fan.as_ref().unwrap();
+    assert!(quiet.enabled && quiet.remembered && !quiet.active);
+    assert_ne!(saved.revision, p.revision);
+
+    io.pages.borrow_mut()[1][1] = 3;
+    let entertainment = preview(&io, Some(true)).unwrap();
+    let quiet = entertainment.quiet_fan.as_ref().unwrap();
+    assert!(!quiet.enabled && quiet.remembered && !quiet.active);
+    assert!(entertainment.target(&request).is_err());
+    request.expected_revision = entertainment.revision.clone();
+    assert_eq!(
+        entertainment.target(&request).unwrap().1,
+        Some(FAN_MODE_NOISELESS)
+    );
+    io.pages.borrow_mut()[4][9] = 1;
+    assert!(preview(&io, Some(true)).unwrap().target(&request).is_err());
+    io.pages.borrow_mut()[1][1] = 0;
+    assert!(preview(&io, Some(true)).unwrap().quiet_fan.is_none());
 }
 #[test]
 fn missing_or_unknown_driver_blocks_new_dtt_but_allows_switching_it_off() {
@@ -192,7 +232,7 @@ fn revision_binds_mode_flags_caps_fan_and_driver_presence() {
 fn shared_mode_snapshot_restores_preferences_after_a_later_mode_change() {
     let io = Memory::new();
     let before = capture(&io, false).unwrap();
-    let next = preview(&io, Some(true))
+    let (next, _) = preview(&io, Some(true))
         .unwrap()
         .target(&io.request(Some(true), Some(true)))
         .unwrap();
@@ -209,7 +249,7 @@ fn save_and_command_failures_can_restore_both_original_flags() {
         let io = Memory::new();
         let before = capture(&io, false).unwrap();
         let p = preview(&io, Some(true)).unwrap();
-        let next = p.target(&io.request(Some(true), Some(true))).unwrap();
+        let (next, _) = p.target(&io.request(Some(true), Some(true))).unwrap();
         match failure {
             0 => io.fail_at.set(Some((4, 8))),
             1 => io.fail_at.set(Some((1, 32))),
@@ -237,10 +277,22 @@ fn recovery_continues_other_preferences_and_mode_when_one_save_fails() {
     assert_eq!(capture(&io, false).unwrap().preferences, [0, 0]);
 }
 #[test]
-fn target_contract_rejects_extra_fields() {
+fn target_contract_requires_curve_confirmation_flag_and_rejects_extra_fields() {
     assert!(
         serde_json::from_str::<Request>(
-            r#"{"expectedRevision":"x","values":{"turboFan":true,"dtt":true,"cpuBoost":true}}"#
+            r#"{"expectedRevision":"x","quietFan":null,"replaceCustomFan":false,"values":{"turboFan":true,"dtt":true}}"#
+        )
+        .is_ok()
+    );
+    assert!(
+        serde_json::from_str::<Request>(
+            r#"{"expectedRevision":"x","quietFan":null,"values":{"turboFan":true,"dtt":true}}"#
+        )
+        .is_err()
+    );
+    assert!(
+        serde_json::from_str::<Request>(
+            r#"{"expectedRevision":"x","quietFan":null,"replaceCustomFan":false,"values":{"turboFan":true,"dtt":true,"cpuBoost":true}}"#
         )
         .is_err()
     );

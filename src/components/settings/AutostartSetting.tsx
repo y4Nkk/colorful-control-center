@@ -15,24 +15,20 @@ const OPTIONS = [
 export function AutostartSetting({ active, busy }: { active: boolean; busy: boolean }) {
   const model = useAutostart(active);
   const locked = busy || model.pending !== null || !model.snapshot;
-  const label = OPTIONS.find(option => option.value === model.level)!.label;
-  const changed = model.snapshot && (model.level !== model.snapshot.level || model.snapshot.legacy);
+  const level = model.snapshot?.level;
   return <section className="ccc-autostart-setting" aria-label="登录自启" aria-busy={model.pending !== null}>
     <SettingRow label="登录自启">
-      <Select label="登录自启方式" value={model.level} options={OPTIONS} disabled={locked}
-        onChange={value => model.setLevel(value as AutostartLevel)} />
+      <Select label="登录自启方式" value={level ?? ""} placeholder="状态未知" options={OPTIONS} disabled={locked}
+        onChange={value => void model.apply(value as AutostartLevel)} />
     </SettingRow>
     <DetailsDialog title="自启权限说明">
       <p>当前进程 · {model.snapshot ? model.snapshot.elevated ? "管理员权限" : "普通权限" : "未知"}</p>
       <p>管理员登录启动会在登录后沿用管理员权限。更改自启需要 Windows 授权。</p>
     </DetailsDialog>
-    <ConfigurationAction label="登录自启" revision={JSON.stringify([model.snapshot, model.level])}
-      disabled={locked || !changed} onConfirm={() => model.apply()}>
-      <p>{OPTIONS.find(option => option.value === model.snapshot?.level)?.label ?? "未知"} → {label}</p>
-      <p>确认后请求 Windows 授权。{model.snapshot?.legacy && "旧登录项将被替换。"}</p>
-    </ConfigurationAction>
+    {level && model.snapshot?.legacy && <Button size="compact" variant="secondary" disabled={locked}
+      onClick={() => void model.apply(level)}>转换旧登录项</Button>}
     <ConfigurationAction label="登录自启" revision={JSON.stringify(model.snapshot)} restore
-      disabled={locked || !model.snapshot?.canRestore} onConfirm={() => model.apply(true)}>
+      disabled={locked || !model.snapshot?.canRestore} onConfirm={() => model.apply(level!, true)}>
       <p>恢复首次修改前的登录自启设置，需要 Windows 授权。</p>
     </ConfigurationAction>
     {model.error && <div className="ccc-settings-feedback"><p className="ccc-settings-error" role="alert">{model.error}</p>

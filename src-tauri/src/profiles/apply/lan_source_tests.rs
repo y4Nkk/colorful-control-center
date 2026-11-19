@@ -157,10 +157,10 @@ fn unknown_power_values_refuse_capture_while_nonapplicable_and_unsupported_devic
     f.lan.io.frame.lock().unwrap().devices[0]
         .values
         .insert(Field::PowerSavingMode, Some(Value::dword(1)));
-    assert!(crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).is_err());
+    assert!(crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).is_err());
     f.lan.io.frame.lock().unwrap().capabilities = Capabilities::default();
     assert!(
-        crate::profiles::capture_current(&f.hal, &f.gpu, f.devices())
+        crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL)
             .unwrap()
             .lan_policy
             .is_none()
@@ -172,15 +172,16 @@ fn profile_file_changed_during_authorization_is_rejected_before_outputs() {
     let f = setup();
     let settings = wanted(&f);
     let directory = tempfile::tempdir().unwrap();
-    crate::profiles::save_in(directory.path(), settings.clone(), "网络").unwrap();
+    crate::profiles::save_in(directory.path(), settings.clone(), "网络", None).unwrap();
     let file = crate::profiles::load_from(directory.path(), "网络").unwrap();
+    let revision = crate::profiles::authorization::digest(&file).unwrap();
     let path = directory.path().to_path_buf();
     let mut changed = settings.clone();
     changed.lan_policy.as_mut().unwrap().devices[0]
         .values
         .insert(Field::PowerSavingMode, Some(Value::string("0")));
     *f.lan.io.on_authorize.lock().unwrap() = Some(Box::new(move || {
-        crate::profiles::save_in(&path, changed, "网络").unwrap();
+        crate::profiles::save_in(&path, changed, "网络", Some(&revision)).unwrap();
     }));
     assert!(
         transact(

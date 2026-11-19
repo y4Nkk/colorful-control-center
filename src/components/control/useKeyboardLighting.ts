@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readKeyboardLighting, type KeyboardLightingProfile, type KeyboardLightingRequest,
+import { applyKeyboardLighting, readKeyboardLighting, type KeyboardLightingProfile, type KeyboardLightingRequest,
   type KeyboardEffect, type KeyboardZones, type RgbColor, type KeyboardApplyOutcome } from "../../api/client";
 import { toast } from "../use-toast";
+import { preserveEditedFields } from "./settings-draft";
 
 export const EFFECTS: { id: KeyboardEffect; label: string }[] = [
   { id: "solid", label: "同色" }, { id: "zones", label: "分区" }, { id: "breath", label: "呼吸" },
   { id: "cycle", label: "循环" }, { id: "wave", label: "波浪" }, { id: "dance", label: "舞动" },
   { id: "tempo", label: "节奏" }, { id: "flash", label: "闪烁" }, { id: "random", label: "随机" },
 ];
+export const KEYBOARD_ZONE_NAMES = ["左区", "中区", "右区"] as const;
+export const usesZoneColors = (effect: KeyboardEffect | null) => effect === "zones" || effect === "breath";
 export type LightingFamily = "zoneRgb" | "white";
-export const hexOf = (color: RgbColor) => `#${[color.r, color.g, color.b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
-export const rgbOf = (hex: string): RgbColor => ({ r: parseInt(hex.slice(1, 3), 16), g: parseInt(hex.slice(3, 5), 16), b: parseInt(hex.slice(5, 7), 16) });
 
 type Draft = { brightness: number; effect: KeyboardEffect | null; allColor: RgbColor; zones: KeyboardZones };
 const emptyDraft = (): Draft => ({ brightness: 0, effect: null, allColor: { r: 0, g: 0, b: 0 },
@@ -25,15 +26,20 @@ export function useKeyboardLighting(active: boolean, revision = 0) {
   const [readError, setReadError] = useState<string | null>(null);
   const accepted = useRef<Draft | null>(null), running = useRef(false), generation = useRef(0);
   const reading = useRef<Promise<KeyboardLightingProfile> | null>(null);
-  const load = useCallback(async (reset = false) => {
-    if (reading.current || running.current && !reset) return;
+  const load = useCallback(async (reset = false, afterWrite = false) => {
+    if (reading.current || running.current && !afterWrite) return;
     const id = ++generation.current, pending = readKeyboardLighting(); reading.current = pending;
     try {
       const next = await pending;
       if (id !== generation.current) return;
       const before = accepted.current, nextDraft = fromProfile(next); accepted.current = nextDraft;
       setProfile(next); setReadError(null);
-      setDraft(previous => reset || before === null || JSON.stringify(previous) === JSON.stringify(before) ? nextDraft : previous);
+      setDraft(previous => {
+        if (reset || !before) return nextDraft;
+        const updated = preserveEditedFields(before, previous, nextDraft);
+        updated.zones = nextDraft.zones.map((zone, index) => preserveEditedFields(before.zones[index], previous.zones[index], zone)) as KeyboardZones;
+        return updated;
+      });
     } catch (error) { if (id === generation.current) { setProfile(null); setReadError(String(error)); } throw error; }
     finally { if (reading.current === pending) reading.current = null; }
   }, []);
@@ -43,24 +49,43 @@ export function useKeyboardLighting(active: boolean, revision = 0) {
     return () => { disposed = true; ++generation.current; };
   }, [active, revision, load]);
   const reload = () => { setError(null); void load().catch(() => {}); };
-  const run = async (action: () => Promise<KeyboardApplyOutcome>) => {
-    if (running.current) return;
+  const run = async (action: () => Promise<KeyboardApplyOutcome>, reset = true) => {
+    if (!active || running.current) return;
     running.current = true; ++generation.current; setBusy(true); setError(null);
     try {
       await reading.current?.catch(() => undefined);
       const result = await action();
       if (!result.ok) throw new Error([result.message, result.rollbackError].filter(Boolean).join("；"));
-      await load(true); toast({ kind: "success", title: "键盘灯设置已写入" });
-    } catch (error) { setError(String(error)); }
+      await load(reset, true); toast({ kind: "success", title: "键盘灯设置已回读" });
+    } catch (error) { setError(String(error)); await load(false, true).catch(() => {}); }
     finally { running.current = false; setBusy(false); }
   };
   const family: LightingFamily | null = profile?.detectedFamily === "white" || profile?.detectedFamily === "zoneRgb" ? profile.detectedFamily : null;
+  const current = profile?.current ? fromProfile(profile) : null;
   const request: KeyboardLightingRequest | null = family === "white" ? { family, brightness: draft.brightness }
-    : family === "zoneRgb" && draft.effect ? { family, ...draft, effect: draft.effect } : null;
-  const dirty = profile?.current != null && JSON.stringify(draft) !== JSON.stringify(fromProfile(profile));
+    : family === "zoneRgb" && current?.effect ? { family, ...current, effect: current.effect,
+      allColor: current.effect === "solid" ? draft.allColor : current.allColor,
+      zones: usesZoneColors(current.effect) ? draft.zones : current.zones } : null;
+  const dirty = !!current && (family === "white" ? draft.brightness !== current.brightness
+    : current.effect === "solid" ? JSON.stringify(current.allColor) !== JSON.stringify(draft.allColor)
+    : usesZoneColors(current.effect) && JSON.stringify(current.zones) !== JSON.stringify(draft.zones));
+  const apply = (update: Partial<Draft>) => {
+    if (!current || family !== "zoneRgb" || !profile?.available
+      || Object.entries(update).every(([key, value]) => JSON.stringify(value) === JSON.stringify(current[key as keyof Draft]))) return;
+    const next = { ...current, ...update };
+    const effect = next.effect;
+    if (effect) void run(() => applyKeyboardLighting({ family, ...next, effect }), false);
+  };
   return { profile, family, ...draft, request, dirty, error: error ?? readError, busy, reload, run,
     setBrightness: (brightness: number) => setDraft(previous => ({ ...previous, brightness })),
-    setEffect: (effect: KeyboardEffect) => setDraft(previous => ({ ...previous, effect })),
+    chooseEffect: (effect: KeyboardEffect) => apply({ effect }),
+    chooseBrightness: (brightness: number) => apply({ brightness }),
+    toggleZone: (index: number, enabled: boolean) => {
+      if (!current || !usesZoneColors(current.effect)) return;
+      const zones: KeyboardZones = [...current.zones];
+      zones[index] = { ...zones[index], enabled };
+      apply({ zones });
+    },
     setAllColor: (allColor: RgbColor) => setDraft(previous => ({ ...previous, allColor })),
     setZones: (zones: KeyboardZones) => setDraft(previous => ({ ...previous, zones })) };
 }

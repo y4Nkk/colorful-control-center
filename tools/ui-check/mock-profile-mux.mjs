@@ -13,8 +13,8 @@ export function previewProfileGraphicsMode(data, settings) {
     || target.mode < 1 || target.mode > 4 || !(current.availableMask & (1 << (target.mode - 1)))) throw new Error("档案显卡模式所属Windows或固件候选已变化");
   return { before: structuredClone(data.graphicsMode), target: target.mode, softwareFanRunning: data.fan.software !== null };
 }
-export function applyProfileGraphicsMode(data) {
-  const target = data.profile.settings.graphicsMode;
+export function applyProfileGraphicsMode(data, settings) {
+  const target = settings.graphicsMode;
   if (!target || captureProfileGraphicsMode(data).mode === target.mode) return;
   const initialMode = data.graphicsMode.lastRequest?.initialMode ?? data.graphicsMode.current.mode;
   data.graphicsMode.lastRequest = { initialMode, target: target.mode, verification: "pendingReboot" };

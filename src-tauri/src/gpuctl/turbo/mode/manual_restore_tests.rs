@@ -9,6 +9,8 @@ fn enable_dtt(f: &mut Fixture) {
         &f.hal,
         &mode::boost::Request {
             expected_revision: profile.revision,
+            quiet_fan: None,
+            replace_custom_fan: false,
             values: mode::boost::Values {
                 turbo_fan: None,
                 dtt: Some(true),

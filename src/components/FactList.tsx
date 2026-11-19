@@ -12,9 +12,11 @@ export interface Fact {
   danger?: boolean;
 }
 
-export function FactList({ facts, compact = false, layout = "rows" }: { facts: Fact[]; compact?: boolean; layout?: "rows" | "tiles" }) {
+export function FactList({ facts, label, compact = false, layout = "rows" }: {
+  facts: Fact[]; label?: string; compact?: boolean; layout?: "rows" | "tiles";
+}) {
   return (
-    <Surface as="dl" variant="plain" className="ccc-facts" data-layout={layout} data-density={compact ? "compact" : undefined}>
+    <Surface as="dl" variant="plain" className="ccc-facts" aria-label={label} data-layout={layout} data-density={compact ? "compact" : undefined}>
       {facts.map((fact, index) => (
         <div key={`${fact.label}-${index}`} className="ccc-fact-row">
           <dt className="ccc-fact-label">{fact.label}</dt>

@@ -1,10 +1,9 @@
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 
 pub(super) trait Io {
     fn packet(&self) -> Result<[u8; 256]>;
     fn legacy_flags(&self) -> Result<u32>;
-    fn set(&self, value: u8) -> Result<()>;
 }
 
 impl Io for crate::hal::oem_dchu::Dchu {
@@ -17,9 +16,6 @@ impl Io for crate::hal::oem_dchu::Dchu {
             bail!("原厂 WMI122 能力不可读");
         }
         Ok(value as u32)
-    }
-    fn set(&self, value: u8) -> Result<()> {
-        self.set_u32(79, u32::from(value))
     }
 }
 
@@ -113,14 +109,30 @@ pub(super) fn apply(
     desired: Option<State>,
     permit: &mut dyn FnMut() -> Result<()>,
 ) -> Result<()> {
-    match (before, desired) {
-        (None, None) => Ok(()),
+    let (before, desired) = match (before, desired) {
+        (None, None) => return Ok(()),
         (Some(before), Some(desired)) if before.hardware_p_state == desired.hardware_p_state => {
-            desired.validate()?;
-            hal.with_dchu(|io| write(io, hal.reviewed_dsdt, before, desired.energy_star, permit))
+            (before, desired)
         }
         _ => bail!("EnergyStar目标与模式检查点的所有权或能力不一致"),
+    };
+    desired.validate()?;
+    let output = desired.energy_star.filter(|_| desired != before);
+    if output.is_some() {
+        permit()?;
     }
+    hal.with_dchu(|io| {
+        if read(io, hal.reviewed_dsdt)? != before {
+            bail!("EnergyStar 能力或前态已变化，请重新预览");
+        }
+        if let Some(value) = output {
+            io.set_u32(79, u32::from(value))?;
+            if read(io, hal.reviewed_dsdt)? != desired {
+                bail!("EnergyStar 命令后状态回读不一致");
+            }
+        }
+        Ok(())
+    })
 }
 pub(super) fn review_restore(
     hal: &crate::hal::Hal,
@@ -146,37 +158,6 @@ pub(super) fn restore_issue(initial: Option<State>, current: Option<State>) -> O
         }
         _ => None,
     }
-}
-
-pub(super) fn write(
-    io: &impl Io,
-    reviewed_dsdt: bool,
-    before: State,
-    desired: Option<u8>,
-    permit: &mut dyn FnMut() -> Result<()>,
-) -> Result<()> {
-    if read(io, reviewed_dsdt)? != before {
-        bail!("EnergyStar 能力或前态已变化，请重新预览");
-    }
-    if before.hardware_p_state {
-        if desired.is_some() {
-            bail!("硬件 P-state 模式不接受 EnergyStar 目标");
-        }
-        return Ok(());
-    }
-    let desired = desired
-        .filter(|value| *value <= 2)
-        .ok_or_else(|| anyhow!("EnergyStar 目标无效"))?;
-    if before.energy_star == Some(desired) {
-        return Ok(());
-    }
-    permit()?;
-    io.set(desired)?;
-    let after = read(io, reviewed_dsdt)?;
-    if after.hardware_p_state || after.energy_star != Some(desired) {
-        bail!("EnergyStar 命令后状态回读不一致");
-    }
-    Ok(())
 }
 
 #[cfg(test)]

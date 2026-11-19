@@ -27,6 +27,8 @@ fn unsupported_models_are_read_only_and_cannot_fall_through_to_generic_mode_writ
         for enabled in [false, true] {
             let request = powerctl::mode::boost::Request {
                 expected_revision: options.revision.clone(),
+                quiet_fan: None,
+                replace_custom_fan: false,
                 values: powerctl::mode::boost::Values {
                     turbo_fan: Some(enabled),
                     dtt: None,

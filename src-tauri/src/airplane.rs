@@ -3,9 +3,12 @@ use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 #[cfg(not(test))]
+#[path = "airplane/native.rs"]
 mod native;
 #[cfg(test)]
+#[path = "airplane/tests.rs"]
 mod tests;
+#[path = "airplane/transaction.rs"]
 mod transaction;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]

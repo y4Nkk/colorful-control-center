@@ -240,4 +240,24 @@ impl Controller {
         }
         Ok(())
     }
+
+    pub(crate) fn release_calibration_on_exit(&self, hal: &Hal) -> Result<()> {
+        let _gate = hal.begin_write()?;
+        let mut session = self
+            .calibration
+            .lock()
+            .map_err(|_| anyhow::anyhow!("校准会话异常"))?;
+        let Some(client) = session.as_mut() else {
+            return Ok(());
+        };
+        client.stop_for_exit();
+        let path = self.energy_path.with_file_name("battery-calibration.json");
+        while session.is_some() {
+            supervise(hal, &self.energy_path, &path, &mut session)?;
+            if session.is_some() {
+                std::thread::sleep(std::time::Duration::from_millis(25));
+            }
+        }
+        Ok(())
+    }
 }

@@ -35,7 +35,7 @@ export function ScreenBrightnessFacts({ profile, busy, run }: Props) {
     </div>)}
     {profile.restoreError && <p className="ccc-control-error">{profile.restoreError}</p>}
     {profile.initial.length > 0 && <>
-      <span className="ccc-chip">恢复时停止本次监听 · 保留软件策略</span>
+      <span className="ccc-control-caption">恢复时停止本次监听 · 保留软件策略</span>
       <ConfirmButton icon="undo" key={profile.restoreRevision ?? JSON.stringify(profile.initial)} variant="secondary"
         label="恢复初始屏幕计划亮度" confirmLabel="确认停止监听并恢复上述亮度？" busy={busy} disabled={!profile.restoreRevision}
         onConfirm={() => run(() => restoreScreenBrightness(profile.restoreRevision!), "初始屏幕计划亮度已恢复", false)} />

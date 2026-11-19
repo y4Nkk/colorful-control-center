@@ -1,17 +1,18 @@
-import { openStartupParameters, openProfileResults } from "./profile-review.mjs";
-import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { openProfileResults, openProfileSave, openStartupParameters, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
+import { openWorkspace, openSystemArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
 const panel = page => page.getByRole("region", { name: "档案预览", exact: true });
 const pd = page => panel(page).getByRole("region", { name: "档案PD档位", exact: true });
-const usb = page => panel(page).getByRole("region", { name: "档案USB策略", exact: true });
+const usb = page => panel(page).getByRole("region", { name: "档案 USB 选择性暂停", exact: true });
+const apply = page => panel(page).getByRole("button", { name: "应用档案", exact: true });
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_|save_|import_|set_startup)/.test(call.command)));
 async function select(page) {
-  await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: "性能档案", exact: true }).click();
+  await openSystemArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
+  await showProfileSettings(page);
 }
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
@@ -25,7 +26,7 @@ test.beforeEach(async ({ page }) => {
     data.profile.settings.powerDelivery = { level: 4, encoding: "adapterV1", adapterWatts: 100, availableLevels: [1, 2, 4] };
     data.profile.settings.usbPolicy = { plans: structuredClone(data.usb.plans) };
   });
-  await page.goto("/"); await openWorkspace(page, "电池与节能");
+  await page.goto("/"); await openWorkspace(page, "电源");
 });
 
 test("平台档案逐计划只读预览，确认提交完整PD绑定和异构USB目标", async ({ page }) => {
@@ -37,24 +38,21 @@ test("平台档案逐计划只读预览，确认提交完整PD绑定和异构USB
   await expect(usb(page)).toContainText("插电：开启；电池：关闭");
   await expect(usb(page)).toContainText("插电：关闭；电池：开启");
   await expect(usb(page)).toContainText("插电：关闭；电池：保留现值");
-  await expect(panel(page).getByLabel("档案PD档位").locator("input,button")).toHaveCount(0);
+  await expect(pd(page).locator('input,button:not([aria-haspopup="dialog"])')).toHaveCount(0);
   expect(await writes(page)).toEqual([]);
-  await openConfigurationReview(page);
-  expect(await writes(page)).toEqual([]);
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await apply(page).click();
   const calls = await writes(page); expect(calls).toHaveLength(1);
   expect(calls[0].args.expected.settings.powerDelivery).toEqual({ level: 4, encoding: "adapterV1", adapterWatts: 100, availableLevels: [1, 2, 4] });
   expect(calls[0].args.expected.settings.usbPolicy.plans[1]).toEqual({ id: "highPerformance", ac: false, dc: true });
   const results = await openProfileResults(page);
-  await expect(results).toContainText("USB选择性暂停");
+  await expect(results).toContainText("USB 选择性暂停");
 });
 
 test("捕获导出使用当前PD和各计划原值，未知USB字段保留null", async ({ page }) => {
-  await select(page); await page.getByPlaceholder("游戏 / 静音").fill("平台档案");
-  await page.getByRole("button", { name: "保存当前", exact: true }).click();
-  await page.getByRole("button", { name: "保存当前设置？", exact: true }).click();
+  await select(page); await openProfileSave(page, "平台档案", ["充电与供电"]);
+  await saveProfileButton(page).click();
   const download = page.waitForEvent("download");
-  await panel(page).getByRole("button", { name: "导出", exact: true }).click();
+  await (await showProfileMenu(page)).getByRole("button", { name: "导出档案", exact: true }).click();
   const file = JSON.parse(await readFile(await (await download).path(), "utf8"));
   expect(file.settings.powerDelivery.level).toBe(1);
   expect(file.settings.powerDelivery.encoding).toBe("adapterV1");
@@ -69,53 +67,55 @@ test("旧版零起始档案按语义显示且确认保留原始编号", async ({
     file.settings.powerDelivery = { level: 0, encoding: "legacyZeroBased", adapterWatts: null, availableLevels: [0, 1] };
     return file;
   });
-  await page.getByLabel("导入性能档案", { exact: true }).setInputFiles({ name: "旧版.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+  await page.getByLabel("导入配置档案", { exact: true }).setInputFiles({ name: "旧版.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+  await showProfileSettings(page);
   await expect(pd(page)).toContainText("未报告功率");
   await expect(pd(page).getByText("等级 1 · 目标", { exact: true })).toBeVisible();
   expect(await writes(page)).toEqual([]);
 });
 
 test("启动选择共享完整平台预览，保存选择不写平台", async ({ page }) => {
-  await openWorkspace(page, "自动策略");
+  await openWorkspace(page, "电源");
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
   const parameters = await openStartupParameters(page);
   await expect(parameters.getByLabel("档案PD档位")).toContainText("等级 4");
-  await expect(parameters.getByLabel("档案USB策略")).toContainText("保留现值");
+  await expect(parameters.getByLabel("档案 USB 选择性暂停")).toContainText("保留现值");
   await page.keyboard.press("Escape");
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await startup.getByRole("button", { name: "授权启动应用档案", exact: true }).click();
   const calls = await writes(page); expect(calls.map(call => call.command)).toEqual(["set_startup_profile"]);
   expect(calls[0].args.expected.settings.powerDelivery.level).toBe(4);
   expect(calls[0].args.expected.settings.usbPolicy.plans).toHaveLength(3);
 });
 
 test("档案变化撤销旧确认，平台失败和恢复失败保留明确步骤", async ({ page }) => {
-  await select(page); await openConfigurationReview(page);
+  await select(page);
+  await expect(apply(page)).toBeEnabled();
   await page.evaluate(() => { window.__uiFixture.profile.settings.powerDelivery.adapterWatts = 65; });
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await apply(page).click();
   await expect(page.getByRole("alert")).toContainText("档案已变化");
-  await page.evaluate(() => { window.__uiFixture.profileSteps = [{ step: "USB选择性暂停", ok: false, message: "隔离字段写入失败" },
-    { step: "恢复USB策略", ok: false, message: "初始快照保留，可重试" }, { step: "恢复PD档位", ok: true, message: "已确认" }]; });
+  await page.evaluate(() => { window.__uiFixture.profileSteps = [{ step: "USB 选择性暂停", ok: false, message: "隔离字段写入失败" },
+    { step: "恢复 USB 选择性暂停", ok: false, message: "初始快照保留，可重试" }, { step: "恢复PD档位", ok: true, message: "已确认" }]; });
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
-  await openConfigurationReview(page);
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await showProfileSettings(page);
+  await apply(page).click();
   const results = await openProfileResults(page);
   await expect(results).toContainText("初始快照保留，可重试");
 });
 
 test("无法确认的PD或全部未知USB阻止捕获，不保存虚构目标", async ({ page }) => {
-  await select(page); await page.getByPlaceholder("游戏 / 静音").fill("未知平台");
+  await select(page);
   await page.evaluate(() => { window.__uiFixture.platform.powerDelivery.currentValid = false; });
-  await page.getByRole("button", { name: "保存当前", exact: true }).click();
-  await page.getByRole("button", { name: "保存当前设置？", exact: true }).click();
+  await openProfileSave(page, "未知平台", ["充电与供电"]);
+  await expect(saveProfileButton(page)).toBeDisabled();
   await expect(page.getByRole("alert")).toContainText("当前PD档位无法捕获");
   await page.evaluate(() => {
     window.__uiFixture.platform.powerDelivery.currentValid = true;
     window.__uiFixture.usb.plans.forEach(plan => { plan.ac = null; plan.dc = null; });
   });
-  await page.getByRole("button", { name: "保存当前", exact: true }).click();
-  await page.getByRole("button", { name: "保存当前设置？", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "重试读取" }).click();
+  await expect(saveProfileButton(page)).toBeDisabled();
   await expect(page.getByRole("alert")).toContainText("USB档案没有已知目标字段");
   expect(await writes(page)).toEqual([]);
 });

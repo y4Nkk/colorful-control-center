@@ -1,4 +1,4 @@
-import { availableAction, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
+import { availableAction, configurationView, previewConfiguration } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -38,26 +38,26 @@ test.beforeEach(async ({ page }) => {
       { device: "mouse", enabled: false, bindings: [] }] }, enabledFlags: [1,0], sourceName: "隔离原厂活动配置", baselineName: null,
       canRestore: false, recoveryRequired: false, blockedReason: null, warnings: ["未提供驱动映射表回读"], programsRequired:false, programs:{ running:false,error:null } };
   });
-  await page.goto("/"); await openWorkspace(page, "键盘与输入");
+  await page.goto("/"); await openWorkspace(page, "键盘与灯光");
 });
 
-test("改键宏完整预览，两次确认才应用，恢复保留原厂来源", async ({ page }) => {
+test("改键宏在模块内预览并应用，恢复保留原厂来源", async ({ page }) => {
   const panel = await openEditor(page);
   await panel.getByRole("button", { name: "A 禁用按键", exact: true }).click();
   await choose(page, "执行动作", "按键与鼠标宏");
   await panel.getByRole("spinbutton", { name: "第1步延时", exact: true }).fill("123");
   await finish(panel);
   expect(await writes(page)).toHaveLength(0);
-  const review = await openConfigurationReview(page, "按键映射与宏");
+  const review = await previewConfiguration(page, "按键映射与宏");
   await expect(review.getByLabel("待应用变更")).toContainText("随后123ms");
   expect(await writes(page)).toHaveLength(0);
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "应用按键映射", exact: true }).click();
   const calls = await writes(page); expect(calls).toHaveLength(1);
   expect(calls[0].args.request.configuration.devices.map(group => group.device)).toEqual(["keyboard"]);
   expect(calls[0].args.request.configuration.devices[0].bindings[0].action.steps[0].delayAfterMs).toBe(123);
-  await openConfigurationReview(page, "按键映射与宏", true); expect(await writes(page)).toHaveLength(1);
-  await expect(configurationDialog(page, true)).toContainText("隔离原厂配置");
-  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
+  await previewConfiguration(page, "按键映射与宏", true); expect(await writes(page)).toHaveLength(1);
+  await expect(configurationView(page, true)).toContainText("隔离原厂配置");
+  await configurationView(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   await openEditor(page);
   await expect(panel.getByRole("combobox", { name: "执行动作", exact: true })).toHaveText("禁用按键");
 });
@@ -74,9 +74,9 @@ test("鼠标映射及文本前后动作延时均进入草稿，未平衡按键�
   await panel.getByRole("button", { name: "添加后置按键", exact: true }).click();
   await panel.getByRole("spinbutton", { name: "后置按键第1键释放延时", exact: true }).fill("75");
   await finish(panel);
-  const review = await openConfigurationReview(page, "按键映射与宏");
+  const review = await previewConfiguration(page, "按键映射与宏");
   await expect(review.getByLabel("待应用变更")).toContainText("你好🌈");
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "应用按键映射", exact: true }).click();
   const target = (await writes(page))[0].args.request.configuration.devices[0];
   expect(target.device).toBe("mouse"); expect(target.bindings[0].trigger).toBe(1);
   expect(target.bindings[0].action.before[0].makeDelayMs).toBe(42); expect(target.bindings[0].action.after[0].breakDelayMs).toBe(75);
@@ -94,25 +94,27 @@ test("Pause使用驱动E11D而非24位值，触发与录制草稿编辑保持同
   await choose(page,"触发按键","Pause"); await choose(page,"执行动作","按键与鼠标宏");
   await choose(page,"第1步按键","Pause"); await choose(page,"第2步按键","Pause");
   await finish(panel);
-  const review = await openConfigurationReview(page, "按键映射与宏");
+  const review = await previewConfiguration(page, "按键映射与宏");
   await expect(review.getByLabel("待应用变更")).toContainText("按下 Pause");
-  await review.getByRole("button", { name: "确认应用", exact: true }).click();
+  await review.getByRole("button", { name: "应用按键映射", exact: true }).click();
   const binding = (await writes(page))[0].args.request.configuration.devices[0].bindings[0];
   expect(binding.trigger).toBe(0xe11d); expect(binding.action.steps.map(step => step.scanCode)).toEqual([0xe11d,0xe11d]);
 });
 
-test("草稿与外部状态变化撤销旧确认，读取失败不丢草稿", async ({ page }) => {
+test("映射开关直接提交保存的绑定，保留编辑中新宏", async ({ page }) => {
   const panel = await openEditor(page);
-  await panel.getByRole("checkbox", { name: "启用键盘映射", exact: true }).uncheck();
+  await panel.getByRole("button", { name: "A 禁用按键", exact: true }).click();
+  await choose(page, "执行动作", "按键与鼠标宏");
+  const enabled = panel.getByRole("checkbox", { name: "启用键盘映射", exact: true });
+  await enabled.click();
+  await expect(enabled).not.toBeChecked();
+  const request = (await writes(page))[0].args.request.configuration.devices;
+  expect(request).toHaveLength(1);
+  expect(request[0]).toMatchObject({ device: "keyboard", enabled: false, bindings: [{ action: { kind: "disable" } }] });
   await finish(panel);
-  await openConfigurationReview(page, "按键映射与宏");
-  await page.keyboard.press("Escape");
   await page.evaluate(() => { window.__uiFixture.keymap.revision = "outside"; });
   await reread(page);
   await expect(availableAction(page, "按键映射与宏")).toBeVisible();
-  await openEditor(page);
-  await expect(panel.getByRole("checkbox", { name: "启用键盘映射", exact: true })).not.toBeChecked();
-  await finish(panel);
   await page.evaluate(() => { window.__uiFixture.keymapReadFault = "隔离映射读取失败"; });
   await reread(page);
   await expect(availableAction(page, "按键映射与宏")).toHaveCount(0);
@@ -121,21 +123,20 @@ test("草稿与外部状态变化撤销旧确认，读取失败不丢草稿", as
   await page.evaluate(() => { window.__uiFixture.keymapReadFault = null; });
   await reread(page);
   await openEditor(page);
-  await expect(panel.getByRole("checkbox", { name: "启用键盘映射", exact: true })).not.toBeChecked();
-  expect(await writes(page)).toHaveLength(0);
+  await expect(enabled).not.toBeChecked();
+  await expect(panel.getByRole("combobox", { name: "执行动作", exact: true })).toHaveText("按键与鼠标宏");
+  expect(await writes(page)).toHaveLength(1);
 });
 
-test("部分失败保留恢复入口，未恢复前不接受新目标", async ({ page }) => {
+test("直接关闭映射部分失败保留恢复入口", async ({ page }) => {
   const panel = await openEditor(page);
-  await panel.getByRole("checkbox", { name: "启用键盘映射", exact: true }).uncheck();
-  await finish(panel);
   await page.evaluate(() => { window.__uiFixture.keymapFault = "隔离注册失败，原配置尚需恢复"; });
-  await openConfigurationReview(page, "按键映射与宏");
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await panel.getByRole("checkbox", { name: "启用键盘映射", exact: true }).click();
+  await finish(panel);
   await expect(region(page)).toContainText("请先恢复初始配置");
   await expect(availableAction(page, "按键映射与宏")).toHaveCount(0);
-  await openConfigurationReview(page, "按键映射与宏", true);
-  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
+  await previewConfiguration(page, "按键映射与宏", true);
+  await configurationView(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   await openEditor(page);
   await expect(panel.getByRole("checkbox", { name: "启用键盘映射", exact: true })).toBeChecked();
 });
@@ -145,7 +146,7 @@ test("配置导入只预览完整草稿，导出使用同一领域契约", async
     { device: "keyboard", enabled: false, bindings: [] }, { device: "mouse", enabled: true, bindings: [] }] };
   await panel.getByLabel("导入映射配置", { exact: true }).setInputFiles({ name: "work.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ version:1, name:"工作映射", configuration })) });
   await expect(panel.getByRole("textbox", { name: "映射配置名称" })).toHaveValue("工作映射");
-  await expect(panel.getByRole("checkbox", { name: "启用键盘映射", exact: true })).not.toBeChecked();
+  await expect(panel.getByRole("checkbox", { name: "启用键盘映射", exact: true })).toBeChecked();
   expect(await writes(page)).toHaveLength(0);
   const download = page.waitForEvent("download"); await panel.getByRole("button", { name: "导出映射草稿" }).click();
   expect((await download).suggestedFilename()).toBe("工作映射.keymap.json");
@@ -182,12 +183,13 @@ test("程序完整路径进入确认预览，监听失败可独立重试且保�
   await expect(availableAction(page, "按键映射与宏")).toHaveCount(0);
   await panel.getByRole("textbox", { name:"宏程序路径" }).fill("C:\\Apps\\Editor.exe");
   await finish(panel);
-  const review = await openConfigurationReview(page, "按键映射与宏");
+  const review = await previewConfiguration(page, "按键映射与宏");
   await expect(review.getByLabel("待应用变更")).toContainText("C:\\Apps\\Editor.exe");
   expect(await writes(page)).toHaveLength(0);
-  await review.getByRole("button", { name: "确认应用", exact: true }).click();
+  await review.getByRole("button", { name: "应用按键映射", exact: true }).click();
   await openEditor(page);
-  await expect(panel).toContainText("程序宏监听已启用");
+  await expect(panel.getByRole("button", { name: "程序宏监听中", exact: true })).toBeDisabled();
+  await expect(panel.getByText("程序宏监听已启用", { exact: true })).toHaveCount(0);
   expect((await writes(page))[0].args.request.configuration.devices[0].bindings[0].action).toEqual({ kind:"launch",path:"C:\\Apps\\Editor.exe",eventId:256 });
   await panel.getByRole("textbox", { name:"宏程序路径" }).fill("C:\\Apps\\Draft.exe");
   await finish(panel);
@@ -197,7 +199,7 @@ test("程序完整路径进入确认预览，监听失败可独立重试且保�
   await expect(panel.getByRole("alert")).toContainText("事件日志已清空");
   await panel.getByRole("button", { name:"启用程序宏监听", exact:true }).click();
   await expect(panel.getByRole("textbox", { name:"宏程序路径" })).toHaveValue("C:\\Apps\\Draft.exe");
-  await expect(panel.getByRole("button", { name:"启用程序宏监听", exact:true })).toBeDisabled();
+  await expect(panel.getByRole("button", { name: "程序宏监听中", exact: true })).toBeDisabled();
   expect(await writes(page)).toHaveLength(1);
 });
 

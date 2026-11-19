@@ -5,7 +5,7 @@ use tauri::Manager;
 pub(crate) async fn read_keyboard_settings(
     app: tauri::AppHandle,
 ) -> Result<keyboard::Profile, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<keyboard::Controller>()
             .read(&app.state::<Hal>())
     })
@@ -18,7 +18,7 @@ pub(crate) async fn apply_keyboard_settings(
     app: tauri::AppHandle,
     request: keyboard::Request,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<keyboard::Controller>()
             .apply(&app.state::<Hal>(), &request)
     })
@@ -28,7 +28,7 @@ pub(crate) async fn apply_keyboard_settings(
 }
 #[tauri::command]
 pub(crate) async fn restore_keyboard_settings(app: tauri::AppHandle) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<keyboard::Controller>()
             .restore(&app.state::<Hal>())
     })

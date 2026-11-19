@@ -41,7 +41,7 @@ fn runtime<'a>(h: &'a Harness, dir: &'a std::path::Path, startup: bool) -> Runti
 #[test]
 fn complete_capture_roundtrip_includes_independent_cover_and_perkey() {
     let h = setup();
-    let settings = crate::profiles::capture_current(&h.f.hal, &h.f.gpu, h.f.devices()).unwrap();
+    let settings = crate::profiles::capture_current(&h.f.hal, &h.f.gpu, h.f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     assert!(settings.perkey_lighting.is_some());
     assert!(settings.keyboard_lighting.is_none());
     let cover = settings

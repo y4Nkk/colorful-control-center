@@ -13,17 +13,24 @@ export function useAppPreferences() {
     applyAppearance(value.settings);
     if (mounted.current) { setSnapshot(value); setError(null); }
   }, []);
-  const run = useCallback(async (action: () => Promise<PreferencesSnapshot>) => {
+  const run = useCallback(async (action: () => Promise<PreferencesSnapshot>, onFailure?: (message: string) => void) => {
     if (running.current) return false;
     running.current = true; setBusy(true); setError(null);
     try { accept(await action()); return true; }
-    catch (cause) { if (mounted.current) setError(toCommandError(cause).message); return false; }
+    catch (cause) {
+      if (mounted.current) {
+        const message = toCommandError(cause).message;
+        setError(message);
+        onFailure?.(message);
+      }
+      return false;
+    }
     finally { running.current = false; if (mounted.current) setBusy(false); }
   }, [accept]);
   const reload = useCallback(() => run(getAppPreferences), [run]);
-  const patch = (update: Partial<AppPreferences>) => {
+  const patch = (update: Partial<AppPreferences>, onFailure?: (message: string) => void) => {
     const saved = current.current?.settings;
-    return saved ? run(() => setAppPreferences({ ...saved, ...update })) : Promise.resolve(false);
+    return saved ? run(() => setAppPreferences({ ...saved, ...update }), onFailure) : Promise.resolve(false);
   };
   const restart = async () => {
     if (running.current) return;

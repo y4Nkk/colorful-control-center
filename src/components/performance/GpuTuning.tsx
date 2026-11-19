@@ -46,7 +46,7 @@ export function GpuTuning({ active, revision, onSettled }: { active: boolean; re
   };
   if (!profile || !profile.available) return (
     <Surface as="section" variant="group" className="ccc-panel" aria-label="GPU 频率">
-      <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="gpu" />GPU 频率</h2><span className="ccc-chip">{error || profile ? "不可用" : "读取中…"}</span></div>
+      <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="gpu" />GPU 频率</h2><span className="ccc-control-caption">{error || profile ? "不可用" : "读取中…"}</span></div>
       <DetailsDialog title="GPU 参数与诊断" label="详情"><p>{error ?? profile?.unavailableReason ?? "等待驱动读数"}</p>
         <ParameterDescriptions items={GPU_TUNING_HELP} /></DetailsDialog>
       <Button icon="refresh" variant="ghost" size="compact" onClick={() => { void load(false).catch((e) => setError(String(e))); }}>重试</Button>

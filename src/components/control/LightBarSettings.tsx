@@ -1,5 +1,5 @@
 import { Icon } from "../Icon";
-import { applyLightBar, restoreLightBar } from "../../api/client";
+import { applyLightBar, restoreLightBar, type LightBarValues } from "../../api/client";
 import { Button } from "../Button";
 import { DetailsDialog } from "../DetailsDialog";
 import { ConfigurationAction } from "../ConfigurationAction";
@@ -14,7 +14,11 @@ export function LightBarSettings({ active, revision }: { active: boolean; revisi
   const current = profile?.current, blocked = busy || !!profile?.blockedReason;
   const sameKind = !!current && !!draft && current.kind === profile?.kind && draft.kind === current.kind;
   const dirty = sameKind && JSON.stringify(current) !== JSON.stringify(draft);
-  return <Surface as="section" variant="group" className="ccc-panel ccc-light-bar-panel" aria-label="独立灯条">
+  const apply = (target: LightBarValues) => {
+    if (!profile || !sameKind || blocked || !lightBarDraftValid(target)) return;
+    void run(() => applyLightBar(profile.revision, target), "独立灯条已回读", false);
+  };
+  return <Surface as="section" variant="group" className="ccc-panel" aria-label="独立灯条">
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="lighting" />独立灯条</h2>
       <div className="ccc-module-tools">{profile && <DetailsDialog title="灯条诊断" label="详情">
         <p>{profile.kind.toUpperCase()}</p>{profile.warnings.map(warning => <p key={warning}>{warning}</p>)}
@@ -24,7 +28,7 @@ export function LightBarSettings({ active, revision }: { active: boolean; revisi
     {error && <p className="ccc-control-error" role="alert">{error}</p>}
     {profile ? <div className="ccc-light-bar-columns">
       <Surface variant="inset" className="ccc-light-bar-section">
-        <strong>当前保存配置</strong><p className="ccc-control-caption">{lightBarSummary(current ?? null)}</p>
+        <strong>当前保存配置</strong><p className="ccc-control-caption">{lightBarSummary(current ?? null, !sameKind)}</p>
         {profile.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
         <ConfigurationAction label="独立灯条" revision={profile.revision} restore disabled={blocked || !profile.initial}
           onConfirm={() => run(() => restoreLightBar(profile.revision), "独立灯条初始配置已恢复")}>
@@ -33,13 +37,14 @@ export function LightBarSettings({ active, revision }: { active: boolean; revisi
       </Surface>
       <Surface variant="inset" className="ccc-light-bar-section">
         {sameKind && current && draft ? <>
-          {current.kind === "x170" && draft.kind === "x170" && <X170LightBarEditor current={current.settings} draft={draft.settings} busy={busy}
+          {current.kind === "x170" && draft.kind === "x170" && <X170LightBarEditor current={current.settings} draft={draft.settings} busy={busy} blocked={blocked}
             presets={profile.presets.flatMap(value => value.kind === "x170" ? [value.settings] : [])}
-            onChange={settings => model.setDraft({ kind: "x170", settings })} />}
-          {current.kind === "x58" && draft.kind === "x58" && <X58LightBarEditor current={current.settings} draft={draft.settings} busy={busy}
+            onChange={settings => model.setDraft({ kind: "x170", settings })} onApply={settings => apply({ kind: "x170", settings })} />}
+          {current.kind === "x58" && draft.kind === "x58" && <X58LightBarEditor current={current.settings} draft={draft.settings} busy={busy} blocked={blocked}
+            revision={profile.revision}
             presets={profile.presets.flatMap(value => value.kind === "x58" ? [value.settings] : [])}
-            onChange={settings => model.setDraft({ kind: "x58", settings })} />}
-          <ConfigurationAction label="独立灯条" revision={JSON.stringify([profile.revision, draft])} disabled={!dirty || blocked || !lightBarDraftValid(draft)}
+            onChange={settings => model.setDraft({ kind: "x58", settings })} onApply={settings => apply({ kind: "x58", settings })} />}
+          <ConfigurationAction label="独立灯条" applyLabel="应用灯条参数" revision={JSON.stringify([profile.revision, draft])} disabled={!dirty || blocked || !lightBarDraftValid(draft)}
             onConfirm={() => run(() => applyLightBar(profile.revision, draft), "独立灯条已发送并核对保存值")}>
             <p>{lightBarSummary(current)} → {lightBarSummary(draft)}</p>
           </ConfigurationAction>

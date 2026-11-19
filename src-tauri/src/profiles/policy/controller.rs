@@ -117,6 +117,35 @@ impl Controller {
         self.commit(hal, &request.expected, Some(&target))
     }
 
+    pub fn set_enabled(
+        &self,
+        context: &crate::powerctl::mode::links::Context<'_>,
+        dir: &Path,
+        expected: &Record,
+        enabled: bool,
+    ) -> Result<()> {
+        if self.shared.record()? != *expected {
+            bail!("自动档案规则已变化，请重新读取");
+        }
+        let target = Record {
+            enabled,
+            ..expected.clone()
+        };
+        target.validate()?;
+        if enabled {
+            for binding in [&target.ac, &target.battery, &target.resume].into_iter().flatten() {
+                let file = binding.load(dir)?;
+                if let Some(grant) = &binding.mode {
+                    let _gate = context.hal.begin_write()?;
+                    profiles::preview_authorization(context, &file.settings)?
+                        .ok_or_else(|| anyhow!("自动档案模式授权已变化，请重新确认规则"))?
+                        .check(grant)?;
+                }
+            }
+        }
+        self.commit(context.hal, expected, Some(&target))
+    }
+
     fn commit(&self, hal: &Hal, expected: &Record, target: Option<&Record>) -> Result<()> {
         let _gate = hal.begin_write()?;
         let mut config = self.shared.lock_config()?;
@@ -196,7 +225,7 @@ impl Controller {
         Ok(())
     }
 
-    pub fn stop(&self) -> Result<()> {
+    pub fn request_stop(&self) -> Result<()> {
         {
             let mut state = self.shared.lock_events()?;
             state.stopping = true;
@@ -215,20 +244,16 @@ impl Controller {
         {
             stopper.stop();
         }
-        let mut worker = self
+        Ok(())
+    }
+
+    pub fn join_worker(&self) -> Result<()> {
+        let worker = self
             .worker
             .lock()
-            .map_err(|_| anyhow!("自动档案工作线程状态异常"))?;
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
-        while worker.as_ref().is_some_and(|worker| !worker.is_finished())
-            && std::time::Instant::now() < deadline
-        {
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
-        if worker.as_ref().is_some_and(|worker| !worker.is_finished()) {
-            bail!("自动档案仍在结束授权或恢复，执行权限已撤销");
-        }
-        if let Some(worker) = worker.take() {
+            .map_err(|_| anyhow!("自动档案工作线程状态异常"))?
+            .take();
+        if let Some(worker) = worker {
             worker
                 .join()
                 .map_err(|_| anyhow!("自动档案工作线程退出异常"))?;

@@ -1,4 +1,4 @@
-import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
+import { configurationView, previewConfiguration } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -11,12 +11,12 @@ async function select(page) {
   await camera(page).check();
 }
 async function confirm(page) {
-  await openConfigurationReview(page, "原厂热键与屏显");
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await previewConfiguration(page, "原厂热键与屏显");
+  await configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true }).click();
 }
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
-  await page.goto("/"); await openWorkspace(page, "键盘与输入");
+  await page.goto("/"); await openWorkspace(page, "键盘与灯光");
 });
 
 test("摄像头反馈默认关闭并独立确认，既有通知和麦克风范围不自动包含", async ({ page }) => {
@@ -32,9 +32,9 @@ test("摄像头反馈默认关闭并独立确认，既有通知和麦克风范�
   await expect(p.getByLabel("热键策略预览")).toContainText("摄像头状态反馈");
   await expect(p).toContainText("按原厂规则同步摄像头保存值");
   await expect(p).toContainText("不执行设备开关");
-  await openConfigurationReview(page, "原厂热键与屏显");
+  await previewConfiguration(page, "原厂热键与屏显");
   expect(await writes(page)).toEqual([]);
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true }).click();
   expect((await writes(page))[0].args.request.settings).toEqual({ enabled: true, actions: ["cameraReports"], osd: true });
   const devices = await page.evaluate(() => window.__uiFixture.calls.filter(({ command }) =>
     /^(apply_|restore_|set_|save_|start_)/.test(command) && !["apply_hotkeys", "set_shortcut_recording"].includes(command)));
@@ -54,15 +54,15 @@ test("关闭桌面提示仍显示反馈结果，临时停止与初始软件规�
   await p.getByRole("button", { name: "临时停止监听", exact: true }).click();
   await expect(p).toContainText("热键监听已停止");
   await expect(camera(page)).toBeChecked();
-  await openConfigurationReview(page, "原厂热键与屏显", true);
-  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
+  await previewConfiguration(page, "原厂热键与屏显", true);
+  await configurationView(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   await expect(camera(page)).not.toBeChecked();
   await expect(p.getByRole("switch", { name: "启用原厂热键接管", exact: true })).not.toBeChecked();
 });
 
 test("摄像头能力变化撤销旧确认并允许取消已选范围", async ({ page }) => {
   await select(page);
-  await openConfigurationReview(page, "原厂热键与屏显");
+  await previewConfiguration(page, "原厂热键与屏显");
   await page.evaluate(() => {
     const h = window.__uiFixture.hotkeys;
     h.revision = "camera-source-unavailable";
@@ -70,7 +70,7 @@ test("摄像头能力变化撤销旧确认并允许取消已选范围", async ({
     cap.identity = null; cap.reason = "摄像头报告保存值不可读取";
     window.__uiEmit("hardware-controls-changed", null);
   });
-  await expect(configurationDialog(page).getByRole("button", { name: "确认应用", exact: true })).toHaveCount(0);
+  await expect(configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true })).toHaveCount(0);
   await expect(panel(page)).toContainText("摄像头报告保存值不可读取");
   await expect(camera(page)).toBeEnabled();
   await camera(page).uncheck();

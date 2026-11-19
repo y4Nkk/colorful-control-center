@@ -47,6 +47,6 @@ pub fn restart(app: &AppHandle) -> Result<()> {
         state.restarting.store(false, Ordering::Release);
         return Err(error);
     }
-    app.exit(0);
+    crate::shutdown::request();
     Ok(())
 }

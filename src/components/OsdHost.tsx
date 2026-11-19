@@ -29,7 +29,7 @@ export function OsdHost() {
   const level = message.level;
   const ratio = level && level.max > 0 ? Math.min(1, Math.max(0, level.value / level.max)) : 0;
   return <div className="ccc-osd" role="status" aria-live="polite">
-    <Surface as="section" variant="card" className={`ccc-osd-card${message.error ? " is-error" : ""}`}>
+    <Surface as="section" variant="card" className="ccc-osd-card" data-error={message.error}>
       <div className="ccc-osd-content"><strong>{message.title}</strong><p>{message.detail}</p></div>
       {level && <div className="ccc-osd-level" aria-label={`${level.value} / ${level.max}`}>
         <svg viewBox="0 0 48 48" aria-hidden="true"><circle className="ccc-osd-track" cx="24" cy="24" r="20" />

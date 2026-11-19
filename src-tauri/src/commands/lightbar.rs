@@ -3,7 +3,7 @@ use tauri::{AppHandle, Manager};
 
 #[tauri::command]
 pub(crate) async fn read_light_bar(app: AppHandle) -> Result<Option<lightbar::Profile>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<lightbar::Controller>()
             .read(&app.state::<Hal>())
     })
@@ -16,7 +16,7 @@ pub(crate) async fn apply_light_bar(
     app: AppHandle,
     request: lightbar::Request,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<lightbar::Controller>()
             .apply(&app.state::<Hal>(), &request)
     })
@@ -29,7 +29,7 @@ pub(crate) async fn restore_light_bar(
     app: AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<lightbar::Controller>()
             .restore(&app.state::<Hal>(), &expected_revision)
     })

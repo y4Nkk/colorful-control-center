@@ -25,8 +25,8 @@ pub mod oem_dchu;
 pub(crate) mod oem_identity;
 pub(crate) mod oem_owner;
 pub mod overview;
-pub(crate) mod panel_inventory;
 pub(crate) mod panel_aux;
+pub(crate) mod panel_inventory;
 #[cfg(not(test))]
 pub mod pawnio;
 pub(crate) mod power_events;
@@ -83,6 +83,7 @@ pub struct NvidiaSnapshot {
 #[serde(rename_all = "camelCase")]
 pub struct HardwareSnapshot {
     pub dchu_available: bool,
+    pub oem_power_mode: Option<u8>,
     pub cpu_temp_c: Option<f64>,
     pub cpu_remote_raw: Option<f64>,
     pub cpu_utility: Option<CpuUtilityReading>,
@@ -134,11 +135,8 @@ pub struct Hal {
     recovery: Mutex<Recovery>,
     fan_guard: Mutex<Option<crate::watchdog::Watchdog>>,
     #[cfg(test)]
-    pub(crate) test_fan_guard: Option<
-        std::sync::Arc<
-            dyn Fn(crate::watchdog::GuardPolicy) -> Result<crate::watchdog::Watchdog> + Send + Sync,
-        >,
-    >,
+    pub(crate) test_fan_guard:
+        Option<std::sync::Arc<dyn Fn() -> Result<crate::watchdog::Watchdog> + Send + Sync>>,
     safety: Mutex<String>,
     mutation: std::sync::Arc<Mutex<()>>,
     fan_recovery_needed: AtomicBool,
@@ -180,7 +178,7 @@ impl Hal {
             fan_guard: Mutex::new(None),
             #[cfg(test)]
             test_fan_guard: None,
-            safety: Mutex::new("自动".into()),
+            safety: Mutex::new("固件控制".into()),
             fan_recovery_needed: AtomicBool::new(false),
             software_fan_safety: Mutex::new(fan_safety::journal::Journal::default()),
             software_fan: Mutex::new(None),
@@ -197,6 +195,10 @@ impl Hal {
     #[cfg(test)]
     pub(crate) fn test_write_gate(&self) -> std::sync::Arc<Mutex<()>> {
         self.mutation.clone()
+    }
+    #[cfg(test)]
+    pub(crate) fn test_dchu_available(&self) -> bool {
+        self.dchu.try_lock().is_ok()
     }
     pub(crate) fn bind_calibration_record(&mut self, path: std::path::PathBuf) {
         self.calibration_record = Some(path);
@@ -247,7 +249,7 @@ impl Hal {
             recovery: Mutex::new(Recovery::default()),
             fan_guard: Mutex::new(guard),
             test_fan_guard: None,
-            safety: Mutex::new("监护中".into()),
+            safety: Mutex::new("固件控制".into()),
             mutation: std::sync::Arc::new(Mutex::new(())),
             fan_recovery_needed: AtomicBool::new(false),
             software_fan_safety: Mutex::new(fan_safety::journal::Journal::default()),

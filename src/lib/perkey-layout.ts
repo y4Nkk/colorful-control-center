@@ -20,11 +20,7 @@ export function ledIndices(code: string, narrow: boolean): number[] {
   if (code === "6f") ids.push(0x4E, 0x4F);
   return [...new Set(ids)].map(id => (id >> 5) * 20 + (id & 31));
 }
-export function perkeyLayout(device: PerkeyDevice): { keys: Keycap[]; width: number; height: number } | null {
-  if (device.language > 3 || device.compact === null || device.physicalThreeColumn === null) return null;
-  const name = `${device.language}-${Number(device.physicalThreeColumn)}-${Number(device.compact)}` as keyof typeof facts.layouts;
-  const indexes = facts.layouts[name];
-  if (!indexes) return null;
+function keyboardGeometry(indexes: number[]) {
   const keys = indexes.map(index => {
     const key = facts.keys[index];
     const raw = key.label?.trim().replace(/\s+/g, " ");
@@ -32,7 +28,18 @@ export function perkeyLayout(device: PerkeyDevice): { keys: Keycap[]; width: num
       ? raw.replace("Crtl", "Ctrl") : symbols[key.code] ?? key.code.toUpperCase();
     // The source function row is too short at dashboard scale; keep its LED map and give labels room.
     return { ...key, y: key.y < 45 ? key.y : key.y + 24, height: key.y < 45 ? key.height + 24 : key.height,
-      label, legend: legends[label] ?? (key.code === "93b3" ? "↵" : label), leds: ledIndices(key.code, device.narrowBorder) };
+      label, legend: legends[label] ?? (key.code === "93b3" ? "↵" : label) };
   });
   return { keys, width: Math.max(...keys.map(k => k.x + k.width)), height: Math.max(...keys.map(k => k.y + k.height)) };
+}
+
+export const KEYBOARD_SCHEMATIC = keyboardGeometry(facts.layouts["0-0-0"]);
+
+export function perkeyLayout(device: PerkeyDevice): { keys: Keycap[]; width: number; height: number } | null {
+  if (device.language > 3 || device.compact === null || device.physicalThreeColumn === null) return null;
+  const name = `${device.language}-${Number(device.physicalThreeColumn)}-${Number(device.compact)}` as keyof typeof facts.layouts;
+  const indexes = facts.layouts[name];
+  if (!indexes) return null;
+  const layout = keyboardGeometry(indexes);
+  return { ...layout, keys: layout.keys.map(key => ({ ...key, leds: ledIndices(key.code, device.narrowBorder) })) };
 }

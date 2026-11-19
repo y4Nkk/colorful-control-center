@@ -1,5 +1,5 @@
 import type { HardwareSnapshot, SystemOverview } from "../../api/client";
-import { formatParameter } from "../../lib/format-parameters";
+import { BYTES_PER_MB, formatCapacity, formatParameter } from "../../lib/format-parameters";
 import { FactList } from "../FactList";
 import { ParameterDescriptions } from "./ParameterHelp";
 import { DetailsDialog } from "../DetailsDialog";
@@ -26,7 +26,7 @@ export function GpuParameters({ live }: { live: HardwareSnapshot | null }) {
     <FactList compact facts={[
       { label: "计算核心数", value: formatParameter(gpu?.cudaCores, "个") },
       { label: "显存位宽", value: formatParameter(gpu?.memoryBusWidthBits, "位") },
-      { label: "显存总量", value: formatParameter(gpu?.memTotalMb == null ? null : gpu.memTotalMb / 1024, "GiB", 1) },
+      { label: "显存总量", value: formatCapacity(gpu?.memTotalMb == null ? null : gpu.memTotalMb * BYTES_PER_MB) },
       { label: "当前核心频率", value: formatParameter(gpu?.graphicsClockMhz, "MHz") },
       { label: "当前显存频率", value: formatParameter(gpu?.memoryClockMhz, "MHz") },
       { label: "当前温度", value: formatParameter(gpu?.tempC, "°C", 1) },

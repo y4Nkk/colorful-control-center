@@ -197,7 +197,7 @@ impl Controller {
             bail!("显示试用已变化，请重新查看");
         }
         if matches!(trial.owner, Owner::Profile(_)) {
-            bail!("此试用属于性能档案，请确认完整档案显示变更");
+            bail!("此试用属于配置档案，请确认完整档案显示变更");
         }
         if (trial.owner == Owner::Automatic) != automatic {
             bail!("显示试用的确认入口已变化");
@@ -221,7 +221,7 @@ impl Controller {
             bail!("显示试用已变化，请重新查看");
         }
         if matches!(trial.owner, Owner::Profile(_)) {
-            bail!("此试用属于性能档案，请从档案确认中恢复");
+            bail!("此试用属于配置档案，请从档案确认中恢复");
         }
         if let Err(error) = self.recover_trial(trial) {
             let message = format!("显示试用恢复失败：{error:#}");

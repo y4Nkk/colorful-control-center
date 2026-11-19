@@ -17,6 +17,13 @@ pub(super) fn run(args: &[String]) -> Option<u32> {
         "--battery-calibration" => battery::calibration::run_child(),
         "--display-watchdog" => display::run_child(),
         "--fan-watchdog" => watchdog::run_child(),
+        crate::shutdown::deadline::FLAG => {
+            if args.len() == 1 {
+                crate::shutdown::deadline::run_child()
+            } else {
+                Err(anyhow::anyhow!("退出监护启动参数无效"))
+            }
+        }
         _ => return None,
     };
     match result {

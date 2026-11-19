@@ -3,6 +3,7 @@
 //! ccc-core 的校验与钳位（安全设计 docs/design.md §4）。
 
 use anyhow::{Result, anyhow};
+use std::sync::atomic::AtomicU32;
 use windows_sys::Win32::Foundation::{FARPROC, FreeLibrary};
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
 
@@ -29,6 +30,9 @@ pub struct Dchu {
     set_data: SetData,
     set_data_ex: Option<SetDataEx>,
     write_settings: WriteSettings,
+    pub(crate) acknowledged_mode: AtomicU32,
+    #[cfg(test)]
+    pub(crate) test_entertainment_options: std::sync::atomic::AtomicBool,
 }
 
 unsafe impl Send for Dchu {}
@@ -53,6 +57,8 @@ impl Dchu {
             set_data,
             set_data_ex: None,
             write_settings,
+            acknowledged_mode: AtomicU32::new(0),
+            test_entertainment_options: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -109,6 +115,9 @@ impl Dchu {
                     Some(std::mem::transmute(set_ex_ptr))
                 },
                 write_settings: std::mem::transmute(write_ptr),
+                acknowledged_mode: AtomicU32::new(0),
+                #[cfg(test)]
+                test_entertainment_options: std::sync::atomic::AtomicBool::new(false),
             })
         }
     }

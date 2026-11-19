@@ -10,25 +10,29 @@
 [data-preview-theme="light"] {
   color-scheme: light;
   /* 核心色板 */
-  --ccc-action: #0066cc;
-  --ccc-action-hover: #0755aa;
+  --ccc-action: #0a84ff;
   --ccc-text-on-action: #ffffff;
-  --ccc-focus-ring: rgba(0, 102, 204, 0.46);
-  --ccc-safe: #1e8e3e;
+  --ccc-focus-ring: rgba(10, 132, 255, 0.42);
+  --ccc-safe: #30d158;
+  --ccc-safe-text: #1e8e3e;
   --ccc-warning: #b25000;
   --ccc-danger: #d70015;
 
   /* 语义色 —— 浅色主题 */
-  --ccc-canvas: #eaedf2;
-  --ccc-chrome-bg: rgba(234, 237, 242, 0.86);
-  --ccc-workspace-bg: #f3f5f8;
-  --ccc-content: #ffffff;
-  --ccc-content-muted: #f1f3f6;
-  --ccc-text: #1b2130;
+  --ccc-canvas: #f6f7fb;
+  --ccc-chrome-bg: hsl(240 12% 93% / 0.6);
+  --ccc-content: #fafafa;
+  --ccc-content-muted: #f3f3f6;
+  --ccc-text: #14161b;
   --ccc-text-muted: rgba(20, 22, 27, 0.62);
   --ccc-hairline: rgba(20, 22, 27, 0.12);
-  --ccc-row-hover: color-mix(in srgb, var(--ccc-text) 3%, var(--ccc-content));
-  --ccc-nav-selected: color-mix(in srgb, var(--ccc-action) 10%, var(--ccc-content));
+  --ccc-hairline-strong: rgba(20, 22, 27, 0.2);
+  --ccc-nav-selected: color-mix(in srgb, var(--ccc-action) 8%, white);
+  --ccc-rail-selected: rgba(20, 22, 27, 0.08);
+  --ccc-rail-selected-icon: #3279f6;
+  --ccc-danger-tint: rgba(215, 0, 21, 0.08);
+  --ccc-overlay-shadow: 0 12px 40px rgba(7, 23, 37, 0.18);
+  --ccc-overlay-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.55);
   --ccc-overlay-backdrop: rgba(20, 22, 27, 0.32);
   --ccc-scrollbar-thumb: rgba(20, 22, 27, 0.26);
   --ccc-scrollbar-thumb-hover: rgba(20, 22, 27, 0.44);
@@ -56,6 +60,32 @@
   --ccc-brand-surface: #ffffff;
   --ccc-brand-dark-surface: #20242b;
 
+  /* 预设图形共用轮廓，色相只用于主体的一处填充。 */
+  --ccc-mode-art-ink: color-mix(in srgb, var(--ccc-text) 79%, var(--ccc-content));
+  --ccc-mode-art-eco: #2e816a;
+  --ccc-mode-art-quiet: #5874be;
+  --ccc-mode-art-entertainment: #8261a6;
+  --ccc-mode-art-performance: #b56d3b;
+  --ccc-mode-art-tint: color-mix(in srgb, currentColor 24%, transparent);
+  --ccc-mode-art-mark: color-mix(in srgb, currentColor 64%, var(--ccc-text));
+  --ccc-mode-art-size: 56px;
+  --ccc-mode-art-compact: 44px;
+
+  /* 键盘示意的实体材质与选色色谱。实际灯光颜色由灯效草稿提供。 */
+  --ccc-lighting-deck: #171b23;
+  --ccc-lighting-cap: #252b36;
+  --ccc-lighting-cap-edge: #484f5d;
+  --ccc-lighting-deck-text: #e1e6ef;
+  --ccc-lighting-deck-muted: #a8b2c2;
+  --ccc-lighting-deck-selected: #91c5ff;
+  --ccc-lighting-wheel-size: 144px;
+
+  --ccc-color-hue-stops: #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00;
+  --ccc-color-black: #000;
+  --ccc-color-white: #fff;
+  --ccc-color-picker-width: 304px;
+  --ccc-color-point-size: 16px;
+
   /* 字体 */
   --ccc-font-sans: "Noto Sans SC", "Microsoft YaHei UI", system-ui, sans-serif;
   --ccc-font-mono: "Cascadia Mono", Consolas, "Sarasa Mono SC", monospace;
@@ -69,29 +99,32 @@
   --ccc-text-title: 20px;
   --ccc-text-reading: 24px;
   --ccc-text-temperature: 32px;
+  --ccc-control-font: 400 var(--ccc-text-lg)/1.55 var(--ccc-font-sans);
+  --ccc-dialog-title-font: 600 18px/1.25 var(--ccc-font-sans);
+  --ccc-fact-label-font: 400 var(--ccc-text-sm)/1.4 var(--ccc-font-sans);
 
   /* 圆角档（唯一尺度；形状语义见 DESIGN.md） */
   --ccc-radius-control: 12px;
   --ccc-radius-card: 16px;
-  --ccc-radius-nav: 20px;
   --ccc-radius-group: 24px;
   --ccc-radius-panel: 28px;
   --ccc-radius-full: 999px;
 
   /* 控件与表面共享边框 */
   --ccc-border-width: 1px;
-  --ccc-border: var(--ccc-border-width) solid var(--ccc-hairline);
   --ccc-border-clear: var(--ccc-border-width) solid transparent;
-  --ccc-focus-shadow: 0 0 0 3px var(--ccc-focus-ring);
-  --ccc-range-track: 4px;
-  --ccc-range-thumb: 16px;
+  --ccc-range-track: 24px;
+  --ccc-range-thumb: 28px;
+  --ccc-range-cavity: rgba(20, 22, 27, 0.09);
+  --ccc-range-edge: inset 0 0 0 var(--ccc-border-width) rgba(20, 22, 27, 0.26);
+  --ccc-range-shadow: 0 1px 3px rgba(20, 22, 27, 0.16);
+  --ccc-range-shadow-hover: 0 2px 7px rgba(20, 22, 27, 0.2);
   --ccc-handle-target: 24px;
   --ccc-handle-dot: 8px;
   --ccc-handle-dot-active: 14px;
-  --ccc-select-min-width: 200px;
   --ccc-select-max-width: 400px;
-  --ccc-select-list-height: 240px;
-  --ccc-select-gap: 8px;
+  --ccc-select-height: 384px;
+  --ccc-select-gap: 4px;
   --ccc-select-edge: 8px;
   --ccc-select-layer: 1000;
 
@@ -106,16 +139,20 @@
   /* 控件尺寸 */
   --ccc-control-height: 40px;
   --ccc-control-height-compact: 32px;
+  --ccc-button-gap: 6px;
+  --ccc-button-min-width: 72px;
   --ccc-sidebar-width: 224px;
   --ccc-sidebar-collapsed-width: 64px;
   --ccc-topbar-height: 64px;
   --ccc-icon-size-small: 16px;
+  --ccc-icon-size-xs: 14px;
   --ccc-icon-size: 20px;
   --ccc-icon-size-nav: 24px;
   --ccc-settings-width: 960px;
   --ccc-workspace-width: 1320px;
-  --ccc-dialog-width: 600px;
-  --ccc-dialog-wide: 860px;
+  --ccc-dialog-narrow: 440px;
+  --ccc-dialog-width: 620px;
+  --ccc-dialog-wide: 1000px;
   --ccc-keyboard-min-width: 640px;
   --ccc-settings-preview-height: 124px;
   --ccc-meter-ring-size: 80px;
@@ -132,51 +169,67 @@
   --ccc-chrome-saturation: 1.2;
 
   /* 动效 */
-  --ccc-motion-fast: 150ms;
+  --ccc-motion-press: 120ms;
+  --ccc-motion-fast: 180ms;
+  --ccc-motion-range: 220ms;
   --ccc-motion: 240ms;
   --ccc-motion-slow: 400ms;
   --ccc-scrollbar-idle-delay: 900ms;
-  --ccc-easing: cubic-bezier(0.2, 0, 0, 1);
+  --ccc-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  --ccc-easing-press: cubic-bezier(0.34, 1.56, 0.64, 1);
 
 }
 
 :root[data-theme="dark"],
 [data-preview-theme="dark"] {
   color-scheme: dark;
-  --ccc-action: #409cff;
-  --ccc-action-hover: #66b1ff;
-  --ccc-text-on-action: #101923;
-  --ccc-focus-ring: rgba(64, 156, 255, 0.45);
-  --ccc-safe: #4fae62;
-  --ccc-warning: #d97f2a;
-  --ccc-danger: #ff5d5d;
+  --ccc-safe-text: #4cd964;
+  --ccc-warning: #ff9f0a;
+  --ccc-danger: #ff453a;
 
-  --ccc-canvas: #16171b;
-  --ccc-chrome-bg: rgba(22, 23, 27, 0.86);
-  --ccc-workspace-bg: #191b22;
-  --ccc-content: #22252d;
-  --ccc-content-muted: #26272d;
-  --ccc-text: #e8e9ec;
-  --ccc-text-muted: rgba(232, 233, 236, 0.6);
-  --ccc-hairline: rgba(232, 233, 236, 0.14);
-  --ccc-row-hover: color-mix(in srgb, var(--ccc-text) 4%, var(--ccc-content));
+  --ccc-canvas: #071725;
+  --ccc-chrome-bg: rgba(17, 30, 43, 0.6);
+  --ccc-content: #0d2133;
+  --ccc-content-muted: #10293f;
+  --ccc-text: #edf0f7;
+  --ccc-text-muted: rgba(237, 240, 247, 0.6);
+  --ccc-hairline: rgba(237, 240, 247, 0.14);
+  --ccc-hairline-strong: rgba(237, 240, 247, 0.26);
   --ccc-nav-selected: color-mix(in srgb, var(--ccc-action) 16%, var(--ccc-content));
-  --ccc-overlay-backdrop: rgba(0, 0, 0, 0.45);
-  --ccc-scrollbar-thumb: rgba(232, 233, 236, 0.3);
-  --ccc-scrollbar-thumb-hover: rgba(232, 233, 236, 0.48);
-  --ccc-scrollbar-thumb-active: rgba(232, 233, 236, 0.66);
+  --ccc-rail-selected: rgba(237, 240, 247, 0.08);
+  --ccc-rail-selected-icon: #8db4ff;
+  --ccc-danger-tint: rgba(255, 69, 58, 0.16);
+  --ccc-overlay-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --ccc-overlay-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --ccc-scrollbar-thumb: rgba(237, 240, 247, 0.3);
+  --ccc-scrollbar-thumb-hover: rgba(237, 240, 247, 0.48);
+  --ccc-scrollbar-thumb-active: rgba(237, 240, 247, 0.66);
+}
+
+:root,
+[data-preview-theme] {
+  --ccc-workspace-bg: var(--ccc-content);
+  --ccc-row-hover: color-mix(in srgb, var(--ccc-text) 3%, var(--ccc-content));
+  --ccc-action-hover: color-mix(in srgb, var(--ccc-action) 88%, var(--ccc-text));
+  --ccc-border: var(--ccc-border-width) solid var(--ccc-hairline);
+  --ccc-border-strong: var(--ccc-border-width) solid var(--ccc-hairline-strong);
+  --ccc-focus-shadow: 0 0 0 3px var(--ccc-focus-ring);
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
+    --ccc-motion-press: 0ms;
     --ccc-motion-fast: 0ms;
+    --ccc-motion-range: 0ms;
     --ccc-motion: 0ms;
     --ccc-motion-slow: 0ms;
   }
 }
 
 :root[data-motion="reduce"] {
+  --ccc-motion-press: 0ms;
   --ccc-motion-fast: 0ms;
+  --ccc-motion-range: 0ms;
   --ccc-motion: 0ms;
   --ccc-motion-slow: 0ms;
 }

@@ -1,15 +1,17 @@
 import { Icon } from "../Icon";
 import type { KeyboardLightingTarget, ProfileSettings } from "../../api/client";
+import { hexOf } from "../../lib/color";
+import { ColorSwatch } from "../ColorSwatch";
 import { Surface } from "../Surface";
 import { FactList } from "../FactList";
 import { FIELDS, stateText } from "../control/keyboard-values";
-import { booleanText, timerText, zoneText, topCoverText } from "../control/lighting-option-values";
-import { EFFECTS, hexOf } from "../control/useKeyboardLighting";
+import { booleanText, timerText, topCoverText } from "../control/lighting-option-values";
+import { EFFECTS } from "../control/useKeyboardLighting";
 import { KeyboardBacklightVisual } from "../control/KeyboardBacklightVisual";
 
 function KeyboardPicture({ target }: { target: KeyboardLightingTarget }) {
   const settings = target.settings, rgb = settings.family === "zoneRgb" ? settings : null;
-  if (settings.family === "white") return <KeyboardBacklightVisual label="档案白光亮度" level={settings.brightness} enabled={target.enabled} maximum={5} />;
+  if (settings.family === "white") return <KeyboardBacklightVisual label="档案白光亮度" level={settings.brightness} enabled={target.enabled} maximum={5} showLevel />;
   const zoned = rgb && ["zones", "breath"].includes(rgb.effect), solid = rgb?.effect === "solid";
   return <div className="ccc-profile-values">
     <svg viewBox="0 0 330 58" role="img" aria-label={rgb ? "三区键盘灯区示意" : "白光键盘示意"}>
@@ -41,9 +43,9 @@ export function ProfileKeyboardPreview({ settings }: { settings: ProfileSettings
         {options.bootOverride !== null && <span className="ccc-control-caption">开机灯效覆盖 · {booleanText(options.bootOverride)}</span>}</div>
       <div className="ccc-profile-values">{[{ title: "Logo", zone: options.logo }, { title: "普通灯条", zone: options.lightBar }].map(({ title, zone }) => zone &&
         <div className="ccc-profile-peripheral" key={title}><span className="ccc-control-caption">{title} · {booleanText(zone.enabled)}</span>
-          <svg viewBox="0 0 120 12" role="img" aria-label={`${title}档案颜色`}><title>{zoneText(zone)}</title><rect width="120" height="12" rx="4" fill={hexOf(zone.color)} opacity={zone.enabled ? 1 : 0.25} /></svg></div>)}
+          <ColorSwatch color={zone.color} label={`${title}档案颜色`} dimmed={!zone.enabled} /></div>)}
         {options.topCover && <div className="ccc-profile-peripheral"><span className="ccc-control-caption">独立顶盖 · {topCoverText(options.topCover)}</span>
-          <svg viewBox="0 0 120 12" role="img" aria-label="独立顶盖档案颜色"><rect width="120" height="12" rx="4" fill={hexOf(options.topCover.color)} opacity={options.topCover.brightness > 0 ? 1 : 0.25} /></svg></div>}
+          <ColorSwatch color={options.topCover.color} label="独立顶盖档案颜色" dimmed={options.topCover.brightness === 0} /></div>}
         {!options.logo && !options.lightBar && !options.topCover && <span className="ccc-control-caption">此档案不配置外围灯区</span>}
       </div>
     </Surface>}

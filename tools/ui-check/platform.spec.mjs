@@ -1,4 +1,4 @@
-import { availableAction, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
+import { availableAction, configurationView, previewConfiguration } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -15,24 +15,22 @@ test.beforeEach(async ({ page }) => {
     window.__uiFixture.platform = { deepS5: true, warnings: [], powerDelivery: { revision: "pd-0", encoding: "adapterV1", currentLevel: 1, currentValid: true,
       availableLevels: [1,2,4], zeroBased: false, adapterWatts: 100, initial: null, restoreBlockedReason: null, blockedReason: null } };
   });
-  await page.goto("/"); await openWorkspace(page, "电池与节能");
+  await page.goto("/"); await openWorkspace(page, "电源");
 });
 
-test("PD等级按声明候选预览，确认后写入并独立恢复", async ({ page }) => {
+test("PD 选择按固件候选直接写入并独立恢复", async ({ page }) => {
   const panel = panelOf(page);
-  await expect(panel).toContainText("100 W"); await expect(panel).toContainText("Deep S5");
+  await expect(panel).toContainText("100 W");
+  await expect(panel).toContainText("Deep S5");
   await panel.getByRole("combobox", { name: "PD 档位" }).click();
   await expect(page.getByRole("option", { name: "等级 3", exact: true })).toHaveCount(0);
   await page.getByRole("option", { name: "等级 4", exact: true }).click();
-  await expect(panel).toContainText("等级 1 → 等级 4");
-  await openConfigurationReview(page, "PD 档位");
-  expect(await writes(page)).toHaveLength(0);
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await expect(panel.getByRole("combobox", { name: "PD 档位" })).toContainText("等级 4");
   expect((await writes(page))[0].args.request.level).toBe(4);
-  await expect(panel).toContainText("恢复目标：等级 1");
-  await openConfigurationReview(page, "PD 档位", true);
+  const restore = await previewConfiguration(page, "PD 档位", true);
+  await expect(restore).toContainText("等级 1");
   expect(await writes(page)).toHaveLength(1);
-  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
+  await restore.getByRole("button", { name: "确认恢复", exact: true }).click();
   await expect(panel.getByRole("combobox", { name: "PD 档位" })).toContainText("等级 1");
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });
@@ -44,33 +42,25 @@ test("旧编号显示等级但发送原始编码，未知功率不补零", async
   await panel.getByRole("button", { name: "重新读取平台电源" }).click();
   await expect(panel).toContainText("未报告");
   await select(panel, page, "等级 2");
-  await openConfigurationReview(page, "PD 档位");
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await expect(panel.getByRole("combobox", { name: "PD 档位" })).toContainText("等级 2");
   expect((await writes(page))[0].args.request.level).toBe(1);
 });
 
-test("编辑、适配器变化与重读撤销确认，保留草稿并拒绝无效候选", async ({ page }) => {
+test("适配器更换使旧选择失效并回读可用档位", async ({ page }) => {
   const panel = panelOf(page);
-  await select(panel, page, "等级 4");
-  await openConfigurationReview(page, "PD 档位");
-  await select(panel, page, "等级 2");
-  await expect(availableAction(page, "PD 档位")).toBeVisible();
-  await openConfigurationReview(page, "PD 档位");
+  await expect(panel.getByRole("combobox", { name: "PD 档位" })).toContainText("等级 1");
   await page.evaluate(() => Object.assign(window.__uiFixture.platform.powerDelivery, { adapterWatts: 45, availableLevels: [1], revision: "pd-changed" }));
-  await panel.getByRole("button", { name: "重新读取平台电源" }).click();
-  await expect(panel).toContainText("此适配器不支持当前草稿");
-  await expect(availableAction(page, "PD 档位")).toHaveCount(0);
-  await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page.getByRole("button", { name: "电池与节能", exact: true }).click();
-  expect(await writes(page)).toHaveLength(0);
+  await select(panel, page, "等级 4");
+  await expect(panel.getByRole("alert")).toBeVisible();
+  await expect(panel).toContainText("45 W");
+  await expect(panel.getByRole("combobox", { name: "PD 档位" })).toContainText("等级 1");
+  expect(await writes(page)).toHaveLength(1);
 });
 
-test("部分失败保留草稿与恢复入口，不重复写入", async ({ page }) => {
+test("部分失败回读实际档位并保留恢复入口", async ({ page }) => {
   const panel = panelOf(page);
-  await select(panel, page, "等级 2");
   await page.evaluate(() => { window.__uiFixture.pdFault = "隔离PD写入失败，补偿尚需重试"; });
-  await openConfigurationReview(page, "PD 档位");
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await select(panel, page, "等级 2");
   await expect(panel.getByRole("alert")).toContainText("补偿尚需重试");
   await expect(panel.getByRole("combobox", { name: "PD 档位" })).toContainText("等级 2");
   await expect(availableAction(page, "PD 档位", true)).toBeEnabled();
@@ -79,8 +69,7 @@ test("部分失败保留草稿与恢复入口，不重复写入", async ({ page 
 
 test("校准锁和恢复不适配状态分别阻止写入", async ({ page }) => {
   const panel = panelOf(page);
-  await select(panel, page, "等级 2");
-  await openConfigurationReview(page, "PD 档位");
+  await expect(panel.getByRole("combobox", { name: "PD 档位" })).toBeEnabled();
   await page.evaluate(() => {
     window.__uiFixture.calibration.recoveryRequired = true;
     window.__uiFixture.platform.powerDelivery.initial = { value: 4, zeroBased: false };
@@ -94,8 +83,7 @@ test("校准锁和恢复不适配状态分别阻止写入", async ({ page }) => 
     Object.assign(window.__uiFixture.platform.powerDelivery, { availableLevels: [1], restoreBlockedReason: "当前适配器不支持初始PD档位" });
   });
   await panel.getByRole("button", { name: "重新读取平台电源" }).click();
-  await expect(panel).toContainText("当前适配器不支持初始PD档位");
-  await expect(availableAction(page, "PD 档位")).toBeVisible();
+  await expect(panel.getByRole("combobox", { name: "PD 档位" })).toBeEnabled();
   await expect(availableAction(page, "PD 档位", true)).toHaveCount(0);
 });
 
@@ -116,7 +104,7 @@ test("未知当前等级仍可恢复已有初始快照，读取失败撤销执�
   await page.evaluate(() => Object.assign(window.__uiFixture.platform.powerDelivery,
     { currentLevel: 9, currentValid: false, initial: { value: 1, zeroBased: false }, revision: "unknown-current" }));
   await panel.getByRole("button", { name: "重新读取平台电源" }).click();
-  await expect(panel).toContainText("当前等级未识别");
+  await expect(panel).toContainText("档位未知");
   await expect(availableAction(page, "PD 档位")).toHaveCount(0);
   await expect(availableAction(page, "PD 档位", true)).toBeEnabled();
   await page.evaluate(() => { window.__uiFixture.platformReadFault = "隔离平台读取失败"; });

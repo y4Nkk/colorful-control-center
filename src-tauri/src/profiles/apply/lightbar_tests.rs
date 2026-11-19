@@ -8,10 +8,10 @@ use memory::{fixture, target};
 fn capture_and_disk_roundtrip_preserve_both_lightbar_contracts_without_writing() {
     for kind in [Kind::X170, Kind::X58] {
         let (f, io) = fixture(kind);
-        let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+        let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
         assert_eq!(captured.light_bar, Some(io.snapshot().values().unwrap()));
         let dir = tempfile::tempdir().unwrap();
-        crate::profiles::save_in(dir.path(), captured, "完整灯条").unwrap();
+        crate::profiles::save_in(dir.path(), captured, "完整灯条", None).unwrap();
         let file = crate::profiles::load_from(dir.path(), "完整灯条").unwrap();
         assert_eq!(
             file.settings.light_bar,
@@ -263,7 +263,7 @@ fn profile_and_single_operations_serialize_without_relocking_the_global_gate() {
                     assert!(error.to_string().contains("预览已变化"));
                 }
                 assert!(
-                    crate::profiles::capture_current(&f.hal, &f.gpu, f.devices())
+                    crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL)
                         .unwrap()
                         .light_bar
                         .is_some()

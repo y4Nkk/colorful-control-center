@@ -21,14 +21,3 @@
 .ccc-input[hidden] { display: none; }
 .ccc-field[data-multiline] { height: auto; min-height: calc(var(--ccc-control-height) * 3); padding-block: var(--ccc-space-2); resize: vertical; }
 
-.ccc-input[type="color"] {
-  width: var(--ccc-control-height);
-  padding: var(--ccc-space-1);
-  flex: none;
-  cursor: pointer;
-}
-.ccc-input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
-.ccc-input[type="color"]::-webkit-color-swatch { border: 0; border-radius: calc(var(--ccc-radius-control) - var(--ccc-space-1)); }
-.ccc-input[type="color"]::-moz-color-swatch { border: 0; border-radius: calc(var(--ccc-radius-control) - var(--ccc-space-1)); }
-.ccc-input[type="color"]:disabled { cursor: not-allowed; }
-

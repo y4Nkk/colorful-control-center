@@ -1,7 +1,12 @@
-export function KeyboardBacklightVisual({ level, maximum, enabled, label }: { level: number | null; maximum: number; enabled: boolean | null; label: string }) {
+export function KeyboardBacklightVisual({ level, maximum, enabled, label, showLevel }: {
+  level: number | null; maximum: number; enabled: boolean | null; label: string; showLevel: boolean;
+}) {
   const valid = level !== null && Number.isInteger(level) && level >= 0 && level <= maximum;
+  const known = valid && enabled !== null;
   const brightness = valid ? level / maximum : 0;
-  const value = !valid || enabled === null ? "未读取" : enabled ? `${level} 级` : `已关闭${level > 0 ? ` · 保留 ${level} 级` : ""}`;
+  const retained = valid && enabled === false && level > 0 ? `保留 ${level} 级` : null;
+  const value = !known ? "未读取" : enabled ? `${level} 级` : retained ? `已关闭 · ${retained}` : "已关闭";
+  const readout = !known ? "—" : showLevel ? value : retained;
   const lit = valid && enabled === true && level > 0;
   return <div className="ccc-backlight-visual" role="img" aria-label={`${label}：${value}`}>
     <span className="ccc-control-caption">{label}</span>
@@ -12,6 +17,6 @@ export function KeyboardBacklightVisual({ level, maximum, enabled, label }: { le
         stroke="currentColor" strokeOpacity={lit ? .15 + brightness * .7 : .08} />))}
       <rect x="77" y="88" width="166" height="14" rx="3" fill="var(--ccc-content)" stroke="currentColor" strokeOpacity={lit ? .15 + brightness * .7 : .08} />
     </svg>
-    <strong className="ccc-mono">{value === "未读取" ? "—" : value}</strong>
+    {readout && <strong className="ccc-mono">{readout}</strong>}
   </div>;
 }

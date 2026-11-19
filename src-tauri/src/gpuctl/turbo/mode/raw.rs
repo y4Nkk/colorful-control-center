@@ -39,13 +39,13 @@ impl RawState {
                     wanted
                         .core_mhz
                         .checked_mul(1000)
-                        .ok_or_else(|| anyhow::anyhow!("GPU核心偏移超出编码范围"))?,
+                        .ok_or_else(|| anyhow::anyhow!("GPU 核心频率偏移超出编码范围"))?,
                 );
                 current.mem_khz = Some(
                     wanted
                         .memory_mhz
                         .checked_mul(1000)
-                        .ok_or_else(|| anyhow::anyhow!("GPU显存偏移超出编码范围"))?,
+                        .ok_or_else(|| anyhow::anyhow!("GPU 显存频率偏移超出编码范围"))?,
                 );
             }
         }

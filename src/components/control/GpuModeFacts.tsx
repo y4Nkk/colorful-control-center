@@ -18,7 +18,7 @@ export function GpuModeTargetFacts({ target }: { target: GpuTurboTarget }) {
     <p className="ccc-gpu-clock-main"><span className="ccc-control-caption">图形锁频：</span><strong>{target.lockMhz === null ? "保持" : target.lockMhz === 0 ? "自动" : `${target.lockMhz} MHz`}</strong></p>
     {target.offsets ? target.offsets.map((offset, index) => <p key={index} className="ccc-gpu-clock-offset">
       <span className="ccc-control-caption">GPU {index + 1}</span><span className="ccc-mono">核心 {offset.coreMhz} MHz · 显存 {offset.memoryMhz} MHz</span>
-    </p>) : <span className="ccc-chip">偏移保持</span>}
+    </p>) : <span className="ccc-control-caption">偏移保持</span>}
   </div>;
 }
 export function GpuModeSupplyTargets({ choices }: { choices: GpuModeCycle["choices"] }) {
@@ -28,8 +28,8 @@ export function GpuModeSupplyTargets({ choices }: { choices: GpuModeCycle["choic
       const target = choice.candidate.decision?.target;
       return <Fragment key={String(choice.onAc)}><tr><th scope="row">{choice.onAc ? "插电" : "电池"}</th>
         {target ? <><td>{target.lockMhz === null ? "保持" : target.lockMhz === 0 ? "自动" : target.lockMhz}</td>
-          <td>{target.offsets?.map((offset, index) => <span className="ccc-gpu-target-device" role="group" aria-label={`GPU ${index + 1} 核心偏移 ${offset.coreMhz} MHz`} key={index}>{offset.coreMhz}</span>) ?? "保持"}</td>
-          <td>{target.offsets?.map((offset, index) => <span className="ccc-gpu-target-device" role="group" aria-label={`GPU ${index + 1} 显存偏移 ${offset.memoryMhz} MHz`} key={index}>{offset.memoryMhz}</span>) ?? "保持"}</td></>
+          <td>{target.offsets?.map((offset, index) => <span className="ccc-gpu-target-device" role="group" aria-label={`GPU ${index + 1} 核心频率偏移 ${offset.coreMhz} MHz`} key={index}>{offset.coreMhz}</span>) ?? "保持"}</td>
+          <td>{target.offsets?.map((offset, index) => <span className="ccc-gpu-target-device" role="group" aria-label={`GPU ${index + 1} 显存频率偏移 ${offset.memoryMhz} MHz`} key={index}>{offset.memoryMhz}</span>) ?? "保持"}</td></>
           : <td colSpan={3}>{choice.candidate.unavailableReason ? "目标不可用" : "不调频"}</td>}
       </tr>{choice.candidate.unavailableReason && <tr><td colSpan={4}><span className="ccc-control-error" role="alert">{choice.candidate.unavailableReason}</span></td></tr>}</Fragment>;
     })}</tbody>

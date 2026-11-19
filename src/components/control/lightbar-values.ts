@@ -1,5 +1,5 @@
 import type { LightBarValues, RgbColor, X170LightBarEffect, X58LightBarEffect } from "../../api/client";
-import { hexOf } from "./useKeyboardLighting";
+import { hexOf } from "../../lib/color";
 export const X170_EFFECTS: { value: X170LightBarEffect; label: string }[] = [
   { value: "static", label: "静态" }, { value: "breath", label: "呼吸" }, { value: "blink", label: "闪烁" }, { value: "cycle", label: "色彩循环" },
   { value: "meteor", label: "流星" }, { value: "wave", label: "波浪" }, { value: "ripple", label: "涟漪" }, { value: "random", label: "随机" },
@@ -14,12 +14,13 @@ export const X58_COLORS: { value: string; label: string; rgb: RgbColor }[] = [
   { value: "5", label: "青色", rgb: { r: 0, g: 255, b: 255 } }, { value: "6", label: "蓝色", rgb: { r: 0, g: 0, b: 255 } },
   { value: "7", label: "紫色", rgb: { r: 128, g: 0, b: 255 } },
 ];
-export function lightBarSummary(value: LightBarValues | null): string {
+export function lightBarSummary(value: LightBarValues | null, showPowerState = true): string {
   if (!value) return "当前保存值未知";
   const settings = value.settings;
   if (value.kind === "x170") {
     const { settings } = value;
-    return `X170 · ${settings.enabled ? "开启" : "关闭"} · ${X170_EFFECTS.find(effect => effect.value === settings.effect)?.label} · 亮度 ${settings.brightness} 级 · 速度 ${settings.speed + 1} 档${settings.color ? ` · ${hexOf(settings.color).toUpperCase()}` : ""}`;
+    const state = showPowerState ? settings.enabled ? " · 开启" : " · 关闭" : "";
+    return `X170${state} · ${X170_EFFECTS.find(effect => effect.value === settings.effect)?.label} · 亮度 ${settings.brightness} 级 · 速度 ${settings.speed + 1} 档${settings.color ? ` · ${hexOf(settings.color).toUpperCase()}` : ""}`;
   }
   return `X58 · ${X58_EFFECTS.find(effect => effect.value === settings.effect)?.label} · 亮度 ${settings.brightness} 级 · 速度 ${settings.speed} 档${value.settings.colorId ? ` · ${X58_COLORS.find(color => color.value === String(value.settings.colorId))?.label}` : ""}`;
 }

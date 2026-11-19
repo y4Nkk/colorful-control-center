@@ -6,6 +6,14 @@ use crate::{
 use anyhow::Result;
 use tauri::Manager;
 
+pub(crate) fn mode_context(app: &tauri::AppHandle) -> powerctl::mode::links::Context<'_> {
+    powerctl::mode::links::Context::native(
+        app.state::<Hal>().inner(),
+        app.state::<gpuctl::GpuController>().inner(),
+        app.state::<gpu_power::Controller>().inner(),
+    )
+}
+
 pub(super) fn setup(app: &tauri::AppHandle) -> Result<()> {
     let dir = app.path().app_data_dir()?;
     let profile_policy = dir.join("power-profile-policy.json");

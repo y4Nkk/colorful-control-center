@@ -35,10 +35,10 @@ fn curves() -> ccc_core::software_fan::Curves {
 fn captured_dust_plan_roundtrips_and_unknown_original_is_never_fabricated() {
     let f = Fixture::new();
     setup(&f, Some(enabled()));
-    let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     assert_eq!(captured.dust_schedule, Some(enabled()));
     let dir = tempfile::tempdir().unwrap();
-    crate::profiles::save_in(dir.path(), captured, "除尘").unwrap();
+    crate::profiles::save_in(dir.path(), captured, "除尘", None).unwrap();
     assert_eq!(
         crate::profiles::load_from(dir.path(), "除尘")
             .unwrap()
@@ -48,7 +48,7 @@ fn captured_dust_plan_roundtrips_and_unknown_original_is_never_fabricated() {
     );
     setup(&f, None);
     assert!(
-        crate::profiles::capture_current(&f.hal, &f.gpu, f.devices())
+        crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL)
             .err()
             .unwrap()
             .to_string()

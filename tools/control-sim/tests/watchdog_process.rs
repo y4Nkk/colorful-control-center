@@ -3,63 +3,17 @@ mod support;
 use support::Fixture;
 
 #[test]
-fn firmware_full_speed_accepts_hot_sensors_but_rejects_lower_cooling_without_losing_guard() {
-    let mut fixture = Fixture::start("full-speed-hot");
-    fixture.wait_file("parent.ready");
-    assert!(fixture.wait_file("rejected").contains("保留当前全速散热"));
-    assert_eq!(fixture.wait_file("parent.result"), "DISARMED");
-    fixture.wait_parent();
-    fixture.wait_child_exit();
-    assert!(!fixture.exists("restore.log"));
-}
-
-#[test]
-fn hot_full_speed_still_restores_when_parent_is_killed() {
-    let mut fixture = Fixture::start("full-speed-killed-parent");
-    fixture.wait_file("parent.ready");
-    fixture.kill_parent();
-    fixture.wait_file("restore.log");
-    fixture.wait_child_exit();
-    assert_eq!(fixture.read("restore.log").lines().count(), 1);
-}
-
-#[test]
-fn full_speed_requires_commit_and_retains_sensor_and_mode_checks() {
-    for (scenario, reason) in [
-        ("full-speed-pending", "FullSpeedActivationTimeout"),
-        ("full-speed-lost-mode", "Overheat"),
-        ("full-speed-sensor-loss", "SensorLost"),
-    ] {
-        let mut fixture = Fixture::start(scenario);
-        assert!(fixture.wait_file("parent.result").contains(reason));
-        fixture.wait_parent();
-        fixture.wait_child_exit();
-        assert_eq!(fixture.read("restore.log").lines().count(), 1);
-    }
-}
-
-#[test]
 fn gui_worker_reports_high_temperature_without_a_timeout_or_manual_output() {
     let mut fixture = Fixture::start("initial-hot");
     let error = fixture.wait_file("parent.result");
     assert!(
-        error.contains("95°C") && error.contains("保留自动散热"),
+        error.contains("95°C") && error.contains("未启用软件风扇曲线"),
         "{error}"
     );
     assert!(!error.contains("timed out"), "{error}");
     fixture.wait_parent();
     fixture.wait_child_exit();
     assert!(!fixture.exists("parent.ready") && !fixture.exists("restore.log"));
-}
-
-#[test]
-fn direct_restore_option_follows_worker_role_and_completes_handshake() {
-    let mut fixture = Fixture::start("direct-disarm");
-    fixture.wait_file("parent.ready");
-    assert_eq!(fixture.wait_file("parent.result"), "DISARMED");
-    fixture.wait_parent();
-    fixture.wait_child_exit();
-    assert!(!fixture.exists("restore.log"));
 }
 
 #[test]

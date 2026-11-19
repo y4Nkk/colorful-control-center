@@ -1,4 +1,5 @@
 import type { ParameterDescription } from "./ParameterHelp";
+import { PERFORMANCE_OPTION_LABELS } from "../../api/client";
 
 export const CPU_SPEC_HELP: readonly ParameterDescription[] = [
   { name: "物理核心与逻辑处理器", description: "分别表示系统当前启用的实际处理核心数量和可调度的硬件线程数量。" },
@@ -9,17 +10,17 @@ export const CPU_SPEC_HELP: readonly ParameterDescription[] = [
 export const GPU_SPEC_HELP: readonly ParameterDescription[] = [
   { name: "计算核心数与显存位宽", description: "显卡报告的并行计算核心数量与显存数据通路宽度。位宽以位表示，不能单独代表游戏性能。" },
   { name: "当前核心频率与当前显存频率", description: "当前采样的运行频率，以 MHz 表示，会随工作负载变化。调节区中的频率偏移是在默认策略上叠加的调整量。" },
-  { name: "显存总量与显存占用", description: "分别表示显卡报告的显存容量和已用量，以 GiB 显示；显存占用与系统内存使用量分别统计。" },
+  { name: "显存总量与显存占用", description: "分别表示显卡报告的容量和已用量，以 MB、GB 等单位显示。显存与系统内存分别统计。" },
   { name: "当前功耗与当前功耗上限", description: "显卡报告的耗电量与当前配置的功耗限制，以 W 表示。当前上限不代表出厂最大功耗或保证能够持续达到的功耗。" },
 ];
 export const MEMORY_HELP: readonly ParameterDescription[] = [
   { name: "总容量、已用与可用", description: "展示系统报告的物理内存容量、已用量和可用量，后台程序与系统缓存会影响读数。" },
-  { name: "容量单位", description: "1 GiB 等于 1024³ 字节；与厂商常用的十进制 GB 不同。此处列出系统可用容量，不推断内存条类型。" },
+  { name: "容量单位", description: "以 Windows 口径显示容量。1 KB 为 1024 字节，1 MB 为 1024 KB，1 GB 为 1024 MB。" },
   { name: "原厂报告频率与原厂参考频率", description: "沿用原厂共享报告中的 MHz 数值，可能有更新延迟，未报告时显示未知。参考频率不是硬上限，不据此计算占比；这两项不表示直接实测的时钟或换算后的 DDR 有效传输速率。" },
 ];
 export const STORAGE_HELP: readonly ParameterDescription[] = [
   { name: "盘符、卷标与文件系统", description: "盘符标识系统中的磁盘卷，卷标是用户设置的名称，文件系统表示数据组织格式。一个物理硬盘可以包含多个磁盘卷。" },
-  { name: "总容量、已用与可用", description: "按当前账户可访问的固定磁盘卷统计，以 GiB 显示；可用容量可能受账户配额影响。" },
+  { name: "总容量、已用与可用", description: "按当前账户可访问的固定磁盘卷统计。可用容量可能受账户配额影响。" },
 ];
 export const CPU_TUNING_HELP: readonly ParameterDescription[] = [
   { name: "持续功耗上限 · W", description: "限制处理器长时间运行的平均功耗。提高上限会增加可用功耗预算，也可能增加发热与散热需求。" },
@@ -45,7 +46,7 @@ export const SOFTWARE_FAN_HELP: readonly ParameterDescription[] = [
 ];
 export const MODE_HELP: readonly ParameterDescription[] = [
   { name: "原厂模式与风扇策略", description: "模式会联动当前机型保存的风扇及电源策略。每次应用以预览中的具体目标为准。" },
-  { name: "性能增强与动态调优", description: "性能增强请求原厂增强策略；动态调优协调设备功耗和散热。仅在该模式预览中出现时随模式应用，支持情况取决于机型。" },
+  { name: `${PERFORMANCE_OPTION_LABELS.turboFan}与${PERFORMANCE_OPTION_LABELS.dtt}`, description: "Turbo 风扇启用原厂风扇加速。动态调校 DTT 通过驱动调节设备功耗和散热。选项随已预览的模式应用。" },
   { name: "链路节能", description: "控制设备数据链路的节能级别，分别预览插电与电池供电时的目标。" },
   { name: "电源计划", description: "切换系统的平衡、高性能或节能计划。模式名称描述使用倾向，具体功耗仍以当前限制和读数为准。" },
 ];

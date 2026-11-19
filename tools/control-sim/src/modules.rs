@@ -1,3 +1,5 @@
+#[path = "../../../src-tauri/src/airplane.rs"]
+pub(crate) mod airplane;
 #[path = "../../../src-tauri/src/battery.rs"]
 pub(crate) mod battery;
 #[path = "calibration_fixture.rs"]

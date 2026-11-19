@@ -31,7 +31,7 @@ pub(super) fn message(
         Notice::Docking(true) => ("扩展坞", "原厂报告：已连接"),
         Notice::Docking(false) => ("扩展坞", "原厂报告：已断开"),
         Notice::Gps(value) => ("GPS", state(value)),
-        Notice::SilentMode(value) => ("静音模式", state(value)),
+        Notice::SilentMode(value) => (crate::fanctl::NOISELESS_FAN_LABEL, state(value)),
         Notice::MobileNetwork(value) => ("移动网络", state(value)),
         Notice::DustRunning => ("风扇除尘", "原厂报告：正在运行"),
         Notice::TurboFan => ("Turbo 风扇", "原厂报告：已开启"),

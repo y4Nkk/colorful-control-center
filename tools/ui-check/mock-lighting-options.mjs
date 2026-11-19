@@ -25,8 +25,8 @@ export function invokeLightingOptions(data, command, args) {
   options.revision = `lighting-options-${++data.lightingOptionsRevision}`;
   return null;
 }
-export function applyProfileLightingOptions(data) {
-  const target = data.profile.settings.lightingOptions;
+export function applyProfileLightingOptions(data, settings) {
+  const target = settings.lightingOptions;
   if (!target) return false;
   if (target.keyboardType !== data.lightingOptions.capabilities.keyboardType) throw new Error("档案灯光设备已变化");
   if (JSON.stringify(target.values) === JSON.stringify(data.lightingOptions.current)) return false;

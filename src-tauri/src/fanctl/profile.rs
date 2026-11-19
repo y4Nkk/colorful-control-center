@@ -103,7 +103,7 @@ pub fn decode(package: &[u8; 256], page: &[u8], capabilities: &[u8]) -> Result<F
                 .into(),
             ]
         },
-        safety_status: "自动".into(),
+        safety_status: "固件控制".into(),
         blocked_reason: None,
         software_blocked_reason: None,
     })
@@ -150,17 +150,21 @@ fn decode_points(package: &[u8; 256], page: &[u8]) -> Vec<FanPointSet> {
 }
 
 fn available_modes(package: &[u8; 256], capabilities: &[u8], custom: bool) -> Vec<u8> {
-    let mut modes = vec![0, 1];
+    let mut modes = vec![super::FAN_MODE_AUTO, super::FAN_MODE_FULL_SPEED];
     if package[14] == 5 {
         modes.push(5);
     }
     if custom {
         modes.push(6);
     }
-    if capabilities[0..2] == [1, 0] && capabilities[20] & 1 != 0 {
-        modes.push(8);
+    if supports_noiseless(capabilities) {
+        modes.push(super::FAN_MODE_NOISELESS);
     }
     modes
+}
+
+pub(crate) fn supports_noiseless(capabilities: &[u8]) -> bool {
+    capabilities.len() > 20 && capabilities[..2] == [1, 0] && capabilities[20] & 1 != 0
 }
 
 pub fn prepare(

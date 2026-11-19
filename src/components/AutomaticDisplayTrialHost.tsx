@@ -28,7 +28,7 @@ export function AutomaticDisplayTrialHost() {
   return <div ref={region} className="ccc-auto-display-host" role="dialog" aria-labelledby="automatic-display-title" tabIndex={-1}>
     <Surface as="section" variant="group" className="ccc-panel">
       <div className="ccc-panel-head"><h2 id="automatic-display-title" className="ccc-panel-title">自动刷新率试用</h2>
-        <span className="ccc-chip" role="status">{seconds == null ? "恢复待处理" : `${seconds} 秒后恢复`}</span></div>
+        <span className="ccc-control-caption" role="status">{seconds == null ? "恢复待处理" : `${seconds} 秒后恢复`}</span></div>
       <p className="ccc-control-caption">确认画面正常后保留；取消或超时恢复本次切换前的模式。</p>
       <div className="ccc-auto-display-values">
         <Surface variant="inset" className="ccc-auto-refresh-facts"><span>之前</span><strong>{before ? `${before.frequency} Hz` : "未知"}</strong></Surface>

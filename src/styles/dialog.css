@@ -1,40 +1,59 @@
 .ccc-dialog {
-  width: min(var(--ccc-dialog-width), calc(100% - 2 * var(--ccc-space-4)));
-  max-width: none;
-  max-height: none;
+  width: var(--ccc-dialog-width);
+  max-width: calc(100% - 2 * var(--ccc-space-5));
+  max-height: min(90dvh, calc(100dvh - 2 * var(--ccc-space-5)));
   margin: auto;
   padding: 0;
   border: var(--ccc-border);
   border-radius: var(--ccc-radius-group);
   background: var(--ccc-content);
   color: var(--ccc-text);
+  box-shadow: var(--ccc-overlay-shadow), var(--ccc-overlay-highlight);
+  font: var(--ccc-control-font);
   overflow: visible;
 }
 
-.ccc-dialog[data-width="wide"] { width: min(var(--ccc-dialog-wide), calc(100% - 2 * var(--ccc-space-4))); }
+.ccc-dialog[open] { display: flex; flex-direction: column; }
+.ccc-dialog[data-width="narrow"] { width: var(--ccc-dialog-narrow); }
+.ccc-dialog[data-width="wide"] { width: var(--ccc-dialog-wide); }
 .ccc-dialog::backdrop { background: var(--ccc-overlay-backdrop); }
+
 .ccc-dialog-frame {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  max-height: calc(100dvh - 2 * var(--ccc-space-4));
+  min-height: 0;
   min-width: 0;
+  border-radius: inherit;
+  overflow: hidden;
 }
 .ccc-dialog-header, .ccc-dialog-footer {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: var(--ccc-space-3);
   padding: var(--ccc-space-4) var(--ccc-space-5);
 }
-.ccc-dialog-header { justify-content: space-between; border-bottom: var(--ccc-border); }
-.ccc-dialog-header h2 { font-size: var(--ccc-text-title); line-height: 1.3; margin: 0; }
+.ccc-dialog-header { justify-content: space-between; gap: var(--ccc-space-4); }
+.ccc-dialog-header h2 { margin: 0; font: var(--ccc-dialog-title-font); overflow-wrap: anywhere; }
 .ccc-dialog-header h2:focus-visible { box-shadow: none; }
-.ccc-dialog-footer { justify-content: flex-end; flex-wrap: wrap; border-top: var(--ccc-border); }
-.ccc-dialog-body { min-height: 0; min-width: 0; container: ccc-control / inline-size; }
-.ccc-dialog-body > :first-child { padding: var(--ccc-space-4) var(--ccc-space-5); }
+.ccc-dialog-footer { justify-content: flex-end; flex-wrap: wrap; gap: var(--ccc-space-3); }
+.ccc-dialog-body { flex: 1 1 auto; min-height: 0; min-width: 0; container: ccc-control / inline-size; }
+.ccc-dialog-body > :first-child {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ccc-space-4);
+  padding: var(--ccc-space-5);
+  overscroll-behavior: contain;
+}
+.ccc-dialog-body > :first-child > p { margin: 0; }
 .ccc-dialog-body > :first-child > :first-child { margin-top: 0; }
 .ccc-dialog-body > :first-child > :last-child { margin-bottom: 0; }
 .ccc-dialog-body p, .ccc-dialog-body pre { overflow-wrap: anywhere; }
 .ccc-dialog-body pre { white-space: pre-wrap; }
-@media (max-width: 560px) {
-  .ccc-dialog-header, .ccc-dialog-footer, .ccc-dialog-body > :first-child { padding-inline: var(--ccc-space-3); }
+@media (max-width: 640px) {
+  .ccc-dialog {
+    max-width: calc(100% - 2 * var(--ccc-space-3));
+    max-height: min(90dvh, calc(100dvh - 2 * var(--ccc-space-3)));
+  }
+  .ccc-dialog-header, .ccc-dialog-footer, .ccc-dialog-body > :first-child { padding: var(--ccc-space-4); }
 }

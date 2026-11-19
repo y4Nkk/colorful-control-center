@@ -12,7 +12,7 @@ Status: implemented
 - 单一version1操作记录持久化在应用数据目录，绑定Windows安装和BootIdentifier，保留初始模式、此前已知选择、目标、能力及命令接受阶段；先原子记录意图，再发送，失败发送此前选择补偿。应用重启不丢恢复入口；启动读取记录不写硬件。
 - 预览修订绑定当前报告、能力、操作记录与启动标识。只有系统启动标识已变化且固件报告匹配，才标记重启后确认；同次启动即使报告碰巧匹配，也不冒充已重启。
 - Windows启动标识使用动态链接NtQuerySystemInformation的SystemBootEnvironmentInformation，只读系统元数据，校验结果及结构；不以墙上时钟推算重启。ABI参考[System Informer phnt](https://github.com/winsiderss/phnt/blob/master/ntexapi.h)，动态链接约束参考[Microsoft文档](https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntquerysysteminformation)。接口不可用时明确报错，不猜启动状态。
-- UI提供预览、发送确认、恢复选择和单独的重启确认；重启仅使用固定Windows系统工具，不使用强制关闭参数。所有测试注入假传输、假启动标识和隔离记录，不执行实际重启或硬件操作。
+- UI以固件支持的模式按钮直接发送选择，卡内显示当前报告与待重启目标。恢复选择在卡内确认，重启单独确认。重启仅使用固定 Windows 系统工具，保留正常关机流程。测试使用假传输、假启动标识和隔离记录。
 
 ## 影响与验证
 

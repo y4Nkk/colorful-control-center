@@ -3,32 +3,23 @@
  */
 
 .ccc-facts {
+  display: grid;
+  gap: var(--ccc-space-3);
+  width: 100%;
   margin: 0;
   padding: 0;
 }
 
-.ccc-fact-row {
-  display: flex;
-  align-items: baseline;
-  gap: var(--ccc-space-4);
-  min-height: 36px;
-  padding: var(--ccc-space-1) 0;
-}
-
-.ccc-fact-row + .ccc-fact-row {
-  border-top: var(--ccc-border);
-}
-
 .ccc-fact-label {
-  flex: none;
-  width: 160px;
+  min-width: 0;
   color: var(--ccc-text-muted);
+  overflow-wrap: anywhere;
 }
 
 .ccc-fact-value {
-  flex: 1;
   min-width: 0;
   margin: 0;
+  text-align: start;
   overflow-wrap: anywhere;
 }
 
@@ -36,14 +27,16 @@
   color: var(--ccc-danger);
 }
 
-.ccc-facts[data-density="compact"] { width: 100%; font-size: var(--ccc-text-sm); }
-.ccc-facts[data-density="compact"] .ccc-fact-row { gap: var(--ccc-space-2); min-height: var(--ccc-control-height-compact); }
-.ccc-facts[data-density="compact"] .ccc-fact-label { width: 46%; }
-.ccc-facts[data-density="compact"] .ccc-fact-value { text-align: right; overflow-wrap: anywhere; }
-.ccc-facts[data-layout="tiles"] { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: var(--ccc-space-3); padding: 0; }
-.ccc-facts[data-layout="tiles"] .ccc-fact-row { display: flex; flex-direction: column; align-items: stretch; gap: var(--ccc-space-1); min-height: 0; padding: 0; border-top: 0; }
-.ccc-facts[data-layout="tiles"] .ccc-fact-label { width: auto; }
-.ccc-facts[data-layout="tiles"] .ccc-fact-value { text-align: left; overflow-wrap: anywhere; font-weight: 500; }
+.ccc-facts[data-layout="rows"] { grid-template-columns: fit-content(50%) minmax(0, 1fr); align-items: baseline; }
+.ccc-facts[data-layout="rows"][data-density="compact"] { row-gap: var(--ccc-space-2); }
+.ccc-facts[data-layout="rows"] > .ccc-fact-row { display: contents; }
+.ccc-facts[data-layout="rows"] .ccc-fact-label { font: var(--ccc-fact-label-font); }
+.ccc-facts[data-layout="rows"] .ccc-fact-value { font: var(--ccc-control-font); }
+
+.ccc-facts[data-layout="tiles"] { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); }
+.ccc-facts[data-layout="tiles"][data-density="compact"] { font-size: var(--ccc-text-sm); }
+.ccc-facts[data-layout="tiles"] > .ccc-fact-row { display: grid; align-content: start; gap: var(--ccc-space-1); }
+.ccc-facts[data-layout="tiles"] .ccc-fact-value { font-weight: 500; }
 .ccc-facts[data-layout="tiles"] .ccc-fact-value:not(.is-danger) { color: var(--ccc-text); }
 
 /* 监控分组标题 */

@@ -15,8 +15,13 @@ import { HotkeyEventPreviews } from "./HotkeyEventPreviews";
 type HotkeyModel = ReturnType<typeof useHotkeySettings>;
 
 function HotkeyEditor({ model }: { model: HotkeyModel }) {
-  const { profile, draft, busy, setDraft } = model;
+  const { profile, draft, busy, setDraft, run } = model;
   if (!profile || !draft) return null;
+  const { current, revision } = profile;
+  const write = (patch: { enabled?: boolean; osd?: boolean }) => {
+    if (!current || !revision || busy) return;
+    void run(() => applyHotkeys(revision, { ...current, ...patch }), "热键设置已回读", false);
+  };
   const toggle = (scope: HotkeyScope, checked: boolean) => setDraft(previous => previous ? {
     ...previous, actions: ACTIONS.filter(action => action.scope === scope ? checked : previous.actions.includes(action.scope)).map(action => action.scope),
   } : previous);
@@ -24,10 +29,14 @@ function HotkeyEditor({ model }: { model: HotkeyModel }) {
     profile.facts.capabilities.some(cap => cap.scope === action.scope && cap.identity));
   const unavailable = ACTIONS.filter(action => !available.includes(action));
   return <div className="ccc-detail-stack">
-    <div className="ccc-keyboard-setting"><strong>接管原厂热键</strong><Switch label="启用原厂热键接管" checked={draft.enabled} disabled={busy}
-      onChange={enabled => setDraft({ ...draft, enabled })} /></div>
-    <div className="ccc-keyboard-setting"><strong>桌面提示</strong><Switch label="显示桌面提示" checked={draft.osd} disabled={busy}
-      onChange={osd => setDraft({ ...draft, osd })} /></div>
+    <div className="ccc-keyboard-setting"><strong>接管原厂热键</strong><Switch label="启用原厂热键接管" checked={draft.enabled} disabled={busy || !revision}
+      onChange={enabled => {
+        if (!enabled && current?.enabled) write({ enabled });
+        else setDraft({ ...draft, enabled });
+      }} /></div>
+    <div className="ccc-keyboard-setting"><strong>桌面提示</strong><Switch label="显示桌面提示" checked={current?.osd ?? false}
+      disabled={busy || !current || !revision || current.enabled && (!profile.authorized || !profile.status.running)}
+      onChange={osd => write({ osd })} /></div>
     <div className="ccc-hotkey-scopes" aria-label="热键动作">
       {available.map(action => {
         const cap = profile.facts.capabilities.find(cap => cap.scope === action.scope);
@@ -55,7 +64,7 @@ function HotkeyChanges({ model }: { model: HotkeyModel }) {
   const changed = JSON.stringify(draft) !== JSON.stringify(profile.current);
   const canApply = !!profile.revision && !blocked && (changed || draft.enabled && (!profile.status.running || !profile.authorized));
   return <>
-    <ConfigurationAction revision={JSON.stringify([profile.revision, draft])} label="原厂热键与屏显" disabled={busy || !canApply}
+    <ConfigurationAction revision={JSON.stringify([profile.revision, draft])} label="原厂热键与屏显" applyLabel="保存热键接管范围" disabled={busy || !canApply}
       onConfirm={() => run(() => applyHotkeys(profile.revision!, draft), "热键软件策略已保存", true)}>
       <p>接管{draft.enabled ? "开启" : "关闭"} · 桌面提示{draft.osd ? "开启" : "关闭"}</p>
       <ul className="ccc-parameter-descriptions">{ACTIONS.filter(action => draft.actions.includes(action.scope)).map(action =>
@@ -78,6 +87,9 @@ function HotkeyChanges({ model }: { model: HotkeyModel }) {
 export function HotkeySettings({ active, revision }: { active: boolean; revision: number }) {
   const model = useHotkeySettings(active, revision), { profile, draft, busy, error, run } = model;
   const selected = new Set([...(draft?.actions ?? []), ...(profile?.current?.actions ?? [])]);
+  const status = !profile ? error ? "读取失败" : "读取中…" : profile.status.running ? "正在监听"
+    : profile.current?.enabled ? "已停止监听" : null;
+  const savedCount = profile?.current?.actions.length ?? 0;
   return <Surface as="section" variant="group" className="ccc-panel" aria-label="原厂热键与屏显">
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="keyboard" />原厂热键与屏显</h2>
       <div className="ccc-module-tools">
@@ -90,22 +102,24 @@ export function HotkeySettings({ active, revision }: { active: boolean; revision
         <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取热键" disabled={busy} onClick={model.reread} />
       </div>
     </div>
-    <div className="ccc-module-summary" role="status">
-      <strong>{profile?.status.running ? "正在监听" : profile ? "已停止监听" : error ? "读取失败" : "读取中…"}</strong>
-      {profile?.current && <span className="ccc-control-caption">已保存 {profile.current.actions.length} 项</span>}
-      {profile?.current?.enabled && !profile.authorized && <span className="ccc-control-caption">需要重新确认接管</span>}
-      {(error || profile?.facts.blockedReason || profile?.status.error || profile?.osdError) &&
-        <span className="ccc-control-caption">查看热键诊断</span>}
-    </div>
-    <div className="ccc-actions ccc-module-control-end">
-      {profile && draft && <DetailsDialog title="配置热键与屏显" label="配置热键" icon="edit" editor wide>
-        <HotkeyEditor model={model} />
-      </DetailsDialog>}
-      {profile?.recordError && <ConfirmButton icon="delete" key={profile.resetRevision} label="清除不可用热键策略"
-        confirmLabel="清除并停止监听" busy={busy} disabled={!profile.resetRevision}
-        onConfirm={() => run(() => resetInvalidHotkeys(profile.resetRevision!), "不可用策略已清除，热键监听已停止", true)}>
-        <p>保存关闭且未选择范围的策略，设备保持当前状态。</p>
-      </ConfirmButton>}
+    <div className="ccc-keyboard-summary">
+      <div className="ccc-module-summary" role="status">
+        {status && <strong>{status}</strong>}
+        {savedCount > 0 && <span className="ccc-control-caption">已保存 {savedCount} 项</span>}
+        {profile?.current?.enabled && !profile.authorized && <span className="ccc-control-caption">需要重新确认接管</span>}
+        {(error || profile?.facts.blockedReason || profile?.status.error || profile?.osdError) &&
+          <span className="ccc-control-caption">查看热键诊断</span>}
+      </div>
+      <div className="ccc-actions">
+        {profile && draft && <DetailsDialog title="配置热键与屏显" label="配置热键" icon="edit" editor wide>
+          <HotkeyEditor model={model} />
+        </DetailsDialog>}
+        {profile?.recordError && <ConfirmButton icon="delete" key={profile.resetRevision} label="清除不可用热键策略"
+          confirmLabel="清除并停止监听" busy={busy} disabled={!profile.resetRevision}
+          onConfirm={() => run(() => resetInvalidHotkeys(profile.resetRevision!), "不可用策略已清除，热键监听已停止", true)}>
+          <p>保存关闭且未选择范围的策略，设备保持当前状态。</p>
+        </ConfirmButton>}
+      </div>
     </div>
     <HotkeyChanges model={model} />
   </Surface>;

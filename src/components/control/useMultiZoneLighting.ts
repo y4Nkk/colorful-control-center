@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readMultiZoneLighting, type MultiZoneProfile, type MultiZoneTarget } from "../../api/client";
 import { toast } from "../use-toast";
+import { preserveEditedFields } from "./settings-draft";
 
 export function useMultiZoneLighting(active: boolean, revision: number) {
   const [profile, setProfile] = useState<MultiZoneProfile | null>(null), [draft, setDraft] = useState<MultiZoneTarget | null>(null);
@@ -18,7 +19,11 @@ export function useMultiZoneLighting(active: boolean, revision: number) {
       const target = next?.current ? structuredClone({ capabilities: next.capabilities, values: next.current }) : null;
       accepted.current = target;
       setProfile(next); setLoaded(true); setReadError(null);
-      setDraft(previous => reset || !previous || JSON.stringify(previous) === JSON.stringify(before) ? structuredClone(target) : previous);
+      setDraft(previous => {
+        if (reset || !previous || !before || JSON.stringify(previous) === JSON.stringify(before)) return structuredClone(target);
+        if (!target || JSON.stringify(previous.capabilities) !== JSON.stringify(target.capabilities)) return previous;
+        return { ...target, values: preserveEditedFields(before.values, previous.values, target.values) };
+      });
     } catch (error) {
       if (id === generation.current) { setProfile(null); setLoaded(true); setReadError(String(error)); }
       throw error;
@@ -30,10 +35,10 @@ export function useMultiZoneLighting(active: boolean, revision: number) {
     void (async () => { await reading.current?.catch(() => undefined); if (!disposed) await reload(); })().catch(() => {});
     return () => { disposed = true; ++generation.current; };
   }, [active, revision, reload]);
-  const run = async (action: () => Promise<void>, message: string) => {
-    if (writing.current) return;
+  const run = async (action: () => Promise<void>, message: string, reset = true) => {
+    if (!active || writing.current) return;
     writing.current = true; ++generation.current; setBusy(true); setActionError(null);
-    try { await reading.current?.catch(() => undefined); await action(); await reload(true, true); toast({ kind: "success", title: message }); }
+    try { await reading.current?.catch(() => undefined); await action(); await reload(reset, true); toast({ kind: "success", title: message }); }
     catch (error) { setActionError(String(error)); await reload(false, true).catch(() => {}); }
     finally { writing.current = false; setBusy(false); }
   };

@@ -1,32 +1,11 @@
 //! 设置命令薄层：自启和启动档案由 startup 拥有，档案契约由 profiles 拥有。
-use serde::Serialize;
 use tauri::AppHandle;
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OpResult {
-    pub ok: bool,
-    pub message: String,
-}
-
-fn operation(result: anyhow::Result<()>, message: &str) -> Result<OpResult, String> {
-    Ok(match result {
-        Ok(()) => OpResult {
-            ok: true,
-            message: message.into(),
-        },
-        Err(error) => OpResult {
-            ok: false,
-            message: format!("{error:#}"),
-        },
-    })
-}
 
 #[tauri::command]
 pub(crate) async fn get_autostart(
     app: AppHandle,
 ) -> Result<crate::startup::login::Snapshot, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         crate::startup::login::read(&app).map_err(|e| format!("{e:#}"))
     })
     .await
@@ -40,7 +19,7 @@ pub(crate) async fn set_autostart(
     level: crate::startup::login::Level,
     restore: bool,
 ) -> Result<crate::startup::login::Snapshot, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         crate::startup::login::apply(&app, &expected_revision, level, restore)
             .map_err(|e| format!("{e:#}"))
     })
@@ -61,7 +40,7 @@ pub(crate) async fn set_startup_profile(
     expected: Option<crate::profiles::ProfileFile>,
     expected_mode: Option<crate::powerctl::mode::profile::ApprovalPreview>,
 ) -> Result<Option<crate::profiles::authorization::Binding>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         crate::startup::set_profile(&app, expected, expected_mode.as_ref())
             .map_err(|error| format!("{error:#}"))
     })
@@ -73,18 +52,6 @@ pub(crate) async fn set_startup_profile(
 pub(crate) fn export_profile(app: AppHandle, name: String) -> Result<String, String> {
     let file = crate::profiles::load(&app, &name).map_err(|e| format!("{e:#}"))?;
     serde_json::to_string_pretty(&file).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub(crate) fn import_profile(app: AppHandle, json: String) -> Result<OpResult, String> {
-    let file: crate::profiles::ProfileFile =
-        serde_json::from_str(&json).map_err(|e| format!("JSON 解析失败：{e}"))?;
-    crate::profiles::validate_file(&file).map_err(|e| format!("{e:#}"))?;
-    let result = crate::profiles::save(&app, file.settings, &file.name);
-    if result.is_ok() {
-        crate::tray::refresh(&app);
-    }
-    operation(result, "档案已导入")
 }
 
 #[tauri::command]

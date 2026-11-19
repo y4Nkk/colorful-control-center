@@ -1,4 +1,4 @@
-import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
+import { configurationView, previewConfiguration } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -8,7 +8,7 @@ const applyCalls = page => page.evaluate(() => window.__uiFixture.calls.filter(c
 async function open(page, kind = 22) {
   await page.addInitScript({ content: MOCK_IPC });
   await page.addInitScript(kind => { window.__uiFixture.keyboard.detectedType = kind; }, kind);
-  await page.goto("/"); await openWorkspace(page, "键盘与输入");
+  await page.goto("/"); await openWorkspace(page, "键盘与灯光");
 }
 
 test("138范围独立确认，亮度加减和总开关不会自动包含循环", async ({ page }) => {
@@ -24,9 +24,9 @@ test("138范围独立确认，亮度加减和总开关不会自动包含循环",
   await p.getByRole("checkbox", { name: "键盘灯开关", exact: true }).uncheck();
   await expect(p.getByLabel("热键策略预览")).toContainText("原厂亮度循环与反馈");
   await expect(p).toContainText("关闭时保留亮度");
-  await openConfigurationReview(page, "原厂热键与屏显");
+  await previewConfiguration(page, "原厂热键与屏显");
   expect(await applyCalls(page)).toEqual([]);
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true }).click();
   expect((await applyCalls(page))[0].args.request.settings.actions).toEqual(["keyboardBrightnessEvent"]);
   const hardware = await page.evaluate(() => window.__uiFixture.calls.filter(({ command }) =>
     /^(apply_|restore_|set_)/.test(command) && !["apply_hotkeys", "set_shortcut_recording"].includes(command)));
@@ -43,12 +43,12 @@ test("普通其他型号禁用138，白光型号说明同步报告并复用停�
   await expect(cycle).toBeEnabled();
   await expect(p).toContainText("读取固件档位并同步保存，不发送亮度命令");
   await p.getByRole("switch", { name: "启用原厂热键接管", exact: true }).check(); await cycle.check();
-  await openConfigurationReview(page, "原厂热键与屏显");
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await previewConfiguration(page, "原厂热键与屏显");
+  await configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true }).click();
   await p.getByRole("button", { name: "临时停止监听", exact: true }).click();
   await expect(p).toContainText("热键监听已停止"); await expect(cycle).toBeChecked();
-  await openConfigurationReview(page, "原厂热键与屏显", true);
-  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
+  await previewConfiguration(page, "原厂热键与屏显", true);
+  await configurationView(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   await expect(cycle).not.toBeChecked();
 });
 
@@ -56,14 +56,14 @@ test("类型或档位能力变化使旧确认失效，仍允许取消已选范�
   await open(page);
   const p = panel(page), cycle = p.getByRole("checkbox", { name: "原厂亮度循环与反馈", exact: true });
   await p.getByRole("switch", { name: "启用原厂热键接管", exact: true }).check(); await cycle.check();
-  await openConfigurationReview(page, "原厂热键与屏显");
+  await previewConfiguration(page, "原厂热键与屏显");
   await page.evaluate(() => {
     const h = window.__uiFixture.hotkeys; h.revision = "changed-138";
     const cap = h.facts.capabilities.find(c => c.scope === "keyboardBrightnessEvent");
     cap.identity = null; cap.reason = "亮度事件设备或规则变化";
     window.__uiEmit("hardware-controls-changed", null);
   });
-  await expect(configurationDialog(page).getByRole("button", { name: "确认应用", exact: true })).toHaveCount(0);
+  await expect(configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true })).toHaveCount(0);
   await expect(cycle).toBeEnabled(); await cycle.uncheck();
   expect(await applyCalls(page)).toEqual([]);
 });

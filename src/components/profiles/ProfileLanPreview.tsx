@@ -11,7 +11,7 @@ export function ProfileLanPreview({ settings }: { settings: ProfileSettings }) {
     return <Surface as="section" variant="group" className="ccc-profile-device" key={device.identity.instance}
       aria-label={`档案网络策略 · ${device.name}`}>
       <div className="ccc-profile-values"><h3 className="ccc-icon-title"><Icon name="network" />网络驱动策略</h3><strong>{device.name}</strong>
-        <span className="ccc-chip">需系统授权</span>
+        <span className="ccc-control-caption">需系统授权</span>
         {fields.some(([, value]) => value === null) && <p className="ccc-control-caption">未设置项会清除现有配置，恢复到未设置状态。</p>}
         <DetailsDialog title="网卡身份与原始配置">
           <FactList compact facts={[

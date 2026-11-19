@@ -10,7 +10,7 @@ fn active_matches(power: &dyn PowerAccess, expected: u128) -> Result<()> {
 fn set(power: &dyn PowerAccess, change: &Change, value: u32) -> Result<()> {
     power.set_usb(change.id.guid(), change.ac, value)?;
     if power.usb(change.id.guid())?[usize::from(!change.ac)] != value {
-        bail!("USB策略写后回读不一致");
+        bail!("USB 选择性暂停写后回读不一致");
     }
     Ok(())
 }
@@ -82,7 +82,7 @@ pub(super) fn execute(
         bail!(
             "{}",
             ccc_core::msr::with_recovery(
-                format!("USB策略应用失败：{error:#}"),
+                format!("USB 选择性暂停应用失败：{error:#}"),
                 recovery.map_err(|e| format!("{e:#}"))
             )
         );

@@ -59,7 +59,7 @@ export function SoftwareFanPanel({ visible, readValid, profile, refresh, onBusy 
         <PointNumber label="斜坡 %/秒" name="软件曲线斜坡" value={curve.rampPctPerS} min={1} max={100} disabled={busy} onChange={(rampPctPerS) => change({ ...curve, rampPctPerS })} />
         <Button variant="ghost" size="compact" type="button" disabled={busy || Object.keys(draft).length <= 1} onClick={() => change()}>交还固件</Button>
       </div>
-    </> : <div className="ccc-actions"><span className="ccc-chip">由固件控制</span><Button icon="add" variant="secondary" type="button" disabled={busy} onClick={() => change(defaultSoftwareCurve())}>添加曲线</Button></div>}
+    </> : <div className="ccc-actions"><span className="ccc-control-caption">由固件控制</span><Button icon="add" variant="secondary" type="button" disabled={busy} onClick={() => change(defaultSoftwareCurve())}>添加曲线</Button></div>}
     <ConfigurationAction label="软件曲线" revision={JSON.stringify([profile, draft])}
       disabled={!visible || busy || !readValid || !dirty || !!profile.softwareBlockedReason} onConfirm={() => run(() => applySoftwareFanCurves(draft))}>
       <DiffPreview items={changes} />

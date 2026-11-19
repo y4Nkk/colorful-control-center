@@ -1,0 +1,70 @@
+.ccc-color-swatch {
+  display: block;
+  flex: none;
+  inline-size: var(--ccc-space-5);
+  block-size: var(--ccc-space-5);
+  border: var(--ccc-border);
+  border-radius: calc(var(--ccc-radius-control) - var(--ccc-space-1));
+}
+.ccc-color-swatch[data-fill] { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; border: 0; border-radius: inherit; }
+.ccc-color-swatch[data-dimmed] { opacity: 0.25; }
+
+.ccc-color-picker-trigger { border: var(--ccc-border); background: var(--ccc-content); }
+.ccc-color-picker-trigger:not([data-size="icon"]) { justify-self: start; padding-inline: var(--ccc-space-3); }
+.ccc-color-picker-trigger:is(:hover:enabled, [aria-expanded="true"]) { border-color: var(--ccc-action); }
+.ccc-color-picker-panel {
+  position: fixed;
+  position-anchor: auto;
+  inset: auto;
+  top: calc(anchor(bottom) + var(--ccc-space-2));
+  left: clamp(var(--ccc-space-3), calc(anchor(center) - var(--ccc-color-picker-width) / 2),
+    max(var(--ccc-space-3), calc(100% - var(--ccc-color-picker-width) - var(--ccc-space-3))));
+  position-try-fallbacks: flip-block, --color-picker-viewport;
+  inline-size: min(var(--ccc-color-picker-width), calc(100% - 2 * var(--ccc-space-3)));
+  block-size: max-content;
+  max-block-size: calc(100% - 2 * var(--ccc-space-3));
+  container: ccc-color-picker / inline-size;
+  margin: 0;
+  padding: var(--ccc-space-3);
+  border: var(--ccc-border);
+  border-radius: var(--ccc-radius-card);
+  color: var(--ccc-text);
+  background: var(--ccc-content);
+  box-shadow: var(--ccc-overlay-shadow), var(--ccc-overlay-highlight);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+@position-try --color-picker-viewport { inset: var(--ccc-space-3); margin: auto; }
+
+.ccc-color-picker-header { display: flex; justify-content: space-between; align-items: center; gap: var(--ccc-space-2); margin-block-end: var(--ccc-space-2); }
+.ccc-color-picker-header h3 { margin: 0; font-size: var(--ccc-text-md); overflow-wrap: anywhere; }
+.ccc-color-picker-header h3:focus-visible { box-shadow: none; }
+.ccc-color-picker-editor { display: grid; gap: var(--ccc-space-1); }
+.ccc-color-picker-plane {
+  position: relative;
+  aspect-ratio: 2 / 1;
+  border-radius: var(--ccc-radius-control);
+  background: linear-gradient(to top, var(--ccc-color-black), transparent),
+    linear-gradient(to right, var(--ccc-color-white), transparent), hsl(var(--picker-hue) 100% 50%);
+  touch-action: none;
+  cursor: crosshair;
+}
+.ccc-color-picker-marker {
+  position: absolute;
+  left: clamp(var(--ccc-space-2), var(--picker-saturation), calc(100% - var(--ccc-space-2)));
+  top: clamp(var(--ccc-space-2), var(--picker-darkness), calc(100% - var(--ccc-space-2)));
+  inline-size: var(--ccc-color-point-size);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--ccc-color-white);
+  border-radius: var(--ccc-radius-full);
+  box-shadow: 0 0 0 var(--ccc-border-width) var(--ccc-color-black);
+  pointer-events: none;
+}
+.ccc-color-picker-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.2fr); gap: var(--ccc-space-2); }
+.ccc-color-picker-fields > label { display: grid; gap: var(--ccc-space-1); color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
+
+@container ccc-color-picker (max-width: 16.75rem) {
+  .ccc-color-picker-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ccc-color-picker-fields > :last-child { grid-column: 1 / -1; }
+}

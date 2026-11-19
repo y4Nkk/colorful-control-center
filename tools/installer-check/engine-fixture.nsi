@@ -72,6 +72,10 @@ Section
     SetErrorLevel 23
     Quit
   ${EndIf}
+  ${If} $Result == "check-failed"
+    SetErrorLevel ${CCC_EXIT_PROCESS_CHECK_FAILED}
+    Quit
+  ${EndIf}
   ${If} $Result == "missing"
     SetErrorLevel 0
     Quit

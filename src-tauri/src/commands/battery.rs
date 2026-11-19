@@ -6,7 +6,7 @@ use tauri::Manager;
 pub(crate) async fn read_energy_policy(
     app: tauri::AppHandle,
 ) -> Result<Option<battery::energy::Profile>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<battery::Controller>()
             .read_energy(&app.state::<Hal>())
     })
@@ -19,7 +19,7 @@ pub(crate) async fn apply_energy_policy(
     app: tauri::AppHandle,
     request: battery::energy::Request,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<battery::Controller>()
             .apply_energy(&app.state::<Hal>(), &request)
     })
@@ -32,7 +32,7 @@ pub(crate) async fn restore_energy_policy(
     app: tauri::AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<battery::Controller>()
             .restore_energy(&app.state::<Hal>(), &expected_revision)
     })
@@ -45,7 +45,7 @@ pub(crate) async fn restore_energy_policy(
 pub(crate) async fn read_battery_profile(
     app: tauri::AppHandle,
 ) -> Result<battery::Profile, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<battery::Controller>().read(&app.state::<Hal>())
     })
     .await
@@ -57,7 +57,7 @@ pub(crate) async fn apply_battery_charge(
     app: tauri::AppHandle,
     request: battery::ChargeRequest,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<battery::Controller>()
             .apply(&app.state::<Hal>(), &request)
     })
@@ -70,7 +70,7 @@ pub(crate) async fn restore_battery_charge(
     app: tauri::AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<battery::Controller>()
             .restore(&app.state::<Hal>(), &expected_revision)
     })

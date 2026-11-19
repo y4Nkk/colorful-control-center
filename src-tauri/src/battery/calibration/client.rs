@@ -88,6 +88,11 @@ impl Client {
             operation: self.operation.clone(),
         })
     }
+    pub(super) fn stop_for_exit(&mut self) {
+        if self.stop().is_err() {
+            self.input.take();
+        }
+    }
     pub fn pulse(&mut self) -> Result<bool> {
         loop {
             match self.output.try_recv() {

@@ -1,5 +1,5 @@
 import { availableAction } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { openWorkspace, openSystemArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
@@ -25,11 +25,11 @@ test("严格模式及快速切页重新读取，旧响应不覆盖新电池事�
       return new Promise(resolve => releases.push(() => resolve(result)));
     };
   });
-  await page.goto("/"); await openWorkspace(page, "电池与节能");
+  await page.goto("/"); await openWorkspace(page, "电源");
   await expect.poll(() => page.evaluate(() => Object.values(window.__batteryReadCounts).every(count => count === 2) && Object.keys(window.__batteryReadCounts).length === 3)).toBe(true);
   const nav = page.getByRole("navigation", { name: "主导航" });
-  await nav.getByRole("button", { name: "性能档案", exact: true }).click();
-  await nav.getByRole("button", { name: "电池与节能", exact: true }).click();
+  await openSystemArea(page, "配置档案");
+  await nav.getByRole("button", { name: "电源", exact: true }).click();
   await expect(battery(page).getByRole("meter", { name: "当前电量", exact: true })).toHaveAttribute("aria-valuenow", "62");
   await expect(energy(page).getByRole("switch", { name: "启用节能计划", exact: true })).not.toBeChecked();
   await expect(calibration(page).getByRole("button", { name: "开始电池校准", exact: true })).toBeEnabled();
@@ -43,7 +43,7 @@ test("严格模式及快速切页重新读取，旧响应不覆盖新电池事�
 test("原厂节能已启用时手动充电入口保留状态并禁止写入", async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
   await page.addInitScript(() => { window.__uiFixture.energy.saved.enabled = true; });
-  await page.goto("/"); await openWorkspace(page, "电池与节能");
+  await page.goto("/"); await openWorkspace(page, "电源");
   await expect(battery(page)).toContainText("节能计划管理充电阈值");
   await expect(battery(page).getByRole("switch", { name: "限制充电范围", exact: true })).toHaveAttribute("aria-disabled", "true");
   await expect(availableAction(page, "充电保护")).toHaveCount(0);

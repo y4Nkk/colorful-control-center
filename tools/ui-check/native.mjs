@@ -7,7 +7,8 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium, expect } from "@playwright/test";
-import { openWorkspace } from "./workspace.mjs";
+import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { pageActions } from "./configuration-review.mjs";
 import { PROFILE_REFRESH_IPC, prepareProfileRefresh, refreshCases } from "./profile-refresh-cases.mjs";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
@@ -105,30 +106,37 @@ async function nativeZoomChecks(page) {
 async function appChecks(page) {
   await page.context().addInitScript({ content: PROFILE_REFRESH_IPC });
   await page.goto("http://127.0.0.1:1450/");
-  await record("原生 WebView2 十页导航与只读浏览", async () => {
-    for (const title of ["概览", "风扇散热", "性能调校", "显示与显卡", "灯光效果", "键盘与输入", "电池与节能", "自动策略", "性能档案", "设置"]) await openWorkspace(page, title);
+  await record("原生 WebView2 工作区及系统区域导航与只读浏览", async () => {
+    for (const title of ["系统", "键盘与灯光", "电源", "设备配置", "设置"]) await openWorkspace(page, title);
+    for (const area of ["概览", "风扇散热", "性能调校", "配置档案"]) await openSystemArea(page, area);
     expect(await page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_|restore_)/.test(call.command)))).toEqual([]);
   });
   await record("原生 WebView2 分类草稿和滚动保活", async () => {
-    await openWorkspace(page, "灯光效果");
+    await openWorkspace(page, "键盘与灯光");
     await page.getByRole("switch", { name: "启用闲置关灯", exact: true }).check();
-    await page.getByRole("spinbutton", { name: "闲置等待秒数", exact: true }).fill("125");
+    await page.getByRole("spinbutton", { name: "闲置等待分钟", exact: true }).fill("2");
+    await page.getByRole("spinbutton", { name: "闲置等待秒数", exact: true }).fill("5");
     const viewport = page.locator(".ccc-workspace > .ccc-scroll-viewport");
     await viewport.evaluate(element => { element.scrollTop = 120; });
     await expect.poll(() => viewport.evaluate(element => element.scrollTop)).toBe(120);
     await delay(100);
-    await openWorkspace(page, "风扇散热");
+    await openSystemArea(page, "风扇散热");
     await expect.poll(() => viewport.evaluate(element => element.scrollTop)).toBe(0);
-    await openWorkspace(page, "灯光效果");
-    await expect(page.getByRole("spinbutton", { name: "闲置等待秒数", exact: true })).toHaveValue("125");
+    await openWorkspace(page, "键盘与灯光");
+    await expect(page.getByRole("spinbutton", { name: "闲置等待分钟", exact: true })).toHaveValue("2");
+    await expect(page.getByRole("spinbutton", { name: "闲置等待秒数", exact: true })).toHaveValue("5");
     await expect.poll(() => viewport.evaluate(element => element.scrollTop)).toBe(120);
   });
-  await record("原生 WebView2 显示页下拉只改草稿", async () => {
-    await openWorkspace(page, "显示与显卡");
+  await record("原生 WebView2 显示页下拉直接试用", async () => {
+    await openWorkspace(page, "设备配置");
     await page.getByRole("combobox", { name: "目标刷新率", exact: true }).click();
     await page.getByRole("option", { name: "144 Hz", exact: true }).click();
-    await expect(page.getByRole("button", { name: "应用刷新率", exact: true })).toBeEnabled();
-    expect(await page.evaluate(() => window.__uiFixture.calls.filter(({ command }) => /^(apply_|restore_|set_fan)/.test(command)))).toEqual([]);
+    const screen = page.getByRole("region", { name: "屏幕显示", exact: true });
+    await expect(screen.getByRole("status")).toContainText("试用 144 Hz");
+    await expect(pageActions(page)).toHaveCount(0);
+    await screen.getByRole("button", { name: "取消本次试用", exact: true }).click();
+    expect(await page.evaluate(() => window.__uiFixture.calls.filter(({ command }) => /^(apply_|restore_|set_fan)/.test(command))
+      .map(call => call.command))).toEqual(["apply_display_refresh"]);
   });
   await record("原生 WebView2 设置搜索下拉接线", async () => {
     await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: "设置", exact: true }).click();
@@ -164,7 +172,7 @@ try {
   const errors = []; page.on("pageerror", error => errors.push(String(error)));
   await fixtureChecks(page); await nativeZoomChecks(page); await appChecks(page);
   for (const item of refreshCases) await record(`原生 WebView2 ${item.name}`, async () => {
-    await prepareProfileRefresh(page); await item.run(page);
+    await prepareProfileRefresh(page, "http://127.0.0.1:1450/"); await item.run(page);
   });
   expect(errors).toEqual([]);
   await writeFile(`${output}/result.json`, JSON.stringify({ checks, errors, userAgent: await page.evaluate(() => navigator.userAgent) }, null, 2));

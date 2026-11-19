@@ -1,6 +1,6 @@
-import { openProfileDetails, openStartupParameters, openProfileResults } from "./profile-review.mjs";
-import { changeButton, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { openProfileResults, openProfileSave, openStartupParameters, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
+import { changeButton, configurationView, previewConfiguration } from "./configuration-review.mjs";
+import { openWorkspace, openSystemArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { readFile } from "node:fs/promises";
@@ -8,8 +8,9 @@ const navigate = (page, title) => page.getByRole("navigation", { name: "主导�
 const preview = page => page.getByRole("region", { name: "档案预览", exact: true });
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(c => /^(apply_|save_|import_|set_startup)/.test(c.command)));
 async function selectProfile(page) {
-  await navigate(page, "性能档案");
+  await openSystemArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
+  await showProfileSettings(page);
 }
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
@@ -23,10 +24,10 @@ test.beforeEach(async ({ page }) => {
 
 test("型号灯条预览与确认携带完整档案，浏览不触发写入", async ({ page }) => {
   await selectProfile(page);
-  const review = await openConfigurationReview(page);
-  await expect(review.getByRole("region", { name: "档案独立灯条" })).toContainText("X58 · 左右扫描 · 亮度 1 级 · 速度 3 档 · 蓝色");
+  const review = await previewConfiguration(page);
+  await expect(preview(page).getByRole("region", { name: "档案独立灯条" })).toContainText("X58 · 左右扫描 · 亮度 1 级 · 速度 3 档 · 蓝色");
   expect(await writes(page)).toEqual([]);
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
   const results = await openProfileResults(page);
   await expect(results.getByRole("listitem").filter({ hasText: "独立灯条" }).getByRole("img", { name: "成功", exact: true })).toBeVisible();
   const calls = await writes(page);
@@ -36,13 +37,13 @@ test("型号灯条预览与确认携带完整档案，浏览不触发写入", as
 });
 
 test("保存当前捕获完整灯条配置并回到同一图形预览", async ({ page }) => {
-  await navigate(page, "性能档案");
-  await page.getByPlaceholder("游戏 / 静音").fill("灯条档案");
-  await page.getByRole("button", { name: "保存当前", exact: true }).click();
+  await openSystemArea(page, "配置档案");
+  await openProfileSave(page, "灯条档案", ["灯光"]);
   expect(await writes(page)).toEqual([]);
-  await page.getByRole("button", { name: "保存当前设置？", exact: true }).click();
+  await saveProfileButton(page).click();
   await expect(preview(page).getByRole("heading", { name: "灯条档案" })).toBeVisible();
-  await expect((await openProfileDetails(page)).getByLabel("档案独立灯条")).toContainText("X58");
+  await showProfileSettings(page);
+  await expect(preview(page).getByLabel("档案独立灯条")).toContainText("X58");
   const calls = await writes(page);
   expect(calls).toHaveLength(1);
   expect(calls[0].command).toBe("save_profile");
@@ -50,24 +51,25 @@ test("保存当前捕获完整灯条配置并回到同一图形预览", async ({
 });
 
 test("导入X170先显示模式颜色，确认导入仍不应用设备", async ({ page }) => {
-  await navigate(page, "性能档案");
+  await openSystemArea(page, "配置档案");
   const file = await page.evaluate(() => ({ ...structuredClone(window.__uiFixture.profile), name: "导入灯条",
     settings: { ...window.__uiFixture.profile.settings, lightBar: { kind: "x170", settings: {
       effect: "breath", enabled: true, brightness: 4, speed: 0, color: { r: 18, g: 52, b: 86 } } } } }));
   await page.locator('input[type="file"]').setInputFiles({ name: "灯条.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
-  const review = await openConfigurationReview(page);
-  await expect(review.getByLabel("档案独立灯条")).toContainText("X170 · 开启 · 呼吸 · 亮度 4 级 · 速度 1 档 · #123456");
+  await showProfileSettings(page);
+  const review = await previewConfiguration(page);
+  await expect(preview(page).getByLabel("档案独立灯条")).toContainText("X170 · 开启 · 呼吸 · 亮度 4 级 · 速度 1 档 · #123456");
   expect(await writes(page)).toEqual([]);
   await review.getByRole("button", { name: "导入档案", exact: true }).click();
-  await expect(preview(page).getByText("已保存", { exact: true })).toBeVisible();
+  await expect(preview(page).getByRole("heading", { name: "导入灯条" })).toBeVisible();
   await expect(changeButton(page)).toBeVisible();
-  expect((await writes(page)).map(c => c.command)).toEqual(["import_profile"]);
+  expect((await writes(page)).map(c => c.command)).toEqual(["save_profile"]);
 });
 
 test("导出保留型号与全部灯条设置", async ({ page }) => {
   await selectProfile(page);
   const download = page.waitForEvent("download");
-  await preview(page).getByRole("button", { name: "导出", exact: true }).click();
+  await (await showProfileMenu(page)).getByRole("button", { name: "导出档案", exact: true }).click();
   const file = await download;
   const exported = JSON.parse(await readFile(await file.path(), "utf8"));
   expect(exported.settings.lightBar).toEqual(await page.evaluate(() => window.__uiFixture.profile.settings.lightBar));
@@ -76,13 +78,14 @@ test("导出保留型号与全部灯条设置", async ({ page }) => {
 
 test("确认期间同名文件变化拒绝旧灯条目标，重新选择撤销确认", async ({ page }) => {
   await selectProfile(page);
-  await openConfigurationReview(page);
+  await previewConfiguration(page);
   await page.evaluate(() => { window.__uiFixture.profile.settings.lightBar.settings.brightness = 4; });
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("档案已变化");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
+  await showProfileSettings(page);
   await expect(changeButton(page)).toBeVisible();
-  await expect((await openProfileDetails(page)).getByLabel("档案独立灯条")).toContainText("亮度 4 级");
+  await expect(preview(page).getByLabel("档案独立灯条")).toContainText("亮度 4 级");
   expect(await writes(page)).toHaveLength(1);
 });
 
@@ -91,15 +94,15 @@ test("组合失败及恢复失败逐步显示，不报告档案全部成功", as
     { step: "独立灯条", ok: true, message: "已确认" }, { step: "GPU 偏移", ok: false, message: "隔离GPU失败" },
     { step: "恢复独立灯条", ok: false, message: "隔离恢复失败，初始快照保留" }]; });
   await selectProfile(page);
-  await openConfigurationReview(page);
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await previewConfiguration(page);
+  await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("部分设置恢复失败");
   const results = await openProfileResults(page);
   await expect(results).toContainText("隔离恢复失败，初始快照保留");
 });
 
 test("启动选择复用完整参数预览，保存只改变启动意图", async ({ page }) => {
-  await openWorkspace(page, "自动策略");
+  await openWorkspace(page, "电源");
   const panel = page.getByRole("region", { name: "启动档案", exact: true });
   await panel.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
@@ -107,7 +110,7 @@ test("启动选择复用完整参数预览，保存只改变启动意图", async
   await expect(parameters.getByLabel("档案独立灯条")).toContainText("X58 · 左右扫描");
   expect(await writes(page)).toEqual([]);
   await page.keyboard.press("Escape");
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "授权启动应用档案", exact: true }).click();
   expect((await writes(page)).map(c => c.command)).toEqual(["set_startup_profile"]);
   expect(await page.evaluate(() => window.__uiFixture.startupSelection?.profile)).toBe("隔离档案");
   expect((await writes(page))[0].args.expected.settings.lightBar.kind).toBe("x58");
@@ -115,7 +118,7 @@ test("启动选择复用完整参数预览，保存只改变启动意图", async
 
 test("设备档案卡片浅深色及窄宽布局保持边框间隔与可读性", async ({ page }) => {
   await selectProfile(page);
-  const panel = (await openProfileDetails(page)).getByRole("region", { name: "档案独立灯条" });
+  const panel = preview(page).getByRole("region", { name: "档案独立灯条" });
   for (const theme of ["light", "dark"]) {
     await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
     for (const width of [360, 760, 1440]) {

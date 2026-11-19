@@ -29,6 +29,37 @@ fn complete_save_binds_file_mode_and_first_restore_preserves_initial_absence() {
 }
 
 #[test]
+fn toggle_saved_rules_preserves_bindings_and_requires_the_same_file_to_enable() {
+    let h = Harness::new(false);
+    h.enable(true);
+    let enabled = h.record();
+    h.policy
+        .set_enabled(&h.context(), &h.profiles(), &enabled, false)
+        .unwrap();
+    let disabled = h.record();
+    assert_eq!(disabled, Record { enabled: false, ..enabled.clone() });
+    assert!(!h.policy.read().unwrap().active);
+    h.policy
+        .set_enabled(&h.context(), &h.profiles(), &disabled, true)
+        .unwrap();
+    assert_eq!(h.record(), enabled);
+    assert!(h.policy.read().unwrap().active);
+    let mut file = h.file("电池");
+    file.settings.pl1_w = Some(61.0);
+    h.write(&file);
+    h.policy
+        .set_enabled(&h.context(), &h.profiles(), &enabled, false)
+        .unwrap();
+    assert!(
+        h.policy
+            .set_enabled(&h.context(), &h.profiles(), &disabled, true)
+            .is_err()
+    );
+    assert_eq!(h.record(), disabled);
+    assert!(h.f.device.0.lock().unwrap().events.is_empty());
+}
+
+#[test]
 fn changed_file_and_unreviewed_linked_mode_refuse_before_policy_commit() {
     let h = Harness::new(false);
     let request = h.request(false);
@@ -131,7 +162,8 @@ fn shutdown_revokes_permissions_and_never_reenables_from_late_ready() {
         .policy
         .shared
         .permission(work.epoch, work.record, work.trigger);
-    h.policy.stop().unwrap();
+    h.policy.request_stop().unwrap();
+    h.policy.join_worker().unwrap();
     h.policy
         .shared
         .ready(crate::hal::power_events::Route {

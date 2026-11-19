@@ -3,10 +3,12 @@ use crate::hal::{Hal, oem_dchu::Dchu};
 use anyhow::{Result, anyhow, bail};
 use ccc_core::settings::{self, Patch, SettingsAccess};
 use serde::Serialize;
+use std::sync::atomic::Ordering;
 pub mod boost;
 pub(crate) mod cycle;
 mod energy;
 pub(crate) mod links;
+pub(crate) mod manual;
 pub use energy::State as EnergyState;
 mod policy;
 pub(crate) mod profile;
@@ -24,6 +26,8 @@ pub use workflow::restore;
 pub use workflow::{Plan, Snapshot, restore_checkpoint};
 #[cfg(test)]
 pub use workflow::{apply_preview, checkpoint};
+
+pub(crate) const MODE_LABELS: [&str; 5] = ["安静", "省电", "性能", "娱乐", "静音增强"];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CoreSnapshot {
@@ -53,9 +57,25 @@ pub(crate) trait ModeIo: SettingsAccess {
     fn send_mode(&self, command: u32) -> Result<()>;
     fn fan_info(&self) -> Result<[u8; 256]>;
     fn table(&self, selector: u8) -> Result<[u8; 256]>;
+    fn reviewed_entertainment_options(&self) -> bool {
+        false
+    }
+    fn acknowledged_entertainment_command(&self) -> Option<u32> {
+        None
+    }
 }
 
 impl ModeIo for Dchu {
+    fn reviewed_entertainment_options(&self) -> bool {
+        #[cfg(test)]
+        return self.test_entertainment_options.load(Ordering::Relaxed);
+        #[cfg(not(test))]
+        crate::hal::firmware::reviewed_dsdt()
+    }
+    fn acknowledged_entertainment_command(&self) -> Option<u32> {
+        let command = self.acknowledged_mode.load(Ordering::Relaxed);
+        (command & 0x3f == 3).then_some(command)
+    }
     fn feature_flags(&self, command: i32) -> Result<u32> {
         let (valid, flags) = self.read_int(command);
         if !valid {
@@ -72,7 +92,9 @@ impl ModeIo for Dchu {
         self.exchange_package(4, &packet)
     }
     fn send_mode(&self, command: u32) -> Result<()> {
-        self.set_data_sub(121, 25, command)
+        self.set_data_sub(121, 25, command)?;
+        self.acknowledged_mode.store(command, Ordering::Relaxed);
+        Ok(())
     }
 }
 
@@ -84,18 +106,30 @@ fn byte(io: &impl SettingsAccess, page: u8, offset: usize) -> Result<u8> {
         .ok_or_else(|| anyhow!("模式字段为空"))
 }
 
-fn capture(io: &impl SettingsAccess, remember_ac: bool) -> Result<CoreSnapshot> {
-    let mode = byte(io, 1, 1)?;
+pub(crate) fn current_mode(io: &impl SettingsAccess) -> Result<u8> {
+    byte(io, 1, 1)
+}
+
+fn capture(io: &impl ModeIo, remember_ac: bool) -> Result<CoreSnapshot> {
+    let mode = current_mode(io)?;
     if mode > 4 {
         bail!("当前 OEM 模式 {mode} 不在已核对的 0–4 范围");
     }
     let preferences = [byte(io, 4, 8)?, byte(io, 1, 32)?];
     if preferences.iter().any(|value| *value > 1) {
-        bail!("未知Turbo风扇或DTT保存值");
+        bail!("Turbo 风扇或动态调校 DTT 的保存值未知");
     }
+    let configured = boost::command_for_current_preferences(io, mode, preferences)?;
+    let command = if mode == 3 {
+        io.acknowledged_entertainment_command()
+            .filter(|command| command & !configured == 0)
+            .unwrap_or(3)
+    } else {
+        configured
+    };
     Ok(CoreSnapshot {
         mode,
-        command: mode_command(mode, preferences),
+        command,
         preferences,
         ac_mode: remember_ac.then(|| byte(io, 1, 16)).transpose()?,
     })
@@ -103,7 +137,7 @@ fn capture(io: &impl SettingsAccess, remember_ac: bool) -> Result<CoreSnapshot> 
 
 fn mode_command(mode: u8, preferences: [u8; 2]) -> u32 {
     u32::from(if mode == 4 { 0 } else { mode })
-        | if mode == 2 {
+        | if matches!(mode, 2 | 3) {
             u32::from(preferences[0]) << 6 | u32::from(preferences[1]) << 7
         } else {
             0
@@ -137,6 +171,16 @@ pub(crate) fn available(io: &impl ModeIo) -> Result<Vec<u8>> {
     Ok(modes)
 }
 
+pub(crate) fn mode_choices(io: &impl ModeIo) -> Result<(Vec<u8>, Option<String>)> {
+    let issue = support::issue(io)?;
+    let modes = if issue.is_some() {
+        Vec::new()
+    } else {
+        available(io)?
+    };
+    Ok((modes, issue))
+}
+
 fn feature_flags(io: &impl ModeIo, caps: &[u8], command: i32) -> Result<u32> {
     let word = |at| u32::from_le_bytes(caps[at..at + 4].try_into().unwrap());
     let short = |at| u16::from_le_bytes(caps[at..at + 2].try_into().unwrap()) as u32;
@@ -158,12 +202,7 @@ fn feature_flags(io: &impl ModeIo, caps: &[u8], command: i32) -> Result<u32> {
 
 pub fn read(hal: &Hal) -> Result<ModeProfile> {
     let mut profile = hal.with_dchu(|io| {
-        let support_issue = support::issue(io)?;
-        let modes = if support_issue.is_some() {
-            Vec::new()
-        } else {
-            available(io)?
-        };
+        let (modes, support_issue) = mode_choices(io)?;
         let (energy, targets) = if modes.is_empty() {
             (None, Vec::new())
         } else {
@@ -175,7 +214,7 @@ pub fn read(hal: &Hal) -> Result<ModeProfile> {
             (Some(state), targets)
         };
         Ok(ModeProfile {
-            current_mode: byte(io, 1, 1)?,
+            current_mode: current_mode(io)?,
             ac_mode: byte(io, 1, 16)?,
             energy,
             restore: None,
@@ -206,28 +245,37 @@ pub fn read(hal: &Hal) -> Result<ModeProfile> {
     Ok(profile)
 }
 
-fn write(
-    io: &impl ModeIo,
-    snapshot: CoreSnapshot,
+fn write_core(
+    hal: &Hal,
+    target: &Target,
     permit: &mut dyn FnMut() -> Result<()>,
     wrote: &mut bool,
 ) -> Result<()> {
-    permit()?;
-    if let Some(mode) = snapshot.ac_mode {
-        if byte(io, 1, 16)? != mode {
-            *wrote = true;
-            settings::apply(io, 1, &[Patch::new(16, [mode])], None).map_err(|e| anyhow!(e))?;
-            permit()?;
-        }
+    if let Some(mode) = target.ac_mode {
+        permit()?;
+        hal.with_dchu(|io| {
+            if byte(io, 1, 16)? != mode {
+                *wrote = true;
+                settings::apply(io, 1, &[Patch::new(16, [mode])], None).map_err(|e| anyhow!(e))?;
+            }
+            Ok(())
+        })?;
     }
-    *wrote = true;
-    io.send_mode(snapshot.command)?;
     permit()?;
-    settings::apply(io, 1, &[Patch::new(1, [snapshot.mode])], None).map_err(|e| anyhow!(e))?;
-    Ok(())
+    hal.with_dchu(|io| {
+        boost::validate_entertainment_command(io, target.command())?;
+        *wrote = true;
+        io.send_mode(target.command())
+    })?;
+    permit()?;
+    hal.with_dchu(|io| {
+        settings::apply(io, 1, &[Patch::new(1, [target.mode])], None).map_err(|e| anyhow!(e))?;
+        Ok(())
+    })
 }
 
 fn recover(io: &impl ModeIo, before: CoreSnapshot) -> Result<()> {
+    boost::validate_entertainment_command(io, before.command)?;
     // 即时命令失败也继续恢复保存字段，保留两个独立错误。
     let turbo = settings::apply(io, 4, &[Patch::new(8, [before.preferences[0]])], None);
     let dtt = settings::apply(io, 1, &[Patch::new(32, [before.preferences[1]])], None);

@@ -33,7 +33,7 @@ pub struct Plan {
 enum Entry {
     Selection,
     Supply { activate_plan: bool },
-    Options,
+    Options { fan: Option<u8> },
 }
 impl Entry {
     fn remembers_ac(self) -> bool {
@@ -49,7 +49,6 @@ impl Entry {
 #[derive(Default)]
 struct Progress {
     wrote: bool,
-    new_guard: bool,
     effects_started: bool,
 }
 
@@ -67,14 +66,23 @@ pub(crate) fn checkpoint_for_profile(
 pub(crate) fn checkpoint_for_supply(hal: &Hal, wanted: u8, activate_plan: bool) -> Result<Plan> {
     prepare(hal, wanted, None, Entry::Supply { activate_plan })
 }
-pub(super) fn checkpoint_options(hal: &Hal, wanted: u8, values: &boost::Values) -> Result<Plan> {
-    prepare(hal, wanted, Some(values), Entry::Options)
+pub(super) fn checkpoint_options(
+    hal: &Hal,
+    wanted: u8,
+    values: &boost::Values,
+    fan: Option<u8>,
+) -> Result<Plan> {
+    prepare(hal, wanted, Some(values), Entry::Options { fan })
 }
 fn prepare(hal: &Hal, wanted: u8, options: Option<&boost::Values>, entry: Entry) -> Result<Plan> {
     hal.ensure_mode_change_allowed()?;
     fanctl::dust::ensure_manual_allowed(hal)?;
     let (core, target, preferences, energy) = configured(hal, wanted, options, entry)?;
-    if target.dtt && (!matches!(entry, Entry::Options) || preferences != core.preferences) {
+    if target.dtt
+        && (!matches!(entry, Entry::Options { .. })
+            || preferences != core.preferences
+            || target.command() != core.command)
+    {
         boost::require_driver(hal)?;
     }
     let options_revision = options.map(|_| boost::revision(hal)).transpose()?;
@@ -85,7 +93,7 @@ fn prepare(hal: &Hal, wanted: u8, options: Option<&boost::Values>, entry: Entry)
     if target.fan_mode == 6 && fan_profile.curve_kind == fanctl::CurveKind::TwoPoint {
         fanctl::validate_curve(hal, [None; 3])?;
     }
-    let fan = fanctl::checkpoint(hal, true)?;
+    let fan = fan_checkpoint(hal, core.mode, entry)?;
     let system = system::capture(hal.system_power.as_ref(), &target)?;
     Ok(Plan {
         target,
@@ -104,6 +112,22 @@ fn prepare(hal: &Hal, wanted: u8, options: Option<&boost::Values>, entry: Entry)
     })
 }
 
+fn fan_checkpoint(hal: &Hal, mode: u8, entry: Entry) -> Result<fanctl::FanCheckpoint> {
+    let mut checkpoint = fanctl::checkpoint(hal, true)?;
+    if mode == 3 && matches!(entry, Entry::Options { fan: Some(_) }) {
+        let quiet = hal.with_dchu(|io| {
+            let caps = io.read_bios_capabilities(0, 22)?;
+            fanctl::supports_noiseless(&caps)
+                .then(|| fanctl::saved::entertainment_quiet(io))
+                .transpose()
+        })?;
+        if let Some(enabled) = quiet {
+            checkpoint.remember_entertainment_quiet(enabled);
+        }
+    }
+    Ok(checkpoint)
+}
+
 impl Plan {
     pub(super) fn remember(&self, hal: &Hal) -> Result<()> {
         let mut recovery = hal.recovery()?;
@@ -113,6 +137,9 @@ impl Plan {
         }
         if initial.energy.is_none() {
             initial.energy = self.before.energy;
+        }
+        if let Some(enabled) = self.before.fan.entertainment_quiet() {
+            initial.fan.remember_entertainment_quiet(enabled);
         }
         if let Some(before) = &self.before.system {
             if let Some(system) = &mut initial.system {
@@ -138,10 +165,14 @@ impl Plan {
                 bail!("性能选项或驱动已变化，请重新预览");
             }
         }
-        if self.target.dtt {
+        if self.target.dtt
+            && (!matches!(self.entry, Entry::Options { .. })
+                || preferences != core.preferences
+                || target.command() != core.command)
+        {
             boost::require_driver(hal)?;
         }
-        if fanctl::checkpoint(hal, true)? != self.before.fan {
+        if fan_checkpoint(hal, core.mode, self.entry)? != self.before.fan {
             bail!("模式恢复所需的风扇状态已变化，请重新预览");
         }
         system::review(hal.system_power.as_ref(), &self.before.system, &self.target)
@@ -164,6 +195,7 @@ impl Plan {
             &mut || Ok(()),
         )
     }
+    // 调用方许可可以读取设备，必须在 DCHU 锁外执行。
     pub(crate) fn execute_linked(
         &self,
         hal: &Hal,
@@ -192,7 +224,8 @@ impl Plan {
             let restored = if progress.wrote {
                 recover_snapshot(hal, &self.before).map_err(|e| format!("{e:#}"))
             } else {
-                cancel_before_write(hal, progress.new_guard, previous_baseline.as_ref())
+                hal.recovery()
+                    .map(|mut state| state.oem_mode = previous_baseline)
                     .map_err(|e| format!("{e:#}"))
             };
             if let Err(error) = restored {
@@ -223,37 +256,15 @@ impl Plan {
     ) -> Result<()> {
         permit()?;
         progress.wrote = self.before.fan.software_curves().is_some();
-        fanctl::software::stop(hal)?;
-        if self.target.fan_mode != 0 || self.target.fan_offset_pct != 0 {
+        fanctl::software::stop_safely(hal)?;
+        if self.preferences != self.before.core.preferences {
             permit()?;
-            let armed = hal.fan_guard_armed()?;
-            if let Err(error) =
-                hal.arm_fan_guard(crate::watchdog::GuardPolicy::for_mode(self.target.fan_mode))
-            {
-                progress.wrote |= armed;
-                return Err(error);
-            }
-            progress.new_guard = !armed;
-        }
-        permit()?;
-        hal.with_dchu(|io| {
-            if self.preferences != self.before.core.preferences {
-                permit()?;
+            hal.with_dchu(|io| {
                 progress.wrote = true;
-                boost::write_saved(io, self.preferences)?;
-            }
-            write(
-                io,
-                CoreSnapshot {
-                    mode: self.target.mode,
-                    command: self.target.command(),
-                    preferences: self.preferences,
-                    ac_mode: self.target.ac_mode,
-                },
-                permit,
-                &mut progress.wrote,
-            )
-        })?;
+                boost::write_saved(io, self.preferences)
+            })?;
+        }
+        write_core(hal, &self.target, permit, &mut progress.wrote)?;
         permit()?;
         progress.effects_started = true;
         after_mode(permit)?;
@@ -285,14 +296,6 @@ mod energy_tests;
 #[path = "workflow/linked_tests.rs"]
 mod linked_tests;
 
-fn cancel_before_write(hal: &Hal, new_guard: bool, previous: Option<&Snapshot>) -> Result<()> {
-    if new_guard {
-        hal.disarm_fan_guard()?;
-    }
-    hal.recovery()?.oem_mode = previous.cloned();
-    Ok(())
-}
-
 fn configured(
     hal: &Hal,
     wanted: u8,
@@ -301,7 +304,7 @@ fn configured(
 ) -> Result<(CoreSnapshot, Target, [u8; 2], Option<energy::State>)> {
     hal.with_dchu(|io| {
         let core = capture(io, entry.remembers_ac())?;
-        let energy = if matches!(entry, Entry::Options) {
+        let energy = if matches!(entry, Entry::Options { .. }) {
             None
         } else {
             Some(energy::read(io, hal.reviewed_dsdt)?)
@@ -309,6 +312,14 @@ fn configured(
         let mut target = policy::target_for(io, wanted, entry.activates_plan(), energy)?;
         target.ac_mode = entry.remembers_ac().then_some(wanted);
         let preferences = boost::configure(io, core, &mut target, options)?;
+        if let Entry::Options { fan: Some(fan) } = entry {
+            target.fan_mode = fan;
+            target.fan_saved_mode = if wanted == 3 {
+                fanctl::FAN_MODE_AUTO
+            } else {
+                fan
+            };
+        }
         Ok((core, target, preferences, energy))
     })
 }
@@ -323,8 +334,10 @@ fn recover_snapshot(hal: &Hal, before: &Snapshot) -> Result<()> {
     let current_energy = energy::review_restore(hal, before.energy);
     // 模式先恢复，风扇快照最后恢复；系统恢复的失败不跳过其他域。
     let mut errors = Vec::new();
+    let core = boost::prepare_recovery(hal, before.core)
+        .and_then(|()| hal.with_dchu(|io| recover(io, before.core)));
     for (name, result) in [
-        ("OEM 模式", hal.with_dchu(|io| recover(io, before.core))),
+        ("OEM 模式", core),
         (
             "EnergyStar",
             current_energy

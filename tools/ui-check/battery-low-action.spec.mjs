@@ -1,4 +1,4 @@
-import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
+import { configurationView, previewConfiguration } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -7,7 +7,7 @@ const panel = page => page.getByRole("region", { name: "原厂热键与屏显", 
 const facts = page => page.getByRole("region", { name: "原厂低电量系统动作事实与预览", exact: true });
 const scope = page => panel(page).getByRole("checkbox", { name: "原厂低电量系统动作", exact: true });
 const calls = (page, command) => page.evaluate(command => window.__uiFixture.calls.filter(call => call.command === command), command);
-test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与输入"); });
+test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与灯光"); });
 
 test("预览两类计划动作和一次性效果，不虚构比例", async ({ page }) => {
   await scope(page).check();
@@ -22,13 +22,13 @@ test("预览两类计划动作和一次性效果，不虚构比例", async ({ pa
 test("独立确认后启用，软件规则可以单独恢复", async ({ page }) => {
   await panel(page).getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
   await scope(page).check();
-  await openConfigurationReview(page, "原厂热键与屏显");
+  await previewConfiguration(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true }).click();
   expect((await calls(page, "apply_hotkeys"))[0].args.request.settings.actions).toEqual(["batteryLowAction"]);
-  await openConfigurationReview(page, "原厂热键与屏显", true);
+  await previewConfiguration(page, "原厂热键与屏显", true);
   expect(await calls(page, "restore_hotkeys")).toEqual([]);
-  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
+  await configurationView(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   expect(await calls(page, "restore_hotkeys")).toHaveLength(1);
 });
 

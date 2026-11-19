@@ -1,6 +1,7 @@
 use super::*;
 use crate::powerctl::{self, mode::links};
 
+#[cfg(test)]
 pub(crate) fn preview_mode(
     context: &links::Context<'_>,
     settings: &ProfileSettings,

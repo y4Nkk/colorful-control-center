@@ -37,6 +37,7 @@ export interface OemMemoryReading {
 
 export interface HardwareSnapshot {
   dchuAvailable: boolean;
+  oemPowerMode: number | null;
   /** CPU 温度（°C，本机原厂零 TDP 分支直接使用 cmd12 buf[18]）。 */
   cpuTempC: number | null;
   /** cmd12 buf[18] 原始 remote（校准对照用） */

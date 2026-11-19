@@ -22,7 +22,7 @@ fn color_cycle_capture_and_profile_rollback_share_initial_lighting_baseline() {
     let initial = f.device.0.lock().unwrap().pages[2];
     let identity = f.lighting.color_cycle_identity(&f.hal).unwrap();
     assert_eq!(f.lighting.cycle_color(&f.hal, &identity).unwrap().index, 2);
-    let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     let mut target = captured.keyboard_lighting.unwrap();
     let lighting::LightingRequest::ZoneRgb { all_color, .. } = &mut target.settings else {
         panic!()

@@ -1,4 +1,4 @@
-//! 原厂USB选择性暂停：固件建议与Windows三个标准计划独立表达。
+//! 原厂USB 选择性暂停：固件建议与Windows三个标准计划独立表达。
 use crate::hal::{
     Hal,
     power_plan::{PowerAccess, SCHEMES},
@@ -164,7 +164,7 @@ impl Controller {
         let _gate = hal.begin_write()?;
         let baseline = &mut scope.baseline;
         scope.controller.with_io(hal, |io| {
-            let frame = capture(io, !baseline.is_empty())?.context("固件未声明USB策略")?;
+            let frame = capture(io, !baseline.is_empty())?.context("固件未声明 USB 选择性暂停")?;
             transaction::apply(io, baseline, frame, request)
         })
     }

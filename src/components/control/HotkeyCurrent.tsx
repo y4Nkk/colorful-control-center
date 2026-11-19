@@ -13,7 +13,7 @@ export function HotkeyCurrent({ profile, busy, run, screenSelected, panelSelecte
   return <Surface variant="inset" className="ccc-hotkey-section">
     <strong>{!profile ? "监听状态未知" : profile.status.running ? "正在监听原厂热键" : "热键监听已停止"}</strong>
     {profile && <>
-      <span className="ccc-chip">已保存 · {profile.current ? `${profile.current.enabled ? "启用" : "关闭"} · ${profile.current.actions.length} 项` : "未知"}</span>
+      <span className="ccc-control-caption">已保存 · {profile.current ? `${profile.current.enabled ? "启用" : "关闭"} · ${profile.current.actions.length} 项` : "未知"}</span>
       {profile.current?.enabled && !profile.authorized && <p className="ccc-control-caption">授权条件已变化，请重新确认。</p>}
       {profile.facts.blockedReason && <p className="ccc-control-caption">{profile.facts.blockedReason}</p>}
       {profile.status.error && <p className="ccc-control-error" role="alert">{profile.status.error}</p>}

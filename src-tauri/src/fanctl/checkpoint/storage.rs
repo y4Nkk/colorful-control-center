@@ -121,7 +121,8 @@ fn parse_pairs(pairs: &[StoredPair]) -> Result<Vec<Pair>> {
         .collect()
 }
 fn parse_fields(fields: &[StoredPatch]) -> Result<Vec<Patch>> {
-    let mut allowed = vec![(5, 1), (7, 1), (70, 8)];
+    let quiet = super::saved::ENTERTAINMENT_QUIET_OFFSET;
+    let mut allowed = vec![(5, 1), (7, 1), (quiet, 1), (70, 8)];
     for index in 0..3 {
         let (duty, temp, slope) = ccc_core::fan::oem_page4_offsets(index);
         allowed.extend([(duty, 4), (temp, 4), (slope, 6)]);
@@ -129,7 +130,10 @@ fn parse_fields(fields: &[StoredPatch]) -> Result<Vec<Patch>> {
     let mut seen = BTreeSet::new();
     let mut result = Vec::new();
     for field in fields {
-        if !allowed.contains(&(field.offset, field.data.len())) || !seen.insert(field.offset) {
+        if !allowed.contains(&(field.offset, field.data.len()))
+            || !seen.insert(field.offset)
+            || field.offset == quiet && field.data[0] > 1
+        {
             bail!("风扇恢复字段范围或顺序无效");
         }
         result.push(Patch::new(field.offset, field.data.clone()));

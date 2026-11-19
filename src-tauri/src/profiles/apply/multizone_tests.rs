@@ -8,7 +8,7 @@ mod fixture;
 fn capture_roundtrip_selects_multizone_and_preserves_options_owner() {
     let mut f = Fixture::new();
     let io = fixture::enable(&mut f);
-    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     assert!(settings.multi_zone_lighting.is_some());
     assert!(settings.keyboard_lighting.is_none() && settings.perkey_lighting.is_none());
     assert_eq!(

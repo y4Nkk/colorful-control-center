@@ -1,5 +1,4 @@
 //! 父进程管道客户端；应用与隔离进程测试共用同一握手与存活判断。
-use super::protocol::GuardPolicy;
 use super::protocol::read_lines;
 use anyhow::{Context, Result, anyhow, bail};
 use std::{
@@ -15,32 +14,13 @@ pub struct Watchdog {
     output: Receiver<String>,
 }
 
-#[derive(Debug)]
-pub struct PolicyRejected(String);
-impl std::fmt::Display for PolicyRejected {
-    fn fmt(&self, output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        output.write_str(&self.0)
-    }
-}
-impl std::error::Error for PolicyRejected {}
-
 impl Watchdog {
-    pub fn start(direct_required: bool, policy: GuardPolicy) -> Result<Self> {
-        Self::spawn(
-            Command::new(std::env::current_exe()?),
-            direct_required,
-            policy,
-        )
+    pub fn start() -> Result<Self> {
+        Self::spawn(Command::new(std::env::current_exe()?))
     }
 
-    pub fn spawn(mut command: Command, direct_required: bool, policy: GuardPolicy) -> Result<Self> {
+    pub fn spawn(mut command: Command) -> Result<Self> {
         command.arg("--fan-watchdog");
-        if direct_required {
-            command.arg("--direct-fan-watchdog");
-        }
-        if policy == GuardPolicy::FirmwareFullSpeed {
-            command.arg("--full-speed-fan-watchdog");
-        }
         command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -100,9 +80,6 @@ impl Watchdog {
     fn expect(&self, wanted: &str) -> Result<()> {
         match self.output.recv_timeout(Duration::from_secs(3)) {
             Ok(line) if line == wanted => Ok(()),
-            Ok(line) if line.starts_with("REJECTED:") => {
-                Err(PolicyRejected(line[9..].into()).into())
-            }
             Ok(line) => bail!(
                 "风扇监护：{}",
                 line.strip_prefix("FAILED:").unwrap_or(&line)
@@ -128,26 +105,6 @@ impl Watchdog {
             bail!("风扇监护输出连接中断");
         }
         self.send("HB")
-    }
-
-    pub fn prepare(&mut self, policy: GuardPolicy) -> Result<()> {
-        self.pulse()?;
-        self.send(match policy {
-            GuardPolicy::Protected => "PREPARE_PROTECTED",
-            GuardPolicy::FirmwareFullSpeed => "PREPARE_FULL_SPEED",
-        })?;
-        self.expect("POLICY_READY")
-    }
-
-    pub fn commit_full_speed(&mut self) -> Result<()> {
-        self.send("COMMIT_FULL_SPEED")?;
-        self.expect("POLICY_READY")
-    }
-
-    pub fn prepare_auto(&mut self) -> Result<()> {
-        self.pulse()?;
-        self.send("PREPARE_AUTO")?;
-        self.expect("POLICY_READY")
     }
 
     pub fn stop_heartbeats(&mut self) {

@@ -45,11 +45,11 @@ fn request(f: &Fixture, mode: u8) {
 #[test]
 fn capture_uses_known_selection_without_creating_a_record() {
     let f = setup();
-    let first = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let first = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     assert_eq!(first.graphics_mode.unwrap().mode, 3);
     assert!(!f.graphics_mode.dir.path().join("mode.json").exists());
     request(&f, 2);
-    let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     assert_eq!(captured.graphics_mode.as_ref().unwrap().mode, 2);
     assert_eq!(selection(&f).current.unwrap().mode, 3);
     let json = serde_json::to_string(&captured).unwrap();

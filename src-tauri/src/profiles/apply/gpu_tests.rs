@@ -71,7 +71,7 @@ fn capture_preserves_off_mixed_policy_and_never_reads_disabled_gpu() {
         .unwrap()
         .device
         .automatic_power_off = false;
-    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     let target = settings.gpu_power.as_ref().unwrap();
     assert!(!target.values.enabled);
     assert!(!target.values.automatic_power_off);
@@ -90,7 +90,7 @@ fn capture_preserves_off_mixed_policy_and_never_reads_disabled_gpu() {
 #[test]
 fn unsupported_device_is_not_captured_or_fabricated() {
     let f = Fixture::new();
-    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     assert!(settings.gpu_power.is_none());
     assert!(settings.gpu.is_some());
 }

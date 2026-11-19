@@ -10,7 +10,7 @@ use tauri::{AppHandle, Manager};
 
 #[tauri::command]
 pub(crate) async fn read_power_profile_policy(app: AppHandle) -> Result<View, String> {
-    tauri::async_runtime::spawn_blocking(move || app.state::<Controller>().read())
+    crate::shutdown::blocking(move || app.state::<Controller>().read())
         .await
         .map_err(|error| format!("自动规则读取任务失败：{error}"))?
         .map_err(|error| format!("{error:#}"))
@@ -20,7 +20,7 @@ pub(crate) async fn save_power_profile_policy(
     app: AppHandle,
     request: Request,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         let hal = app.state::<Hal>();
         let gpu = app.state::<crate::gpuctl::GpuController>();
         let power = app.state::<crate::gpu_power::Controller>();
@@ -34,6 +34,24 @@ pub(crate) async fn save_power_profile_policy(
     .map_err(|error| format!("{error:#}"))
 }
 #[tauri::command]
+pub(crate) async fn set_power_profile_policy_enabled(
+    app: AppHandle,
+    expected: Record,
+    enabled: bool,
+) -> Result<(), String> {
+    crate::shutdown::blocking(move || {
+        let hal = app.state::<Hal>();
+        let gpu = app.state::<crate::gpuctl::GpuController>();
+        let power = app.state::<crate::gpu_power::Controller>();
+        let context = crate::powerctl::mode::links::Context::native(&hal, &gpu, &power);
+        app.state::<Controller>()
+            .set_enabled(&context, &profiles::profiles_dir(&app)?, &expected, enabled)
+    })
+    .await
+    .map_err(|error| format!("自动规则切换任务失败：{error}"))?
+    .map_err(|error| format!("{error:#}"))
+}
+#[tauri::command]
 pub(crate) fn pause_power_profile_policy(
     controller: tauri::State<'_, Controller>,
 ) -> Result<(), String> {
@@ -44,7 +62,7 @@ pub(crate) async fn restore_power_profile_policy(
     app: AppHandle,
     expected: Record,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<Controller>()
             .restore(&app.state::<Hal>(), &expected)
     })
@@ -57,7 +75,7 @@ pub(crate) async fn reset_power_profile_policy(
     app: AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<Controller>()
             .reset(&app.state::<Hal>(), &expected_revision)
     })
@@ -68,7 +86,7 @@ pub(crate) async fn reset_power_profile_policy(
 
 #[tauri::command]
 pub(crate) async fn reload_power_profile_policy(app: AppHandle) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || app.state::<Controller>().reload())
+    crate::shutdown::blocking(move || app.state::<Controller>().reload())
         .await
         .map_err(|error| format!("自动规则重读任务失败：{error}"))?
         .map_err(|error| format!("{error:#}"))
@@ -77,7 +95,7 @@ pub(crate) async fn reload_power_profile_policy(app: AppHandle) -> Result<(), St
 pub(crate) async fn read_automatic_profile_application(
     app: AppHandle,
 ) -> Result<Option<profiles::Application>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<profiles::application::Controller>()
             .automatic_report(&app.state::<crate::display::Controller>())
     })

@@ -1,4 +1,4 @@
-import { FAN_MODES, OEM_POWER_MODES, type OemEnergyState, type OemModeGpuState, type SupplyModeRecovery as Recovery } from "../../api/client";
+import { FAN_MODES, OEM_POWER_MODES, PERFORMANCE_OPTION_LABELS, type OemEnergyState, type OemModeGpuState, type SupplyModeRecovery as Recovery } from "../../api/client";
 import { DetailsDialog } from "../DetailsDialog";
 import { FactList } from "../FactList";
 import { Surface } from "../Surface";
@@ -26,8 +26,8 @@ export function SupplyModeRecovery({ value }: { value: Recovery }) {
     <FactList compact facts={[
       { label: "电源模式", value: `${modeName(value.currentMode)} → ${modeName(value.initialMode)}` },
       ...(value.initialAcMode === null ? [] : [{ label: "插电模式偏好", value: `${value.currentAcMode === null ? "未知" : modeName(value.currentAcMode)} → ${modeName(value.initialAcMode)}` }]),
-      { label: "Turbo风扇偏好", value: `${onOff(value.currentTurbo)} → ${onOff(value.initialTurbo)}` },
-      { label: "DTT偏好", value: `${onOff(value.currentDtt)} → ${onOff(value.initialDtt)}` },
+      { label: `${PERFORMANCE_OPTION_LABELS.turboFan}偏好`, value: `${onOff(value.currentTurbo)} → ${onOff(value.initialTurbo)}` },
+      { label: `${PERFORMANCE_OPTION_LABELS.dtt} 偏好`, value: `${onOff(value.currentDtt)} → ${onOff(value.initialDtt)}` },
       { label: "风扇模式", value: `${fanMode(value.currentFanMode)} → ${fanMode(value.initialFanMode)}` },
       { label: "风扇加速偏移", value: `${value.currentFanOffset}% → ${value.initialFanOffset}%` },
       { label: "软件曲线", value: `${onOff(value.currentSoftwareFan)} → ${onOff(value.initialSoftwareFan)}` },

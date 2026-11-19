@@ -29,7 +29,5 @@ export function useFanDrafts(profile: FanProfile | null) {
     changeRpm: (id: FanId, value: RpmPoint[]) => setRpmDrafts((current) => ({
       ...Object.fromEntries(Object.entries(current).map(([fan, points]) => [fan, normalizeRpmCurve(points!)])), [id]: value,
     })),
-    ensureRpmTargets: () => setRpmDrafts((current) => Object.fromEntries(
-      Object.entries(current).map(([id, points]) => [id, normalizeRpmCurve(points!)]))),
   };
 }

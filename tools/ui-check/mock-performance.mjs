@@ -1,7 +1,56 @@
-import { modePreviewTarget, modeRestoreTarget, modeRestoreIssue, rememberMode, applyModeGpu } from "./mock-mode-state.mjs";
+import { appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, modeRestoreTarget, modeRestoreIssue, rememberMode, applyModeGpu } from "./mock-mode-state.mjs";
+
+export function applyPerformanceOptions(data, { values, quietFan, replaceCustomFan }, quiet) {
+  const p = data.performanceOptions;
+  const performance = p.currentMode === 2;
+  const active = appliesPerformanceOptions(data, p.currentMode);
+  const command = optionCommand(p.currentMode, active && values.turboFan, active && values.dtt);
+  if (!performance && p.currentMode !== 3) return { ok: false, message: "请在性能模式或娱乐模式配置性能选项" };
+  if (quietFan !== null && !quiet) return { ok: false, message: "当前模式或固件未开放寂静模式" };
+  if (active && quietFan && values.turboFan) return { ok: false, message: "Turbo 风扇与寂静模式不能同时开启" };
+  const beforeCommand = performance ? optionCommand(2, p.current.turboFan, p.current.dtt) : entertainmentCommand(data);
+  const turbo = !!(beforeCommand & 64);
+  const fanChanged = quietFan !== null && (quiet.enabled !== quietFan || quietFan && !quiet.active) || active && !!values.turboFan !== turbo;
+  if (replaceCustomFan) {
+    const turboHandoff = !performance && active && !turbo && values.turboFan === true && quietFan !== true;
+    const expectedTurbo = turboHandoff ? true : active && quietFan && p.current.turboFan !== null ? false : p.current.turboFan;
+    if (!p.customFan || !fanChanged || !turboHandoff && quietFan === null || values.turboFan !== expectedTurbo || values.dtt !== p.current.dtt)
+      return { ok: false, message: "自定义风扇切换目标已变化，请重新确认" };
+  }
+  if ((active || fanChanged) && p.softwareActive || fanChanged && p.customFan && !replaceCustomFan) return { ok: false, message: "请先确认切换风扇曲线" };
+  const flagsChanged = values.turboFan !== p.current.turboFan || values.dtt !== p.current.dtt;
+  const sendsCommand = active && (flagsChanged || command !== beforeCommand);
+  if (sendsCommand && values.dtt && p.dttDriverAvailable !== true) return { ok: false, message: "未确认 Dynamic Tuning 驱动" };
+  rememberMode(data, false);
+  p.current = structuredClone(values); p.canRestore = true;
+  if (sendsCommand) data.modeOptionsCommand = command;
+  if (fanChanged) p.customFan = false;
+  if (fanChanged && performance) {
+    data.fan.currentMode = quietFan ? 8 : 0;
+    if (data.performanceFanMode !== null) data.performanceFanMode = data.fan.currentMode;
+  }
+  if (fanChanged && !performance) {
+    const fields = data.modeInitial.fan.fields;
+    if (quiet) {
+      if (!fields.some(field => field.offset === 9)) fields.push({ offset: 9, data: [Number(data.entertainmentQuiet)] });
+      data.entertainmentQuiet = quietFan === true;
+    }
+    data.fan.currentMode = 0;
+  }
+  p.revision = `options-${++data.performanceRevision}`;
+  return { ok: true, message: "已接受" };
+}
 
 export async function invokePerformance(data, command, args) {
   const p = data.performanceOptions;
+  const performance = p.currentMode === 2;
+  const entertainment = p.currentMode === 3;
+  const appliesInCurrentMode = appliesPerformanceOptions(data, p.currentMode);
+  const quiet = (performance || entertainment) && data.fan.availableModes.includes(8) ? {
+    enabled: entertainment ? data.entertainmentQuiet : (data.performanceFanMode ?? data.fan.currentMode) === 8,
+    active: data.fan.currentMode === 8 || entertainment && data.fan.currentMode === 0 && data.entertainmentQuiet && !(entertainmentCommand(data) & 64),
+    remembered: entertainment || data.performanceFanMode !== null,
+  } : null;
   const energy = () => {
     if (data.modeEnergy.hardwarePState !== (data.modeEnergy.energyStar === null) || !data.modeEnergy.hardwarePState && ![0, 1, 2].includes(data.modeEnergy.energyStar)) throw new Error("固件节能状态不可恢复");
     return structuredClone(data.modeEnergy);
@@ -18,37 +67,56 @@ export async function invokePerformance(data, command, args) {
       targets: unsupported ? [] : [0, 1, 2, 3].map(mode => modePreviewTarget(data, mode)) };
     case "read_oem_performance_options":
       if (data.performanceReadFault) throw new Error(data.performanceReadFault);
-      return structuredClone({ ...p, acMode: data.modeInitial?.acMode != null ? data.acMode : null,
+      return structuredClone({ ...p, appliesInCurrentMode,
+        entertainmentOptionsPending: entertainment && appliesInCurrentMode && entertainmentCommand(data) !== optionCommand(3, p.current.turboFan, p.current.dtt),
+        quietFan: quiet, acMode: data.modeInitial?.acMode != null ? data.acMode : null,
         energy: data.modeInitial?.energy != null ? energy() : null,
         restore: restore(), restoreBlockedReason: restoreBlockedReason(), canRestore: Boolean(data.modeInitial) && !restoreBlockedReason(), blockedReason });
     case "apply_oem_performance_options":
       if (blockedReason) return { ok: false, message: blockedReason };
       if (args.request.expectedRevision !== p.revision) return { ok: false, message: "性能选项预览已变化" };
       if (data.performanceFault) return { ok: false, message: data.performanceFault };
-      rememberMode(data, false); p.current = structuredClone(args.request.values); p.canRestore = true;
-      p.revision = `options-${++data.performanceRevision}`; return { ok: true, message: "已接受" };
+      return applyPerformanceOptions(data, args.request, quiet);
     case "apply_oem_power_mode":
       if (blockedReason) return { ok: false, message: blockedReason };
       if (args.expected.acMode !== args.expected.mode) return { ok: false, message: "插电偏好目标未预览" };
       if (JSON.stringify(args.expected.energy) !== JSON.stringify((await invokePerformance(data, "read_oem_power_mode", {})).targets.find(target => target.mode === args.expected.mode)?.energy)) return { ok: false, message: "固件节能目标已变化" };
-      if (JSON.stringify(args.expected) !== JSON.stringify(modePreviewTarget(data, args.expected.mode))) return { ok: false, message: "完整模式预览已变化，请重新读取" };
+      if (JSON.stringify(args.expected) !== JSON.stringify(modePreviewTarget(data, args.expected.mode))) return { ok: false, message: "模式联动条件已变化，请重新读取后再切换" };
       if (args.expected.unavailableReason) return { ok: false, message: args.expected.unavailableReason };
+      if (args.confirmedFnKey && args.confirmedFnKey.modeRevision !== args.expected.revision)
+        return { ok: false, message: "确认的模式目标已变化，请重新选择" };
+      if (data.fnKey) {
+        const confirmation = { identity: data.fnKey, modeRevision: args.expected.revision };
+        if (!args.confirmedFnKey) return { confirmFnKey: structuredClone(confirmation) };
+        if (JSON.stringify(args.confirmedFnKey.identity) !== JSON.stringify(data.fnKey))
+          return { ok: false, message: "原厂 FnKey 已重新启动，请重新选择模式并确认" };
+        if (data.fnKeyExitFault) return { ok: false, message: data.fnKeyExitFault };
+        data.fnKey = null;
+      }
       if (data.modeApplyFault) return { ok: false, message: data.modeApplyFault };
       if (args.expected.gpu?.status !== "ready") return { ok: false, message: "模式GPU预览不可执行" };
       if (args.expected.gpu.value.clocks.candidate.decision?.target && !args.expected.gpu.value.clocks.candidate.projected) return { ok: false, message: "隔离夹具未注入确认后的GPU读数" };
       rememberMode(data, true, args.expected); applyModeGpu(data, args.expected);
       data.acMode = args.expected.acMode; p.currentMode = args.expected.mode; p.canRestore = true;
+      data.modeOptionsCommand = optionCommand(p.currentMode, args.expected.turbo, args.expected.dtt);
       data.modeEnergy = structuredClone(args.expected.energy);
-      data.fan.currentMode = args.expected.fanMode; data.fan.offsetPct = args.expected.fanOffsetPct; data.fan.software = null;
+      data.fan.currentMode = args.expected.fanSavedMode; data.fan.offsetPct = args.expected.fanOffsetPct; data.fan.software = null;
+      p.customFan = data.fan.currentMode === 6;
+      if (args.expected.mode === 2 && data.performanceFanMode !== null) data.performanceFanMode = args.expected.fanSavedMode;
       p.revision = `options-${++data.performanceRevision}`; return { ok: true, message: "模式已应用" };
     case "restore_oem_power_mode": {
       const target = restore();
       if (restoreBlockedReason()) return { ok: false, message: restoreBlockedReason() };
       if (!target || args.expectedRevision !== target.revision) return { ok: false, message: "初始模式恢复目标已变化，请重新预览并确认" };
       p.currentMode = target.mode; p.current = structuredClone(data.modeInitial.options); p.canRestore = false;
+      data.modeOptionsCommand = data.modeInitial.command;
       if (target.acMode !== null) data.acMode = target.acMode;
       if (target.energy !== null) data.modeEnergy = structuredClone(target.energy);
-      data.fan.currentMode = target.fan.mode; data.fan.offsetPct = target.fan.offset; data.fan.software = structuredClone(target.fan.software);
+      data.fan.currentMode = target.fan.fields.find(field => field.offset === 5).data[0];
+      p.customFan = data.fan.currentMode === 6;
+      data.fan.offsetPct = target.fan.offset; data.fan.software = structuredClone(target.fan.software);
+      if (target.entertainmentQuiet !== null) data.entertainmentQuiet = target.entertainmentQuiet;
+      if (data.performanceFanMode !== null) data.performanceFanMode = target.fan.fields.find(field => field.offset === 70).data[2];
       if (target.gpu?.node) {
         const node = data.gpuPower.devices[0]; node.enabled = target.gpu.node.target.enabled;
         node.automaticPowerOff = target.gpu.node.target.automaticPowerOff; node.problem = node.enabled ? 0 : 22;

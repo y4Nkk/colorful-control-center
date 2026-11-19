@@ -1,11 +1,10 @@
 .ccc-multi-zone-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-4); align-items: start; }
 .ccc-multi-zone-section { display: grid; align-content: start; gap: var(--ccc-space-3); padding: var(--ccc-space-3); min-width: 0; }
-.ccc-multi-zone-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-3); }
+.ccc-multi-zone-inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: var(--ccc-space-3); }
 .ccc-multi-zone-section p { margin: 0; }
-.ccc-multi-zone-inputs label { display: grid; gap: var(--ccc-space-1); font-size: var(--ccc-text-sm); }
 .ccc-multi-zone-colors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-2); min-width: 0; }
 .ccc-multi-zone-color { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--ccc-space-1) var(--ccc-space-2); align-items: center; font-size: var(--ccc-text-xs); }
 .ccc-multi-zone-color code { grid-column: 2; color: var(--ccc-text-muted); font-size: inherit; }
-.ccc-multi-zone-swatch { grid-row: span 2; width: var(--ccc-space-5); height: var(--ccc-space-5); border-radius: var(--ccc-radius-control); background: var(--zone-color); box-shadow: inset 0 0 0 1px var(--ccc-hairline); }
+.ccc-multi-zone-swatch { grid-row: span 2; }
 .ccc-multi-zone-colors > p { grid-column: 1 / -1; }
 @media (max-width: 700px) { .ccc-multi-zone-columns { grid-template-columns: minmax(0, 1fr); } }

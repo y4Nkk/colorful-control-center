@@ -49,7 +49,7 @@ fn rgb_event_capture_and_later_profile_failure_preserve_shared_first_baseline() 
         .unwrap()
         .unwrap();
     assert_eq!(off.level, 0);
-    let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     let mut target = captured.keyboard_lighting.unwrap();
     assert!(!target.enabled);
     let crate::lighting::LightingRequest::ZoneRgb { brightness, .. } = &mut target.settings else {

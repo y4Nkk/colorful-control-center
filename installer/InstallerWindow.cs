@@ -14,10 +14,12 @@ namespace ColorfulControlCenter.Installer
 {
     internal sealed partial class InstallerWindow : Window
     {
-        private readonly Func<InstallationRequest, IProgress<InstallProgress>, Task> install;
+        private const double ShadowMargin = 16;
+        private readonly Func<InstallationRequest, IProgress<InstallProgress>, Func<bool>, Task<bool>> install;
         private readonly Action<string> launch;
-        private readonly bool existing;
+        private readonly string registeredDirectory;
         private string selectedDirectory;
+        private string recoveryReason;
         private InstallationRequest request;
         private Exception failure;
         private string phaseText;
@@ -26,6 +28,7 @@ namespace ColorfulControlCenter.Installer
         private int step;
         private StackPanel body;
         private TextBox directoryBox;
+        private TextBlock locationError;
         private TextBlock heading;
         private Button primary, secondary, back, close;
         private readonly Label[] markers = new Label[4];
@@ -35,26 +38,27 @@ namespace ColorfulControlCenter.Installer
             new InstallerEngine().Run, InstalledApplication.Launch) { }
 
         internal InstallerWindow(string installedDirectory,
-            Func<InstallationRequest, IProgress<InstallProgress>, Task> install, Action<string> launch)
+            Func<InstallationRequest, IProgress<InstallProgress>, Func<bool>, Task<bool>> install, Action<string> launch)
         {
             this.install = install;
             this.launch = launch;
-            existing = installedDirectory != null;
+            registeredDirectory = installedDirectory;
             selectedDirectory = installedDirectory ?? InstalledApplication.DefaultDirectory();
             ExitCode = 1;
             Resources.MergedDictionaries.Add(LoadDictionary("CCC.Palette"));
             Resources.MergedDictionaries.Add(LoadDictionary("CCC.Theme"));
             Title = "Colorful Control Center · 安装";
             FontFamily = new FontFamily("Microsoft YaHei UI, Segoe UI");
-            Width = Math.Min(1040, SystemParameters.WorkArea.Width - 32);
-            Height = Math.Min(640, SystemParameters.WorkArea.Height - 32);
+            Width = Math.Min(1040 + 2 * ShadowMargin, SystemParameters.WorkArea.Width);
+            Height = Math.Min(640 + 2 * ShadowMargin, SystemParameters.WorkArea.Height);
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
             WindowStyle = WindowStyle.None;
+            AllowsTransparency = true;
             ResizeMode = ResizeMode.CanMinimize;
-            Background = Brush("Canvas");
+            Background = Brushes.Transparent;
             UseLayoutRounding = true;
             WindowChrome.SetWindowChrome(this, new WindowChrome {
-                CaptionHeight = 48, ResizeBorderThickness = new Thickness(0),
+                CaptionHeight = 48 + ShadowMargin, ResizeBorderThickness = new Thickness(0),
                 GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(0),
             });
             Content = BuildLayout();
@@ -67,6 +71,7 @@ namespace ColorfulControlCenter.Installer
         }
 
         internal int ExitCode { get; private set; }
+        private bool Updating { get { return registeredDirectory != null && recoveryReason == null; } }
 
         private static ResourceDictionary LoadDictionary(string name)
         {
@@ -80,13 +85,60 @@ namespace ColorfulControlCenter.Installer
         private async void OnPrimary(object sender, RoutedEventArgs args)
         {
             if (busy) return;
-            if (step == 0) { step = 1; Render(); return; }
+            if (step == 0)
+            {
+                if (Updating || request == null) CheckRegisteredTarget();
+                step = 1;
+                Render();
+                return;
+            }
             if (step == 3) { Launch(); return; }
-            if (step == 2 && request != null) { await Install(); return; }
             if (directoryBox != null) selectedDirectory = directoryBox.Text;
-            try { request = InstallationRequest.Create(selectedDirectory, request); }
-            catch (Exception error) { failure = error; step = 1; Render(); return; }
+            bool wasUpdating = Updating;
+            var registeredTarget = Updating || request == null ? CheckRegisteredTarget() : null;
+            if (wasUpdating != Updating)
+            {
+                step = 1;
+                failure = null;
+                Render();
+                return;
+            }
+
+            try { request = registeredTarget ?? InstallationRequest.Create(selectedDirectory, request); }
+            catch (ArgumentException error) { ShowLocationError(error.Message); return; }
+            selectedDirectory = request.Directory;
             await Install();
+        }
+
+        private InstallationRequest CheckRegisteredTarget()
+        {
+            if (registeredDirectory == null) return null;
+            try
+            {
+                var target = InstallationRequest.Create(registeredDirectory, request, requireInstalled: true);
+                recoveryReason = null;
+                selectedDirectory = target.Directory;
+                return target;
+            }
+            catch (ArgumentException error)
+            {
+                if (Updating) selectedDirectory = String.Empty;
+                recoveryReason = error.Message;
+                return null;
+            }
+        }
+
+        private void ShowLocationError(string message)
+        {
+            if (step != 1)
+            {
+                step = 1;
+                failure = null;
+                Render();
+            }
+            locationError.Text = message;
+            locationError.Visibility = Visibility.Visible;
+            locationError.BringIntoView();
         }
 
         private async Task Install()
@@ -99,20 +151,21 @@ namespace ColorfulControlCenter.Installer
             Render();
             try
             {
-                await install(request, new Progress<InstallProgress>(progress => {
+                bool installed = await install(request, new Progress<InstallProgress>(progress => {
                     if (!busy || step != 2) return;
                     phaseText = progress.Phase;
                     fraction = progress.Fraction;
                     RenderBody();
-                }));
-                step = 3;
-                ExitCode = 0;
+                }), ConfirmControllerClose);
+                step = installed ? 3 : 1;
+                if (installed) ExitCode = 0;
             }
             catch (Exception error)
             {
                 failure = error;
             }
             finally { busy = false; Render(); }
+            if (step == 1) primary.Focus();
         }
 
         private void Launch()
@@ -157,7 +210,7 @@ namespace ColorfulControlCenter.Installer
                 string status = completed ? "已完成" : current ? (failure == null ? "当前步骤" : "需要处理") : "等待中";
                 System.Windows.Automation.AutomationProperties.SetName(markers[index], name + "，" + status);
             }
-            primary.Content = step == 0 ? "开始设置" : step == 1 ? (existing ? "确认并更新" : "确认并安装")
+            primary.Content = step == 0 ? "开始设置" : step == 1 ? (Updating ? "确认并更新" : "确认并安装")
                 : step == 2 ? (busy ? "正在安装…" : "重试安装") : failure == null ? "启动控制台" : "重试启动";
             primary.IsEnabled = !busy;
             System.Windows.Automation.AutomationProperties.SetName(primary, primary.Content.ToString());
@@ -174,8 +227,9 @@ namespace ColorfulControlCenter.Installer
 
         private void Browse(object sender, RoutedEventArgs args)
         {
-            if (existing)
+            if (Updating)
             {
+                if (CheckRegisteredTarget() == null) { Render(); return; }
                 try { using (System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(selectedDirectory) {
                     UseShellExecute = true,
                 })) { } }
@@ -184,10 +238,12 @@ namespace ColorfulControlCenter.Installer
             }
             using (var dialog = new System.Windows.Forms.FolderBrowserDialog())
             {
-                dialog.Description = "选择 Colorful Control Center 的独立安装文件夹";
+                dialog.Description = "请选择独立的空文件夹，也可以新建一个文件夹。";
                 if (Directory.Exists(directoryBox.Text)) dialog.SelectedPath = directoryBox.Text;
-                if (dialog.ShowDialog(new FolderDialogOwner(this)) == System.Windows.Forms.DialogResult.OK)
-                    directoryBox.Text = dialog.SelectedPath;
+                if (dialog.ShowDialog(new FolderDialogOwner(this)) != System.Windows.Forms.DialogResult.OK) return;
+                directoryBox.Text = dialog.SelectedPath;
+                try { InstallationRequest.Create(directoryBox.Text, request); locationError.Visibility = Visibility.Collapsed; }
+                catch (ArgumentException error) { ShowLocationError(error.Message); }
             }
         }
 

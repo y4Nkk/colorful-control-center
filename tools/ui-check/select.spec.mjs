@@ -37,6 +37,30 @@ test("搜索、空列表、文本编辑键及选项焦点不进入 Tab 序列", 
   await search.press("Escape"); await expect(field).toBeFocused(); await expect(page.getByLabel("已选字体")).toHaveText("Monospace");
 });
 
+test("弹层沿触发器对齐，勾选当前项并提供长列表滚动箭头", async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 1000 });
+  const field = mode(page), menu = page.locator(".ccc-select-menu");
+  await field.click();
+  const current = options(page).getByRole("option", { selected: true });
+  await expect(current.locator('[data-icon="check"]')).toBeVisible();
+  await expect(menu).toHaveCSS("border-radius", "12px");
+  const anchor = await field.boundingBox(), bounds = await menu.boundingBox();
+  expect(Math.abs(bounds.x - anchor.x)).toBeLessThan(1);
+  expect(Math.abs(bounds.y - anchor.y - anchor.height - 4)).toBeLessThan(1);
+  expect(bounds.width).toBeGreaterThanOrEqual(anchor.width - 1);
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("combobox", { name: "选择字体", exact: true }).click();
+  const list = page.getByRole("listbox", { name: "选择字体", exact: true });
+  const down = menu.locator('[data-direction="down"]');
+  await expect(down).toBeVisible();
+  await down.hover();
+  await expect.poll(() => list.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+  await expect(menu.locator('[data-direction="up"]')).toBeVisible();
+  await page.getByRole("searchbox", { name: "搜索字体" }).press("Escape");
+  await expect(menu).toHaveCount(0);
+});
+
 test("禁用、异步选项、读取错误与空值不会虚构选中值", async ({ page }) => {
   await page.getByRole("button", { name: "替换选项" }).click();
   await expect(mode(page)).toHaveText("请选择"); await expect(page.getByLabel("已选模式")).toHaveText("a");
@@ -62,6 +86,17 @@ test("共享原语禁用、草稿与两步确认没有第二实现", async ({ pa
   await expect(page.getByRole("radio", { name: "不可选项" })).toBeDisabled();
   const slider = page.getByRole("slider", { name: "测试滑杆" });
   await slider.press("ArrowRight"); await expect(page.getByLabel("滑杆数值")).toHaveText("31");
+  const rail = slider.locator("..");
+  await expect(rail.locator(".ccc-range-track")).toHaveCSS("height", "24px");
+  await expect(rail.locator(".ccc-range-thumb")).toHaveCSS("width", "28px");
+  await expect(rail.locator(".ccc-range-tick")).toHaveCount(7);
+  await slider.press("End");
+  await expect(page.getByLabel("滑杆数值")).toHaveText("100");
+  await expect.poll(async () => {
+    const thumb = await rail.locator(".ccc-range-thumb").boundingBox();
+    const input = await slider.boundingBox();
+    return Math.abs(thumb.x + thumb.width - input.x - input.width);
+  }).toBeLessThan(1);
   await page.getByRole("button", { name: "执行隔离操作", exact: true }).click();
   await expect(page.getByLabel("执行次数")).toHaveText("0");
   const dialog = page.getByRole("dialog", { name: "执行隔离操作", exact: true });

@@ -182,7 +182,18 @@ impl Controller {
                 app,
             },
             &request.expected_revision,
-            |facts| Record::authorize(request.settings, facts),
+            |before, facts| {
+                if request.settings.enabled == before.settings.enabled
+                    && request.settings.actions == before.settings.actions
+                    && request.settings.osd != before.settings.osd
+                {
+                    let mut next = before.clone();
+                    next.settings.osd = request.settings.osd;
+                    Ok(next)
+                } else {
+                    Record::authorize(request.settings, facts)
+                }
+            },
             &mut baseline,
         )
     }
@@ -198,7 +209,7 @@ impl Controller {
                 app,
             },
             expected,
-            |_| Ok(initial),
+            |_, _| Ok(initial),
             &mut baseline,
         )
     }

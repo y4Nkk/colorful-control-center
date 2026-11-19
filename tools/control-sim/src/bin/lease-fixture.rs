@@ -78,7 +78,7 @@ fn parent(config: &Config) -> Result<()> {
         .arg(&config.scenario)
         .arg(&config.name)
         .arg(&config.label);
-    let mut watchdog = client::Watchdog::spawn(command, false, protocol::GuardPolicy::Protected)?;
+    let mut watchdog = client::Watchdog::spawn(command)?;
     watchdog.arm()?;
     config.write("ready", "ARMED")?;
     while !config.root.join("release-parent").exists() {
@@ -102,7 +102,5 @@ fn guard(config: &Config) -> Result<()> {
             config.wait("release-recovery")?;
             config.write("restored", "1")
         },
-        protocol::GuardPolicy::Protected,
-        || false,
     )
 }

@@ -1,13 +1,9 @@
-.ccc-control-devices > .ccc-power-policy { grid-column: 1 / -1; }
-.ccc-power-policy-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--ccc-space-4); align-items: start; }
-.ccc-power-policy-current, .ccc-power-policy-editor, .ccc-power-policy-summary, .ccc-power-policy-rule { display: flex; flex-direction: column; gap: var(--ccc-space-3); min-width: 0; }
-.ccc-power-policy-summary, .ccc-power-policy-rule { padding: var(--ccc-space-4); }
+.ccc-power-policy-summary { display: flex; flex-direction: column; gap: var(--ccc-space-3); min-width: 0; padding: var(--ccc-space-4); }
 .ccc-power-policy-summary h3 { margin: 0; font-size: var(--ccc-text-sm); }
 .ccc-power-policy-saved { display: flex; flex-direction: column; gap: var(--ccc-space-2); margin: 0; font-size: var(--ccc-text-sm); }
-.ccc-power-policy-saved > div, .ccc-power-policy-select { display: grid; grid-template-columns: 5em minmax(0, 1fr); gap: var(--ccc-space-3); align-items: center; }
+.ccc-power-policy-saved > div { display: grid; grid-template-columns: 5em minmax(0, 1fr); gap: var(--ccc-space-3); align-items: center; }
 .ccc-power-policy-saved dd { margin: 0; overflow-wrap: anywhere; }
 .ccc-power-policy-saved dt { color: var(--ccc-text-muted); }
-@container ccc-control (max-width: 700px) { .ccc-power-policy-columns { grid-template-columns: minmax(0, 1fr); } }
 .ccc-profile-mode-authorization { display: flex; flex-direction: column; gap: var(--ccc-space-3); padding: var(--ccc-space-3); min-width: 0; }
 .ccc-profile-mode-rules { display: flex; flex-direction: column; gap: var(--ccc-space-2); padding: 0; margin: 0; list-style: none; }
 .ccc-profile-mode-rules > li { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-2); font-size: var(--ccc-text-sm); }

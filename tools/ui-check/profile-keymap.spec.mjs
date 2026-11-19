@@ -1,6 +1,6 @@
-import { openProfileDetails, openStartupParameters, openProfileResults } from "./profile-review.mjs";
-import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { openProfileResults, openProfileSave, openStartupParameters, profilePanel, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
+import { configurationView, previewConfiguration } from "./configuration-review.mjs";
+import { openWorkspace, openSystemArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -8,8 +8,9 @@ const panel = page => page.getByRole("region", { name: "档案预览", exact: tr
 const card = dialog => dialog.getByRole("region", { name: "档案按键映射与宏", exact: true });
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(c => /^(apply_|save_|import_|set_startup|retry_)/.test(c.command)));
 async function select(page) {
-  await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: "性能档案", exact: true }).click();
+  await openSystemArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
+  await showProfileSettings(page);
 }
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
@@ -26,13 +27,13 @@ test.beforeEach(async ({ page }) => {
       canRestore: true, recoveryRequired: false, blockedReason: null, warnings: [], programsRequired: false, programs: { running: false, error: null } };
     data.keymapOwned = ["keyboard"];
   });
-  await page.goto("/"); await openWorkspace(page, "键盘与输入");
+  await page.goto("/"); await openWorkspace(page, "键盘与灯光");
 });
 
 test("完整宏预览只读，全部动作可展开且确认携带监听意图", async ({ page }) => {
   await select(page);
-  const review = await openConfigurationReview(page);
-  const keymap = card(review);
+  const review = await previewConfiguration(page);
+  const keymap = card(panel(page));
   await expect(keymap).toContainText("不启用程序宏监听，保留宏配置");
   await expect(keymap.getByRole("img", { name: "键盘映射范围" })).toBeVisible();
   for (const [name, first, second] of [
@@ -46,7 +47,7 @@ test("完整宏预览只读，全部动作可展开且确认携带监听意图",
   }
   await expect(keymap.locator("input")).toHaveCount(0);
   expect(await writes(page)).toEqual([]);
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
   const calls = await writes(page); expect(calls).toHaveLength(1);
   expect(calls[0].args.expected.settings.keymap.programsEnabled).toBe(false);
   expect(calls[0].args.expected.settings.keymap.configuration.devices).toHaveLength(2);
@@ -55,10 +56,9 @@ test("完整宏预览只读，全部动作可展开且确认携带监听意图",
 });
 
 test("捕获只保存已接管设备和当前启用位，完整导出不启动宏", async ({ page }) => {
-  await select(page); await page.getByPlaceholder("游戏 / 静音").fill("映射档案");
-  await page.getByRole("button", { name: "保存当前", exact: true }).click();
-  await page.getByRole("button", { name: "保存当前设置？", exact: true }).click();
-  const download = page.waitForEvent("download"); await panel(page).getByRole("button", { name: "导出", exact: true }).click();
+  await select(page); await openProfileSave(page, "映射档案", ["设备功能"]);
+  await saveProfileButton(page).click();
+  const download = page.waitForEvent("download"); await (await showProfileMenu(page)).getByRole("button", { name: "导出档案", exact: true }).click();
   const file = JSON.parse(await readFile(await (await download).path(), "utf8"));
   expect(file.settings.keymap.configuration.devices).toHaveLength(1);
   expect(file.settings.keymap.configuration.devices[0]).toMatchObject({ device: "keyboard", enabled: false });
@@ -72,34 +72,36 @@ test("程序监听导入明确说明应用后启用，预览不执行程序", as
     const file = structuredClone(window.__uiFixture.profile); file.name = "程序宏";
     file.settings.keymap.programsEnabled = true; file.settings.keymap.configuration.devices[1].enabled = true; return file;
   });
-  await page.getByLabel("导入性能档案", { exact: true }).setInputFiles({ name: "程序宏.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
-  await expect(card(await openProfileDetails(page))).toContainText("全部设置成功后启用程序宏监听，需保持应用运行");
+  await page.getByLabel("导入配置档案", { exact: true }).setInputFiles({ name: "程序宏.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+  await showProfileSettings(page);
+  await expect(card(profilePanel(page))).toContainText("全部设置成功后启用程序宏监听，需保持应用运行");
   expect(await writes(page)).toEqual([]);
 });
 
 test("启动档案共享映射目标，保存选择不应用或启用监听", async ({ page }) => {
-  await openWorkspace(page, "自动策略");
+  await openWorkspace(page, "电源");
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
   const parameters = await openStartupParameters(page);
   await expect(parameters.getByLabel("档案按键映射与宏")).toContainText("不启用程序宏监听");
   await page.keyboard.press("Escape");
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "授权启动应用档案", exact: true }).click();
   const calls = await writes(page); expect(calls.map(c => c.command)).toEqual(["set_startup_profile"]);
   expect(calls[0].args.expected.settings.keymap.programsEnabled).toBe(false);
 });
 
 test("旧宏目标确认失效，失败记录与暂停原因按步骤保留", async ({ page }) => {
-  await select(page); await openConfigurationReview(page);
+  await select(page); await previewConfiguration(page);
   await page.evaluate(() => { window.__uiFixture.profile.settings.keymap.programsEnabled = true; });
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("档案已变化");
   await page.evaluate(() => { window.__uiFixture.profileSteps = [{ step: "按键映射与宏", ok: false, message: "隔离部分写入失败" },
     { step: "恢复按键映射与宏", ok: false, message: "恢复记录待处理" }, { step: "恢复程序宏监听", ok: false, message: "前态未知，保持暂停" }]; });
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
-  await openConfigurationReview(page);
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await showProfileSettings(page);
+  await previewConfiguration(page);
+  await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("部分设置恢复失败");
   const results = await openProfileResults(page);
   await expect(results).toContainText("前态未知，保持暂停");
@@ -107,15 +109,14 @@ test("旧宏目标确认失效，失败记录与暂停原因按步骤保留", as
 
 test("缺少来源或待恢复记录拒绝捕获，不生成空映射", async ({ page }) => {
   await select(page); await page.evaluate(() => { window.__uiFixture.keymap.configuration = null; });
-  await page.getByPlaceholder("游戏 / 静音").fill("不可捕获");
-  await page.getByRole("button", { name: "保存当前", exact: true }).click();
-  await page.getByRole("button", { name: "保存当前设置？", exact: true }).click();
+  await openProfileSave(page, "不可捕获", ["设备功能"]);
+  await expect(saveProfileButton(page)).toBeDisabled();
   await expect(page.getByRole("alert")).toContainText("映射来源不可读"); expect(await writes(page)).toEqual([]);
 });
 
 test("映射卡片宽窄深浅布局可展开完整长内容且保持模块边框", async ({ page }) => {
   await select(page);
-  const keymap = card(await openProfileDetails(page));
+  const keymap = card(profilePanel(page));
   const name = "鼠标 · 查看全部 2 项映射";
   await keymap.getByRole("button", { name, exact: true }).click();
   const details = page.getByRole("dialog", { name, exact: true });

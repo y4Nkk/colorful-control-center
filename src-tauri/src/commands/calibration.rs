@@ -5,7 +5,7 @@ use tauri::Manager;
 pub(crate) async fn read_battery_calibration(
     app: tauri::AppHandle,
 ) -> Result<Option<battery::calibration::Profile>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<battery::Controller>()
             .read_calibration(&app.state::<Hal>())
     })
@@ -18,7 +18,7 @@ pub(crate) async fn start_battery_calibration(
     app: tauri::AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<battery::Controller>()
             .start_calibration(&app.state::<Hal>(), &expected_revision)
     })
@@ -31,7 +31,7 @@ pub(crate) async fn stop_battery_calibration(
     app: tauri::AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<battery::Controller>()
             .stop_calibration(&app.state::<Hal>(), &expected_revision)
     })
@@ -44,7 +44,7 @@ pub(crate) async fn restore_battery_calibration(
     app: tauri::AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<battery::Controller>()
             .restore_calibration(&app.state::<Hal>(), &expected_revision)
     })

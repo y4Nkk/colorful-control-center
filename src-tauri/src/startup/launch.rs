@@ -51,11 +51,15 @@ pub fn on_launch(app: &tauri::AppHandle) {
     if !std::env::args().any(|arg| arg == "--autostart") {
         return;
     }
+    let Some(operation) = crate::shutdown::enter() else {
+        return;
+    };
     let preparation = app.state::<LaunchReport>().prepare();
     let handle = app.clone();
     let result = std::thread::Builder::new()
         .name("startup-profile".into())
         .spawn(move || {
+            let _operation = operation;
             let _preparation = preparation;
             if let Err(error) = apply_selected(&handle) {
                 handle

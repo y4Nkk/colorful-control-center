@@ -3,8 +3,9 @@ import { actionLabel, keyLabel, KEY_OPTIONS, MOUSE_OPTIONS, KEYMAP_DEVICE_LABELS
 import { Button } from "../Button";
 import { Checkbox } from "../Checkbox";
 
-export function KeymapBindingList({ group, selected, disabled, onSelect, onChange }: {
+export function KeymapBindingList({ group, selected, enabled, disabled, onSelect, onChange, onToggle }: {
   group: KeymapDeviceSettings; selected: number | null; disabled: boolean;
+  enabled: boolean; onToggle: (enabled: boolean) => void;
   onSelect: (trigger: number) => void; onChange: (next: KeymapDeviceSettings) => void;
 }) {
   const available = (group.device === "keyboard" ? KEY_OPTIONS : MOUSE_OPTIONS)
@@ -15,8 +16,8 @@ export function KeymapBindingList({ group, selected, disabled, onSelect, onChang
     onChange({ ...group, bindings: [...group.bindings, binding] }); onSelect(trigger);
   };
   return <div className="ccc-keymap-bindings">
-    <Checkbox label={`启用${KEYMAP_DEVICE_LABELS[group.device]}映射`} checked={group.enabled} disabled={disabled}
-      onChange={event => onChange({ ...group, enabled: event.target.checked })} />
+    <Checkbox label={`启用${KEYMAP_DEVICE_LABELS[group.device]}映射`} checked={enabled} disabled={disabled}
+      onChange={event => onToggle(event.target.checked)} />
     <div className="ccc-keymap-list" aria-label={`${KEYMAP_DEVICE_LABELS[group.device]}映射列表`}>
       {group.bindings.map(binding => <Button key={binding.trigger} variant="selection" className="ccc-keymap-binding"
         aria-pressed={selected === binding.trigger} disabled={disabled} onClick={() => onSelect(binding.trigger)}>

@@ -25,7 +25,7 @@ export function AboutSettings({ active }: { active: boolean }) {
   }, [active, attempt]);
   return (
     <Surface as="section" variant="group" className="ccc-settings-group" aria-labelledby={`${id}-heading`}>
-      <header className="ccc-settings-group-heading"><h2 className="ccc-icon-title" id={`${id}-heading`}><Icon name="info" />关于</h2></header>
+      <header className="ccc-panel-head"><h2 className="ccc-panel-title" id={`${id}-heading`}><Icon name="info" />关于</h2></header>
       <div className="ccc-about-product">
         <BrandLogo className="ccc-about-logo" />
         <div className="ccc-about-copy"><h3>Colorful Control Center</h3></div>

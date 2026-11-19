@@ -1,93 +1,87 @@
-import { Icon } from "../components/Icon";
-import { Surface } from "../components/Surface";
-import { Input } from "../components/Input";
+import { useRef, useState } from "react";
+import type { ProfileMeta } from "../api/client";
 import { Button } from "../components/Button";
-import { DetailsDialog } from "../components/DetailsDialog";
-import { useRef } from "react";
-import { ConfirmButton } from "../components/ConfirmButton";
-import { ConfigurationAction } from "../components/ConfigurationAction";
-import { ProfilePreview } from "../components/profiles/ProfilePreview";
-import { ProfileArtwork } from "../components/profiles/ProfileArtwork";
+import { Input } from "../components/Input";
+import { Surface } from "../components/Surface";
+import { ProfileSaveDialog } from "../components/profiles/ProfileSaveDialog";
+import { ProfileDetail, ProfileImport } from "../components/profiles/ProfileDetail";
+import { PROFILE_GROUP_LABELS } from "../components/profiles/profile-groups";
 import { useProfiles } from "./useProfiles";
 
-export function ProfilesWorkspace({ active, requestedProfile }: { active: boolean; requestedProfile?: { name: string } | null }) {
+export function ProfilesWorkspace({ active, requestedProfile, onOpenRules }: {
+  active: boolean;
+  requestedProfile?: { name: string } | null;
+  onOpenRules: () => void;
+}) {
   const model = useProfiles(active, requestedProfile);
   const fileInput = useRef<HTMLInputElement>(null);
-  const settings = model.preview?.settings;
-  const preview = settings ? <ProfilePreview settings={settings} modeTarget={model.modeTarget}
-    displayReview={model.displayReview} gpuPowerReview={model.gpuPowerReview} graphicsModeReview={model.graphicsModeReview} /> : null;
-  return (
-    <div className="ccc-control ccc-profiles">
-      <Surface as="section" variant="group" className="ccc-panel" aria-label="新建档案">
-        <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="profiles" />新建档案</h2></div>
-        <div className="ccc-actions">
-          <label className="ccc-profile-name">档案名
-            <Input value={model.name} disabled={model.busy} maxLength={60}
-              onChange={(e) => model.setName(e.target.value)} placeholder="游戏 / 静音" />
-          </label>
-          <ConfirmButton icon="save" key={model.name} label="保存当前" confirmLabel={model.profiles.some((p) => p.name === model.name.trim()) ? "覆盖同名档案？" : "保存当前设置？"}
-            disabled={!model.name.trim()} busy={model.busy} onConfirm={model.save} />
-          <Button icon="upload" variant="ghost" type="button" disabled={model.busy} onClick={() => fileInput.current?.click()}>导入</Button>
-          <Input ref={fileInput} type="file" aria-label="导入性能档案" accept=".json,application/json" hidden onChange={(e) => {
-            const file = e.target.files?.[0]; e.target.value = ""; if (file) void model.stageImport(file);
-          }} />
+  const saveTrigger = useRef<HTMLButtonElement>(null);
+  const [editor, setEditor] = useState<{ updating: ProfileMeta | null }>();
+  const startEditor = (updating: ProfileMeta | null) => { model.clearError(); setEditor({ updating }); };
+  const closeEditor = () => {
+    setEditor(undefined);
+    model.clearError();
+    if (active) requestAnimationFrame(() => {
+      if (document.activeElement === document.body) saveTrigger.current?.focus();
+    });
+  };
+  const empty = model.status === "ready" && !model.profiles.length;
+  const actionError = model.error === model.selection?.review.blocked ? null : model.error;
+  const createAndImport = <div className="ccc-actions">
+    <Button ref={saveTrigger} icon="add" disabled={model.busy || model.status === "loading"} onClick={() => startEditor(null)}>保存当前配置</Button>
+    <Button icon="upload" variant="secondary" disabled={model.busy} onClick={() => fileInput.current?.click()}>导入档案</Button>
+  </div>;
+  return <div className="ccc-control">
+    {empty && !model.imported
+      ? <Surface as="section" variant="group" className="ccc-panel ccc-profile-empty" aria-label="首次创建档案">
+        <div>
+          <h2 className="ccc-panel-title">还没有配置档案</h2>
+          <p className="ccc-control-caption">保存常用的设备设置，下次一起应用。</p>
         </div>
-        {model.error && <p className="ccc-control-error" role="alert">{model.error}</p>}
+        {createAndImport}
       </Surface>
-      <div className="ccc-profile-layout">
-        <Surface as="section" variant="group" className="ccc-panel" aria-label="档案列表">
-          <h2 className="ccc-panel-title">档案</h2>
-          {model.profiles.length === 0 ? <span className="ccc-chip">暂无档案</span> : model.profiles.map((p) => (
-            <Button variant="selection" aria-pressed={model.preview?.name === p.name} key={p.name} className="ccc-profile-choice"
-              disabled={model.busy} onClick={() => { void model.select(p.name); }}>
-              <strong>{p.name}</strong><time>{new Date(p.savedAtMs).toLocaleDateString("zh-CN")}</time>
-            </Button>
-          ))}
-        </Surface>
-        <Surface as="section" variant="group" className="ccc-panel" aria-label="档案预览">
-          {model.preview ? <>
-            <div className="ccc-panel-head"><h2 className="ccc-panel-title">{model.preview.name}</h2>
-              <div className="ccc-module-tools"><DetailsDialog title="档案详细信息" label="详情" wide>{preview}</DetailsDialog></div>
-            </div>
-            <div className="ccc-profile-identity"><ProfileArtwork /><div className="ccc-module-summary">
-              <strong>{model.imported ? "待导入" : "已保存"}</strong>
-              <time className="ccc-control-caption">{new Date(model.preview.savedAtMs).toLocaleDateString("zh-CN")}</time>
-            </div></div>
-            {!model.imported && <div className="ccc-actions">
-              <Button icon="download" variant="ghost" type="button" disabled={model.busy} onClick={() => void model.download()}>导出</Button>
-              <ConfirmButton icon="delete" key={`delete:${JSON.stringify(model.preview)}`} label="删除" confirmLabel="删除档案"
-                busy={model.busy} onConfirm={model.remove}><p>删除「{model.preview.name}」及其开机应用设置。</p></ConfirmButton>
-            </div>}
-            <ProfileChanges model={model} preview={preview} />
-          </> : <div className="ccc-profile-identity"><ProfileArtwork /><p className="ccc-control-caption">选择档案查看设置</p></div>}
-          {model.application && model.application.steps.length > 0 && <Surface as="section" variant="group" className="ccc-profile-results" aria-label="最近应用记录">
-            <div className="ccc-panel-head"><h3 className="ccc-panel-title"><Icon name="logs" />最近执行 · {model.application.name}</h3>
-              <span className="ccc-chip">{model.application.targetsApplied ? "目标已确认" : "未完成全部目标"}</span></div>
-            {model.application.targetsApplied && model.application.steps.some(step => !step.ok) && <p className="ccc-control-caption">目标设置已应用，部分收尾待处理。</p>}
-            {model.application.steps.filter(step => !step.ok).map((step, i) => <p key={i} className="ccc-control-error">{step.step}：{step.message}</p>)}
-            <DetailsDialog title={`执行明细 · ${model.application.steps.length} 项`}><ol className="ccc-profile-steps" aria-label="执行结果">
-            {model.application.steps.map((step, index) => <li key={`${index}-${step.step}`}>
-              <span className="ccc-step-status"><Icon name={step.ok ? "check-circle" : "error"} label={step.ok ? "成功" : "失败"} size={16} />{step.step}</span><span>{step.message}</span>
-            </li>)}
-            </ol></DetailsDialog>
-          </Surface>}
-        </Surface>
-      </div>
-    </div>
-  );
+      : <div className="ccc-profile-toolbar">{createAndImport}</div>}
+    <Input ref={fileInput} type="file" aria-label="导入配置档案" accept=".json,application/json" hidden onChange={event => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (file) void model.stageImport(file);
+    }} />
+    {!editor && actionError && <p className="ccc-control-error" role="alert">{actionError}</p>}
+    {model.status === "loading" && <p className="ccc-control-caption" role="status">正在读取档案…</p>}
+    {model.listError && model.status === "error" && <div className="ccc-actions">
+      <p className="ccc-control-error" role="alert">{model.listError}</p>
+      <Button icon="refresh" variant="ghost" onClick={() => void model.reload()}>重新读取档案</Button>
+    </div>}
+    {model.rulesError && <p className="ccc-control-caption is-warn">部分规则引用无法读取 · {model.rulesError}</p>}
+    {(model.profiles.length > 0 || model.imported) && <div className="ccc-module-grid" data-module-layout={model.profiles.length ? "profiles" : "profile-import"}>
+      {model.profiles.length > 0 && <Surface as="section" variant="group" className="ccc-panel ccc-profile-list" aria-label="档案列表">
+        {model.profiles.map(profile => <ProfileChoice key={profile.name} profile={profile} model={model} />)}
+      </Surface>}
+      {model.imported
+        ? <ProfileImport model={model} file={model.imported} />
+        : <ProfileDetail model={model} onUpdate={startEditor} onOpenRules={onOpenRules} />}
+    </div>}
+    {editor && <ProfileSaveDialog updating={editor.updating} profiles={model.profiles}
+      rules={model.rules} rulesLoading={model.rulesLoading} rulesError={model.rulesError} busy={model.busy} error={model.error}
+      onClose={closeEditor}
+      onSave={(name, settings, existing) => model.persist(name, settings, existing, "save")} />}
+  </div>;
 }
 
-function ProfileChanges({ model, preview }: { model: ReturnType<typeof useProfiles>; preview: React.ReactNode }) {
-  const file = model.preview;
-  if (!file) return null;
-  const { settings } = file;
-  const blocked = model.applicationPending || settings.oemPowerMode != null && !model.modeTarget ||
-    settings.display != null && !model.displayReview || settings.gpuPower != null && !model.gpuPowerReview ||
-    settings.graphicsMode != null && !model.graphicsModeReview;
-  const revision = JSON.stringify([file, model.imported, model.modeTarget, model.displayReview, model.gpuPowerReview, model.graphicsModeReview]);
-  return <ConfigurationAction label={file.name} revision={revision} disabled={model.busy || !model.imported && blocked}
-    confirmLabel={model.imported ? "导入档案" : "应用档案"} onConfirm={model.imported ? model.confirmImport : model.apply}>
-    {model.imported && model.profiles.some(profile => profile.name === file.name) && <p>导入将覆盖同名档案。</p>}
-    {preview}
-  </ConfigurationAction>;
+function ProfileChoice({ profile, model }: { profile: ProfileMeta; model: ReturnType<typeof useProfiles> }) {
+  return <Button variant="selection" aria-pressed={!model.imported && model.selectedName === profile.name}
+    className="ccc-profile-choice" disabled={model.busy} onClick={() => model.select(profile.name)}>
+    <strong>{profile.name}</strong>
+    <span className="ccc-control-caption">{profile.groups.map(group => PROFILE_GROUP_LABELS[group]).join(" · ")}</span>
+    <ProfileRuleLabels profile={profile} model={model} />
+  </Button>;
+}
+
+function ProfileRuleLabels({ profile, model }: { profile: ProfileMeta; model: ReturnType<typeof useProfiles> }) {
+  const rules = model.rules.filter(rule => rule.name === profile.name);
+  if (!rules.length) return null;
+  return <span className="ccc-profile-rule-labels">{rules.map(rule =>
+    <span key={rule.label} data-stale={rule.revision !== profile.revision}>
+      {rule.label}{rule.revision !== profile.revision ? " · 待确认" : ""}
+    </span>)}</span>;
 }

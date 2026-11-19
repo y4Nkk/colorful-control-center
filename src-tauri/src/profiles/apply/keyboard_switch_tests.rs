@@ -113,7 +113,7 @@ fn zone_keys_change_only_the_selected_flag_and_share_exact_initial_restore() {
             let mut expected = before;
             expected[84 + usize::from(zone) * 4] = 0;
             assert_eq!(f.device.0.lock().unwrap().pages[2], expected);
-            let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+            let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
             let target = captured.keyboard_lighting.unwrap();
             assert_eq!(target.enabled, master);
             let crate::lighting::LightingRequest::ZoneRgb { zones, .. } = target.settings else {

@@ -201,18 +201,9 @@ fn commit(hal: &Hal, before: Snapshot, targets: Vec<Pair>, mode: u8) -> Result<(
         recovery.fan_mode.get_or_insert(before.mode);
         settings::remember(&mut recovery.fan_page, before.saved.clone());
     }
-    if mode == 0 {
-        hal.prepare_fan_auto()?;
-    } else {
-        hal.arm_fan_guard(crate::watchdog::GuardPolicy::Protected)?;
-    }
-    super::fail_safe(hal, super::software::stop(hal))?;
+    super::software::stop_safely(hal)?;
     let result = hal.with_dchu(|io| transaction::apply(io, &before, &targets, mode));
-    super::fail_safe(hal, result)?;
-    if mode == 0 {
-        hal.disarm_fan_guard()?;
-    }
-    Ok(())
+    super::fail_safe(hal, result)
 }
 
 pub fn restore_pairs(io: &Dchu, pairs: &[Pair]) -> Result<()> {

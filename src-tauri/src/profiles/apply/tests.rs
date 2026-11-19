@@ -58,6 +58,22 @@ fn settings() -> ProfileSettings {
 }
 
 #[test]
+fn manual_review_reports_live_cpu_values_and_blocks_locked_targets_without_outputs() {
+    let f = Fixture::new();
+    let settings = settings();
+    let review = review::preview_manual(&f.hal, &f.gpu, f.devices(), &settings).unwrap();
+    assert!(review.blocked.is_none());
+    let before = review.before.unwrap().runtime_cpu.unwrap();
+    assert_eq!(before.core_offset_units, Some(-51));
+    assert_ne!(before.pl1_w, settings.runtime_cpu.unwrap().pl1_w);
+
+    f.device.0.lock().unwrap().power |= 1 << 63;
+    let blocked = review::preview_manual(&f.hal, &f.gpu, f.devices(), &settings).unwrap();
+    assert!(blocked.blocked.unwrap().contains("锁定"));
+    assert!(f.device.0.lock().unwrap().events.is_empty());
+}
+
+#[test]
 fn runtime_profile_applies_real_domain_and_user_restore_keeps_first_raw_baseline() {
     let f = Fixture::new();
     let original = f.device.0.lock().unwrap().power;
@@ -222,7 +238,13 @@ fn failed_runtime_restore_is_reported_and_user_retry_retains_exact_baseline() {
 #[test]
 fn capture_and_json_keep_runtime_precision_separate_from_saved_values() {
     let f = Fixture::new();
-    let captured = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let captured = crate::profiles::capture_current(
+        &f.hal,
+        &f.gpu,
+        f.devices(),
+        &crate::profiles::ProfileGroup::ALL,
+    )
+    .unwrap();
     assert_eq!(captured.pl1_w, Some(65.0));
     let runtime = captured.runtime_cpu.unwrap();
     assert_eq!(runtime.pl1_w, Some(66.125));

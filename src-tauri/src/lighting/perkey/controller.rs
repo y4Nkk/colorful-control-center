@@ -17,6 +17,17 @@ pub struct Controller {
     test_runtime: Option<Arc<runtime::TestRuntime>>,
 }
 impl Controller {
+    pub(crate) fn release_on_exit(&self) -> Result<()> {
+        let session = self
+            .state
+            .lock()
+            .map_err(|_| anyhow!("逐键灯效状态异常"))?
+            .session
+            .take();
+        drop(session);
+        Ok(())
+    }
+
     #[cfg(test)]
     pub(crate) fn with_test_io(mut self, io: Arc<dyn Io + Send + Sync>) -> Self {
         self.test_io = Some(io);

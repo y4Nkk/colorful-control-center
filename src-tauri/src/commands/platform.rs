@@ -5,7 +5,7 @@ use tauri::Manager;
 pub(crate) async fn read_platform_power(
     app: tauri::AppHandle,
 ) -> Result<platform::Profile, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<platform::Controller>()
             .read(&app.state::<Hal>())
     })
@@ -18,7 +18,7 @@ pub(crate) async fn apply_pd_level(
     app: tauri::AppHandle,
     request: platform::Request,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<platform::Controller>()
             .apply(&app.state::<Hal>(), &request)
     })
@@ -31,7 +31,7 @@ pub(crate) async fn restore_pd_level(
     app: tauri::AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<platform::Controller>()
             .restore(&app.state::<Hal>(), &expected_revision)
     })

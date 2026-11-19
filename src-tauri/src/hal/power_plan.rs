@@ -170,7 +170,7 @@ impl PowerAccess for NativePower {
         bail!("电源计划数量超过上限")
     }
     fn usb(&self, scheme: u128) -> Result<[u32; 2]> {
-        read_setting(scheme, &USB, &SELECTIVE_SUSPEND, "读取USB选择性暂停")
+        read_setting(scheme, &USB, &SELECTIVE_SUSPEND, "读取USB 选择性暂停")
     }
     fn set_usb(&self, scheme: u128, ac: bool, value: u32) -> Result<()> {
         write_setting(
@@ -179,7 +179,7 @@ impl PowerAccess for NativePower {
             &SELECTIVE_SUSPEND,
             ac,
             value,
-            "写入USB选择性暂停",
+            "写入USB 选择性暂停",
         )
     }
     fn active(&self) -> Result<u128> {

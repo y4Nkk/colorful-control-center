@@ -43,8 +43,8 @@ export function applyMicrophoneTarget(data, target) {
   }
   return true;
 }
-export function applyProfileMicrophones(data) {
-  const target = data.profile.settings.microphones;
+export function applyProfileMicrophones(data, settings) {
+  const target = settings.microphones;
   if (!target) return false;
   invokeMicrophones(data, "read_microphones", {});
   return applyMicrophoneTarget(data, target);

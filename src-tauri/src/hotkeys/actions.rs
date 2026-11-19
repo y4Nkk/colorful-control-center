@@ -399,8 +399,8 @@ fn fan_mode(app: &AppHandle, expected: &str, mode: u8) -> Result<osd::Message> {
         match mode {
             0 => "自动",
             1 => "全速",
-            5 => "MaxQ",
-            6 => "已保存的自定义设置",
+            5 => "能效优先",
+            6 => "自定义",
             _ => "未知",
         },
     ))

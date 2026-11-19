@@ -11,7 +11,7 @@ mod session_tests;
 fn capture_roundtrip_disabled_nonzero_perkey_is_read_only_and_starts_no_events() {
     let h = Harness::new();
     h.f.device.0.lock().unwrap().pages[2][80] = 0;
-    let captured = crate::profiles::capture_current(&h.f.hal, &h.f.gpu, h.f.devices()).unwrap();
+    let captured = crate::profiles::capture_current(&h.f.hal, &h.f.gpu, h.f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     assert!(captured.keyboard_lighting.is_none());
     let target = captured.perkey_lighting.as_ref().unwrap();
     assert!(!target.values.enabled);
@@ -21,7 +21,7 @@ fn capture_roundtrip_disabled_nonzero_perkey_is_read_only_and_starts_no_events()
         matches!(&target.values.pattern, perkey::Pattern::Static { colors } if colors.len() == 120)
     );
     let dir = tempfile::tempdir().unwrap();
-    crate::profiles::save_in(dir.path(), captured.clone(), "逐键").unwrap();
+    crate::profiles::save_in(dir.path(), captured.clone(), "逐键", None).unwrap();
     let file = crate::profiles::load_from(dir.path(), "逐键").unwrap();
     assert!(file.settings == captured);
     assert!(h.f.device.0.lock().unwrap().events.is_empty());

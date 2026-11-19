@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readEnergyPolicy, type EnergyPolicy, type EnergyPolicyProfile } from "../../api/client";
+import { ENERGY_POLICY_LABEL, readEnergyPolicy, type EnergyPolicy, type EnergyPolicyProfile } from "../../api/client";
 import { toast } from "../use-toast";
 import { ENERGY_FLOORS, ENERGY_CEILINGS } from "../../lib/energy-policy";
 
@@ -25,7 +25,9 @@ export function useEnergyPolicy(active: boolean, revision: number, onChanged: ()
     if (!next) { setProfile(null); return; }
     const initial: EnergyPolicy = next.saved ?? { enabled: false, everyDay: true, weekdays: 0, slots: [null, null], automatic: true, limits: next.capability.factory };
     const before = accepted.current; accepted.current = structuredClone(initial);
-    setProfile(next); setDraft(previous => reset || !previous || JSON.stringify(previous) === JSON.stringify(before) ? structuredClone(initial) : previous);
+    setProfile(next);
+    setDraft(previous => reset || !previous || JSON.stringify(previous) === JSON.stringify(before)
+      ? structuredClone(initial) : { ...previous, enabled: initial.enabled });
   }, []);
   useEffect(() => {
     if (!active) return;
@@ -39,12 +41,12 @@ export function useEnergyPolicy(active: boolean, revision: number, onChanged: ()
     return () => clearInterval(timer);
   }, [active, revision, hasProfile, reload]);
   const run = async (action: () => Promise<void>, { changed = true, preserveDraft = false }: { changed?: boolean; preserveDraft?: boolean } = {}) => {
-    if (writing.current) return;
+    if (!active || writing.current) return;
     writing.current = true; ++generation.current; setBusy(true); onBusy(true); setError(null);
     try {
       await reading.current?.catch(() => undefined);
       await action(); await reload(!preserveDraft, true);
-      if (changed) toast({ kind: "success", title: "节能计划已发送并保存" });
+      if (changed) toast({ kind: "success", title: `${ENERGY_POLICY_LABEL}已发送并保存` });
     } catch (e) {
       setError(String(e)); writing.current = false;
       await reload(false).catch(e => setError(previous => `${previous}；重新读取：${e}`));
@@ -62,6 +64,6 @@ export function useEnergyPolicy(active: boolean, revision: number, onChanged: ()
         ? limits : { floor: 40, ceiling: 100 } });
     }
   };
-  return { profile, draft, setDraft, dirty, changeAutomatic, busy, error, loaded, run,
+  return { profile, current: accepted.current, draft, setDraft, dirty, changeAutomatic, busy, error, loaded, run,
     reread: () => run(async () => {}, { changed: false, preserveDraft: true }) };
 }

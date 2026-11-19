@@ -138,6 +138,7 @@ macro_rules! handler {
             crate::commands::profiles::save_profile,
             crate::commands::profile_policy::read_power_profile_policy,
             crate::commands::profile_policy::save_power_profile_policy,
+            crate::commands::profile_policy::set_power_profile_policy_enabled,
             crate::commands::profile_policy::pause_power_profile_policy,
             crate::commands::profile_policy::restore_power_profile_policy,
             crate::commands::profile_policy::reload_power_profile_policy,
@@ -147,7 +148,7 @@ macro_rules! handler {
             crate::commands::profiles::load_profile,
             crate::commands::profiles::delete_profile,
             crate::commands::profiles::capture_profile_settings,
-            crate::commands::profiles::preview_profile_mode,
+            crate::commands::profiles::preview_profile_application,
             crate::commands::profiles::preview_profile_authorization,
             crate::commands::profiles::apply_profile,
             crate::commands::profiles::preview_profile_display,
@@ -162,7 +163,6 @@ macro_rules! handler {
             crate::commands::settings::set_startup_profile,
             crate::commands::settings::export_profile,
             crate::commands::settings::preview_profile_import,
-            crate::commands::settings::import_profile,
         ])
     };
 }
@@ -183,6 +183,10 @@ pub(crate) fn restrict(
             invoke.resolver.reject("此窗口只允许读取屏显状态");
             return true;
         }
+        let Some(_operation) = crate::shutdown::enter() else {
+            invoke.resolver.reject(crate::shutdown::CLOSING);
+            return true;
+        };
         handler(invoke)
     }
 }

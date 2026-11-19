@@ -1,10 +1,8 @@
 /* 监控语义：温度是历史趋势，转速是读数，比例是容量；不以同一折线重复表示。 */
-.ccc-hardware-overview { display: grid; gap: var(--ccc-space-4); min-width: 0; }
 .ccc-parameter-descriptions { display: grid; gap: var(--ccc-space-3); margin: var(--ccc-space-3) 0 0; padding: 0; list-style: none; }
 .ccc-parameter-descriptions strong { color: var(--ccc-text); font-weight: 500; }
 .ccc-parameter-descriptions p { margin: var(--ccc-space-1) 0 0; line-height: 1.7; }
-.ccc-hardware-readings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-4); }
-.ccc-sensor-group { display: flex; flex-direction: column; gap: var(--ccc-space-3); min-width: 0; padding: var(--ccc-space-4); }
+.ccc-sensor-group { display: grid; grid-template-rows: subgrid; gap: var(--ccc-space-3); min-width: 0; padding: var(--ccc-space-4); }
 .ccc-sensor-identity { display: grid; grid-template-columns: minmax(0, 1fr) minmax(80px, 40%); align-items: center; gap: var(--ccc-space-2); min-height: 115px; }
 .ccc-hardware-description { min-width: 0; }
 .ccc-sensor-group h3 { margin: var(--ccc-space-1) 0; font-size: var(--ccc-text-xl); font-weight: 600; }
@@ -16,8 +14,9 @@
 .ccc-hardware-brand.is-nvidia img { object-fit: cover; }
 .ccc-hardware-art { display: block; width: 100%; height: auto; overflow: visible; }
 .ccc-art-etching { font-family: var(--ccc-font-sans); }
-.ccc-sensor-identity > .ccc-hardware-art { max-width: 220px; justify-self: end; }
-.ccc-sensor-metrics { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--ccc-space-3); align-items: center; min-height: 128px; margin-top: auto; }
+.ccc-sensor-visual { display: flex; align-items: center; justify-content: flex-end; gap: var(--ccc-space-1); min-width: 0; }
+.ccc-sensor-visual > .ccc-hardware-art { flex: 1 1 auto; min-width: 0; max-width: 220px; }
+.ccc-sensor-metrics { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--ccc-space-3); align-items: center; min-height: 128px; }
 .ccc-sensor-summary { min-width: 0; }
 .ccc-sensor-ratios { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--ccc-space-3); align-items: start; align-self: start; min-width: 0; }
 .ccc-meter { display: flex; flex-direction: column; gap: var(--ccc-space-2); min-width: 0; }
@@ -25,59 +24,102 @@
 .ccc-meter.is-ratio { align-items: center; }
 .ccc-meter-label { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); white-space: nowrap; }
 .ccc-meter-value { display: flex; align-items: baseline; gap: var(--ccc-space-1); color: var(--ccc-text); font-size: var(--ccc-text-reading); line-height: 1.2; white-space: nowrap; }
-.ccc-meter-value em { font-style: normal; color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
-.ccc-meter-ring { position: relative; display: grid; place-items: center; width: var(--ccc-meter-ring-size); height: var(--ccc-meter-ring-size); }
+.ccc-meter-unit { color: var(--ccc-text-muted); font-family: var(--ccc-font-sans); font-size: var(--ccc-text-xs); }
+.ccc-meter-ring { --ccc-ring-diameter: var(--ccc-meter-ring-size); position: relative; display: grid; place-items: center; width: var(--ccc-ring-diameter); aspect-ratio: 1; }
 .ccc-meter-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke-width: 5; }
 .ccc-meter-ring-track { stroke: var(--ccc-hairline); }
 .ccc-meter-ring-fill { stroke: currentColor; stroke-linecap: round; }
-.ccc-meter-ring.is-capacity .ccc-meter-value { flex-direction: column; align-items: center; gap: 0; }
+.ccc-meter-ring .ccc-meter-value { position: relative; display: grid; justify-items: center; gap: var(--ccc-space-1); font-size: calc(var(--ccc-ring-diameter) * .28); font-variant-numeric: lining-nums tabular-nums; line-height: 1; }
+.ccc-meter-ring .ccc-meter-unit { min-height: 1em; }
 .ccc-meter-total { font-size: var(--ccc-text-xs); color: var(--ccc-text-muted); }
 
-.ccc-capacity-overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-4); }
 .ccc-capacity-card { min-width: 0; padding: var(--ccc-space-4); }
-.ccc-capacity-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(70px, 34%); align-items: center; gap: var(--ccc-space-2); min-height: 70px; margin-bottom: var(--ccc-space-3); }
-.ccc-capacity-head h3 { margin: var(--ccc-space-1) 0; font-size: var(--ccc-text-xl); font-weight: 600; }
+.ccc-capacity-head { display: grid; grid-template-columns: minmax(0, 1fr) 112px; align-items: center; gap: var(--ccc-space-2); margin-bottom: var(--ccc-space-2); }
+.ccc-capacity-heading { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-2); min-width: 0; }
+.ccc-capacity-heading h3 { margin: 0; font-size: var(--ccc-text-xl); font-weight: 600; }
 .ccc-capacity-head > .ccc-hardware-art { max-height: 68px; justify-self: end; }
-.ccc-capacity-usage { display: flex; align-items: center; gap: var(--ccc-space-3); min-width: 0; }
-.ccc-capacity-ring { width: var(--ccc-meter-ring-compact); height: var(--ccc-meter-ring-compact); flex: none; color: var(--ccc-action); font-variant-numeric: tabular-nums; }
-.ccc-capacity-ring > span { color: var(--ccc-text); }
-.ccc-capacity-value { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ccc-space-2); }
-.ccc-capacity-value output { font-size: var(--ccc-text-reading); line-height: 1.2; }
-.ccc-capacity-value > span { font-size: var(--ccc-text-xs); color: var(--ccc-text-muted); }
-.ccc-capacity-available { font-size: var(--ccc-text-xs); color: var(--ccc-text-muted); }
-.ccc-storage-volumes { display: grid; gap: var(--ccc-space-4); }
-.ccc-storage-volume { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: var(--ccc-space-3); align-items: center; }
-.ccc-storage-mount { color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); }
+.ccc-capacity-bar { display: block; width: 100%; height: 8px; overflow: hidden; border-radius: var(--ccc-radius-full); }
+.ccc-capacity-track { fill: var(--ccc-content-muted); }
+.ccc-capacity-fill { fill: var(--ccc-action); }
+.ccc-capacity-empty, .ccc-capacity-available { font-size: var(--ccc-text-xs); color: var(--ccc-text-muted); }
+.ccc-capacity-empty { margin: var(--ccc-space-2) 0 0; }
+.ccc-memory-usage { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(0, 3fr); align-items: center; gap: var(--ccc-space-5); }
+.ccc-memory-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-3); margin: 0; }
+.ccc-memory-stats dt { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
+.ccc-memory-stats dd { margin: var(--ccc-space-1) 0 0; font-family: var(--ccc-font-mono); font-size: var(--ccc-text-md); font-weight: 600; }
+.ccc-memory-primary { grid-column: 1 / -1; }
+.ccc-memory-primary dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ccc-space-2); font-size: var(--ccc-text-temperature); line-height: 1.15; }
+.ccc-memory-percent { padding: var(--ccc-space-1) var(--ccc-space-2); border-radius: var(--ccc-radius-full); color: var(--ccc-action); background: var(--ccc-nav-selected); font-size: var(--ccc-text-xs); }
+.ccc-memory-trend { min-width: 0; padding: var(--ccc-space-3); border-radius: var(--ccc-radius-control); background: var(--ccc-content-muted); }
+.ccc-memory-trend-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ccc-space-2); margin-bottom: var(--ccc-space-3); font-size: var(--ccc-text-xs); color: var(--ccc-text-muted); }
+.ccc-memory-trend-heading > :first-child { font-weight: 600; color: var(--ccc-text); }
+.ccc-memory-chart { padding-inline-end: calc(var(--ccc-space-6) + var(--ccc-space-2)); }
+.ccc-trend-plot.ccc-memory-plot { height: 88px; }
+.ccc-memory-midline { stroke: var(--ccc-hairline); }
+.ccc-memory-tick { position: absolute; left: calc(100% + var(--ccc-space-2)); transform: translateY(-50%); color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
+.ccc-storage-volumes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); gap: var(--ccc-space-3) var(--ccc-space-5); list-style: none; margin: 0; padding: 0; }
+.ccc-storage-volume { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--ccc-space-3); align-items: center; padding-block: var(--ccc-space-2); }
+.ccc-storage-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--ccc-radius-control); background: var(--ccc-content-muted); color: var(--ccc-text-muted); }
+.ccc-storage-info { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-1); min-width: 0; }
+.ccc-storage-info h4 { display: flex; gap: var(--ccc-space-1); margin: 0; white-space: nowrap; font-size: var(--ccc-text-sm); font-weight: 600; }
+.ccc-storage-info h4 > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ccc-storage-info h4 > :last-child { flex: none; }
 
-.ccc-trend { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: var(--ccc-space-4) var(--ccc-space-5); align-items: center; }
-.ccc-trend-chip { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: var(--ccc-space-2); color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); }
-.ccc-trend-dot { width: 6px; height: 6px; border-radius: var(--ccc-radius-full); }
-.ccc-trend-value { grid-column: 1 / -1; color: var(--ccc-text); font-size: var(--ccc-text-temperature); line-height: 1.2; }
-.ccc-trend-value em { margin-left: var(--ccc-space-1); color: var(--ccc-text-muted); font-size: var(--ccc-text-md); font-style: normal; }
-.ccc-trend-value.is-hot { color: var(--ccc-danger); }
-.ccc-trend-hint { margin-left: auto; color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
-.ccc-trend-plot { position: relative; min-width: 0; height: 64px; padding-right: var(--ccc-space-6); }
-.ccc-trend-columns { display: block; width: 100%; height: 100%; border-bottom: var(--ccc-border); }
-.ccc-trend-bar { fill: currentColor; opacity: 0.36; }
-.ccc-trend-bar.is-latest, .ccc-trend-bar:hover { opacity: 1; }
-.ccc-trend-bar.is-hot { fill: var(--ccc-danger); opacity: 0.75; }
-.ccc-trend-bar.is-hot.is-latest { opacity: 1; }
-.ccc-trend-limit { stroke: var(--ccc-warning); stroke-dasharray: 4 4; opacity: 0.3; pointer-events: none; }
-.ccc-trend-limit-label, .ccc-trend-zero { position: absolute; right: 0; color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
-.ccc-trend-limit-label { transform: translateY(-50%); }
-.ccc-trend-zero { bottom: 0; transform: translateY(50%); }
+.ccc-temperature-range { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
+.ccc-temperature-history { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--ccc-space-3) var(--ccc-space-4); align-items: center; }
+.ccc-temperature-row { display: contents; }
+.ccc-temperature-reading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ccc-space-3); }
+.ccc-temperature-sensor { color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); font-weight: 600; }
+.ccc-temperature-value { color: var(--ccc-text); font-size: var(--ccc-text-temperature); line-height: 1.15; white-space: nowrap; }
+.ccc-temperature-value em { margin-inline-start: var(--ccc-space-1); color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); font-style: normal; }
+.ccc-temperature-value.is-hot { color: var(--ccc-danger); }
+.ccc-temperature-track {
+  position: relative;
+  block-size: 34px;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: calc(var(--ccc-radius-control) / 2);
+  background-color: var(--ccc-content-muted);
+  box-shadow: inset 0 0 0 1px var(--ccc-hairline);
+}
+.ccc-temperature-track::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background-image: linear-gradient(to right, transparent calc(100% - 1px), color-mix(in srgb, var(--ccc-content) 82%, transparent) calc(100% - 1px));
+  background-size: var(--ccc-temperature-minute) 100%;
+  pointer-events: none;
+}
+.ccc-temperature-sample {
+  position: absolute;
+  inset-block: 0;
+  background-color: color-mix(in oklab, color-mix(in srgb, var(--ccc-action) 28%, var(--ccc-content)), var(--ccc-warning) var(--ccc-temperature-heat));
+}
+.ccc-temperature-legend { grid-column: 2; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--ccc-space-1) var(--ccc-space-3); color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
+.ccc-temperature-legend > span { display: inline-flex; gap: var(--ccc-space-1); align-items: center; white-space: nowrap; }
+.ccc-temperature-swatch { width: 14px; height: 10px; border-radius: 2px; background: var(--ccc-content-muted); box-shadow: inset 0 0 0 1px var(--ccc-hairline); }
+.ccc-temperature-sample.is-hot, .ccc-temperature-swatch.is-hot {
+  background-color: var(--ccc-danger);
+  background-image: repeating-linear-gradient(to bottom, transparent 0 4px, color-mix(in srgb, var(--ccc-content) 30%, transparent) 4px 5px);
+}
+.ccc-trend-plot { position: relative; min-width: 0; }
+.ccc-trend-lines { display: block; width: 100%; height: 100%; box-shadow: 0 1px var(--ccc-hairline); }
+.ccc-trend-line { fill: none; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }
+.ccc-trend-marker { position: absolute; width: 8px; height: 8px; border: 1.5px solid var(--ccc-content); border-radius: var(--ccc-radius-full); background: currentColor; transform: translate(-50%, -50%); }
 .ccc-trend-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
-.ccc-trend-time { grid-column: 2; display: flex; justify-content: space-between; padding-right: var(--ccc-space-6); color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
-@container ccc-control (max-width: 835px) { .ccc-meter-ring { width: var(--ccc-meter-ring-compact); height: var(--ccc-meter-ring-compact); } }
-@container ccc-control (max-width: 692px) { .ccc-hardware-readings, .ccc-capacity-overview { grid-template-columns: minmax(0, 1fr); } }
+@container ccc-control (max-width: 835px) { .ccc-meter-ring { --ccc-ring-diameter: var(--ccc-meter-ring-compact); } }
+@container ccc-control (max-width: 560px) {
+  .ccc-temperature-history { column-gap: var(--ccc-space-2); }
+  .ccc-temperature-reading { flex-direction: column; gap: var(--ccc-space-1); }
+  .ccc-temperature-value { font-size: var(--ccc-text-reading); }
+  .ccc-capacity-head { grid-template-columns: minmax(0, 1fr) 76px; }
+  .ccc-memory-usage { grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-3); }
+}
 @media (max-width: 560px) {
-  .ccc-trend { grid-template-columns: 72px minmax(0, 1fr); column-gap: var(--ccc-space-3); }
-  .ccc-trend-time { grid-column: 1 / -1; padding-right: 0; }
   .ccc-sensor-group, .ccc-capacity-card { padding: var(--ccc-space-4); }
   .ccc-sensor-group { gap: var(--ccc-space-3); }
-  .ccc-capacity-overview { grid-template-columns: minmax(0, 1fr); }
-  .ccc-sensor-identity, .ccc-capacity-head { grid-template-columns: minmax(0, 1fr) minmax(72px, 40%); min-height: 110px; }
+  .ccc-sensor-identity { grid-template-columns: minmax(0, 1fr) minmax(72px, 40%); min-height: 110px; }
   .ccc-sensor-metrics { grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-3); }
   .ccc-sensor-ratios { gap: var(--ccc-space-2); }
-  .ccc-meter-ring { width: var(--ccc-meter-ring-compact); height: var(--ccc-meter-ring-compact); }
+  .ccc-meter-ring { --ccc-ring-diameter: var(--ccc-meter-ring-compact); }
 }

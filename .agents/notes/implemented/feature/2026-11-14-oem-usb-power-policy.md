@@ -1,4 +1,4 @@
-# Agent Note: 原厂USB选择性暂停策略
+# Agent Note: 原厂 USB 选择性暂停策略
 
 Status: implemented
 

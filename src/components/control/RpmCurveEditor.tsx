@@ -3,6 +3,7 @@ import { Select } from "../Select";
 import { useRef, useState, type PointerEvent } from "react";
 import type { RpmPoint } from "../../api/client";
 import { PointNumber } from "./CurvePointInputs";
+import { FanCurveLegend, FanCurvePlot } from "./FanCurvePlot";
 import { moveRpmPoint, rpmLimits, rpmStepPath, sameRpmCurve } from "./rpmCurve";
 
 interface Props {
@@ -25,15 +26,9 @@ export function RpmCurveEditor({ current, draft, maximumRpm, editable, onChange 
       100 - (event.clientY - box.top) / box.height * 100);
   };
   const differs = !sameRpmCurve(current, draft);
-  return <div className="ccc-plot-wrap ccc-point-editor">
-    <div className="ccc-plot-ylabels" aria-hidden="true">
-      {[100, 50, 0].map((value) => <span key={value} style={{ top: `${100 - value}%` }}>{value}%</span>)}
-    </div>
-    <div className="ccc-plot" ref={plot} role="group" aria-label="十级温度与目标转速曲线">
-      <svg className="ccc-plot-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {differs && <path d={rpmStepPath(current)} className="ccc-plot-current" vectorEffect="non-scaling-stroke" />}
-        <path d={rpmStepPath(draft)} className="ccc-plot-draft" vectorEffect="non-scaling-stroke" />
-      </svg>
+  return <div className="ccc-plot-wrap">
+    <FanCurvePlot label="十级温度与目标转速曲线" measure="目标转速" minTemp={0} maxTemp={100}
+      plotRef={plot} draftPath={rpmStepPath(draft)} currentPath={differs ? rpmStepPath(current) : undefined}>
       {draft.map((p, index) => <Button variant="handle" type="button" key={index} role="slider" data-rpm-point={index}
         className={`ccc-plot-handle${dragging === index ? " is-dragging" : ""}${selected === index ? " is-selected" : ""}`}
         style={{ left: `${p.tempC}%`, top: `${100 - p.rpmPct}%` }} disabled={!editable}
@@ -48,13 +43,11 @@ export function RpmCurveEditor({ current, draft, maximumRpm, editable, onChange 
         onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); select(index); setDragging(index); pointer(event, index); }}
         onPointerMove={(event) => { if (dragging === index) pointer(event, index); }}
         onPointerUp={() => setDragging(null)} onPointerCancel={() => setDragging(null)} />)}
-    </div>
-    <span aria-hidden="true" />
-    <div className="ccc-plot-axis" aria-hidden="true">{[0, 50, 100].map((temp) => <span key={temp} style={{ left: `${temp}%` }}>{temp}°</span>)}</div>
-    <div className="ccc-plot-key"><span className={`ccc-key-swatch ${differs ? "is-current" : "is-draft"}`} /><span>当前设置</span>
-      {differs && <><span className="ccc-key-swatch is-draft" /><span>草稿</span></>}
+    </FanCurvePlot>
+    <FanCurveLegend hasReference={differs} mainLabel={differs ? "草稿" : "当前设置"}>
       <span>100% = {maximumRpm} RPM</span>
-      <span className="ccc-plot-hint">十级阈值 · 新目标 ≥20%</span></div>
+      <span className="ccc-plot-hint">十级阈值 · 新目标 ≥20%</span>
+    </FanCurveLegend>
     <div className="ccc-curve-point ccc-rpm-inputs" role="group" aria-label="RPM 曲线数值">
       <label className="ccc-curve-number">级别<Select size="compact" value={String(selected)} label="选择 RPM 级别"
         options={draft.map((_, index) => ({ value: String(index), label: `第 ${index + 1} 级` }))}

@@ -3,10 +3,10 @@ import { ConfirmButton } from "../ConfirmButton";
 import { Surface } from "../Surface";
 import { MetricReadout } from "./MetricReadout";
 
-type Props = { absolute?: boolean; lowControl?: boolean; profile: LowBatteryBrightnessProfile; busy: boolean; run: (action: () => Promise<void>, message: string, reset: boolean) => Promise<void> };
+type Props = { absolute?: boolean; lowControl?: boolean; profile: LowBatteryBrightnessProfile; powerSummary: string | null; busy: boolean; run: (action: () => Promise<void>, message: string, reset: boolean) => Promise<void> };
 const labels = ["插电计划亮度", "电池计划亮度"];
 
-export function BatteryLowBrightnessFacts({ profile, busy, run, absolute = false, lowControl = true }: Props) {
+export function BatteryLowBrightnessFacts({ profile, powerSummary, busy, run, absolute = false, lowControl = true }: Props) {
   const { current, recovery } = profile;
   return <section className="ccc-battery-low-facts" aria-label="原厂低电量亮度事实与预览">
     <strong>{absolute ? "电池事件亮度" : "原厂低电量亮度"}</strong>
@@ -16,7 +16,7 @@ export function BatteryLowBrightnessFacts({ profile, busy, run, absolute = false
         {current ? <>
           <div className="ccc-battery-low-meters">{current.levels.map((value, index) =>
             <MetricReadout key={labels[index]} label={labels[index]} value={value} maximum={100} unit="%" colorVar="var(--ccc-action)" />)}</div>
-          <p className="ccc-control-caption">{profile.onAc === null ? "供电状态未知" : profile.onAc ? "当前插电" : "当前电池供电"} · {profile.percent === null ? "电量未知" : `电量 ${profile.percent}%`}</p>
+          {powerSummary && <p className="ccc-control-caption">{powerSummary}</p>}
         </> : <p className="ccc-control-caption">当前计划亮度不可读取。</p>}
         {profile.error && <p className="ccc-control-error">{profile.error}</p>}
       </Surface>
@@ -39,7 +39,7 @@ export function BatteryLowBrightnessFacts({ profile, busy, run, absolute = false
         <p>{labels.map((label, index) => recovery.record.levelsOwned[index]
           ? `${label} ${recovery.levels[index]}% → ${recovery.record.baseline.levels[index]}%`
           : `${label}保留`).join(" · ")}</p>
-        <span className="ccc-chip">仅恢复接管字段和缓存</span>
+        <span className="ccc-control-caption">仅恢复接管字段和缓存</span>
       </>}
       {profile.restoreError && <p className="ccc-control-error">{profile.restoreError}</p>}
       {recovery && <ConfirmButton icon="undo" key={profile.restoreRevision ?? "low-brightness-unavailable"} variant="secondary"

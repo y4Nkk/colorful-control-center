@@ -55,7 +55,7 @@ fn file(f: &Fixture) -> serde_json::Value {
 fn capture_and_file_roundtrip_preserve_independent_charge_and_disabled_plan() {
     let f = Fixture::new();
     f.battery.enable();
-    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     assert_eq!(
         settings.battery_charge.as_ref().unwrap().values,
         charge(&f, true, 60, 80).values
@@ -65,7 +65,7 @@ fn capture_and_file_roundtrip_preserve_independent_charge_and_disabled_plan() {
         &energy(&f, false)
     );
     let dir = tempfile::tempdir().unwrap();
-    crate::profiles::save_in(dir.path(), settings.clone(), "电池").unwrap();
+    crate::profiles::save_in(dir.path(), settings.clone(), "电池", None).unwrap();
     assert!(
         crate::profiles::load_from(dir.path(), "电池")
             .unwrap()
@@ -82,7 +82,7 @@ fn active_energy_capture_owns_charge_and_does_not_create_conflicting_manual_targ
     f.battery.enable();
     set_energy(&f, true);
     let events = f.battery.io.state.lock().unwrap().events.len();
-    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     assert!(settings.battery_charge.is_none());
     assert_eq!(settings.battery_energy.as_ref().unwrap(), &energy(&f, true));
     assert_eq!(f.battery.io.state.lock().unwrap().events.len(), events);

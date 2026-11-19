@@ -1,4 +1,4 @@
-import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
+import { configurationView, previewConfiguration } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -17,18 +17,18 @@ async function setWarning(page, id = 1) {
 }
 
 test("低温提醒单独授权，展示原厂触发条件", async ({ page }) => {
-  await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与输入");
+  await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与灯光");
   await expect(panel(page)).toContainText("低于 11°C 且电量低于 81%");
   await panel(page).getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
   await scope(page).check();
-  await openConfigurationReview(page, "原厂热键与屏显");
+  await previewConfiguration(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true }).click();
   expect((await calls(page, "apply_hotkeys"))[0].args.request.settings.actions).toEqual(["batteryColdWarning"]);
 });
 
 test("全局提醒不依赖普通OSD，用户确认关闭并不写硬件", async ({ page }) => {
-  await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与输入");
+  await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与灯光");
   await expect(panel(page)).toBeVisible();
   await page.evaluate(() => { window.__uiFixture.hotkeys.current.osd = false; });
   await setWarning(page, 3);
@@ -40,7 +40,7 @@ test("全局提醒不依赖普通OSD，用户确认关闭并不写硬件", async
 });
 
 test("确认失败保留提醒，新提醒和插电关闭以最新状态为准", async ({ page }) => {
-  await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与输入");
+  await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与灯光");
   await expect(panel(page)).toBeVisible(); await setWarning(page, 5);
   await page.evaluate(() => { window.__uiFixture.coldWarningDismissFault = "关闭提醒失败"; });
   await warning(page).getByRole("button", { name: "知道了", exact: true }).click();
@@ -56,7 +56,7 @@ test("确认失败保留提醒，新提醒和插电关闭以最新状态为准",
 
 test("订阅后到达的新提醒不会被较早的状态读取覆盖", async ({ page }) => {
   await page.addInitScript({ content: `${MOCK_IPC}; window.__uiFixture.coldWarningStatusDelay = 1800;` });
-  await page.goto("/"); await openWorkspace(page, "键盘与输入");
+  await page.goto("/"); await openWorkspace(page, "键盘与灯光");
   await expect(panel(page)).toBeVisible();
   await setWarning(page, 7);
   await page.waitForTimeout(2000);
@@ -65,7 +65,7 @@ test("订阅后到达的新提醒不会被较早的状态读取覆盖", async ({
 });
 
 test("提醒在深浅宽窄窗口内保留模块边框且按钮可操作", async ({ page }) => {
-  await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与输入");
+  await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与灯光");
   await expect(panel(page)).toBeVisible(); await setWarning(page, 9);
   for (const theme of ["light", "dark"]) {
     await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);

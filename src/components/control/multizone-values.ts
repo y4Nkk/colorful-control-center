@@ -1,13 +1,14 @@
 import type { MultiZoneValues } from "../../api/client";
-import { hexOf } from "./useKeyboardLighting";
+import { hexOf } from "../../lib/color";
 
 export const MULTI_ZONE_MODES = [
   { value: "0", label: "随机" }, { value: "1", label: "静态分区" }, { value: "2", label: "呼吸" }, { value: "3", label: "循环" },
   { value: "4", label: "波浪" }, { value: "5", label: "舞动" }, { value: "6", label: "节奏" }, { value: "7", label: "闪烁" },
 ];
 export function multiZoneName(mode: number) { return MULTI_ZONE_MODES.find(item => item.value === String(mode))?.label ?? "未知"; }
-export function multiZoneSummary(values: MultiZoneValues) {
-  return `${values.enabled ? "开启" : "关闭"} · ${multiZoneName(values.mode)} · 亮度${values.brightness}级 · 速度${values.speed}级`;
+export function multiZoneSummary(values: MultiZoneValues, showPowerState = true) {
+  const state = showPowerState ? values.enabled ? "开启 · " : "关闭 · " : "";
+  return `${state}${multiZoneName(values.mode)} · 亮度${values.brightness}级 · 速度${values.speed}级`;
 }
 export function multiZoneChanges(before: MultiZoneValues, after: MultiZoneValues) {
   const changes: string[] = [];

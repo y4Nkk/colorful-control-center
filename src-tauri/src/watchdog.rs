@@ -1,29 +1,21 @@
-//! 同一可执行文件的独立风扇监护进程；ARM 后承担恢复责任。
+//! 软件风扇的独立监护进程；ARM 后承担恢复责任。
 #[path = "watchdog/client.rs"]
 mod client;
 #[path = "watchdog/protocol.rs"]
 mod protocol;
 use crate::hal::{nvidia::Nvidia, oem_dchu::Dchu};
 use anyhow::{Result, bail};
-pub(crate) use client::PolicyRejected;
 pub use client::Watchdog;
-pub use protocol::GuardPolicy;
 pub(crate) use protocol::report_failure;
 
 pub fn run_child() -> Result<()> {
     let _lease = crate::controller_lease::ControllerLease::retain(crate::controller_lease::NAME)?;
+    if !crate::hal::firmware::reviewed_dsdt() {
+        bail!("监护进程未能核对逐通道自动恢复协议，未启用软件风扇曲线");
+    }
     let dchu = Dchu::load()?;
     let mut nvidia = Nvidia::init().ok();
-    let direct = crate::hal::firmware::reviewed_dsdt();
-    if std::env::args().any(|arg| arg == "--direct-fan-watchdog") && !direct {
-        bail!("监护进程未能核对逐通道自动恢复协议，未启用手动控制");
-    }
     let input = protocol::read_lines(std::io::stdin());
-    let policy = if std::env::args().any(|arg| arg == "--full-speed-fan-watchdog") {
-        GuardPolicy::FirmwareFullSpeed
-    } else {
-        GuardPolicy::Protected
-    };
     protocol::run(
         input,
         || {
@@ -42,9 +34,7 @@ pub fn run_child() -> Result<()> {
             }
             Some((raw, sample.ok().flatten().and_then(|value| value.temp_c)))
         },
-        || restore_auto(&dchu, direct),
-        policy,
-        || dchu.read_settings(4, 5, 1).is_ok_and(|mode| mode == [1]),
+        || restore_auto(&dchu, true),
     )
 }
 

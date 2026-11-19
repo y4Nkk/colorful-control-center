@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
+import { getTabStops } from "../lib/tab-stops";
 
 export interface SelectOption { value: string; label: string; description?: string; disabled?: boolean; style?: CSSProperties }
 export interface SelectProps {
@@ -18,8 +19,7 @@ export interface SelectProps {
 
 function focusBeside(trigger: HTMLButtonElement | null, menu: HTMLElement | null, backwards: boolean) {
   const scope = trigger?.closest("dialog") ?? document;
-  const elements = [...scope.querySelectorAll<HTMLElement>('button,input,a[href],textarea,[tabindex]')]
-    .filter(el => el.tabIndex >= 0 && !el.matches(":disabled") && el.checkVisibility() && !menu?.contains(el));
+  const elements = getTabStops(scope).filter(el => !menu?.contains(el));
   const index = elements.findIndex(el => el === trigger);
   const offset = backwards ? -1 : 1;
   const next = elements[index + offset] ?? (scope instanceof HTMLDialogElement ? elements[backwards ? elements.length - 1 : 0] : undefined);

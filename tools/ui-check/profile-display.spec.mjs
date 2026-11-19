@@ -1,17 +1,18 @@
-import { changeButton, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
-import { openProfileDetails, openProfileResults, openStartupParameters, profilePanel as panel } from "./profile-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { changeButton, configurationView, previewConfiguration } from "./configuration-review.mjs";
+import { openProfileResults, openProfileSave, openStartupParameters, profilePanel as panel, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
+import { openWorkspace, openSystemArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
 const host = page => page.getByRole("region", { name: "档案显示确认", exact: true });
 async function select(page) {
-  await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: "性能档案", exact: true }).click();
+  await openSystemArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
+  await showProfileSettings(page);
 }
 async function begin(page) {
-  await openConfigurationReview(page);
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await previewConfiguration(page);
+  await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect(host(page)).toBeVisible();
 }
 async function frequencies(page) {
@@ -30,14 +31,14 @@ test.beforeEach(async ({ page }) => {
     data.profile.settings.display = { displays: [first, second].map(display => ({ ...display.current, frequency: 144 })) };
     data.profile.settings.pl1W = 77;
   });
-  await page.goto("/"); await openWorkspace(page, "显示与显卡");
+  await page.goto("/"); await openWorkspace(page, "设备配置");
 });
 
 test("双屏预览左右呈现当前与目标，初次确认只进入显示试用", async ({ page }) => {
   await select(page);
-  await expect(panel(page).getByLabel("档案显示配置")).toHaveCount(0);
-  const review = await openConfigurationReview(page);
-  const preview = review.getByLabel("档案显示配置");
+  await expect(panel(page).getByLabel("档案显示配置")).toHaveCount(1);
+  const review = await previewConfiguration(page);
+  const preview = panel(page).getByLabel("档案显示配置");
   await expect(preview).toContainText("切换前 60 Hz → 目标");
   await expect(preview).toContainText("内置屏"); await expect(preview).toContainText("外接屏");
   expect(await frequencies(page)).toEqual([60, 60]);
@@ -98,15 +99,15 @@ test("显示器身份变化保留离线目标且禁止手动应用", async ({ pa
   await page.evaluate(() => window.__uiFixture.display.displays[1].current.identity = "replacement-panel");
   await select(page);
   await expect(changeButton(page)).toHaveCount(0);
-  await expect(panel(page).getByRole("button", { name: "导出", exact: true })).toBeEnabled();
-  await expect((await openProfileDetails(page)).getByLabel("档案显示配置")).toContainText("当前未读取");
+  await expect((await showProfileMenu(page)).getByRole("button", { name: "导出档案", exact: true })).toBeEnabled();
+  await expect(panel(page).getByLabel("档案显示配置")).toContainText("当前未读取");
 });
 
 test("没有刷新率变化时直接执行，无需显示试用确认", async ({ page }) => {
   await page.evaluate(() => { for (const mode of window.__uiFixture.profile.settings.display.displays) mode.frequency = 60; });
   await select(page);
-  await openConfigurationReview(page);
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await previewConfiguration(page);
+  await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect((await openProfileResults(page)).getByRole("listitem").filter({ hasText: "显示刷新率复核" }).getByRole("img", { name: "成功", exact: true })).toBeVisible();
   await expect(host(page)).toHaveCount(0);
   expect(await frequencies(page)).toEqual([60, 60]);
@@ -114,20 +115,20 @@ test("没有刷新率变化时直接执行，无需显示试用确认", async ({
 
 test("切换页面保留唯一全局确认，显示页不能单独保留档案屏幕", async ({ page }) => {
   await select(page); await begin(page);
-  await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: "显示与显卡", exact: true }).click();
+  await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: "设备配置", exact: true }).click();
   await expect(host(page)).toHaveCount(1);
   const display = page.getByRole("region", { name: "屏幕显示", exact: true });
   await expect(display.getByRole("button", { name: "保留刷新率", exact: true })).toHaveCount(0);
-  await expect(display).toContainText("请在档案显示确认中保留或恢复");
+  await expect(host(page)).toContainText(/显示试用 · \d+ 秒/);
+  await expect(display.getByRole("status")).toHaveText("请在「档案显示确认」中保留或恢复本次试用");
   await host(page).getByRole("button", { name: "恢复本次显示并停止", exact: true }).click();
   await expect(host(page)).toHaveCount(0);
 });
 
 test("捕获与保存包含完整双屏身份和频率", async ({ page }) => {
   await select(page);
-  await page.getByPlaceholder("游戏 / 静音").fill("显示捕获");
-  await page.getByRole("button", { name: "保存当前", exact: true }).click();
-  await page.getByRole("button", { name: "保存当前设置？", exact: true }).click();
+  await openProfileSave(page, "显示捕获", ["显示与显卡"]);
+  await saveProfileButton(page).click();
   await expect(panel(page).getByRole("heading", { name: "显示捕获", exact: true })).toBeVisible();
   const target = await page.evaluate(() => window.__uiFixture.calls.find(call => call.command === "save_profile").args.args.settings.display);
   expect(target.displays).toHaveLength(2);
@@ -136,14 +137,14 @@ test("捕获与保存包含完整双屏身份和频率", async ({ page }) => {
 });
 
 test("启动档案显示共享预览和必须保留的说明，保存不立即切换", async ({ page }) => {
-  await openWorkspace(page, "自动策略");
+  await openWorkspace(page, "电源");
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
   const parameters = await openStartupParameters(page);
   await expect(parameters.getByLabel("档案显示配置")).toContainText("开机同样确认");
   await page.keyboard.press("Escape");
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "授权启动应用档案", exact: true }).click();
   const selection = await page.evaluate(() => window.__uiFixture.calls.find(call => call.command === "set_startup_profile").args.expected);
   expect(selection.settings.display.displays).toHaveLength(2);
   expect(await frequencies(page)).toEqual([60, 60]);
@@ -220,8 +221,8 @@ test("启动档案在显示保留后更新当前执行结果，无需切页重�
       return result;
     };
   });
-  await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: "显示与显卡", exact: true }).click();
-  await openWorkspace(page, "自动策略");
+  await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: "设备配置", exact: true }).click();
+  await openWorkspace(page, "电源");
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await expect(startup.getByRole("status")).toContainText("等待显示确认");
   await host(page).getByRole("button", { name: "保留显示并继续档案", exact: true }).click();
@@ -268,8 +269,8 @@ test("无需显示试用的档案也区分目标确认和收尾错误", async ({
     data.profileSteps = [{ step: "目标设置", ok: true, message: "已确认" }, { step: "网络授权收尾", ok: false, message: "隔离收尾失败" }];
   });
   await select(page);
-  await openConfigurationReview(page);
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await previewConfiguration(page);
+  await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect(host(page)).toHaveCount(0);
   await expect(page.getByRole("alert")).toContainText("目标设置已应用");
   await expect(await openProfileResults(page)).toContainText("隔离收尾失败");
@@ -279,14 +280,13 @@ test("无需显示试用的档案也区分目标确认和收尾错误", async ({
 test("保存新的预览保留唯一最近执行结果，并显示实际执行的档案名", async ({ page }) => {
   await page.evaluate(() => { for (const mode of window.__uiFixture.profile.settings.display.displays) mode.frequency = 60; });
   await select(page);
-  await openConfigurationReview(page);
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
-  await expect(panel(page).getByRole("region", { name: "最近应用记录", exact: true })).toContainText("最近执行 · 隔离档案");
-  await page.getByPlaceholder("游戏 / 静音").fill("新预览档案");
-  await page.getByRole("button", { name: "保存当前", exact: true }).click();
-  await page.getByRole("button", { name: "保存当前设置？", exact: true }).click();
+  await previewConfiguration(page);
+  await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await expect(panel(page).getByRole("region", { name: "最近应用记录", exact: true })).toContainText("上次应用 · 隔离档案");
+  await openProfileSave(page, "新预览档案", ["显示与显卡"]);
+  await saveProfileButton(page).click();
   await expect(panel(page).getByRole("heading", { name: "新预览档案", exact: true })).toBeVisible();
-  await expect(panel(page).getByRole("region", { name: "最近应用记录", exact: true })).toContainText("最近执行 · 隔离档案");
+  await expect(panel(page).getByRole("region", { name: "最近应用记录", exact: true })).toContainText("上次应用 · 隔离档案");
   await expect(panel(page).getByRole("button", { name: /^执行明细/ })).toHaveCount(1);
   const notices = page.getByRole("button", { name: "关闭通知", exact: true });
   while (await notices.count()) {

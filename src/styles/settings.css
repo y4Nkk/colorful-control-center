@@ -1,9 +1,6 @@
 @import "./settings-previews.css";
 .ccc-autostart-setting { display: grid; gap: var(--ccc-space-3); padding: var(--ccc-space-4); border: var(--ccc-border); border-radius: var(--ccc-radius-card); }
-.ccc-settings { display: grid; width: 100%; max-width: var(--ccc-settings-width); margin-inline: auto; min-width: 0; gap: var(--ccc-space-4); container: ccc-settings / inline-size; }
 .ccc-settings-group { display: grid; min-width: 0; gap: var(--ccc-space-5); padding: var(--ccc-space-5); }
-.ccc-settings-group-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ccc-space-2); }
-.ccc-settings-group-heading h2 { margin: 0; font-size: var(--ccc-text-xl); font-weight: 600; }
 .ccc-settings-detail, .ccc-settings-status { margin: 0; color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); overflow-wrap: anywhere; }
 .ccc-settings-label { font-size: var(--ccc-text-md); font-weight: 600; }
 .ccc-setting-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; min-width: 0; gap: var(--ccc-space-4); }
@@ -27,7 +24,7 @@
 .ccc-preference-card > input:checked + .ccc-preference-card-body .ccc-preference-check { visibility: visible; }
 .ccc-shortcut-setting { display: grid; min-width: 0; gap: var(--ccc-space-2); }
 .ccc-about-product { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-3); }
-.ccc-about-logo { width: calc(var(--ccc-space-5) * 2); height: calc(var(--ccc-space-5) * 2); }
+.ccc-about-logo { flex: none; width: calc(var(--ccc-space-5) * 2); height: calc(var(--ccc-space-5) * 2); }
 .ccc-about-copy { display: grid; flex: 1; min-width: 0; gap: var(--ccc-space-1); }
 .ccc-about-copy > h3 { margin: 0; font-size: var(--ccc-text-lg); font-weight: 600; overflow-wrap: anywhere; }
 @container ccc-settings (max-width: 640px) { .ccc-setting-row:has(.ccc-select, .ccc-shortcut-setting) { grid-template-columns: minmax(0, 1fr); } }
@@ -35,7 +32,7 @@
   .ccc-settings-group { padding: var(--ccc-space-4); }
   .ccc-preference-options, .ccc-preference-options.is-four, .ccc-preference-options:has(> :nth-child(2):last-child) { grid-template-columns: minmax(0, 1fr); }
   .ccc-preference-card-body { grid-template-columns: calc(var(--ccc-space-6) * 3) minmax(0, 1fr); align-items: center; }
-  .ccc-preference-art { height: 100%; min-height: calc(var(--ccc-space-6) * 2); border-bottom: 0; border-right: var(--ccc-border); }
+  .ccc-preference-art { height: 100%; min-height: calc(var(--ccc-space-6) * 2); }
   .ccc-preference-caption { padding: var(--ccc-space-2); gap: var(--ccc-space-1); }
   .ccc-preference-check { width: var(--ccc-icon-size-small); height: var(--ccc-icon-size-small); }
   .ccc-setting-row { align-items: start; }

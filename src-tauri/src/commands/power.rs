@@ -3,27 +3,8 @@
 use serde::Serialize;
 use tauri::{Manager, State};
 
-use crate::hal::Hal;
-use crate::powerctl;
-use powerctl::mode::{links, selection};
-
-fn mode_context(app: &tauri::AppHandle) -> links::Context<'_> {
-    links::Context::native(
-        app.state::<Hal>().inner(),
-        app.state::<crate::gpuctl::GpuController>().inner(),
-        app.state::<crate::gpu_power::Controller>().inner(),
-    )
-}
-fn mode_permit(app: &tauri::AppHandle) -> anyhow::Result<()> {
-    let hal = app.state::<Hal>();
-    hal.ensure_mode_change_allowed()?;
-    crate::fanctl::dust::ensure_manual_allowed(&hal)?;
-    crate::hal::oem_owner::ensure_owner_absent()?;
-    if app.state::<crate::display::Controller>().trial_pending()? {
-        anyhow::bail!("请先保留或恢复显示试用，再执行模式GPU联动");
-    }
-    Ok(())
-}
+use crate::{assembly::mode_context, display, hal::Hal, powerctl};
+use powerctl::mode::{manual, selection};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,16 +13,26 @@ pub struct OpResult {
     pub message: String,
 }
 
-fn to_result<T>(result: anyhow::Result<T>, success: &str) -> Result<OpResult, String> {
+#[derive(Serialize)]
+#[serde(untagged)]
+pub(crate) enum ModeApplyResult {
+    ConfirmFnKey {
+        #[serde(rename = "confirmFnKey")]
+        confirmation: manual::FnKeyConfirmation,
+    },
+    Completed(OpResult),
+}
+
+fn to_result<T>(result: anyhow::Result<T>, success: &str) -> OpResult {
     match result {
-        Ok(_) => Ok(OpResult {
+        Ok(_) => OpResult {
             ok: true,
             message: success.into(),
-        }),
-        Err(err) => Ok(OpResult {
+        },
+        Err(err) => OpResult {
             ok: false,
             message: format!("{err:#}"),
-        }),
+        },
     }
 }
 
@@ -49,7 +40,7 @@ fn to_result<T>(result: anyhow::Result<T>, success: &str) -> Result<OpResult, St
 pub(crate) async fn read_oem_performance_options(
     app: tauri::AppHandle,
 ) -> Result<powerctl::mode::boost::Profile, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         let hal = app.state::<Hal>();
         let _write = hal.begin_write()?;
         selection::read_options(&mode_context(&app))
@@ -63,23 +54,24 @@ pub(crate) async fn apply_oem_performance_options(
     app: tauri::AppHandle,
     request: powerctl::mode::boost::Request,
 ) -> Result<OpResult, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         let hal = app.state::<Hal>();
-        let _write = hal.begin_write().map_err(|e| format!("{e:#}"))?;
-        to_result(
+        let _write = hal.begin_write()?;
+        Ok(to_result(
             powerctl::mode::boost::apply(&hal, &request),
             "性能选项已发送，保存值已回读",
-        )
+        ))
     })
     .await
     .map_err(|e| e.to_string())?
+    .map_err(|e: anyhow::Error| format!("{e:#}"))
 }
 
 #[tauri::command]
 pub(crate) async fn read_oem_power_mode(
     app: tauri::AppHandle,
 ) -> Result<powerctl::mode::ModeProfile, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         let context = mode_context(&app);
         let _gate = context.hal.begin_write()?;
         selection::read(&context)
@@ -93,15 +85,27 @@ pub(crate) async fn read_oem_power_mode(
 pub(crate) async fn apply_oem_power_mode(
     app: tauri::AppHandle,
     expected: powerctl::mode::Target,
-) -> Result<OpResult, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        to_result(
-            selection::apply_preview(mode_context(&app), &expected, &mut || mode_permit(&app)),
-            "OEM 模式、GPU及关联策略已应用，保存值已回读",
-        )
+    confirmed_fn_key: Option<manual::FnKeyConfirmation>,
+) -> Result<ModeApplyResult, String> {
+    crate::shutdown::blocking(move || {
+        let result = manual::apply(
+            mode_context(&app),
+            &app.state::<display::Controller>(),
+            &expected,
+            confirmed_fn_key,
+        );
+        match result {
+            Ok(manual::Apply::ConfirmFnKey(confirmation)) => {
+                ModeApplyResult::ConfirmFnKey { confirmation }
+            }
+            result => ModeApplyResult::Completed(to_result(
+                result.map(|_| ()),
+                "OEM 模式、GPU及关联策略已应用，保存值已回读",
+            )),
+        }
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -109,18 +113,19 @@ pub(crate) async fn restore_oem_power_mode(
     app: tauri::AppHandle,
     expected_revision: String,
 ) -> Result<OpResult, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
+        let context = mode_context(&app);
+        let hal = context.hal;
+        let display = app.state::<display::Controller>();
         to_result(
-            powerctl::mode::restoration::restore(
-                mode_context(&app),
-                &expected_revision,
-                &mut || mode_permit(&app),
-            ),
+            powerctl::mode::restoration::restore(context, &expected_revision, &mut || {
+                manual::permit(hal, &display)
+            }),
             "初始 OEM 模式及已接管GPU状态已恢复",
         )
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -135,10 +140,10 @@ pub(crate) fn apply_saved_cpu(
     controls: powerctl::CpuControls,
 ) -> Result<OpResult, String> {
     let _write = hal.begin_write().map_err(|e| format!("{e:#}"))?;
-    to_result(
+    Ok(to_result(
         powerctl::apply_saved(&hal, controls),
         "CPU 设置已保存；即时效果未验证",
-    )
+    ))
 }
 
 #[tauri::command]
@@ -147,14 +152,14 @@ pub(crate) fn apply_runtime_cpu(
     controls: powerctl::CpuControls,
 ) -> Result<OpResult, String> {
     let _write = hal.begin_write().map_err(|e| format!("{e:#}"))?;
-    to_result(
+    Ok(to_result(
         powerctl::apply_runtime(&hal, controls),
         "即时 CPU 目标已回读确认",
-    )
+    ))
 }
 
 #[tauri::command]
 pub(crate) fn restore_power_profile(hal: State<'_, Hal>) -> Result<OpResult, String> {
     let _write = hal.begin_write().map_err(|e| e.to_string())?;
-    to_result(powerctl::restore(&hal), "已恢复初始设置")
+    Ok(to_result(powerctl::restore(&hal), "已恢复初始设置"))
 }

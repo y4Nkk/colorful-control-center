@@ -44,6 +44,8 @@ fn apply_options(f: &Fixture) {
         &f.hal,
         &boost::Request {
             expected_revision: p.revision,
+            quiet_fan: None,
+            replace_custom_fan: false,
             values: boost::Values {
                 turbo_fan: Some(true),
                 dtt: Some(false),
@@ -87,6 +89,65 @@ fn all_explicit_modes_preview_and_apply_the_original_energy_values_once() {
         assert!(at(&f, "MODE:") < at(&f, "ENERGY:"));
         assert!(at(&f, "ENERGY:") < at(&f, "PAGE4:5:"));
     }
+}
+
+#[test]
+fn permission_can_read_dchu_at_each_mode_write_stage() {
+    let f = setup(2);
+    {
+        let mut state = f.device.0.lock().unwrap();
+        state.bios[10] |= 128;
+        state.bios[16] |= 16;
+    }
+    let _gate = f.hal.begin_write().unwrap();
+    let preferences = boost::Values {
+        turbo_fan: Some(true),
+        dtt: None,
+    };
+    let plan = checkpoint_for_profile(&f.hal, 2, Some(&preferences)).unwrap();
+    plan.execute_guarded(&f.hal, &mut || {
+        assert!(f.hal.test_dchu_available(), "模式许可持有 DCHU 锁");
+        fanctl::dust::ensure_manual_allowed(&f.hal)?;
+        f.device.0.lock().unwrap().events.push("PERMIT".into());
+        Ok(())
+    })
+    .unwrap();
+    let state = f.device.0.lock().unwrap();
+    let mut next = 0;
+    for output in [
+        "PAGE4:8:[1]",
+        "PAGE1:16:[2]",
+        "MODE:66",
+        "PAGE1:1:[2]",
+        "ENERGY:0",
+    ] {
+        let position = next
+            + state.events[next..]
+                .iter()
+                .position(|event| event == output)
+                .unwrap();
+        assert_eq!(state.events[position - 1], "PERMIT", "{output}");
+        next = position + 1;
+    }
+}
+
+#[test]
+fn energy_revocation_or_a_change_during_permission_prevents_output() {
+    let f = setup(0);
+    let _gate = f.hal.begin_write().unwrap();
+    let before = current(&f);
+    let desired = energy::desired(3, before).unwrap();
+    let error =
+        energy::apply(&f.hal, Some(before), Some(desired), &mut || bail!("撤销")).unwrap_err();
+    assert_eq!(error.to_string(), "撤销");
+    let error = energy::apply(&f.hal, Some(before), Some(desired), &mut || {
+        let mut state = f.device.0.lock().unwrap();
+        state.bios[2] |= 0x10;
+        Ok(())
+    })
+    .unwrap_err();
+    assert!(error.to_string().contains("前态已变化"));
+    assert!(f.device.0.lock().unwrap().events.is_empty());
 }
 
 #[test]

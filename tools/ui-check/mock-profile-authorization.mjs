@@ -39,11 +39,12 @@ export async function invokeStartup(data, command, args) {
   if (command === "get_startup_profile") {
     if (data.startupReadFault) throw new Error(data.startupReadFault);
     const selection = structuredClone(data.startupSelection ?? null);
-    const bindingIssue = selection && selection.digest !== await profileDigest(data.profile) ? "档案内容已变化，请重新预览并确认后台规则" : null;
+    const file = selection && profileFiles(data).find(file => file.name === selection.profile);
+    const bindingIssue = selection && (!file || selection.digest !== await profileDigest(file)) ? "档案内容已变化，请重新预览并确认后台规则" : null;
     return { selection, bindingIssue, lastRun: data.startupLastRun ?? null };
   }
   if (command === "set_startup_profile") {
-    if (args.expected && JSON.stringify(args.expected) !== JSON.stringify(data.profile)) throw new Error("启动档案已变化，请重新预览后确认");
+    if (args.expected && JSON.stringify(args.expected) !== JSON.stringify(profileFiles(data).find(file => file.name === args.expected.name))) throw new Error("启动档案已变化，请重新预览后确认");
     const actual = args.expected ? await previewProfileAuthorization(data, args.expected.settings) : null;
     if (JSON.stringify(actual) !== JSON.stringify(args.expectedMode)) throw new Error("启动档案完整模式授权已变化，请重新预览");
     data.startupSelection = args.expected ? await backgroundProfileBinding(args.expected, actual) : null;

@@ -1,4 +1,4 @@
-import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
+import { configurationView, previewConfiguration } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -15,7 +15,7 @@ async function owned(page, kind = "pointerWake") {
   }, kind);
   await expect(facts(page).getByRole("button", { name: "结束本软件屏幕会话", exact: true })).toBeEnabled();
 }
-test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与输入"); });
+test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与灯光"); });
 
 test("适用行为在授权前可见，读取和选择范围不会启动会话", async ({ page }) => {
   await expect(scope(page)).not.toBeChecked();
@@ -41,9 +41,9 @@ test("屏幕按键独立授权并确认，不继承触摸板或亮度范围", as
     const checkbox = p.getByRole("checkbox", { name: label, exact: true }); await checkbox.check();
     await expect(scope(page)).not.toBeChecked(); await checkbox.uncheck();
   }
-  await scope(page).check(); await openConfigurationReview(page, "原厂热键与屏显");
+  await scope(page).check(); await previewConfiguration(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true }).click();
   expect((await calls(page, "apply_hotkeys"))[0].args.request.settings.actions).toEqual(["panelHotkey"]);
   await expect(facts(page)).toContainText("未运行");
 });

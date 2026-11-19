@@ -1,5 +1,5 @@
-import { availableAction, configurationDialog, confirmConfiguration, openConfigurationReview } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { availableAction, configurationView, previewConfiguration } from "./configuration-review.mjs";
+import { openWorkspace, openSystemArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { supplyModeFixture, supplyRecoveryFixture } from "./supply-mode-fixture.mjs";
@@ -11,13 +11,12 @@ const calls = (page, command) => page.evaluate(command => window.__uiFixture.cal
 async function setup(page, view = supplyModeFixture()) {
   await page.addInitScript({ content: MOCK_IPC });
   await page.addInitScript(value => { window.__uiFixture.supplyMode = value; window.__uiFixture.supplyModeRevision = 0; }, view);
-  await page.goto("/"); await openWorkspace(page, "自动策略");
-  await expect(card(page).getByText("已插电", { exact: true })).toBeVisible();
+  await page.goto("/"); await openWorkspace(page, "电源");
+  await expect(card(page).getByText(/^当前模式 · /)).toBeVisible();
 }
 async function enable(page) {
-  await toggle(page).check();
-  await confirmConfiguration(await openConfigurationReview(page, "原厂供电模式"));
-  await expect(card(page).getByText("已启用", { exact: true })).toBeVisible();
+  await toggle(page).click();
+  await expect(toggle(page)).toBeChecked();
 }
 async function openDetails(page) {
   await card(page).getByRole("button", { name: "详情", exact: true }).click();
@@ -54,9 +53,9 @@ test("唤醒跳过读数与初始恢复目标分开，仍能明确暂停监听",
   view.recovery.currentGpuClocks = { status: "skipped", value: "resume" };
   view.error = "部分GPU条件暂不可用，唤醒按原厂规则跳过调频";
   await setup(page, view);
-  await expect(card(page).getByText("已启用", { exact: true })).toBeVisible();
-  await expect(card(page).getByRole("button", { name: "暂停自动切换", exact: true })).toBeEnabled();
-  const recovery = await openConfigurationReview(page, "原厂供电模式", true);
+  await expect(toggle(page)).toBeChecked();
+  await expect(toggle(page)).toBeEnabled();
+  const recovery = await previewConfiguration(page, "原厂供电模式", true);
   const current = recovery.getByRole("heading", { name: "当前观察", exact: true }).locator("..");
   await expect(current).toContainText("唤醒时按原厂规则跳过频率调校");
   await expect(current).toContainText("不沿用此前读数");
@@ -74,71 +73,80 @@ test("GPU恢复读失败仍展示已知初始目标，不能确认执行或冒�
   view.recoveryError = "GPU频率恢复前态不可用：隔离驱动暂不可读";
   await setup(page, view);
   await expect(availableAction(page, "原厂供电模式", true)).toHaveCount(0);
-  await (await openDetails(page)).getByRole("button", { name: "供电恢复详情", exact: true }).click();
+  const dialog = await openDetails(page);
+  const entry = dialog.getByRole("button", { name: "供电恢复详情", exact: true });
+  await entry.click();
   const recovery = page.getByRole("dialog", { name: "供电恢复详情", exact: true });
   const current = recovery.getByRole("heading", { name: "当前观察", exact: true }).locator("..");
   await expect(current).toContainText("当前频率读取失败");
   await expect(current).not.toContainText("跳过频率调校");
   await expect(current).not.toContainText("MHz");
   await expect(recovery.getByRole("heading", { name: "初始目标", exact: true }).locator("..")).toContainText("987.654 MHz");
+  await page.keyboard.press("Escape");
+  await expect(recovery).toHaveCount(0);
+  await expect(dialog).toBeVisible();
+  await expect(entry).toBeFocused();
   expect(await calls(page, "restore_oem_supply_mode")).toHaveLength(0);
 });
 
-test("六条件分别展示完整目标，确认前不发送任何写入", async ({ page }) => {
+test("供电详情展示六个目标，切换开关直接发送", async ({ page }) => {
   await setup(page);
-  await toggle(page).check();
-  const review = await openConfigurationReview(page, "原厂供电模式");
+  const review = await openDetails(page);
   const conditions = { "接电时": "1700 MHz", "使用电池时": null, "启动 · 插电": "保持当前Windows电源计划",
     "启动 · 电池": null, "唤醒 · 插电": "跳过频率调校", "唤醒 · 电池": "切模式后确保独显关闭" };
   for (const [label, expected] of Object.entries(conditions)) {
     const scenario = await openScenario(review, label);
     await expect(scenario).toContainText("风扇");
     await expect(scenario).toContainText("固件节能值");
-    await expect(scenario).toContainText("保留插电偏好");
+    const acPreference = scenario.getByLabel("模式联动目标").locator(".ccc-fact-row").filter({ hasText: "插电模式偏好" });
+    await expect(acPreference.locator("dd")).toHaveText("保持当前");
     if (expected) await expect(scenario).toContainText(expected);
     await page.keyboard.press("Escape");
   }
   expect(await calls(page, "enable_oem_supply_mode")).toEqual([]);
-  await confirmConfiguration(review);
-  await expect(card(page).getByText("已启用", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await enable(page);
+  await expect(toggle(page)).toBeChecked();
   expect((await calls(page, "enable_oem_supply_mode"))[0].args).toEqual({ expectedRevision: "supply-0" });
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });
 
-test("暂停保留启用意图，继续单独确认，未执行时恢复仅撤销软件规则", async ({ page }) => {
+test("关闭暂停并保留已保存策略，重新打开直接继续，未执行时恢复仅撤销软件规则", async ({ page }) => {
   await setup(page); await enable(page);
-  await card(page).getByRole("button", { name: "暂停自动切换", exact: true }).click();
+  await toggle(page).click();
   await expect(card(page).getByText("已暂停", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => window.__uiFixture.supplyMode.enabled)).toBe(true);
-  await toggle(page).check();
-  const review = await openConfigurationReview(page, "原厂供电模式");
-  await expect(review).toContainText("继续自动切换");
-  expect(await calls(page, "resume_oem_supply_mode")).toEqual([]);
-  await confirmConfiguration(review);
-  await expect(card(page).getByText("已启用", { exact: true })).toBeVisible();
-  await expect(await openConfigurationReview(page, "原厂供电模式", true)).toContainText("尚无设备设置需要恢复");
+  await toggle(page).click();
+  await expect(toggle(page)).toBeChecked();
+  await expect(await previewConfiguration(page, "原厂供电模式", true)).toContainText("尚无设备设置需要恢复");
   expect(await calls(page, "restore_oem_supply_mode")).toEqual([]);
-  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
-  await expect(card(page).getByText("未启用", { exact: true })).toBeVisible();
+  await configurationView(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
+  await expect(toggle(page)).not.toBeChecked();
+  await expect(card(page).getByText(/^(已启用|未启用)$/)).toHaveCount(0);
 });
 
-test("失效修订撤销待确认状态，新目标需要重新确认", async ({ page }) => {
+test("供电方案重新读取后展示新目标，一次应用使用最新修订", async ({ page }) => {
   await setup(page);
-  await toggle(page).check();
-  const review = await openConfigurationReview(page, "原厂供电模式");
-  await page.evaluate(() => { window.__uiFixture.supplyMode.revision = "changed"; window.__uiFixture.supplyMode.review.acMode = 0; });
-  await expect(review.getByRole("button", { name: "确认应用", exact: true })).toBeDisabled();
+  const review = await openDetails(page);
+  await expect(review.getByRole("region", { name: "接电时", exact: true })).toContainText("性能");
+  await page.evaluate(() => {
+    const { supplyMode } = window.__uiFixture;
+    supplyMode.revision = "changed";
+    supplyMode.review.ac = supplyMode.review.targets[0];
+  });
   await page.keyboard.press("Escape");
+  await reread(page);
+  await expect((await openDetails(page)).getByRole("region", { name: "接电时", exact: true })).toContainText("安静");
   expect(await calls(page, "enable_oem_supply_mode")).toEqual([]);
+  await page.keyboard.press("Escape");
   await enable(page);
   expect((await calls(page, "enable_oem_supply_mode"))[0].args.expectedRevision).toBe("changed");
 });
 
-test("确认后后端拒绝旧预览，错误经过定时重读仍保留", async ({ page }) => {
+test("后端拒绝失效切换，错误经过定时重读仍保留", async ({ page }) => {
   await setup(page);
   await page.evaluate(() => { window.__uiFixture.supplyModeFault = "隔离来源已变化，未执行"; });
-  await toggle(page).check();
-  await confirmConfiguration(await openConfigurationReview(page, "原厂供电模式"));
+  await toggle(page).click();
   const details = await openDetails(page);
   await expect(details).toContainText("隔离来源已变化");
   const reads = (await calls(page, "read_oem_supply_mode")).length;
@@ -163,7 +171,7 @@ test("读失败清除可执行快照，暂停仍能发送，恢复后重读当�
 
 test("暂停不等待读取，旧读不覆盖新状态且始终只有一个在途读请求", async ({ page }) => {
   await setup(page); await enable(page); await heldRead(page);
-  await card(page).getByRole("button", { name: "暂停自动切换", exact: true }).click();
+  await toggle(page).click();
   await expect.poll(async () => (await calls(page, "pause_oem_supply_mode")).length).toBe(1);
   expect(await page.evaluate(() => window.__uiFixture.supplyMode.active)).toBe(false);
   expect(await page.evaluate(() => window.__supplyReading)).toBe(1);
@@ -184,8 +192,7 @@ test("启用正在等待授权时也可暂停，不重复发送启用", async ({
       return invoke(command, args);
     };
   });
-  await toggle(page).check();
-  await confirmConfiguration(await openConfigurationReview(page, "原厂供电模式"));
+  await toggle(page).click();
   await card(page).getByRole("button", { name: "暂停自动切换", exact: true }).click();
   await expect(card(page).getByText("已暂停后续操作，等待当前操作结束。", { exact: true })).toBeVisible();
   expect(await calls(page, "enable_oem_supply_mode")).toHaveLength(1);
@@ -198,9 +205,9 @@ test("恢复完整预览展示稀疏风扇模式、计划、独显与原始精�
   const view = supplyModeFixture();
   view.enabled = true; view.active = true; view.canEnable = false; view.canRestore = true; view.recovery = supplyRecoveryFixture();
   await setup(page, view);
-  const review = await openConfigurationReview(page, "原厂供电模式", true);
+  const review = await previewConfiguration(page, "原厂供电模式", true);
   const recovery = review.getByLabel("原厂模式初始恢复预览", { exact: true });
-  for (const text of ["性能 → 娱乐", "自动 → 静音", "5% → 0%", "高性能计划", "平衡计划", "节能计划", "固件节能值 0 → 固件节能值 2", "自动关断允许", "开启独显后取得", "-12.5 MHz", "987.654 MHz"]) {
+  for (const text of ["性能 → 娱乐", "自动 → 寂静模式", "5% → 0%", "高性能计划", "平衡计划", "节能计划", "固件节能值 0 → 固件节能值 2", "自动关断允许", "开启独显后取得", "-12.5 MHz", "987.654 MHz"]) {
     await expect(recovery).toContainText(text);
   }
   await expect(recovery).toContainText("当前频率未知，未补用保存值");
@@ -210,7 +217,7 @@ test("恢复完整预览展示稀疏风扇模式、计划、独显与原始精�
   await expect(raw).toContainText('"mode": 8');
   await page.keyboard.press("Escape");
   expect(await calls(page, "restore_oem_supply_mode")).toEqual([]);
-  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
+  await configurationView(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   expect((await calls(page, "restore_oem_supply_mode"))[0].args.expectedRevision).toBe("supply-0");
 });
 
@@ -229,9 +236,10 @@ test("设备条件阻止启用或恢复时明确显示原因，成功与收尾�
 test("离页期间不读状态，返回后丢弃旧结果并重读；后台通知刷新其他模块", async ({ page }) => {
   await setup(page);
   const nav = page.getByRole("navigation", { name: "主导航" });
-  await nav.getByRole("button", { name: "性能调校", exact: true }).click();
-  await expect(page.getByRole("region", { name: "预设模式", exact: true })).toBeVisible();
-  await nav.getByRole("button", { name: "自动策略", exact: true }).click();
+  await openSystemArea(page, "概览");
+  const currentMode = page.getByRole("region", { name: "当前模式", exact: true });
+  await expect(currentMode.getByRole("status")).toHaveText("性能");
+  await nav.getByRole("button", { name: "电源", exact: true }).click();
   await heldRead(page);
   await nav.getByRole("button", { name: "设置", exact: true }).click();
   const reads = (await calls(page, "read_oem_supply_mode")).length;
@@ -245,15 +253,17 @@ test("离页期间不读状态，返回后丢弃旧结果并重读；后台通�
   });
   await expect.poll(() => page.evaluate(() => window.__supplyReading)).toBe(0);
   expect((await calls(page, "read_oem_supply_mode")).length).toBe(reads);
-  await nav.getByRole("button", { name: "自动策略", exact: true }).click();
-  await expect(card(page).getByText("电池供电", { exact: true })).toBeVisible();
-  await nav.getByRole("button", { name: "性能调校", exact: true }).click();
-  await expect(page.getByRole("region", { name: "预设模式", exact: true })).toContainText("当前使用 · 安静");
+  await nav.getByRole("button", { name: "电源", exact: true }).click();
+  const details = await openDetails(page);
+  await expect(details.locator('[data-power-source="battery"]')).toBeVisible();
+  await details.getByRole("button", { name: "关闭弹窗", exact: true }).click();
+  await openSystemArea(page, "概览");
+  await expect(currentMode.getByRole("status")).toHaveText("安静");
   expect(await page.evaluate(() => window.__supplyMaxReading)).toBe(1);
 });
 
 test("无原厂能力时隐藏模块，不发送策略写入", async ({ page }) => {
-  await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "自动策略");
+  await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "电源");
   await expect.poll(async () => (await calls(page, "read_oem_supply_mode")).length).toBeGreaterThan(0);
   await expect(card(page)).toHaveCount(0);
   expect(await calls(page, "enable_oem_supply_mode")).toEqual([]);
@@ -275,6 +285,10 @@ test("宽窄深浅布局保留模块边框和间距，不使用比例表达模�
       if (width >= 1000) expect(geometry.cases[1].rect.left).toBeGreaterThan(geometry.cases[0].rect.right);
       if (width === 360) expect(geometry.cases[1].rect.top).toBeGreaterThan(geometry.cases[0].rect.bottom);
       await expect(details.getByRole("meter")).toHaveCount(0);
+      const artwork = details.getByLabel("六种条件的原厂联动").locator("svg[data-mode-art]");
+      await expect(artwork).toHaveCount(6);
+      const sizes = await artwork.evaluateAll(items => items.map(svg => svg.getBoundingClientRect().toJSON()));
+      expect(sizes.every(size => size.width === 40 && size.height === 40)).toBe(true);
       if (width === 360 || width === 1440) {
         await page.screenshot({ path: `target/ui-check/supply-mode-${theme}-${width}.png` });
       }
@@ -298,6 +312,6 @@ test("关闭节点时保留未知频率和基线来源，未来条件不可用�
   await expect(await openScenario(details, "唤醒 · 电池")).toContainText("自动关断关闭");
   await page.keyboard.press("Escape");
   await page.keyboard.press("Escape");
-  await expect(await openConfigurationReview(page, "原厂供电模式", true)).toContainText("独显节点关闭时，经本次授权的控制会话实读取得");
+  await expect(await previewConfiguration(page, "原厂供电模式", true)).toContainText("独显节点关闭时，经本次授权的控制会话实读取得");
   await page.screenshot({ path: "target/ui-check/supply-mode-recovery-light-1000.png" });
 });

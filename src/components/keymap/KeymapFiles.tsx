@@ -35,7 +35,7 @@ export function KeymapFiles({ draft, disabled, onImport }: { draft: KeymapConfig
       <Input type="file" ref={input} hidden accept=".json,application/json" aria-label="导入映射配置" disabled={disabled || busy}
         onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void stage(file); }} />
     </div>
-    <p className="ccc-control-caption">导入只替换草稿，预览并确认应用后才改变映射。</p>
+    <p className="ccc-control-caption">导入更新草稿，点击应用后写入映射。</p>
     {error && <p className="ccc-control-error" role="alert">{error}</p>}
   </div>;
 }

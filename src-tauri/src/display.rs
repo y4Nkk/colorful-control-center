@@ -166,6 +166,19 @@ impl Controller {
         let _write = hal.begin_write()?;
         self.tick(now_ms())
     }
+    pub(crate) fn release_on_exit(&self, hal: &crate::hal::Hal) -> Result<()> {
+        let _write = hal.begin_write()?;
+        let mut state = self.lock()?;
+        if let Some(trial) = state.trial.as_mut() {
+            self.recover_trial(trial)?;
+            state.trial = None;
+        }
+        if let Some(retained) = &state.retained {
+            guardian::restore(self.io.as_ref(), &retained.changes)?;
+            state.retained = None;
+        }
+        Ok(())
+    }
     pub fn new(io: impl Access + 'static) -> Self {
         Self::with_guards(io, guardian::ProcessFactory)
     }

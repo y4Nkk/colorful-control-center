@@ -1,11 +1,10 @@
-import { restoreGpuTurbo, type GpuTurboProfile } from "../../api/client";
+import { OEM_POWER_MODES, restoreGpuTurbo, type GpuTurboProfile } from "../../api/client";
 import { ConfirmButton } from "../ConfirmButton";
 import { Surface } from "../Surface";
 import { DetailsDialog } from "../DetailsDialog";
 import { gpuLock, gpuOffsets, gpuRestoredOffset, gpuTarget } from "./gpu-values";
 
 type Props = { profile: GpuTurboProfile; busy: boolean; run: (action: () => Promise<void>, message: string, reset: boolean) => Promise<void> };
-const modes = ["安静", "省电", "性能", "娱乐", "静音增强"];
 
 export function GpuTurboFacts({ profile, busy, run }: Props) {
   const { current, initial } = profile;
@@ -15,7 +14,7 @@ export function GpuTurboFacts({ profile, busy, run }: Props) {
       <Surface variant="inset" className="ccc-gpu-turbo-part">
         <strong>当前显卡</strong>
         {current ? <>
-          <p className="ccc-control-caption">{modes[current.source.mode]} · {current.source.onAc === null ? "供电未知" : current.source.onAc ? "插电" : "电池"}</p>
+          <p className="ccc-control-caption">{OEM_POWER_MODES[current.source.mode]} · {current.source.onAc === null ? "供电未知" : current.source.onAc ? "插电" : "电池"}</p>
           {current.source.supplyError && <p className="ccc-control-error">供电状态：{current.source.supplyError}</p>}
           <p>图形锁频：{gpuLock(current.locks[0])}</p>
           <p className="ccc-control-caption">第二锁频域：{gpuLock(current.locks[1])}</p>
@@ -43,7 +42,7 @@ export function GpuTurboFacts({ profile, busy, run }: Props) {
           {current.offError && <p className="ccc-control-error">关闭事件不可执行：{current.offError}</p>}
           {!current.currentOn && <p className="ccc-control-caption">当前模式的供电状态未知；不会猜测执行目标。</p>}
           <ul className="ccc-gpu-turbo-modes">{current.onTargets.filter(item => item.onAc || item.mode === 2).map(item =>
-            <li key={`${item.mode}-${item.onAc}`}><span>{modes[item.mode]}{item.mode === 2 ? item.onAc ? " · 插电" : " · 电池" : ""}</span>
+            <li key={`${item.mode}-${item.onAc}`}><span>{OEM_POWER_MODES[item.mode]}{item.mode === 2 ? item.onAc ? " · 插电" : " · 电池" : ""}</span>
               <span className="ccc-gpu-turbo-target">{gpuTarget(item.target)}</span>{item.unavailableReason && <span className="ccc-control-error">不可执行：{item.unavailableReason}</span>}</li>)}</ul>
           <DetailsDialog title="锁频与恢复说明"><p>锁频操作同时解除第二锁频域，恢复时还原初始值。模式或供电变化时按上表选择；设备、能力或保存目标变化后需要重新确认。</p></DetailsDialog>
         </> : <p className="ccc-control-caption">目标不可用，不能确认此范围。</p>}

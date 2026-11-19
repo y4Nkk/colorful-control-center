@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 
 interface InputProps extends Omit<ComponentProps<"input">, "type" | "size"> {
-  type?: "text" | "search" | "number" | "color" | "file";
+  type?: "text" | "search" | "number" | "file";
   size?: "default" | "compact";
 }
 

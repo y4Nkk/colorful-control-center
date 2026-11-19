@@ -1,7 +1,11 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
+using System.Security.AccessControl;
+using System.Security.Principal;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -28,6 +32,7 @@ internal static partial class InstallerChecks
         try
         {
             CheckTransitions();
+            CheckCompactLocation();
             if (arguments.Length > 1 && arguments[1] == "render")
             {
                 CheckLayout();
@@ -36,10 +41,14 @@ internal static partial class InstallerChecks
             }
             CheckPaths();
             CheckWizard();
+            CheckUnavailableLocation();
+            CheckRecoveredLocation();
             CheckFailure("failure");
+            CheckFailure("check-failed");
             CheckFailure("missing");
             CheckFailure("tampered");
-            CheckRunningGuard();
+            CheckControllerShutdown();
+            CheckControllerVeto();
             CheckNativeUninstall();
             CheckFixtureBoundary();
             File.WriteAllText(Path.Combine(root, "result.json"),
@@ -57,7 +66,7 @@ internal static partial class InstallerChecks
     private static void CheckLayout()
     {
         var completion = new System.Threading.Tasks.TaskCompletionSource<bool>();
-        var window = Window(null, path => { throw new Exception("Preview must not launch"); }, (request, progress) => {
+        var window = Window(null, path => { throw new Exception("Preview must not launch"); }, (request, progress, confirm) => {
             progress.Report(new InstallProgress { Phase = "正在安装程序与运行组件…" });
             return completion.Task;
         });
@@ -76,7 +85,7 @@ internal static partial class InstallerChecks
         Wait(window);
         Capture(window, "05-complete");
         window.Close();
-        var failure = Window(null, path => { throw new Exception("Preview must not launch"); }, (request, progress) => {
+        var failure = Window(null, path => { throw new Exception("Preview must not launch"); }, (request, progress, confirm) => {
             var task = new System.Threading.Tasks.TaskCompletionSource<bool>();
             task.SetException(new InstallFailure(new IOException("安装被中断，请确认目录权限后重试。"),
                 Path.Combine(root, "preview-install.log")));
@@ -107,10 +116,53 @@ internal static partial class InstallerChecks
         Assert(refused && File.ReadAllText(Path.Combine(occupied, "keep.txt")) == "untouched", "Unrelated folder preserved");
         var request = InstallationRequest.Create(Path.Combine(root, "中文 安装路径"));
         Assert(request.EngineArguments() == "/S /D=" + request.Directory, "NSIS directory is last and unquoted");
+        Assert(!Directory.Exists(request.Directory), "Confirming a new path does not create it");
+        RejectPath(Path.Combine(occupied, "keep.txt", "child"), "包含文件");
+        RejectPath(Path.Combine(root, new string('x', 220 - root.Length)), "220 个字符");
+        var drives = DriveInfo.GetDrives();
+        var unused = Enumerable.Range('D', 'Z' - 'D' + 1).Select(letter => (char)letter)
+            .FirstOrDefault(letter => !drives.Any(drive => Char.ToUpperInvariant(drive.Name[0]) == letter));
+        if (unused != '\0') RejectPath(unused + @":\ColorfulControlCenter", "安装磁盘不可用");
+        CheckWriteAccess();
+    }
+
+    private static void CheckWriteAccess()
+    {
+        var directory = Directory.CreateDirectory(Path.Combine(root, "read-only-target"));
+        var restricted = directory.GetAccessControl(AccessControlSections.Access);
+        string original = restricted.GetSecurityDescriptorSddlForm(AccessControlSections.Access);
+        using (var identity = WindowsIdentity.GetCurrent())
+            restricted.AddAccessRule(new FileSystemAccessRule(identity.User,
+                FileSystemRights.CreateFiles | FileSystemRights.CreateDirectories, AccessControlType.Deny));
+        directory.SetAccessControl(restricted);
+        try
+        {
+            RejectPath(directory.FullName, "无法写入此文件夹");
+            RejectPath(Path.Combine(directory.FullName, "new", "installation"), "无法在上级目录新建");
+            Assert(!directory.EnumerateFileSystemInfos().Any(), "Permission checks leave the target untouched");
+        }
+        finally
+        {
+            restricted.SetSecurityDescriptorSddlForm(original, AccessControlSections.Access);
+            directory.SetAccessControl(restricted);
+        }
+        Assert(InstallationRequest.Create(directory.FullName).Directory == directory.FullName,
+            "The same directory is accepted after write access is restored");
+    }
+
+    private static void RejectPath(string path, string message)
+    {
+        try { InstallationRequest.Create(path); }
+        catch (ArgumentException error)
+        {
+            Assert(error.Message.Contains(message), "Path error identifies the problem: " + error.Message);
+            return;
+        }
+        Assert(false, "Path unexpectedly passed validation: " + path);
     }
 
     private static InstallerWindow Window(string existing, Action<string> launch,
-        Func<InstallationRequest, IProgress<InstallProgress>, System.Threading.Tasks.Task> run = null)
+        Func<InstallationRequest, IProgress<InstallProgress>, Func<bool>, System.Threading.Tasks.Task<bool>> run = null)
     {
         var window = new InstallerWindow(existing, run ?? new InstallerEngine().Run, launch) {
             ShowActivated = false, ShowInTaskbar = false, Left = -20000, Top = -20000,
@@ -137,9 +189,11 @@ internal static partial class InstallerChecks
         Assert(Field<TextBox>(window, "directoryBox").Text == target, "Back preserves directory draft");
         Field<TextBox>(window, "directoryBox").Text = "relative";
         Click(window, "primary");
-        Assert(Field<int>(window, "step") == 1 && Field<Exception>(window, "failure") != null, "Path failure remains editable");
+        Assert(Field<int>(window, "step") == 1 && Field<TextBlock>(window, "locationError").Visibility == Visibility.Visible,
+            "Path failure is displayed on the editable location page");
         Capture(window, "02-invalid-path");
         Field<TextBox>(window, "directoryBox").Text = target;
+        Assert(Field<TextBlock>(window, "locationError").Visibility == Visibility.Collapsed, "Editing clears stale path feedback");
         Capture(window, "03-location");
         Environment.SetEnvironmentVariable("CCC_INSTALLER_CHECK_GATE", "wait");
         Click(window, "primary");
@@ -173,6 +227,63 @@ internal static partial class InstallerChecks
         Assert(mismatch, "Stale or changed executable cannot pass completion verification");
     }
 
+    private static void CheckUnavailableLocation()
+    {
+        string old = Directory.CreateDirectory(Path.Combine(root, "unavailable-location")).FullName;
+        string keep = Path.Combine(old, "keep.txt");
+        File.WriteAllText(keep, "unrelated");
+        var window = Window(old, path => { throw new Exception("Must not launch"); });
+        Click(window, "primary");
+        var box = Field<TextBox>(window, "directoryBox");
+        Assert(!box.IsReadOnly && box.Text.Length == 0 && FindButton((DependencyObject)window.Content, "选择安装位置…") != null,
+            "An unavailable registered location offers a different directory");
+        Capture(window, "location-recovery");
+        box.Text = old;
+        Click(window, "primary");
+        Assert(Field<int>(window, "step") == 1 && Field<TextBlock>(window, "locationError").Text.Contains("空文件夹"),
+            "Recovery will not reuse a directory containing unrelated files");
+        string target = Path.Combine(root, "恢复 中文目录");
+        box.Text = target;
+        Click(window, "primary");
+        Wait(window);
+        Assert(window.ExitCode == 0 && File.Exists(Path.Combine(target, Product.ApplicationFileStem + ".exe"))
+            && File.ReadAllText(keep) == "unrelated", "Recovery installs into the confirmed location and preserves old files");
+        window.Close();
+    }
+
+    private static void CheckRecoveredLocation()
+    {
+        string old = Path.Combine(root, "restored-location");
+        SeedInstalledFiles(old);
+        int calls = 0;
+        var window = Window(old, path => { throw new Exception("Must not launch"); }, (request, progress, confirm) => {
+            calls++;
+            Assert(request.Directory == old, "Restored installation receives an in-place update");
+            return System.Threading.Tasks.Task.FromResult(false);
+        });
+        Click(window, "primary");
+        Assert(Field<TextBox>(window, "directoryBox").IsReadOnly, "Usable registered location is read-only");
+        File.Delete(Path.Combine(old, Product.ApplicationFileStem + ".exe"));
+        Click(window, "primary");
+        Assert(calls == 0 && !Field<TextBox>(window, "directoryBox").IsReadOnly,
+            "A location lost before confirmation becomes editable without submitting");
+        SeedInstalledFiles(old);
+        Field<TextBox>(window, "directoryBox").Text = Path.Combine(root, "alternative");
+        Click(window, "primary");
+        Assert(calls == 0 && Field<TextBox>(window, "directoryBox").Text == old
+            && Field<TextBox>(window, "directoryBox").IsReadOnly, "Recovery rechecks the original before accepting a replacement");
+        Click(window, "primary");
+        Assert(calls == 1, "Updating the restored location requires explicit confirmation");
+        window.Close();
+    }
+
+    private static void SeedInstalledFiles(string folder)
+    {
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, Product.ApplicationFileStem + ".exe"), "installed controller fixture");
+        File.WriteAllText(Path.Combine(folder, "uninstall.exe"), "installed uninstaller fixture");
+    }
+
     private static void CheckFailure(string mode)
     {
         Environment.SetEnvironmentVariable("CCC_INSTALLER_CHECK_RESULT", mode);
@@ -184,6 +295,12 @@ internal static partial class InstallerChecks
         Assert(Field<int>(window, "step") == 2 && window.ExitCode != 0, mode + " is never completed");
         var error = Field<Exception>(window, "failure") as InstallFailure;
         Assert(error != null && File.Exists(error.LogPath), mode + " preserves structured log location");
+        if (mode == "failure") Assert(error.EngineExitCode == 23, "Unclassified engine failure retains its exit code");
+        if (mode == "check-failed")
+        {
+            Assert(error.EngineExitCode == Product.ProcessCheckFailedExitCode, "Check failures retain their dedicated code");
+            Assert(Field<TextBlock>(window, "heading").Text == "安装未完成", "Check failure differs from a running controller");
+        }
         if (mode == "tampered")
         {
             string log = File.ReadAllText(error.LogPath);
@@ -214,37 +331,6 @@ internal static partial class InstallerChecks
         var time = Stopwatch.StartNew();
         while (Field<bool>(window, "busy") && time.ElapsedMilliseconds < 90000) Pump();
         Assert(!Field<bool>(window, "busy"), "Engine completed within fixture timeout");
-    }
-
-    private static void CheckRunningGuard()
-    {
-        string controller = Path.Combine(root, "colorful-control-center.exe");
-        File.Copy(Path.Combine(root, "controller-fixture.exe"), controller);
-        using (var process = Process.Start(new ProcessStartInfo(controller, "--hold") {
-            UseShellExecute = false, CreateNoWindow = true,
-        }))
-        {
-            try
-            {
-                System.Threading.Thread.Sleep(100);
-                using (var guard = Process.Start(new ProcessStartInfo(Path.Combine(root, "running-guard.exe")) {
-                    UseShellExecute = false, CreateNoWindow = true,
-                }))
-                {
-                    if (!guard.WaitForExit(30000)) throw new Exception("NSIS guard timed out");
-                    Assert(guard.ExitCode == 2, "NSIS rejects running file instead of force shutdown");
-                }
-                Assert(!process.HasExited, "Running controller fixture remains alive");
-            }
-            finally { if (!process.HasExited) { process.Kill(); process.WaitForExit(); } }
-        }
-        using (var guard = Process.Start(new ProcessStartInfo(Path.Combine(root, "running-guard.exe")) {
-            UseShellExecute = false, CreateNoWindow = true,
-        }))
-        {
-            if (!guard.WaitForExit(30000)) throw new Exception("Stopped NSIS guard timed out");
-            Assert(guard.ExitCode == 0, "NSIS proceeds after normal controller exit");
-        }
     }
 
     private static void Pump()
@@ -298,6 +384,12 @@ internal static partial class InstallerChecks
     {
         if (settle) Settle(window);
         Pump();
+        CaptureContent(window, name, scale);
+        Assert(Field<Button>(window, "primary").ActualHeight >= 40, "Action remains visible: " + name);
+    }
+
+    private static void CaptureContent(Window window, string name, double scale)
+    {
         window.UpdateLayout();
         var content = (FrameworkElement)window.Content;
         var bitmap = new RenderTargetBitmap((int)(content.ActualWidth * scale), (int)(content.ActualHeight * scale),
@@ -306,7 +398,6 @@ internal static partial class InstallerChecks
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using (var file = File.Create(Path.Combine(root, name + ".png"))) encoder.Save(file);
-        Assert(Field<Button>(window, "primary").ActualHeight >= 40, "Action remains visible: " + name);
     }
 
     private static T Field<T>(object instance, string name)

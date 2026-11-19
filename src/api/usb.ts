@@ -1,4 +1,5 @@
 import { invoke } from "./client";
+export const USB_POLICY_LABEL = "USB 选择性暂停";
 export type UsbPlanId = "balanced" | "highPerformance" | "powerSaver";
 export interface UsbTargets { ac: boolean | null; dc: boolean | null }
 export interface UsbPlan extends UsbTargets { id: UsbPlanId }

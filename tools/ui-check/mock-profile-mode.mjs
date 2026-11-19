@@ -1,5 +1,5 @@
 import { invokePerformance } from "./mock-performance.mjs";
-import { rememberMode, applyModeGpu } from "./mock-mode-state.mjs";
+import { appliesPerformanceOptions, optionCommand, rememberMode, applyModeGpu } from "./mock-mode-state.mjs";
 
 export function profileNodeStages(target, settings) {
   const gpu = target.gpu;
@@ -53,6 +53,7 @@ export function applyProfileMode(data, target) {
   }
   data.acMode = target.acMode;
   data.performanceOptions.currentMode = target.mode;
+  data.modeOptionsCommand = optionCommand(target.mode, target.turbo, target.dtt);
   data.performanceOptions.canRestore = true;
   data.performanceOptions.revision = `options-${++data.performanceRevision}`;
   data.modeEnergy = structuredClone(target.energy);
@@ -69,9 +70,10 @@ export async function previewProfileMode(data, settings) {
   target.gpu.value.stages = profileNodeStages(target, settings);
   const values = settings.performanceOptions;
   if (values) {
-    target.turbo = mode === 2 && values.turboFan === true;
-    target.dtt = mode === 2 && values.dtt === true;
-    if (mode === 2 && values.turboFan !== data.performanceOptions.current.turboFan) target.fanMode = target.fanSavedMode = 0;
+    const active = appliesPerformanceOptions(data, mode);
+    target.turbo = active && values.turboFan === true;
+    target.dtt = active && values.dtt === true;
+    if (active && values.turboFan !== data.performanceOptions.current.turboFan) target.fanMode = target.fanSavedMode = 0;
   }
   if (target.dtt && data.performanceOptions.dttDriverAvailable !== true) throw new Error("未确认Dynamic Tuning驱动，不能激活DTT");
   target.revision = JSON.stringify([target, data.acMode, data.modeEnergy, data.performanceOptions.current]);

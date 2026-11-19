@@ -113,7 +113,8 @@ pub fn plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri_plugin_global_shortcut::Builder::new()
         .with_handler(|app, key, event| {
             let state = app.state::<Bindings>();
-            if event.state() != ShortcutState::Pressed
+            if crate::shutdown::closing()
+                || event.state() != ShortcutState::Pressed
                 || state.recording.load(Ordering::Acquire)
                 || state.id.load(Ordering::Acquire) != key.id()
             {

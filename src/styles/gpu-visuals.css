@@ -20,6 +20,6 @@
 .ccc-gpu-target-device { display: block; }
 .ccc-gpu-supply-targets caption { caption-side: bottom; text-align: right; font-size: var(--ccc-text-xs); }
 .ccc-mode-cycle-heading { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ccc-space-2); }
-.ccc-mode-cycle-art { display: block; flex: 0 0 56px; overflow: hidden; aspect-ratio: 1.6; border-radius: var(--ccc-radius-control); }
+.ccc-mode-cycle-art { display: block; flex: 0 0 var(--ccc-control-height-compact); min-width: 0; }
 .ccc-mode-cycle-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: var(--ccc-space-3); }
 .ccc-mode-cycle-choice { padding: var(--ccc-space-3); }

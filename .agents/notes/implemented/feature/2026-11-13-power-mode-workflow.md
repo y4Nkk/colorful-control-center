@@ -8,7 +8,34 @@ Status: implemented
 
 ## 决定
 
-- 2026-11-17按用户减负要求，预设切换收敛为“选卡片查看真实联动→确认应用”两次操作。卡片本身是预览意图，不再先点应用再点同一按钮二次确认；恢复没有选卡片阶段，继续使用既有两步确认。首次浏览不执行，选当前模式仍可显式重新应用；执行锁、后端修订检查、失败保留草稿及完整恢复保持原所有者。删去重复场景说明，只保留模式名、用途和实际状态；固件协议由后台识别，不增加用户配置项。
+2026-11-18 模式选项扩展。原厂 Turbo 风扇和 DTT 通过性能模式命令激活。娱乐模式允许独立编辑并保存这两项性能偏好，保持当前娱乐模式及其风扇。性能模式在固件声明 SlowFan 时提供寂静模式，调用已有固件风扇档 8。2026-11-19 核对原厂后将温度监护限定在软件曲线，预设和性能寂静模式直接交给固件执行。支持分模式记忆时复用性能槽，原厂娱乐模式的 Noiseless 偏好独立。寂静与 Turbo 在同份草稿互斥，模式应用前显示最终有效的风扇目标。新增设置复用模式选项修订校验和首次恢复快照。
+
+2026-11-18 预设视觉改用简洁的内联 SVG。电池与叶片、月牙、手柄、仪表采用透明画板与统一圆角描边，静音增强复用月牙。移除渐变、圆形底托、星点及图形缩放。模式卡片、供电预览和热键循环共用 `ModeArtwork`。系统概览与性能调校采用整行大卡片和普通勾选标记。
+
+2026-11-19 按 Apple 的中心构图与简单背景、Material Symbols 的小尺寸辨识度、Fluent Emoji 的熟悉轮廓重新生成四张预设插画。iOS 与 macOS 专注模式以图形配色区分状态。保留玉绿叶片电池、钴蓝月牙、紫色手柄和铜橙仪表，统一哑光珐琅、左上柔光与低对比单色背景。使用内置 ImageGen 独立生成四幅原图，编码为 768×384 的 WebP。静音增强共用月牙，`ModeArtwork` 供概览、性能调校、供电预览和热键循环共用。
+
+[Apple 图标指南](https://developer.apple.com/design/human-interface-guidelines/app-icons) · [iOS 专注模式](https://support.apple.com/en-euro/guide/iphone/iphd6288a67f/26/ios/26) · [macOS 专注模式](https://support.apple.com/en-euro/guide/mac-help/mchl613dc43f/mac) · [Material Symbols](https://developers.google.com/fonts/docs/material_symbols) · [Fluent Emoji](https://github.com/microsoft/fluentui-emoji)
+
+每张图的提示词由对应的主体段和同一构图段组成。
+
+```text
+[eco] Use case: stylized-concept. Subject and palette: A jade-green horizontal battery with big friendly radii and a small integral right terminal. One simple pale mint leaf emblem is inset flush in the front face, with a single gently curved vein. A light muted mint studio field with subtle shading. Deep jade silhouette, cooler mint face details.
+[quiet] Use case: stylized-concept. Subject and palette: A broad, solitary cobalt-blue crescent moon with solid mass, a generous open crescent facing right, gently rounded pointed tips, one pale blue bevel highlight and the deeper blue enamel face. A subdued pale blue/periwinkle studio field. The crescent is the only shape.
+[entertainment] Use case: stylized-concept. Subject and palette: A compact, original purple game controller with a bold symmetric two-grip shape, one broad pale directional cross on the left and four small unlabeled lilac button domes on the right. No sticks, cables or brand-specific pattern. A muted lilac studio field. Deep plum at the edge and clear violet in front.
+[performance] Use case: stylized-concept. Subject and palette: A sculptural copper-orange speed gauge with a thick open semicircular dial, a few equally weighted ivory-orange inset marks, one bold short needle pointing up-right, and an integral round pivot. Use a simple front silhouette without a surrounding instrument housing or numerals. A muted pale apricot studio field with soft depth, rich burnt-orange enamel.
+
+Original product illustration for a premium Windows laptop power-mode picker. A wide landscape banner, target 2:1, with an uninterrupted matte studio backdrop. Show one centered, chunky low-relief object made of satin enamel, with fine broad bevels and a shallow darker edge, viewed almost head-on with a slight elevation. Soft, broad light from upper left, quiet short shadow. Clean, bold silhouette and very few broad details, legible in a tiny 40-pixel thumbnail. Give the single object an optical height around 54% of the canvas and keep it inside the center safe area for cropping. Design the composition as a complete edge-to-edge illustration. No container, no text, no letters, no numerals, no logo, no border, no badges, no extra scenery, no particles, no glow, no texture noise.
+```
+
+2026-11-19 预设插画改为内联 SVG，沿用前版四种主体及珐琅材质。共用组件负责静态绘图和实例内的渐变引用。性能调校按卡片悬停播放叶片轻摆、月牙浮动、手柄按键下沉或仪表扫针，移开即恢复静态。系统或应用设置启用减少动效，以及触控和只读预览场景，均显示静态图。移除 WebP 资源引用。模式切换仍由卡片单选控件负责。
+
+2026-11-19 预设选择改用单层中性色卡片与同一套 48 × 48 SVG。参考 G-Helper 的档位层级、Tabler 的轮廓和 IBM 的光学对齐方法，重画电池与叶片、月牙、手柄和仪表。宽窗图形与名称同排，窄窗两列并在卡内上下排列。图形共用描边，淡色只用于局部填充。先检查浅深色与窗口宽度，再让叶片展开、月牙内弧提亮、手柄键短按和仪表指针绕轴。移开复位，概览与联动缩略图复用静态绘图。
+
+- 2026-11-18 预设卡片作为直接切换入口，激活时提交后端返回的完整模式目标及修订。移除模式草稿、差异区及应用按钮。事务期间显示切换状态并暂停再次激活，以设备回读决定当前模式。失败回读并显示原因，再次激活才继续执行。明确重选当前模式仍可应用插电偏好；首次加载和重新读取均只读。后端沿用资格检查、授权、执行锁、失败补偿及首次恢复，恢复设置继续审核独立目标。
+
+- 2026-11-19 预设切换遇到已核验身份的原厂 FnKey 时，弹窗确认「关闭并切换」。确认绑定当次模式目标、进程 ID 与创建时间。后台重新核验 Windows 包、应用 ID、程序映像和会话，请求原厂进程正常退出，等待进程结束后再走完整模式事务。其他原厂控制进程、变化的身份或模式目标、退出失败均阻止执行。此操作仅用于手动切换预设，保留底层服务、驱动与原厂启动配置。取消与离页放弃待确认请求。
+
+- 2026-11-19 真机确认关闭 FnKey 后，模式写入与温度采样同时停滞。预设与模式循环的许可回调曾在 DCHU 锁内重复查询除尘，试图再次获得同一锁。公共模式事务由 HAL 写锁串行化，所有调用方许可在 DCHU 锁外检查。DCHU 锁只保护性能偏好、插电偏好、模式命令与保存、EnergyStar 等设备操作各自的读写，保留写入间的许可、EnergyStar 写前核对与写后回读及失败补偿。除尘检查由模式事务与风扇域负责。
 
 - 删除已无调用者的StoredModeSnapshot单计划system_summary辅助入口；当前消费者统一使用逐计划system_plan_values和恢复预览，不保留旧摘要访问路径。
 
@@ -25,17 +52,33 @@ Status: implemented
 - 独显关断、屏幕刷新率和逐键协议不纳入该模式事务。后续已从本机安装载荷找回cc30wk并核对ACPI控制节点与cmd4/sub34协议；其接入与档案联动另行实现，不把模式事务完成当作这些功能完成。
 - 2026-11-16恢复预览目检发现：Collapsible内容默认靠起始边对齐，共享OemModeRestore没有宽度，宽屏缩成窄条，窄屏又被FactList的内框和行线挤压。恢复面板明确填满父内容区，按模式与性能、风扇、Windows计划分组；FactList唯一原语增加tiles布局，标签和值上下排列、按可用宽度分列，移除该布局的内框与行分隔线。其他事实行保持现有布局，不全局改折叠容器对齐。
 
+2026-11-19 娱乐与性能模式共用「寂静模式」开关。娱乐模式按原厂能力读取独立的 page4[9]，确认后发送寂静或自动档并保留自动风扇记忆。性能模式复用性能槽和 Turbo 互斥。预览修订绑定当前模式与勾选状态，换档后重新读取对应草稿。只在调整娱乐偏好时登记该保存位的首次基线，应用失败和用户恢复都回读原值。
+
+2026-11-19 娱乐和性能都可应用各自的寂静模式。已保存开启但尚未生效时可重新应用。若当前为自定义固件风扇曲线，应用或关闭寂静模式前显示要切换的固件档位，确认绑定已读修订和自定义来源。复用模式与风扇的首次快照及失败补偿，软件曲线仍按现有交接规则处理。性能选项按各字段的固件能力显示，Turbo 风扇和动态调校 DTT 的有效模式以已核验的命令为准，性能模式无风扇记忆槽时提示切换将重置寂静设置。
+
+2026-11-19 复核本机 INSYDE ADL DSDT 与 DptfTabl。两个 OEM UI 标记都为 0，实际 SCMD 0x79/sub0x19 由 PSF4 bit2 门控，低六位分别保留性能 2 或娱乐 3，并独立解析 Turbo 与 DTT。已核对固件以实时命令门控开放两档选项。DTT 另验当前已启动的 IETM 设备，核对表的 _STA 只有 DPTF = 1 且 IN34 = 1 才返回可用。本机只读确认命令门控和 IETM 均有效。娱乐档从固件自定义曲线开启 Turbo 时先预览自动风扇目标，再执行应用，可恢复原曲线。
+
 ## 影响与验证
 
-预设视觉于 2026-11-13 按用户修正改为内置 image_gen 生成的本地语义插画：省电使用绿叶/能量，安静使用羽毛/静水，娱乐使用播放/音符，性能使用闪电/速度；静音增强复用安静场景，不出现笔记本或其他设备模型。ModeArtwork.tsx 只拥有模式到图片资源的映射，mode-presets.css 拥有图片卡布局；删除已被替代的 SVG 场景、材质、裁切与 --ccc-mode-art-* 令牌，不保留兼容路径。图中不含文字或实时指标，原生 Radio、可见状态、预览与确认仍是唯一交互事实；图片从项目本地加载，不添加运行时外部请求或图像依赖。素材目录记录生成提示词和来源。
+- 2026-11-19 扁平插画通过 29 项打包前端的隔离 Edge 模拟 IPC 检查，覆盖图片加载、浅深主题与宽窄布局、键盘切换、静音增强和供电与热键缩略图复用。前端构建、控件检查和 Rust 工作区检查通过。宽窄浅深截图位于 `target/ui-check/preset-artwork-*.png`。
 
-集成 Surface / Radio 原语时，选中卡片的悬停边框应继续显示选中态；在 surface.css 将悬停边框限定为未选中的可用卡片，业务不复制表面状态样式。图片的右上角为选择标记留白；浅深主题保留生成图片本色，外框、文字和状态继续复用全局主题。
+- 2026-11-19 本机 `FnKey.exe` 7.101.0.0 的包身份、映像、会话及隐藏主窗已只读核验。隔离 WinForms 验证通过，覆盖正常退出清理、拒绝退出、同名窗口保护、未注册映像、进程替换及额外控制进程拦截。31 项模式与布局页面用例通过，其中 6 项复核确认、取消、目标变化、超时和离页。证据在 `target/fnkey-exit-proof/`。本机原厂进程和真实硬件模式未执行切换。
+
+- 2026-11-18 预设直接切换通过 47 项隔离页面检查及 12 项模式联动与恢复模拟。覆盖鼠标和键盘激活、连续点击保护、设备回读、过期目标拒绝、固件与 GPU 事务、插电偏好、初始恢复及校准互斥。前端构建、控件检查和离线 Rust 检查通过。
+
+- 2026-11-18 模式选项扩展通过 128 项隔离模式测试、1 项隔离风扇监护进程测试、3 项风扇记忆测试、19 项档案性能选项测试及 34 项模拟 IPC 页面检查。覆盖娱乐偏好保存、DTT 激活资格、寂静与 Turbo 互斥、无自定义曲线设备、草稿回读、写入失败补偿及恢复。前端构建、控件检查和工作区 Rust 检查通过。监护夹具单独从源码编译。
+
+- 2026-11-18 简化线稿通过 13 项隔离 Edge 检查，覆盖宽窄屏与浅深主题、卡片内图形居中和状态文字完整显示、键盘焦点及一次应用，以及静音增强、供电和热键缩略图的复用。前端构建、控件检查及工作区 Rust 检查通过。
+
+2026-11-13 的本地生图方案为历史视觉版本，素材及资源引用已随 SVG 方案移除。
+
+集成 Surface / Radio 原语时，选中卡片的悬停边框继续显示选中态，卡片右上角为选择标记留白。装饰图形不参与焦点与状态宣读。
 
 - 模式域14项、档案34项、风扇域19项聚焦检查通过；覆盖模式4、旧/扩展能力页、分模式风扇/ASPM/计划目标、阶段失败恢复和默认曲线恢复。系统调用由显式内存实现替代。
 - 实际 React 页面模拟 IPC 的模式/档案联动22项通过；控制台63项、软件曲线30项、RPM30项、即时档案22项回归通过。联动变更拒绝旧预览，写入完成刷新其他域且不丢草稿。
 - npm run build 与 cargo check --offline --workspace 通过；不运行真实应用或系统电源写 API。
 - 顶部预设入口的构建、边界检查与笔记校验通过；构建产物在隔离 Chromium / 模拟 IPC 下的 38 项聚焦检查通过，覆盖四种预设、扩展模式能力、二次确认、完整联动目标、软件曲线退出提示、写入互斥、恢复、跨页草稿、失败重试、迟到读取丢弃、键盘导航和浅深/窄屏。截图与结果留在 target/preset-modes-ui/；不加载真实硬件提供者。
-- 生图场景版的构建、边界检查、cargo check --offline --workspace 与笔记校验通过；构建产物在隔离 Chromium / 模拟 IPC 下 47 项聚焦检查通过，包含四张真实 PNG 的本地加载与解码、固有尺寸、装饰焦点/拖动隔离、静音增强复用、四/五卡布局、浅深/窄屏及原有确认/恢复/失败链路。三类主题/尺寸截图已检查，四张原图无笔记本或设备造型，原 SVG 及专属令牌无残留。素材与完整提示词保存在 public/mode-artwork/，结果与页面截图保存在 target/preset-modes-ui/。不运行完整测试套件，不写真实硬件或用户软件偏好。
+- 历史生图版本通过 47 项隔离 Chromium 模拟 IPC 检查，覆盖图片加载、固有尺寸、装饰隔离、静音增强复用及宽窄深浅布局。结果与页面截图保存在 `target/preset-modes-ui/`。
 - 2026-11-16共享恢复布局：前端构建、26项全局控件约束、11项模式偏好/性能选项页面检查通过；宽窄深浅增加面板填充宽度、语义标题和无行线断言，1440浅色及360深色截图已目检。修复宽屏左侧窄条和嵌套内框挤压标签，未更改硬件动作或确认修订。
 
 ## 风险

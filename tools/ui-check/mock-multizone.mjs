@@ -33,8 +33,8 @@ export function invokeMultiZone(data, command, args) {
   }
   profile.revision = `multi-${++data.multiZoneRevision}`;
 }
-export function applyProfileMultiZone(data) {
-  const target = data.profile.settings.multiZoneLighting;
+export function applyProfileMultiZone(data, settings) {
+  const target = settings.multiZoneLighting;
   if (!target) return false;
   const current = captureMultiZone(data);
   if (!current || JSON.stringify(current.capabilities) !== JSON.stringify(target.capabilities)) throw new Error("档案多区键盘能力已变化");

@@ -3,7 +3,6 @@ import { getAutostart, setAutostart, toCommandError, type AutostartSnapshot, typ
 
 export function useAutostart(active: boolean) {
   const [snapshot, setSnapshot] = useState<AutostartSnapshot | null>(null);
-  const [level, setLevel] = useState<AutostartLevel>("disabled");
   const [pending, setPending] = useState<"read" | "write" | null>("read");
   const [error, setError] = useState<string | null>(null);
   const mounted = useRef(false);
@@ -15,7 +14,7 @@ export function useAutostart(active: boolean) {
     setPending(writing ? "write" : "read"); setError(null);
     try {
       const next = await operation();
-      if (mounted.current) { setSnapshot(next); setLevel(next.level); }
+      if (mounted.current) setSnapshot(next);
     } catch (cause) {
       if (mounted.current) { setError(toCommandError(cause).message); setSnapshot(null); }
     } finally {
@@ -25,7 +24,7 @@ export function useAutostart(active: boolean) {
   }, []);
   const reload = useCallback(() => request(getAutostart, false), [request]);
   useEffect(() => { if (active) void reload(); }, [active, reload]);
-  const apply = (restore = false) => snapshot
+  const apply = (level: AutostartLevel, restore = false) => active && snapshot && (restore || level !== snapshot.level || snapshot.legacy)
     ? request(() => setAutostart(snapshot.revision, level, restore), true) : Promise.resolve();
-  return { snapshot, level, setLevel, pending, error, reload, apply };
+  return { snapshot, pending, error, reload, apply };
 }

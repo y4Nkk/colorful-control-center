@@ -17,12 +17,12 @@ export function RuntimeSettings({ model }: { model: PreferencesModel }) {
   if (!snapshot) return null;
   return <>
     <Surface as="section" variant="group" className="ccc-settings-group" aria-label="运行与诊断">
-      <header className="ccc-settings-group-heading"><h2 className="ccc-icon-title"><Icon name="performance" />运行与诊断</h2>
-        <DetailsDialog title="运行日志" label="日志设置" icon="logs">
+      <header className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="performance" />运行与诊断</h2>
+        <div className="ccc-module-tools"><DetailsDialog title="运行日志" label="日志设置" icon="logs">
           <SettingRow label="日志级别"><Select label="日志级别" value={snapshot.settings.runtimeLogLevel}
             disabled={busy} options={LEVELS}
             onChange={value => { const level = LEVELS.find(option => option.value === value); if (level) void patch({ runtimeLogLevel: level.value }); }} /></SettingRow>
-        </DetailsDialog>
+        </DetailsDialog></div>
       </header>
       <SettingRow label="硬件加速">
         <Switch label="硬件加速" checked={snapshot.settings.hardwareAcceleration} disabled={busy}

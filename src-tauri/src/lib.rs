@@ -25,6 +25,7 @@ mod platform;
 mod powerctl;
 mod preferences;
 mod profiles;
+mod shutdown;
 mod startup;
 mod storage;
 mod touchpad;
@@ -60,6 +61,7 @@ pub fn run() {
                 )])
                 .build(),
         )
+        .plugin(shutdown::plugin())
         .plugin(preferences::plugin())
         .plugin(preferences::shortcut_plugin())
         .plugin(control_plugin(restart_lease))
@@ -67,14 +69,19 @@ pub fn run() {
         .manage(startup::LaunchReport::default())
         .invoke_handler(command_registry::handler!())
         .setup(move |app| {
+            let Some(_operation) = shutdown::enter() else {
+                return Ok(());
+            };
             preferences::create_window(app.handle(), &windows)?;
-            tray::setup(app.handle())?;
+            tray::bind_window(app.handle());
+            tray::refresh_profiles(app.handle());
             startup::on_launch(app.handle());
             start_workers(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {
             if window.label() == "main"
+                && !shutdown::closing()
                 && matches!(
                     event,
                     tauri::WindowEvent::Focused(false) | tauri::WindowEvent::Destroyed
@@ -89,36 +96,13 @@ pub fn run() {
         })
         .build(context)
         .expect("error while building tauri application")
-        .run(on_run_event);
-}
-
-fn on_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
-    if matches!(event, tauri::RunEvent::Exit) {
-        #[cfg(not(test))]
-        if let Err(error) = app
-            .state::<powerctl::mode::supply::Controller>()
-            .stop_worker()
-        {
-            log::error!("[supply-mode] 退出停止：{error:#}");
-        }
-        #[cfg(not(test))]
-        if let Err(error) = app.state::<display::automatic::Controller>().stop_worker() {
-            log::error!("[auto-refresh] 退出停止：{error:#}");
-        }
-        if let Err(error) = app.state::<profiles::policy::Controller>().stop() {
-            log::error!("[power-policy] 退出停止：{error:#}");
-        }
-        if let Err(error) = app.state::<hotkeys::Controller>().stop(app) {
-            log::error!("[hotkeys] 退出停止：{error:#}");
-        }
-        app.state::<osd::Controller>().stop();
-        if let Err(error) = fanctl::release_on_exit(&app.state::<Hal>()) {
-            log::error!("[software-fan] 退出恢复：{error:#}");
-        }
-    }
+        .run(shutdown::on_event);
 }
 
 fn start_workers(app: &tauri::AppHandle) {
+    if shutdown::closing() {
+        return;
+    }
     #[cfg(not(test))]
     if let Err(error) = app
         .state::<display::automatic::Controller>()
@@ -139,21 +123,24 @@ fn start_workers(app: &tauri::AppHandle) {
     }
     let hotkey_handle = app.clone();
     std::thread::spawn(move || {
-        hotkey_handle
-            .state::<hotkeys::Controller>()
-            .resume_saved(&hotkey_handle)
+        if let Some(_operation) = shutdown::enter() {
+            hotkey_handle
+                .state::<hotkeys::Controller>()
+                .resume_saved(&hotkey_handle);
+        }
     });
     start_hardware_workers(app);
 }
 fn start_hardware_workers(app: &tauri::AppHandle) {
     let fan_handle = app.clone();
     std::thread::spawn(move || {
-        loop {
+        while let Some(operation) = shutdown::enter() {
             if let Some(hal) = fan_handle.try_state::<Hal>() {
                 if let Err(error) = fanctl::software::tick(&hal) {
                     log::error!("[software-fan] {error:#}");
                 }
             }
+            drop(operation);
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
     });
@@ -171,38 +158,41 @@ fn start_hardware_workers(app: &tauri::AppHandle) {
     let display_handle = app.clone();
     let battery_handle = app.clone();
     std::thread::spawn(move || {
-        loop {
+        while let Some(operation) = shutdown::enter() {
             if let Err(error) = battery_handle
                 .state::<battery::Controller>()
                 .supervise_calibration(&battery_handle.state::<Hal>())
             {
                 log::error!("[battery-calibration] {error:#}");
             }
+            drop(operation);
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
     });
     std::thread::spawn(move || {
-        loop {
+        while let Some(operation) = shutdown::enter() {
             if let Err(error) = display_handle
                 .state::<display::Controller>()
                 .tick_runtime(&display_handle.state::<Hal>())
             {
                 log::error!("[display-restore] {error:#}");
             }
+            drop(operation);
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
     });
     // 采样与监护心跳独立，硬件读取阻塞不阻断监护管道。
     let handle = app.clone();
     std::thread::spawn(move || {
-        loop {
+        while !shutdown::closing() {
             if let Some(hal) = handle.try_state::<Hal>() {
                 let mut snapshot = hal.display_snapshot();
                 let safety = hal.safety_status();
                 if safety != "自动" && safety != "监护中" {
                     snapshot.warnings.push(safety);
                 }
-                let _ = handle.emit("hardware-snapshot", snapshot);
+                let _ = handle.emit("hardware-snapshot", &snapshot);
+                tray::sample(&handle, &hal, &snapshot);
             }
             std::thread::sleep(std::time::Duration::from_millis(1000));
         }
@@ -214,6 +204,9 @@ fn control_plugin(
 ) -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri::plugin::Builder::new("controller")
         .setup(move |app, _| {
+            let Some(_operation) = shutdown::enter() else {
+                return Ok(());
+            };
             let lease = match restart_lease {
                 Some(lease) => lease,
                 None => controller_lease::ControllerLease::try_acquire(controller_lease::NAME)?

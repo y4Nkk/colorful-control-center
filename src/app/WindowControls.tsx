@@ -2,10 +2,10 @@ import { Button } from "../components/Button";
 import { useEffect, useState } from "react";
 import {
   closeWindow, getWindowMaximized, minimizeWindow, onWindowResized, toggleMaximizeWindow, toCommandError,
-  type CloseBehavior,
 } from "../api/client";
 import { toast } from "../components/use-toast";
 import { Icon } from "../components/Icon";
+import type { PreferencesModel } from "./useAppPreferences";
 
 function reportError(title: string, error: unknown) {
   toast({ kind: "error", title, description: toCommandError(error).message });
@@ -37,9 +37,12 @@ function useWindowMaximized() {
   return maximized;
 }
 
-export function WindowControls({ closeBehavior }: { closeBehavior?: CloseBehavior }) {
+export function WindowControls({ preferences }: { preferences: PreferencesModel }) {
   const maximized = useWindowMaximized();
   const [pending, setPending] = useState(false);
+  const { snapshot, busy, patch } = preferences;
+  const { alwaysOnTop, closeBehavior } = snapshot?.settings ?? {};
+  const pinLabel = alwaysOnTop ? "取消置顶" : "置顶窗口";
   const maximizeLabel = maximized ? "还原窗口" : "最大化窗口";
   const run = async (action: () => Promise<void>, label: string) => {
     setPending(true);
@@ -49,6 +52,14 @@ export function WindowControls({ closeBehavior }: { closeBehavior?: CloseBehavio
   };
   return (
     <div className="ccc-window-controls" role="group" aria-label="窗口控制">
+      <Button variant={alwaysOnTop ? "secondary" : "ghost"} size="icon" className="ccc-window-button"
+        aria-label="窗口始终置顶" aria-pressed={alwaysOnTop} title={pinLabel}
+        disabled={pending || busy || alwaysOnTop === undefined}
+        onClick={() => void patch({ alwaysOnTop: !alwaysOnTop }, description => {
+          toast({ kind: "error", title: `${pinLabel}失败`, description });
+        })}>
+        <Icon name="pin" size={16} />
+      </Button>
       <Button variant="ghost" size="icon" type="button" className="ccc-window-button" aria-label="最小化窗口" title="最小化窗口"
         disabled={pending} onClick={() => void run(minimizeWindow, "最小化窗口")}>
         <Icon name="minimize" size={16} />

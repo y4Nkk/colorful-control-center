@@ -64,13 +64,18 @@ fn consume(
     battery_events: &mut battery_events::Source,
 ) -> Result<()> {
     let clock = Instant::now();
-    panel_event::startup(app, path, approved, stopping, status)?;
+    if let Some(_operation) = crate::shutdown::enter() {
+        panel_event::startup(app, path, approved, stopping, status)?;
+    }
     let mut gate = Gate::default();
     loop {
         match stopping.recv_timeout(Duration::from_millis(80)) {
             Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
             Err(mpsc::RecvTimeoutError::Timeout) => (),
         }
+        let Some(_operation) = crate::shutdown::enter() else {
+            return Ok(());
+        };
         if battery_alert::tick(app, path, approved, stopping)? {
             return Ok(());
         }
@@ -81,6 +86,9 @@ fn consume(
             return Ok(());
         }
         for record in log.poll()? {
+            if crate::shutdown::closing() {
+                return Ok(());
+            }
             if consume_packet(
                 app,
                 path,

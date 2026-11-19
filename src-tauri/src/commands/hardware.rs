@@ -12,7 +12,7 @@ pub(crate) fn read_hardware_snapshot(hal: State<'_, Hal>) -> HardwareSnapshot {
 
 #[tauri::command]
 pub(crate) async fn read_system_overview() -> Result<crate::hal::overview::SystemOverview, String> {
-    tauri::async_runtime::spawn_blocking(crate::hal::overview::read)
+    crate::shutdown::blocking(crate::hal::overview::read)
         .await
         .map_err(|error| format!("系统概览读取失败：{error}"))
 }

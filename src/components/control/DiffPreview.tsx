@@ -1,4 +1,4 @@
-/** 待应用变更的微型差异预览：仅变更字段，当前 → 草稿。 */
+import { FactList } from "../FactList";
 
 export interface DiffItem {
   label: string;
@@ -8,16 +8,8 @@ export interface DiffItem {
 
 export function DiffPreview({ items }: { items: DiffItem[] }) {
   if (items.length === 0) return null;
-  return (
-    <div className="ccc-diff" aria-label="待应用变更">
-      {items.map((item) => (
-        <span key={item.label} className="ccc-diff-chip">
-          <span>{item.label}</span>
-          <span className="ccc-mono">
-            {item.from} → {item.to}
-          </span>
-        </span>
-      ))}
-    </div>
-  );
+  return <FactList compact layout="tiles" label="待应用变更" facts={items.map(({ label, from, to }) => ({
+    label,
+    value: <>{from} → <strong>{to}</strong></>,
+  }))} />;
 }

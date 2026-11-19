@@ -12,7 +12,7 @@ internal static partial class InstallerChecks
     {
         var completion = new System.Threading.Tasks.TaskCompletionSource<bool>();
         IProgress<InstallProgress> report = null;
-        var window = Window(null, path => { throw new Exception("Animation fixture must not launch"); }, (request, progress) => {
+        var window = Window(null, path => { throw new Exception("Animation fixture must not launch"); }, (request, progress, confirm) => {
             report = progress;
             return completion.Task;
         });
@@ -55,7 +55,9 @@ internal static partial class InstallerChecks
 
     private static void CheckReducedMotion()
     {
-        var window = Window(Path.Combine(root, "existing-install"), path => { throw new Exception("Must not launch"); });
+        string installed = Path.Combine(root, "existing-install");
+        SeedInstalledFiles(installed);
+        var window = Window(installed, path => { throw new Exception("Must not launch"); });
         window.Resources["MotionMilliseconds"] = 0d;
         Click(window, "primary");
         var content = Field<StackPanel>(window, "body");
@@ -67,11 +69,51 @@ internal static partial class InstallerChecks
         window.Close();
     }
 
+    private static void CheckCompactLocation()
+    {
+        var window = Window(null, path => { throw new Exception("Must not launch"); });
+        window.Width = 650;
+        window.Height = 395;
+        Click(window, "primary");
+        Field<TextBox>(window, "directoryBox").Text = @"D:\Apps\ColorfulControlCenter";
+        Capture(window, "compact-location");
+        CheckFooter(window);
+        var browse = FindButton((DependencyObject)window.Content, "选择安装位置…");
+        DependencyObject viewport = VisualTreeHelper.GetParent(browse);
+        while (viewport != null && !(viewport is ScrollContentPresenter))
+            viewport = VisualTreeHelper.GetParent(viewport);
+        Assert(viewport != null && new Rect(((FrameworkElement)viewport).RenderSize)
+            .Contains(Bounds(browse, (Visual)viewport)), "The directory picker is visible at 650 by 395 without scrolling");
+        window.Width = 334;
+        window.Height = 520;
+        window.UpdateLayout();
+        Assert(CheckFooter(window), "The footer wraps when one row is too narrow");
+        window.Close();
+    }
+
+    private static bool CheckFooter(InstallerWindow window)
+    {
+        var panel = Field<Border>(window, "workspacePanel");
+        var back = Bounds(Field<Button>(window, "back"), panel);
+        var cancel = Bounds(Field<Button>(window, "secondary"), panel);
+        var confirm = Bounds(Field<Button>(window, "primary"), panel);
+        var area = new Rect(panel.RenderSize);
+        Assert(area.Contains(back) && area.Contains(cancel) && area.Contains(confirm), "All footer actions fit inside the workspace");
+        Assert(!back.IntersectsWith(cancel) && !back.IntersectsWith(confirm) && !cancel.IntersectsWith(confirm),
+            "Footer actions do not overlap in a compact window");
+        return confirm.Y > back.Y;
+    }
+
+    private static Rect Bounds(FrameworkElement element, Visual ancestor)
+    {
+        return element.TransformToAncestor(ancestor).TransformBounds(new Rect(element.RenderSize));
+    }
+
     private static void CheckOverlay(InstallerWindow window)
     {
         window.UpdateLayout();
         var panel = Field<Border>(window, "workspacePanel");
-        var layout = (Grid)window.Content;
+        var layout = (Grid)panel.Parent;
         double radius = (double)window.FindResource("PanelRadius");
         double origin = panel.TranslatePoint(new Point(), layout).X;
         Assert(Math.Abs(origin - (layout.ColumnDefinitions[0].ActualWidth - radius)) < 0.1,

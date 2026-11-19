@@ -37,8 +37,8 @@ export function applyTouchpadTarget(data, target) {
   }
   return true;
 }
-export function applyProfileTouchpad(data) {
-  const target = data.profile.settings.touchpad;
+export function applyProfileTouchpad(data, settings) {
+  const target = settings.touchpad;
   if (!target) return false;
   invokeTouchpad(data, "read_touchpad", {});
   return applyTouchpadTarget(data, target);

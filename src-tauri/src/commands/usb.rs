@@ -2,7 +2,7 @@ use crate::{hal::Hal, platform::usb};
 use tauri::{AppHandle, Manager};
 #[tauri::command]
 pub(crate) async fn read_usb_policy(app: AppHandle) -> Result<Option<usb::Profile>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<usb::Controller>().read(&app.state::<Hal>())
     })
     .await
@@ -11,7 +11,7 @@ pub(crate) async fn read_usb_policy(app: AppHandle) -> Result<Option<usb::Profil
 }
 #[tauri::command]
 pub(crate) async fn apply_usb_policy(app: AppHandle, request: usb::Request) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<usb::Controller>()
             .apply(&app.state::<Hal>(), &request)
     })
@@ -24,7 +24,7 @@ pub(crate) async fn restore_usb_policy(
     app: AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<usb::Controller>()
             .restore(&app.state::<Hal>(), &expected_revision)
     })

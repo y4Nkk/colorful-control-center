@@ -5,7 +5,7 @@ use tauri::Manager;
 pub(crate) async fn read_graphics_mode(
     app: tauri::AppHandle,
 ) -> Result<graphics_mode::Profile, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<graphics_mode::Controller>()
             .read(&app.state::<Hal>())
     })
@@ -18,7 +18,7 @@ pub(crate) async fn apply_graphics_mode(
     app: tauri::AppHandle,
     request: graphics_mode::Request,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<graphics_mode::Controller>().apply(
             &app.state::<Hal>(),
             &app.state::<display::Controller>(),
@@ -34,7 +34,7 @@ pub(crate) async fn restore_graphics_mode(
     app: tauri::AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<graphics_mode::Controller>().restore(
             &app.state::<Hal>(),
             &app.state::<display::Controller>(),
@@ -50,7 +50,7 @@ pub(crate) async fn reboot_for_graphics_mode(
     app: tauri::AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<graphics_mode::Controller>().reboot(
             &app.state::<Hal>(),
             &app.state::<display::Controller>(),
@@ -63,7 +63,7 @@ pub(crate) async fn reboot_for_graphics_mode(
 }
 #[tauri::command]
 pub(crate) async fn read_display_modes(app: tauri::AppHandle) -> Result<display::Profile, String> {
-    tauri::async_runtime::spawn_blocking(move || app.state::<display::Controller>().read())
+    crate::shutdown::blocking(move || app.state::<display::Controller>().read())
         .await
         .map_err(|e| e.to_string())?
         .map_err(|e| format!("{e:#}"))
@@ -72,7 +72,7 @@ pub(crate) async fn read_display_modes(app: tauri::AppHandle) -> Result<display:
 pub(crate) async fn read_automatic_refresh(
     app: tauri::AppHandle,
 ) -> Result<display::automatic::Status, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<display::automatic::Controller>()
             .read(&app.state::<Hal>(), &app.state::<display::Controller>())
     })
@@ -85,7 +85,7 @@ pub(crate) async fn enable_automatic_refresh(
     app: tauri::AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<display::automatic::Controller>().enable(
             &app.state::<Hal>(),
             &app.state::<display::Controller>(),
@@ -101,7 +101,7 @@ pub(crate) async fn restore_automatic_refresh(
     app: tauri::AppHandle,
     expected_revision: String,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<display::automatic::Controller>().restore(
             &app.state::<Hal>(),
             &app.state::<display::Controller>(),
@@ -118,7 +118,7 @@ pub(crate) async fn apply_display_refresh(
     expected: display::Mode,
     frequency: u32,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<display::Controller>()
             .apply_runtime(&app.state::<Hal>(), &expected, frequency)
     })
@@ -131,7 +131,7 @@ pub(crate) async fn apply_display_rotation(
     app: tauri::AppHandle,
     expected: display::Mode,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<display::Controller>()
             .apply_rotation_runtime(&app.state::<Hal>(), &expected)
     })
@@ -145,7 +145,7 @@ pub(crate) async fn keep_display_mode(
     trial_id: u64,
     expected: display::Mode,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         let display = app.state::<display::Controller>();
         if display
             .read()?
@@ -171,7 +171,7 @@ pub(crate) async fn cancel_display_trial(
     app: tauri::AppHandle,
     trial_id: u64,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<display::Controller>()
             .cancel_runtime(&app.state::<Hal>(), trial_id)
     })
@@ -181,7 +181,7 @@ pub(crate) async fn cancel_display_trial(
 }
 #[tauri::command]
 pub(crate) async fn restore_display_modes(app: tauri::AppHandle) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<display::Controller>()
             .restore_runtime(&app.state::<Hal>())
     })
@@ -191,7 +191,7 @@ pub(crate) async fn restore_display_modes(app: tauri::AppHandle) -> Result<(), S
 }
 #[tauri::command]
 pub(crate) async fn read_gpu_power(app: tauri::AppHandle) -> Result<gpu_power::Profile, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         app.state::<gpu_power::Controller>().read_runtime(
             &app.state::<Hal>(),
             &app.state::<crate::gpuctl::GpuController>(),
@@ -207,7 +207,7 @@ pub(crate) async fn apply_gpu_power(
     expected: gpu_power::Device,
     enabled: bool,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         let hal = app.state::<Hal>();
         app.state::<gpu_power::Controller>().apply_runtime(
             &hal,
@@ -223,7 +223,7 @@ pub(crate) async fn apply_gpu_power(
 }
 #[tauri::command]
 pub(crate) async fn restore_gpu_power(app: tauri::AppHandle) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::shutdown::blocking(move || {
         let hal = app.state::<Hal>();
         app.state::<gpu_power::Controller>().restore_runtime(
             &hal,

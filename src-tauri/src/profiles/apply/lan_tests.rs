@@ -63,7 +63,7 @@ fn capture_and_file_roundtrip_keep_driver_identity_raw_type_and_missing_values_w
             bytes: vec![1, 9],
         }),
     );
-    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     let target = settings.lan_policy.as_ref().unwrap();
     assert_eq!(target.devices[0].values[&Field::WakeOnLink], None);
     assert_eq!(
@@ -74,7 +74,7 @@ fn capture_and_file_roundtrip_keep_driver_identity_raw_type_and_missing_values_w
         3
     );
     let directory = tempfile::tempdir().unwrap();
-    crate::profiles::save_in(directory.path(), settings.clone(), "网络快照").unwrap();
+    crate::profiles::save_in(directory.path(), settings.clone(), "网络快照", None).unwrap();
     assert!(
         crate::profiles::load_from(directory.path(), "网络快照")
             .unwrap()

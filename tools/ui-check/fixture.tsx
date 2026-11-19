@@ -9,6 +9,7 @@ import { Slider } from "../../src/components/Slider";
 import { Surface } from "../../src/components/Surface";
 import { SegmentedControl } from "../../src/components/SegmentedControl";
 import { ConfirmButton } from "../../src/components/ConfirmButton";
+import { ColorPicker } from "../../src/components/ColorPicker";
 import "../../src/styles/tokens.css";
 import "../../src/styles/base.css";
 
@@ -19,6 +20,7 @@ function Fixture() {
     { value: "c", label: "Charlie" }, { value: "d", label: "Delta" }]);
   const [loading, setLoading] = useState(false), [error, setError] = useState<string | null>(null);
   const [group, setGroup] = useState("one");
+  const [color, setColor] = useState({ r: 127, g: 0, b: 203 });
   return <main aria-label="隔离控件" style={{ height: "100vh", overflow: "auto", padding: 16 }}>
     <Surface as="section" variant="panel" aria-label="控件表面" style={{ display: "grid", gap: 12, padding: 16 }}>
       <Button variant="secondary" onClick={() => document.documentElement.dataset.theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark"}>切换主题</Button>
@@ -45,6 +47,7 @@ function Fixture() {
       <output aria-label="滑杆数值">{range}</output>
       <ConfirmButton label="执行隔离操作" confirmLabel="确认执行隔离操作？" disabled={disabled} onConfirm={() => setWrites(value => value + 1)} />
       <output aria-label="执行次数">{writes}</output>
+      <div id="color-anchor"><ColorPicker label="测试颜色" value={color} onChange={setColor} disabled={disabled} swatchOnly /></div>
     </Surface>
     <div aria-hidden="true" style={{ height: 1000 }} />
   </main>;

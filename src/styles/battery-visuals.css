@@ -1,11 +1,14 @@
-.ccc-battery-overview { min-width: 0; }
-.ccc-battery-overview-part { display: flex; flex-direction: column; justify-content: space-between; gap: var(--ccc-space-3); padding: var(--ccc-space-5); min-width: 0; }
-.ccc-battery-overview-head, .ccc-battery-overview-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ccc-space-2); font-size: var(--ccc-text-sm); color: var(--ccc-text-muted); }
-.ccc-battery-overview-head > span:first-child { display: inline-flex; align-items: center; gap: var(--ccc-space-2); color: var(--ccc-text); }
-.ccc-battery-overview-foot strong { font-weight: 500; color: var(--ccc-text); }
-.ccc-battery-level { position: relative; width: min(100%, 320px); margin-inline: auto; color: var(--ccc-action); }
-.ccc-battery-level[data-charging="true"] { color: var(--ccc-safe); }
-.ccc-battery-artwork { display: block; width: 100%; height: auto; }
-.ccc-battery-level-value { position: absolute; inset: 25% 16% 25% 12%; display: flex; align-items: center; justify-content: center; gap: var(--ccc-space-1); color: var(--ccc-text); font-size: var(--ccc-text-reading); font-weight: 600; }
-.ccc-battery-level-value em { font-style: normal; font-size: var(--ccc-text-sm); font-weight: 400; }
-@container ccc-control (max-width: 360px) { .ccc-battery-overview-part { padding: var(--ccc-space-3); } }
+.ccc-battery-overview {
+  display: grid;
+  grid-template-columns: min(32%, 7rem) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--ccc-space-4);
+  min-width: 0;
+  padding-block: var(--ccc-space-3);
+}
+.ccc-battery-artwork { display: block; width: 100%; height: auto; color: var(--ccc-action); }
+.ccc-battery-overview[data-charging="true"] > .ccc-battery-artwork { color: var(--ccc-safe); }
+.ccc-battery-readout { display: grid; gap: var(--ccc-space-1); min-width: 0; }
+.ccc-battery-level-value { font-size: var(--ccc-text-temperature); font-weight: 600; line-height: 1.1; }
+.ccc-battery-level-value small { font-size: var(--ccc-text-xl); margin-inline-start: var(--ccc-space-1); }
+.ccc-battery-unavailable { font-size: var(--ccc-text-xl); font-weight: 600; overflow-wrap: anywhere; }

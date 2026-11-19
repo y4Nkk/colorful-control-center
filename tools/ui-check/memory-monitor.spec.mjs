@@ -2,7 +2,10 @@ import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
 const memory = page => page.getByRole("region", { name: "系统内存概览", exact: true });
-const fact = (page, label) => memory(page).locator(".ccc-fact-row").filter({ has: page.getByText(label, { exact: true }) }).locator(".ccc-fact-value");
+const chart = page => memory(page).getByRole("img", { name: /最近 5 分钟内存使用率面积图/ });
+const details = page => page.getByRole("dialog", { name: "内存详细信息", exact: true });
+const fact = (page, label) => details(page).locator(".ccc-fact-row").filter({ has: page.getByText(label, { exact: true }) }).locator(".ccc-fact-value");
+const openDetails = page => memory(page).getByRole("button", { name: "内存详细信息", exact: true }).click();
 
 async function publish(page, reading, available = true) {
   await page.evaluate(async ({ reading, available }) => {
@@ -22,13 +25,16 @@ async function publish(page, reading, available = true) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
   await page.goto("/");
-  await expect(fact(page, "原厂报告频率")).toHaveText("2400 MHz");
+  await expect(chart(page)).toBeVisible();
 });
 
 test("原厂频率与系统容量分别显示，查看不写硬件或保存配置", async ({ page }) => {
+  await openDetails(page);
+  await expect(fact(page, "原厂报告频率")).toHaveText("2400 MHz");
   await expect(fact(page, "原厂参考频率")).toHaveText("3200 MHz");
-  await expect(fact(page, "总容量")).toHaveText("16 GiB");
-  await expect(memory(page).getByRole("meter")).toHaveCount(1);
+  await expect(fact(page, "总容量")).toHaveText("16 GB");
+  await page.keyboard.press("Escape");
+  await expect(chart(page)).toHaveCount(1);
   const writes = await page.evaluate(() => window.__uiFixture.calls.filter(({ command, args }) =>
     /^(apply_|restore_|set_|save_|start_|import_|delete_)/.test(command)
       && !(command === "set_shortcut_recording" && args.enabled === false)));
@@ -37,13 +43,16 @@ test("原厂频率与系统容量分别显示，查看不写硬件或保存配�
 });
 
 test("新的报告直接更新，超过参考值也不缩放或截断", async ({ page }) => {
+  await openDetails(page);
   await publish(page, { reportedClockMhz: 4800, referenceClockMhz: 3200 });
   await expect(fact(page, "原厂报告频率")).toHaveText("4800 MHz");
   await expect(fact(page, "原厂参考频率")).toHaveText("3200 MHz");
-  await expect(memory(page).getByRole("meter")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(chart(page)).toHaveCount(1);
 });
 
 test("两个字段独立未知，连接失败清旧值，恢复后重新显示", async ({ page }) => {
+  await openDetails(page);
   await publish(page, { reportedClockMhz: 2400, referenceClockMhz: null });
   await expect(fact(page, "原厂参考频率")).toHaveText("未知");
   await expect(fact(page, "原厂报告频率")).toHaveText("2400 MHz");
@@ -53,17 +62,18 @@ test("两个字段独立未知，连接失败清旧值，恢复后重新显示",
   await publish(page, null, false);
   await expect(fact(page, "原厂报告频率")).toHaveText("未知");
   await expect(fact(page, "原厂参考频率")).toHaveText("未知");
-  await expect(fact(page, "总容量")).toHaveText("16 GiB");
+  await expect(fact(page, "总容量")).toHaveText("16 GB");
   await publish(page, { reportedClockMhz: 2600, referenceClockMhz: 3200 });
   await expect(fact(page, "原厂报告频率")).toHaveText("2600 MHz");
 });
 
 test("离线仍能阅读单位与共享报告说明", async ({ page }) => {
   await publish(page, null, false);
-  await memory(page).getByText("内存参数说明", { exact: true }).click();
-  await expect(memory(page)).toContainText("可能有更新延迟");
-  await expect(memory(page)).toContainText("参考频率不是硬上限");
-  await expect(memory(page)).toContainText("DDR 有效传输速率");
+  await openDetails(page);
+  await expect(details(page)).toContainText("1 MB 为 1024 KB");
+  await expect(details(page)).toContainText("可能有更新延迟");
+  await expect(details(page)).toContainText("参考频率不是硬上限");
+  await expect(details(page)).toContainText("DDR 有效传输速率");
 });
 
 test("深浅主题与宽窄卡片保持模块间隔且读数不溢出", async ({ page }) => {
@@ -77,7 +87,7 @@ test("深浅主题与宽窄卡片保持模块间隔且读数不溢出", async ({
       const layout = await memory(page).evaluate(el => {
         const bounds = el.getBoundingClientRect();
         const style = getComputedStyle(el);
-        return { overflow: [...el.querySelectorAll(".ccc-fact-row")].some(row => row.scrollWidth > row.clientWidth + 1),
+        return { overflow: el.scrollWidth > el.clientWidth + 1,
           border: parseFloat(style.borderTopWidth), width: bounds.width, viewport: innerWidth,
           gap: parseFloat(getComputedStyle(el.parentElement).gap) };
       });

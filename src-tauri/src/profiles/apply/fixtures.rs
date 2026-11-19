@@ -56,6 +56,9 @@ pub struct State {
     pub fail_energy: Option<u8>,
     pub ignore_energy_write: bool,
     pub fail_fan_mode: bool,
+    pub fan_command: Option<u8>,
+    pub fan_count: u8,
+    pub cpu_temperature: u8,
     pub gpu_khz: i32,
     pub dust_running: bool,
     pub fail_dust_commands: usize,
@@ -78,7 +81,7 @@ unsafe extern "system" fn buffer(command: i32, out: *mut u8) -> i32 {
     let mut packet = [0; 257];
     match command {
         12 => {
-            packet[18] = 50;
+            packet[18] = device().0.lock().unwrap().cpu_temperature;
             packet[16] = 76;
             packet[19] = 76;
         }
@@ -87,8 +90,8 @@ unsafe extern "system" fn buffer(command: i32, out: *mut u8) -> i32 {
             let state = d.0.lock().unwrap();
             packet[15] = state.pages[2][4];
             packet[43] = u8::from(state.keyboard_boot_supported);
-            packet[12] = 2;
-            packet[50] = 3;
+            packet[12] = state.fan_count;
+            packet[50] = (1 << state.fan_count) - 1;
             for at in [16, 24] {
                 packet[at..at + 6].copy_from_slice(&[40, 51, 60, 102, 80, 204]);
             }
@@ -188,6 +191,9 @@ unsafe extern "system" fn set(command: i32, bytes: *const u8, length: i32) -> i3
         state.events.push("FAN_MODE_FAILURE".into());
         return 0;
     } else {
+        if command == 121 && bytes[3] == 1 {
+            state.fan_command = Some(bytes[0]);
+        }
         state.events.push(format!("DCHU:{command}"));
     }
     command
@@ -405,6 +411,9 @@ impl Device {
             fail_energy: None,
             ignore_energy_write: false,
             fail_fan_mode: false,
+            fan_command: None,
+            fan_count: 2,
+            cpu_temperature: 50,
             gpu_khz: 135_000,
             dust_running: false,
             fail_dust_commands: 0,

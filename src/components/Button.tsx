@@ -14,6 +14,6 @@ export function Button({ variant = "primary", size, tone = "normal", type = "but
   const custom = ["selection", "navigation", "handle", "swatch", "keycap"].includes(variant);
   return <button {...props} type={type} className={["ccc-button", className].filter(Boolean).join(" ")}
     data-variant={variant} data-size={size ?? (custom ? "custom" : "default")} data-tone={tone}>
-    {icon && <Icon name={icon} size={16} />}{children}
+    {icon && <Icon name={icon} size={size === "icon" ? 20 : 16} />}{children}
   </button>;
 }

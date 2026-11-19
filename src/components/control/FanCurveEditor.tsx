@@ -7,21 +7,19 @@
 import { Button } from "../Button";
 import { useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { CurvePointInputs } from "./CurvePointInputs";
+import { FanCurveLegend, FanCurvePlot, fanTemperaturePercent } from "./FanCurvePlot";
 import {
   CURVE_TEMP_MAX,
-  CURVE_TEMP_MIN,
   dutyAtTemp,
   movePoint,
   pointLimits,
+  sameDraft,
   type CurveAnchors,
   type CurveDraft,
 } from "./curve";
 import { fmtInt } from "./format";
 
-const TEMP_AXIS = [40, 60, 80, 100] as const;
-const DUTY_LABELS = [100, 60, 20] as const;
-
-const xPct = (temp: number) => ((temp - CURVE_TEMP_MIN) / (CURVE_TEMP_MAX - CURVE_TEMP_MIN)) * 100;
+const DEFAULT_PLOT_MIN_TEMP = 30;
 const yPct = (duty: number) => 100 - duty;
 
 interface FanCurveEditorProps {
@@ -41,14 +39,11 @@ export function FanCurveEditor(props: FanCurveEditorProps) {
   const { title, anchors, current, draft, editable, liveTempC, onChange } = props;
   const plotRef = useRef<HTMLDivElement | null>(null);
 
-  const linePath = (points: CurveDraft, strokeClass: string) => {
-    const d = `M${xPct(anchors.t1)},${yPct(anchors.d1Pct)} L${xPct(points.t2)},${yPct(points.d2Pct)} L${xPct(points.t3)},${yPct(points.d3Pct)} L100,0`;
-    return <path d={d} className={strokeClass} vectorEffect="non-scaling-stroke" />;
-  };
-  const differs = draft.t2 !== current.t2 || draft.d2Pct !== current.d2Pct
-    || draft.t3 !== current.t3 || draft.d3Pct !== current.d3Pct;
-  const projTemp = liveTempC == null ? null : Math.min(CURVE_TEMP_MAX, Math.max(CURVE_TEMP_MIN, liveTempC));
-  const projDuty = projTemp == null ? null : dutyAtTemp(projTemp, anchors, draft);
+  const plotMinTemp = Math.min(DEFAULT_PLOT_MIN_TEMP, Math.floor(anchors.t1 / 10) * 10);
+  const xPct = (temp: number) => fanTemperaturePercent(temp, plotMinTemp, CURVE_TEMP_MAX);
+  const linePath = (points: CurveDraft) => `M${anchors.t1},${yPct(anchors.d1Pct)} L${points.t2},${yPct(points.d2Pct)} L${points.t3},${yPct(points.d3Pct)} L${CURVE_TEMP_MAX},0`;
+  const differs = !sameDraft(current, draft);
+  const projectedDuty = liveTempC == null ? null : dutyAtTemp(liveTempC, anchors, draft);
 
   const move = (key: "p2" | "p3", temp: number, duty: number) => onChange(movePoint(anchors, draft, key, temp, duty));
   const step = (key: "p2" | "p3", dTemp: number, dDuty: number) => move(key,
@@ -56,21 +51,13 @@ export function FanCurveEditor(props: FanCurveEditorProps) {
 
   return (
     <div className="ccc-plot-wrap">
-      <div className="ccc-plot-ylabels" aria-hidden="true">
-        {DUTY_LABELS.map((duty) => (
-          <span key={duty} className="ccc-mono" style={{ top: `${yPct(duty)}%` }}>{duty}%</span>
-        ))}
-      </div>
-      <div className="ccc-plot" ref={plotRef} role="group" aria-label={title}>
-        <svg className="ccc-plot-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          {differs && linePath(current, "ccc-plot-current")}
-          {linePath(draft, "ccc-plot-draft")}
-        </svg>
+      <FanCurvePlot label={title} measure="占空比" minTemp={plotMinTemp} maxTemp={CURVE_TEMP_MAX}
+        plotRef={plotRef} draftPath={linePath(draft)} currentPath={differs ? linePath(current) : undefined}>
         <PlotDot x={xPct(anchors.t1)} y={yPct(anchors.d1Pct)} />
-         <PlotDot x={100} y={0} />
+        <PlotDot x={100} y={0} />
         <CurveHandle
           point="p2"
-          plotRef={plotRef} disabled={!editable}
+          plotRef={plotRef} plotMinTemp={plotMinTemp} disabled={!editable}
           x={xPct(draft.t2)} y={yPct(draft.d2Pct)}
           label="T2/D2 可调点：左右改温度，上下改占空比"
           valueText={`温度 ${draft.t2}°C，占空比 ${draft.d2Pct}%`}
@@ -80,7 +67,7 @@ export function FanCurveEditor(props: FanCurveEditorProps) {
         />
         <CurveHandle
           point="p3"
-          plotRef={plotRef} disabled={!editable}
+          plotRef={plotRef} plotMinTemp={plotMinTemp} disabled={!editable}
           x={xPct(draft.t3)} y={yPct(draft.d3Pct)}
           label="T3/D3 可调点：左右改温度，上下改占空比"
           valueText={`温度 ${draft.t3}°C，占空比 ${draft.d3Pct}%`}
@@ -90,33 +77,22 @@ export function FanCurveEditor(props: FanCurveEditorProps) {
         />
         <PlotLabel point="p2" x={xPct(draft.t2)} y={yPct(draft.d2Pct)} text={`T2 ${draft.t2}°·${draft.d2Pct}%`} />
         <PlotLabel point="p3" x={xPct(draft.t3)} y={yPct(draft.d3Pct)} text={`T3 ${draft.t3}°·${draft.d3Pct}%`} />
-      </div>
-      <div aria-hidden="true" />
-      <div className="ccc-plot-axis">
-        {TEMP_AXIS.map((temp) => (
-          <span key={temp} className="ccc-mono" style={{ left: `${xPct(temp)}%` }}>{temp}°</span>
-        ))}
-      </div>
-      <CurveLegend differs={differs} editable={editable} />
-      {projTemp != null && projDuty != null && <span className="ccc-plot-preview ccc-mono">
-        实时 {fmtInt(liveTempC!)}°C · {differs ? "草稿预估" : "曲线目标"} {fmtInt(projDuty)}%
-      </span>}
+      </FanCurvePlot>
+      <FanCurveLegend hasReference={differs} mainLabel={differs ? "草稿" : "当前设置"}>
+        {liveTempC != null && projectedDuty != null && <span>
+          实时 <span className="ccc-mono">{fmtInt(liveTempC)}°C</span> · {differs ? "草稿预估" : "曲线预估"} <span className="ccc-mono">{fmtInt(projectedDuty)}%</span>
+        </span>}
+        <span className="ccc-plot-hint">{editable ? "拖动圆点 · 方向键微调" : "曲线只读"}</span>
+      </FanCurveLegend>
       <CurvePointInputs anchors={anchors} draft={draft} disabled={!editable} onChange={onChange} />
-     </div>
-   );
- }
-
-function CurveLegend({ differs, editable }: { differs: boolean; editable: boolean }) {
-  return <div className="ccc-plot-key" aria-hidden="true">
-    <span className={`ccc-key-swatch ${differs ? "is-current" : "is-draft"}`} /><span>当前设置</span>
-    {differs && <><span className="ccc-key-swatch is-draft" /><span>草稿</span></>}
-    <span className="ccc-plot-hint">{editable ? "拖动圆点 · 方向键微调" : "曲线只读"}</span>
-  </div>;
+    </div>
+  );
 }
 
 interface HandleProps {
   point: "p2" | "p3";
   plotRef: RefObject<HTMLDivElement | null>;
+  plotMinTemp: number;
   disabled: boolean;
   x: number;
   y: number;
@@ -129,7 +105,7 @@ interface HandleProps {
   onStep: (dTemp: number, dDuty: number) => void;
 }
 
-function CurveHandle({ point, plotRef, disabled, x, y, label, valueText, temp, minTemp, maxTemp, onValue, onStep }: HandleProps) {
+function CurveHandle({ point, plotRef, plotMinTemp, disabled, x, y, label, valueText, temp, minTemp, maxTemp, onValue, onStep }: HandleProps) {
   const [dragging, setDragging] = useState(false);
   const pointerValues = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const rect = plotRef.current?.getBoundingClientRect();
@@ -137,7 +113,7 @@ function CurveHandle({ point, plotRef, disabled, x, y, label, valueText, temp, m
     const px = Math.min(100, Math.max(0, ((event.clientX - rect.left) / rect.width) * 100));
     const py = Math.min(100, Math.max(0, ((event.clientY - rect.top) / rect.height) * 100));
     return {
-      temp: CURVE_TEMP_MIN + (px / 100) * (CURVE_TEMP_MAX - CURVE_TEMP_MIN),
+      temp: plotMinTemp + (px / 100) * (CURVE_TEMP_MAX - plotMinTemp),
       duty: 100 - py,
     };
   };
@@ -154,7 +130,7 @@ function CurveHandle({ point, plotRef, disabled, x, y, label, valueText, temp, m
     event.preventDefault();
     onStep(move[0], move[1]);
   };
-   if (disabled) return <PlotDot x={x} y={y} />;
+  if (disabled) return <PlotDot x={x} y={y} />;
   return (
     <Button variant="handle"
       type="button"
@@ -187,7 +163,7 @@ function CurveHandle({ point, plotRef, disabled, x, y, label, valueText, temp, m
   );
 }
 
- function PlotDot({ x, y }: { x: number; y: number }) {
+function PlotDot({ x, y }: { x: number; y: number }) {
   return <span className="ccc-plot-dot" style={{ left: `${x}%`, top: `${y}%` }} aria-hidden="true" />;
 }
 

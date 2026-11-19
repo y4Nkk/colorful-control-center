@@ -6,11 +6,6 @@ use std::{
     sync::mpsc::{self, Receiver},
     time::{Duration, Instant},
 };
-#[path = "policy.rs"]
-mod policy;
-pub use policy::GuardPolicy;
-use policy::Policy;
-
 pub fn read_lines(input: impl std::io::Read + Send + 'static) -> Receiver<String> {
     let (send, receive) = mpsc::channel();
     std::thread::spawn(move || {
@@ -43,14 +38,20 @@ pub fn run(
     input: Receiver<String>,
     mut sample: impl FnMut() -> Option<(f64, Option<f64>)>,
     restore: impl Fn() -> Result<()>,
-    initial_policy: GuardPolicy,
-    mut full_speed: impl FnMut() -> bool,
 ) -> Result<()> {
-    let initial = sample().ok_or_else(|| anyhow!("传感器无效，未启用手动控制"))?;
+    let initial = sample().ok_or_else(|| anyhow!("传感器无效，未启用软件风扇曲线"))?;
     let mut gpu_required = initial.1.is_some();
-    let Some(mut policy) = initialize(&input, initial, initial_policy, full_speed())? else {
+    match recovery_reason(true, 0, Some(initial.0), initial.1) {
+        Some(RecoveryReason::Overheat) => bail!("温度达到95°C保护阈值，未启用软件风扇曲线"),
+        Some(_) => bail!("风扇传感器异常，未启用软件风扇曲线"),
+        None => {}
+    }
+    output("READY");
+    if input.recv_timeout(Duration::from_secs(3)).ok().as_deref() != Some("ARM") {
         return Ok(());
-    };
+    }
+    output("ARMED");
+
     let mut pulse = Instant::now();
     loop {
         let message = input.recv_timeout(Duration::from_millis(300));
@@ -67,72 +68,16 @@ pub fn run(
         let connected = !matches!(message, Err(mpsc::RecvTimeoutError::Disconnected));
         let temperatures = sample();
         gpu_required |= temperatures.and_then(|s| s.1).is_some();
-        let reason = recovery_reason(
+        if let Some(reason) = recovery_reason(
             connected,
             pulse.elapsed().as_millis() as u64,
             temperatures
                 .filter(|s| !gpu_required || s.1.is_some())
                 .map(|s| s.0),
             temperatures.and_then(|s| s.1),
-        );
-        if reason
-            .as_ref()
-            .is_some_and(|value| !matches!(value, RecoveryReason::Overheat))
-        {
-            return recover(&restore, &format!("{:?}", reason.unwrap()));
+        ) {
+            return recover(&restore, &format!("{reason:?}"));
         }
-        let actual_full_speed = full_speed();
-        policy_message(
-            &mut policy,
-            message.as_deref().ok(),
-            reason.as_ref(),
-            actual_full_speed,
-        );
-        if let Some(reason) = policy.recovery(reason, actual_full_speed) {
-            return recover(&restore, &reason);
-        }
-    }
-}
-
-fn initialize(
-    input: &Receiver<String>,
-    initial: (f64, Option<f64>),
-    initial_policy: GuardPolicy,
-    actual_full_speed: bool,
-) -> Result<Option<Policy>> {
-    let mut policy = Policy::new(initial_policy);
-    if let Some(reason) = policy.recovery(
-        recovery_reason(true, 0, Some(initial.0), initial.1),
-        actual_full_speed,
-    ) {
-        match reason.as_str() {
-            "Overheat" => bail!("温度达到95°C保护阈值，保留自动散热，未启用手动控制"),
-            _ => bail!("风扇传感器异常，保留自动散热，未启用手动控制"),
-        }
-    }
-    output("READY");
-    if input.recv_timeout(Duration::from_secs(3)).ok().as_deref() != Some("ARM") {
-        return Ok(None);
-    }
-    output("ARMED");
-    Ok(Some(policy))
-}
-
-fn policy_message(
-    policy: &mut Policy,
-    message: Option<&str>,
-    reason: Option<&RecoveryReason>,
-    actual: bool,
-) {
-    let result = match message {
-        Some("PREPARE_FULL_SPEED" | "PREPARE_AUTO") => policy.prepare(true, reason),
-        Some("PREPARE_PROTECTED") => policy.prepare(false, reason),
-        Some("COMMIT_FULL_SPEED") => policy.commit(actual),
-        _ => return,
-    };
-    match result {
-        Ok(()) => output("POLICY_READY"),
-        Err(error) => output(&format!("REJECTED:{error:#}")),
     }
 }
 
@@ -170,8 +115,6 @@ mod tests {
                 restored.set(restored.get() + 1);
                 Ok(())
             },
-            GuardPolicy::Protected,
-            || false,
         )
         .unwrap();
         assert_eq!(restored.get(), 1);
@@ -180,14 +123,7 @@ mod tests {
     fn unarmed_disconnect_never_writes() {
         let (send, receive) = mpsc::channel();
         drop(send);
-        run(
-            receive,
-            || Some((50.0, None)),
-            || panic!("未 ARM 不应写入"),
-            GuardPolicy::Protected,
-            || false,
-        )
-        .unwrap();
+        run(receive, || Some((50.0, None)), || panic!("未 ARM 不应写入")).unwrap();
     }
     #[test]
     fn overheat_recovers_without_waiting_for_timeout() {
@@ -202,8 +138,6 @@ mod tests {
                 Some((if count.get() == 1 { 50.0 } else { 96.0 }, None))
             },
             || Ok(()),
-            GuardPolicy::Protected,
-            || false,
         )
         .unwrap();
     }
@@ -213,14 +147,7 @@ mod tests {
         let (send, receive) = mpsc::channel();
         send.send("ARM".into()).unwrap();
         send.send("DISARM".into()).unwrap();
-        run(
-            receive,
-            || Some((50.0, None)),
-            || panic!("已经解除监护"),
-            GuardPolicy::Protected,
-            || false,
-        )
-        .unwrap();
+        run(receive, || Some((50.0, None)), || panic!("已经解除监护")).unwrap();
     }
 
     #[test]
@@ -237,8 +164,6 @@ mod tests {
                 restored.set(true);
                 Ok(())
             },
-            GuardPolicy::Protected,
-            || false,
         )
         .unwrap();
         assert!(restored.get());
@@ -263,8 +188,6 @@ mod tests {
                 restored.set(true);
                 Ok(())
             },
-            GuardPolicy::Protected,
-            || false,
         )
         .unwrap();
         assert!(restored.get());
@@ -285,8 +208,6 @@ mod tests {
                 attempts.set(attempts.get() + 1);
                 bail!("模拟驱动拒绝恢复")
             },
-            GuardPolicy::Protected,
-            || false,
         );
         assert_eq!(attempts.get(), 3);
         assert!(result.unwrap_err().to_string().contains("拒绝恢复"));
@@ -304,8 +225,6 @@ mod tests {
                 restored.set(true);
                 Ok(())
             },
-            GuardPolicy::Protected,
-            || false,
         )
         .unwrap();
         assert!(restored.get());
@@ -314,15 +233,6 @@ mod tests {
     #[test]
     fn initial_overheat_never_arms_or_writes() {
         let (_send, receive) = mpsc::channel();
-        assert!(
-            run(
-                receive,
-                || Some((96.0, None)),
-                || panic!("未 ARM 不应写入"),
-                GuardPolicy::Protected,
-                || false
-            )
-            .is_err()
-        );
+        assert!(run(receive, || Some((96.0, None)), || panic!("未 ARM 不应写入"),).is_err());
     }
 }

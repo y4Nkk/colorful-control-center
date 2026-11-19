@@ -152,7 +152,9 @@ pub fn stop(hal: &Hal) -> Result<()> {
     Ok(())
 }
 pub(crate) fn stop_safely(hal: &Hal) -> Result<()> {
-    super::fail_safe(hal, stop(hal))
+    hal.pulse_fan_guard()?;
+    super::fail_safe(hal, stop(hal))?;
+    hal.disarm_fan_guard()
 }
 
 fn write_step(hal: &Hal, session: &mut Session, elapsed: f64) -> Result<()> {
@@ -196,7 +198,7 @@ fn apply_inner(hal: &Hal, curves: &Curves, manual: bool) -> Result<()> {
     prepare(&current, curves)?;
     let mut session = Session::new(curves.clone(), &hal.snapshot())?;
     super::capture_baseline(hal, &current, &[Patch::new(5, [current.current_mode])])?;
-    hal.arm_fan_guard(crate::watchdog::GuardPolicy::Protected)?;
+    hal.arm_fan_guard()?;
     let result = (|| {
         stop(hal)?;
         hal.record_software_fan_started(manual)?;

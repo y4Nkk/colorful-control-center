@@ -54,14 +54,14 @@ fn options_capture_keeps_inactive_preferences_without_querying_native_drivers() 
         state.pages[4][8] = 1;
         state.pages[1][32] = 1;
     }
-    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     assert_eq!(
         settings.performance_options.as_ref().unwrap(),
         &values(true, true)
     );
     assert_eq!(settings.oem_power_mode, Some(3));
     let dir = tempfile::tempdir().unwrap();
-    crate::profiles::save_in(dir.path(), settings.clone(), "选项").unwrap();
+    crate::profiles::save_in(dir.path(), settings.clone(), "选项", None).unwrap();
     assert!(
         crate::profiles::load_from(dir.path(), "选项")
             .unwrap()
@@ -177,7 +177,7 @@ fn combined_mode_can_disable_cached_dtt_without_activating_it_before_driver_chec
 }
 
 #[test]
-fn turbo_off_precedes_custom_curve_attempt_and_on_conflicts_before_any_target() {
+fn turbo_off_precedes_custom_curve_and_on_conflicts_before_any_target() {
     let f = setup();
     f.device.0.lock().unwrap().pages[4][8] = 1;
     let mut settings = wanted(false, false);
@@ -194,9 +194,24 @@ fn turbo_off_precedes_custom_curve_attempt_and_on_conflicts_before_any_target() 
         .position(|step| step.step == "风扇模式")
         .unwrap();
     assert!(change < fan);
-    assert!(!steps[fan].ok && steps[fan].message.contains("未启动生产监护"));
-    assert_eq!(f.device.0.lock().unwrap().pages[4][8], 1);
-    let count = f.device.0.lock().unwrap().events.len();
+    assert!(steps[fan].ok, "{}", steps[fan].message);
+    assert!(!f.hal.fan_guard_armed().unwrap());
+    let count = {
+        let state = f.device.0.lock().unwrap();
+        assert_eq!((state.pages[4][8], state.pages[4][5]), (0, 6));
+        let turbo_off = state
+            .events
+            .iter()
+            .position(|event| event == "PAGE4:8:[0]")
+            .unwrap();
+        let custom = state
+            .events
+            .iter()
+            .position(|event| event == "PAGE4:5:[6]")
+            .unwrap();
+        assert!(turbo_off < custom);
+        state.events.len()
+    };
     settings.performance_options = Some(values(true, false));
     assert!(apply_settings(&f.hal, &f.gpu, f.devices(), &settings).is_err());
     assert_eq!(f.device.0.lock().unwrap().events.len(), count);
@@ -292,6 +307,8 @@ fn single_and_profile_options_share_the_earliest_mode_restore_baseline() {
             &f.hal,
             &boost::Request {
                 expected_revision: profile.revision,
+                quiet_fan: None,
+                replace_custom_fan: false,
                 values: values(false, true),
             },
         )

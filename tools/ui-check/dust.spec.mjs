@@ -1,5 +1,5 @@
-import { availableAction, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { availableAction, previewConfiguration } from "./configuration-review.mjs";
+import { openSystemArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
@@ -11,13 +11,15 @@ test.beforeEach(async ({ page }) => {
     window.__uiFixture.dust = { revision: "dust-0", running: false, current: null, initial: null, softwareActive: false,
       lastStart: null, startBlockedReason: null, scheduleBlockedReason: null };
   });
-  await page.goto("/"); await openWorkspace(page, "风扇散热");
+  await page.goto("/"); await openSystemArea(page, "风扇散热");
 });
 test("除尘启动预览确认，只报告请求和固件状态，不伪造停止或进度", async ({ page }) => {
   const panel = panelOf(page);
-  await expect(panel).toContainText("当前未运行"); await expect(panel).toContainText("原厂未保存计划");
+  await expect(panel.getByRole("img", { name: "除尘风扇", exact: true })).toBeVisible();
+  await expect(panel.getByText("当前未运行", { exact: true })).toHaveCount(0);
+  await expect(panel).toContainText("原厂未保存计划");
   await panel.getByRole("button", { name: "立即除尘", exact: true }).click(); expect(await writes(page)).toHaveLength(0);
-  await panel.getByRole("button", { name: "确认开始一次除尘？", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "确认开始一次除尘？", exact: true }).click();
   expect(await writes(page)).toHaveLength(1); await expect(panel).toContainText("当前尚未报告运行");
   await page.evaluate(() => { window.__uiFixture.dust.running = true; window.__uiFixture.dust.lastStart = "running"; });
   await panel.getByRole("button", { name: "重新读取除尘状态" }).click();
@@ -31,34 +33,40 @@ test("除尘启动预览确认，只报告请求和固件状态，不伪造停�
   await panel.getByRole("button", { name: "重新读取除尘状态" }).click();
   await expect(panel).toContainText("已观察到本次除尘结束");
 });
-test("星期整点与唤醒计划正确编码，确认后保存并恢复未报告初态", async ({ page }) => {
+test("星期、整点和唤醒分别立即提交，保留其他字段和初始恢复", async ({ page }) => {
   const panel = panelOf(page);
   await panel.getByRole("switch", { name: "按星期除尘", exact: true }).click();
-  await panel.getByRole("checkbox", { name: "周日", exact: true }).uncheck();
-  await panel.getByRole("switch", { name: "系统唤醒后除尘", exact: true }).click();
-  await panel.getByRole("combobox", { name: "除尘执行时间" }).click();
+  const sunday = panel.getByRole("checkbox", { name: "周日", exact: true });
+  await sunday.click();
+  await expect(sunday).not.toBeChecked();
+  const wake = panel.getByRole("switch", { name: "系统唤醒后除尘", exact: true });
+  await wake.click();
+  await expect(wake).toBeChecked();
+  const hour = panel.getByRole("combobox", { name: "除尘执行时间" });
+  await hour.click();
   await page.getByRole("option", { name: "23:00", exact: true }).click();
-  await openConfigurationReview(page, "除尘计划"); expect(await writes(page)).toHaveLength(0);
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
-  expect((await writes(page))[0].args.request.schedule).toEqual({ weekdays: 126, hour: 23, onResume: true });
-  await expect(panel).toContainText("恢复将关闭本次除尘触发");
-  await openConfigurationReview(page, "除尘计划", true); expect(await writes(page)).toHaveLength(1);
-  await configurationDialog(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
+  await expect(hour).toHaveText("23:00");
+  const applications = await writes(page);
+  expect(applications).toHaveLength(4);
+  expect(applications.at(-1).args.request.schedule).toEqual({ weekdays: 126, hour: 23, onResume: true });
+  const restore = await previewConfiguration(page, "除尘计划", true);
+  await expect(restore).toContainText("恢复会关闭本次设置的除尘触发");
+  expect(await writes(page)).toHaveLength(4);
+  await restore.getByRole("button", { name: "确认恢复", exact: true }).click();
   await expect(panel.getByRole("switch", { name: "按星期除尘", exact: true })).not.toBeChecked();
-  expect(await writes(page)).toHaveLength(2);
+  expect(await writes(page)).toHaveLength(5);
 });
-test("草稿编辑与外部事实变化均撤销确认，后台刷新保留草稿", async ({ page }) => {
+test("外部计划通过回读更新每个控件", async ({ page }) => {
   const panel = panelOf(page);
   await panel.getByRole("switch", { name: "按星期除尘", exact: true }).click();
-  await openConfigurationReview(page, "除尘计划");
-  await panel.getByRole("checkbox", { name: "周一", exact: true }).uncheck();
-  await expect(availableAction(page, "除尘计划")).toBeVisible();
-  await openConfigurationReview(page, "除尘计划");
-  await page.evaluate(() => { window.__uiFixture.dust.revision = "changed"; });
+  await expect(panel.getByRole("checkbox", { name: "周一", exact: true })).toBeChecked();
+  await page.evaluate(() => Object.assign(window.__uiFixture.dust, {
+    revision: "changed", current: { weekdays: 125, hour: 22, onResume: false },
+  }));
   await panel.getByRole("button", { name: "重新读取除尘状态" }).click();
-  await expect(availableAction(page, "除尘计划")).toBeVisible();
   await expect(panel.getByRole("checkbox", { name: "周一", exact: true })).not.toBeChecked();
-  expect(await writes(page)).toHaveLength(0);
+  await expect(panel.getByRole("combobox", { name: "除尘执行时间" })).toHaveText("22:00");
+  expect(await writes(page)).toHaveLength(1);
 });
 test("高占空比、软件曲线及校准互斥在界面明确显示", async ({ page }) => {
   const panel = panelOf(page);
@@ -68,19 +76,16 @@ test("高占空比、软件曲线及校准互斥在界面明确显示", async ({
   await expect(panel).toContainText("超过50%");
   await page.evaluate(() => { window.__uiFixture.fan.software = { cpu: { points: [{ tempC:40,dutyPct:30 },{ tempC:90,dutyPct:100 }], hysteresisC:3, rampPctPerS:10 } }; });
   await panel.getByRole("button", { name: "重新读取除尘状态" }).click();
-  await panel.getByRole("switch", { name: "按星期除尘", exact: true }).click();
-  await expect(availableAction(page, "除尘计划")).toHaveCount(0);
+  await expect(panel.getByRole("switch", { name: "按星期除尘", exact: true })).toBeDisabled();
   await page.evaluate(() => { window.__uiFixture.calibration.recoveryRequired = true; });
   await panel.getByRole("button", { name: "重新读取除尘状态" }).click();
   await expect(panel).toContainText("电池校准正在接管");
   expect(await writes(page)).toHaveLength(0);
 });
-test("失败保留草稿和恢复入口，读取失败撤销执行快照", async ({ page }) => {
+test("失败回读实际状态并保留恢复入口，读取失败撤销快照", async ({ page }) => {
   const panel = panelOf(page);
-  await panel.getByRole("switch", { name: "系统唤醒后除尘", exact: true }).click();
   await page.evaluate(() => { window.__uiFixture.dustFault = "隔离计划失败，恢复尚需重试"; });
-  await openConfigurationReview(page, "除尘计划");
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await panel.getByRole("switch", { name: "系统唤醒后除尘", exact: true }).click();
   await expect(panel.getByRole("alert")).toContainText("恢复尚需重试");
   await expect(panel.getByRole("switch", { name: "系统唤醒后除尘", exact: true })).toBeChecked();
   await expect(availableAction(page, "除尘计划", true)).toBeEnabled();
@@ -99,7 +104,7 @@ test("左右卡片窄屏回流且无能力时隐藏", async ({ page }) => {
   }
   await page.setViewportSize({ width: 1000, height: 1000 }); await panel.screenshot({ path: "target/ui-check/fan-dust.png" });
   await page.evaluate(() => { window.__uiFixture.dust = null; });
-  await panel.getByRole("button", { name: "重新读取除尘状态" }).click(); await expect(panel).toHaveCount(0);
+  await expect(panel).toHaveCount(0, { timeout: 10_000 });
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });
 
@@ -107,8 +112,7 @@ test("原厂除尘计划未明确关闭时显示软件曲线冲突，关闭后�
   const panel=panelOf(page), fan=page.getByRole("region",{name:"风扇曲线",exact:true});
   await fan.getByRole("radio", {name:"软件曲线",exact:true}).check();
   await expect(fan).toContainText("请先明确关闭定时及唤醒除尘");
-  await expect(fan.getByRole("button", {name:"启用软件曲线",exact:true})).toBeDisabled();
-  await panel.getByRole("button", {name:"应用除尘计划",exact:true}).click();
-  await panel.getByRole("button", {name:"确认应用除尘计划？",exact:true}).click();
-  await expect(fan.getByRole("button", {name:"启用软件曲线",exact:true})).toBeEnabled();
+  await expect(availableAction(page, "软件曲线")).toHaveCount(0);
+  await panel.getByRole("button", { name: "关闭定时与唤醒除尘", exact: true }).click();
+  await expect(availableAction(page, "软件曲线")).toBeEnabled();
 });

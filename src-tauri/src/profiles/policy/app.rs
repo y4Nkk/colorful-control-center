@@ -137,6 +137,9 @@ fn run_loop(
     worker: &mut Worker,
 ) -> Result<()> {
     while shared.wait()? {
+        if crate::shutdown::closing() {
+            return Ok(());
+        }
         if let Err(error) = listener.status() {
             log::error!("[power-policy] 电源通知：{error:#}");
             shared.failed(format!("{error:#}"));

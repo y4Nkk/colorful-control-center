@@ -34,7 +34,7 @@ fn target(f: &Fixture, muted: bool) -> microphone::Target {
 #[test]
 fn capture_and_strict_roundtrip_keep_mixed_endpoints_without_writes() {
     let f = setup();
-    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).unwrap();
+    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
     let microphones = settings.microphones.as_ref().unwrap();
     assert!(!microphones.endpoints[0].muted && microphones.endpoints[1].muted);
     assert!(!microphones.saved_muted);
@@ -213,7 +213,7 @@ fn old_preview_unknown_preference_and_invalid_target_do_not_write() {
             )
             .is_err()
     );
-    assert!(crate::profiles::capture_current(&f.hal, &f.gpu, f.devices()).is_err());
+    assert!(crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).is_err());
     let settings = ProfileSettings {
         microphones: Some(microphone::Target {
             endpoints: vec![],

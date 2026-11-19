@@ -1,9 +1,9 @@
 import type { IconName } from "../Icon";
-import type { HotkeyScope, HotkeySettingsValue } from "../../api/client";
+import { NOISELESS_FAN_LABEL, type HotkeyScope, type HotkeySettingsValue } from "../../api/client";
 
 export const ACTIONS: { scope: HotkeyScope; icon: IconName; title: string; rule: string }[] = [
   { scope: "powerMode", icon: "performance", title: "电源模式循环", rule: "按本机候选循环，执行已预览的独显开启或关断、GPU调频、固件节能及已保存的风扇与系统联动，并将所选模式记为插电偏好；硬件管理时跳过固件节能命令。" },
-  { scope: "fan", icon: "fan", title: "风扇模式", rule: "自动、全速、MaxQ、自定义；仅执行本机支持项，自定义使用当时保存的曲线。" },
+  { scope: "fan", icon: "fan", title: "风扇模式", rule: "按固件能力切换自动、全速、能效优先或自定义。自定义使用当前保存的曲线。" },
   { scope: "keyboardBrightness", icon: "lighting", title: "键盘亮度", rule: "逐级调节并开启灯光，保留颜色和灯效；最低为 1 级。" },
   { scope: "keyboardSwitch", icon: "lighting", title: "键盘灯开关", rule: "切换键盘灯总开关，保留亮度、颜色和灯效；按本机键盘家族执行。" },
   { scope: "keyboardZones", icon: "keyboard", title: "键盘分区开关", rule: "分别切换左、中、右区，保留总开关、亮度和颜色。" },
@@ -13,7 +13,7 @@ export const ACTIONS: { scope: HotkeyScope; icon: IconName; title: string; rule:
   { scope: "fnLock", icon: "keyboard", title: "Fn 锁切换", rule: "只切换 Fn 锁，保留 Win 锁与按键交换。" },
   { scope: "mappings", icon: "keyboard", title: "映射开关", rule: "只切换本应用已经接管的设备；映射内容变化后需要重新确认。" },
   { scope: "openConsole", icon: "window", title: "唤起主窗口", rule: "显示主窗口。" },
-  { scope: "stateNotifications", icon: "info", title: "原厂状态通知", rule: "记录锁键、扩展坞、GPS、静音模式、移动网络、除尘、Turbo 风扇与充电状态，不执行开关。按原厂规则识别到 USB 键盘时跳过数字锁提示。" },
+  { scope: "stateNotifications", icon: "info", title: "原厂状态通知", rule: `只报告锁键、扩展坞、GPS、${NOISELESS_FAN_LABEL}、移动网络、除尘、Turbo 风扇与充电状态。按原厂规则识别到 USB 键盘时跳过数字锁提示。` },
   { scope: "keyboardBrightnessEvent", icon: "lighting", title: "原厂亮度循环与反馈", rule: "原厂支持的 RGB 键盘循环关闭与 1–4 档，关闭时保留亮度；白光读取固件档位并同步保存，不发送亮度命令。" },
   { scope: "cameraReports", icon: "info", title: "摄像头状态反馈", rule: "记录摄像头及摄像头／麦克风组合报告，按原厂规则同步摄像头保存值；不执行设备开关。恢复只还原初始软件策略。" },
   { scope: "screenBrightness", icon: "display", title: "原厂屏幕亮度策略", rule: "仅电池供电且当前更亮时按原厂触发目标降低亮度，同步修改活动计划的插电和电池亮度保存值。实际报告与计划值分开展示；初始亮度单独恢复。" },
@@ -24,8 +24,8 @@ export const ACTIONS: { scope: HotkeyScope; icon: IconName; title: string; rule:
   { scope: "batteryColdWarning", icon: "temperature", title: "原厂电池低温提醒", rule: "原厂事件，以及电池供电时的启动和唤醒会检查温度；低于 11°C 且电量低于 81% 时提醒接入电源。" },
   { scope: "batteryLowBrightness", icon: "display", title: "原厂低电量亮度", rule: "原厂低电量事件按缓存状态调暗；结束时采用当前插电亮度或缓存值。首次插电和电池设置可另行确认恢复。" },
   { scope: "batteryLowAction", icon: "sleep", title: "原厂低电量系统动作", rule: "低电量事件可按当前电源计划请求睡眠或休眠；接电时不请求。此动作不会自动撤销，软件策略可单独恢复。" },
-  { scope: "openKeyboard", icon: "keyboard", title: "打开键盘灯区域", rule: "打开灯光效果页；不修改灯光设置。" },
-  { scope: "displayRotation", icon: "display", title: "原厂屏幕旋转", rule: "打开主显示器旋转预览；确认后试用，15 秒内未保留自动恢复。" },
+  { scope: "openKeyboard", icon: "keyboard", title: "打开键盘灯区域", rule: "进入「键盘与灯光」并定位到灯光控件。" },
+  { scope: "displayRotation", icon: "display", title: "原厂屏幕旋转", rule: "定位主屏方向设置。切换后试用，15 秒内可保留。" },
   { scope: "batteryAlert", icon: "volume", title: "原厂电池音频事件", rule: "按原厂开始与结束事件控制静音循环及PC Beep控件；事件可指定屏幕绝对亮度，并按电池条件调暗。停止策略取消后续通知并恢复初始音频；亮度另行确认恢复。" },
   { scope: "systemRecovery", icon: "undo", title: "Windows 恢复入口", rule: "原厂按键打开 Windows 恢复选项，不自动执行还原或重置；恢复热键策略不关闭或撤销 Windows 操作。" },
   { scope: "systemShutdown", icon: "shutdown", title: "原厂关机请求", rule: "原厂事件请求系统关机；可先停止接管，策略恢复不撤销已发送的关机请求。" },

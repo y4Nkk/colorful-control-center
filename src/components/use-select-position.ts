@@ -6,8 +6,8 @@ type ElementRef = RefObject<HTMLElement | null>;
 export function useSelectPosition(trigger: ElementRef, menu: ElementRef, list: ElementRef, dismiss: () => void) {
   const [position, setPosition] = useState<ReturnType<typeof selectLayout> | null>(null);
   useLayoutEffect(() => {
-    const anchor = trigger.current, popup = menu.current, options = list.current;
-    if (!anchor || !popup || !options) return;
+    const anchor = trigger.current, popup = menu.current, viewport = list.current;
+    if (!anchor || !popup || !viewport) return;
     let frame = 0;
     const update = () => {
       frame = 0;
@@ -16,18 +16,20 @@ export function useSelectPosition(trigger: ElementRef, menu: ElementRef, list: E
       const scale = Number(getComputedStyle(document.documentElement).zoom) * Number(getComputedStyle(document.body).zoom);
       const styles = getComputedStyle(popup);
       const read = (name: string) => parseFloat(styles.getPropertyValue(name)) * scale;
-      const viewport = popup.querySelector<HTMLElement>(".ccc-scroll-viewport")!;
-      const naturalHeight = (popup.offsetHeight - viewport.clientHeight
-        + Math.min(options.scrollHeight, read("--ccc-select-list-height") / scale)) * scale;
+      const edge = read("--ccc-select-edge");
+      const availableWidth = Math.max(0, innerWidth - edge * 2);
+      popup.style.minWidth = `${Math.min(box.width, availableWidth) / scale}px`;
+      popup.style.maxWidth = `${availableWidth / scale}px`;
+      const naturalHeight = (popup.offsetHeight - viewport.clientHeight + viewport.scrollHeight) * scale;
       const next = selectLayout({ anchor: box, viewport: { width: innerWidth, height: innerHeight }, naturalHeight,
-        minWidth: read("--ccc-select-min-width"), maxWidth: read("--ccc-select-max-width"),
-        gap: read("--ccc-select-gap"), edge: read("--ccc-select-edge"), scale });
+        menuWidth: popup.getBoundingClientRect().width, heightLimit: read("--ccc-select-height"),
+        gap: read("--ccc-select-gap"), edge, scale });
       setPosition(previous => previous && Object.keys(next).every(key => previous[key as keyof typeof next] === next[key as keyof typeof next]) ? previous : next);
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
     update();
     const resize = new ResizeObserver(schedule);
-    resize.observe(anchor); resize.observe(popup); resize.observe(options);
+    resize.observe(anchor); resize.observe(popup); resize.observe(viewport);
     const visibility = new IntersectionObserver(entries => { if (!entries[0].isIntersecting) dismiss(); });
     visibility.observe(anchor);
     window.addEventListener("resize", schedule);

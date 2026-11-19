@@ -1,4 +1,4 @@
-import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
+import { configurationView, previewConfiguration } from "./configuration-review.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -17,7 +17,7 @@ async function initial(page) {
   });
   await expect(facts(page).getByRole("button", { name: "恢复初始屏幕计划亮度", exact: true })).toBeEnabled();
 }
-test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与输入"); });
+test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与灯光"); });
 
 test("实际亮度与插电电池保存值分开，完整目标及零档在确认前可见", async ({ page }) => {
   await expect(scope(page)).not.toBeChecked();
@@ -42,9 +42,9 @@ test("屏幕策略独立授权并确认，键盘亮度和原厂反馈不会自�
   }
   await scope(page).check();
   await expect(p).toContainText("同步修改活动计划的插电和电池亮度保存值");
-  await openConfigurationReview(page, "原厂热键与屏显");
+  await previewConfiguration(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true }).click();
   expect((await calls(page, "apply_hotkeys"))[0].args.request.settings.actions).toEqual(["screenBrightness"]);
   expect(await calls(page, "restore_screen_brightness")).toEqual([]);
 });

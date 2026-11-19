@@ -1,15 +1,42 @@
 using System;
+using System.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 
 namespace ColorfulControlCenter.Installer
 {
     internal sealed class InstallationRequest
     {
+        private const int MaxDirectoryLength = 220;
+        private const uint AddFile = 0x0002;
+        private const uint AddSubdirectory = 0x0004;
+        private const uint BackupSemantics = 0x02000000;
+
         internal string Directory { get; private set; }
-        internal static InstallationRequest Create(string value, InstallationRequest previous = null)
+
+        internal static InstallationRequest Create(string value, InstallationRequest previous = null,
+            bool requireInstalled = false)
         {
-            if (String.IsNullOrWhiteSpace(value) || value.Length > 220
-                || value.Length < 3 || !Char.IsLetter(value[0]) || value[1] != ':'
+            string path = Normalize(value);
+            try { CheckTarget(path, previous, requireInstalled); }
+            catch (UnauthorizedAccessException error)
+            {
+                throw new ArgumentException("无法访问此安装位置，请选择可访问的文件夹。", error);
+            }
+            catch (IOException error)
+            {
+                throw new ArgumentException("无法检查此安装位置，请确认磁盘和目录仍可用。", error);
+            }
+            return new InstallationRequest { Directory = path };
+        }
+
+        private static string Normalize(string value)
+        {
+            if (value != null && value.Length > MaxDirectoryLength)
+                throw new ArgumentException("安装路径最多 " + MaxDirectoryLength + " 个字符，请缩短路径。");
+            char driveLetter = String.IsNullOrEmpty(value) ? '\0' : Char.ToUpperInvariant(value[0]);
+            if (value == null || value.Length < 3 || driveLetter < 'A' || driveLetter > 'Z' || value[1] != ':'
                 || (value[2] != '\\' && value[2] != '/'))
                 throw new ArgumentException("请选择本地磁盘中的完整文件夹路径，例如 D:\\Apps\\ColorfulControlCenter。");
             foreach (char character in value)
@@ -23,16 +50,66 @@ namespace ColorfulControlCenter.Installer
             string path = Path.GetFullPath(value).TrimEnd('\\', '/');
             if (path.Length <= 2)
                 throw new ArgumentException("请选择独立的安装文件夹，不能直接安装到磁盘根目录。");
-            bool replacing = File.Exists(Path.Combine(path, Product.ApplicationFileStem + ".exe"))
+            return path;
+        }
+
+        private static void CheckTarget(string path, InstallationRequest previous, bool requireInstalled)
+        {
+            var drive = new DriveInfo(Path.GetPathRoot(path));
+            if (drive.DriveType == DriveType.Network || drive.DriveType == DriveType.CDRom)
+                throw new ArgumentException("请选择可写的本地磁盘。");
+            if (!drive.IsReady)
+                throw new ArgumentException("安装磁盘不可用，请连接磁盘或选择其他本地磁盘。");
+
+            string folder = path;
+            FileAttributes? attributes = ExistingAttributes(folder);
+            while (!attributes.HasValue)
+            {
+                folder = Path.GetDirectoryName(folder);
+                if (folder == null) throw new ArgumentException("安装磁盘不可用，请选择其他本地磁盘。");
+                attributes = ExistingAttributes(folder);
+            }
+            if ((attributes.Value & FileAttributes.Directory) == 0)
+                throw new ArgumentException("安装路径中包含文件，请选择文件夹。");
+
+            bool exists = String.Equals(folder, path, StringComparison.OrdinalIgnoreCase);
+            bool replacing = exists && File.Exists(Path.Combine(path, Product.ApplicationFileStem + ".exe"))
                 && File.Exists(Path.Combine(path, "uninstall.exe"));
-            if (File.Exists(path)) throw new ArgumentException("该路径是文件，请选择文件夹。");
             bool retry = previous != null && String.Equals(previous.Directory, path, StringComparison.OrdinalIgnoreCase);
-            if (System.IO.Directory.Exists(path) && !replacing && !retry)
+            if (requireInstalled && (!exists || (!replacing && !retry)))
+                throw new ArgumentException("原目录中找不到完整的安装文件。");
+            if (exists && !replacing && !retry)
                 using (var entries = System.IO.Directory.EnumerateFileSystemEntries(path).GetEnumerator())
                     if (entries.MoveNext())
                         throw new ArgumentException("该文件夹包含其他文件。请为控制台选择独立的空文件夹。");
-            return new InstallationRequest { Directory = path };
+            CheckWriteAccess(folder, exists);
         }
+
+        private static FileAttributes? ExistingAttributes(string path)
+        {
+            try { return File.GetAttributes(path); }
+            catch (FileNotFoundException) { return null; }
+            catch (DirectoryNotFoundException) { return null; }
+        }
+
+        private static void CheckWriteAccess(string folder, bool exists)
+        {
+            // An existing directory handle tests creation rights without writing probe files.
+            using (var handle = CreateFile(folder, exists ? AddFile : AddSubdirectory,
+                FileShare.Read | FileShare.Write | FileShare.Delete, IntPtr.Zero, FileMode.Open, BackupSemantics, IntPtr.Zero))
+            {
+                if (handle.IsInvalid)
+                {
+                    var error = new Win32Exception(Marshal.GetLastWin32Error());
+                    throw new ArgumentException(exists ? "无法写入此文件夹，请选择可写的安装位置。"
+                        : "无法在上级目录新建文件夹，请选择可写的安装位置。", error);
+                }
+            }
+        }
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern SafeFileHandle CreateFile(string path, uint access, FileShare shareMode,
+            IntPtr security, FileMode creationDisposition, uint flags, IntPtr templateFile);
 
         internal string EngineArguments()
         {

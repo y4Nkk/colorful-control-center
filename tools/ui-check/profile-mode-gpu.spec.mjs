@@ -1,6 +1,6 @@
-import { openProfileResults } from "./profile-review.mjs";
-import { configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { openProfileResults, showProfileSettings } from "./profile-review.mjs";
+import { configurationView, previewConfiguration } from "./configuration-review.mjs";
+import { openSystemArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { modeGpuFixture } from "./mode-gpu-fixture.mjs";
@@ -26,12 +26,13 @@ test.beforeEach(async ({ page }) => {
     data.profile.settings.gpuPower = { id: node.id, name: node.name, values: { enabled: true, automaticPowerOff: false } };
     data.profile.settings.gpu = { coreOffsetMhz: 60, memOffsetMhz: null };
   }, modeGpuFixture());
-  await page.goto("/"); await openWorkspace(page, "性能调校");
-  await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: "性能档案", exact: true }).click();
+  await page.goto("/"); await openSystemArea(page, "性能调校");
+  await openSystemArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
+  await showProfileSettings(page);
 });
 
-test("档案预览展示三阶段节点与延后频率，两次确认携带完整目标", async ({ page }) => {
+test("档案预览展示三阶段节点与延后频率，一次应用携带完整目标", async ({ page }) => {
   await expect(gpu(page).getByText("开启后核对频率", { exact: true })).toBeVisible();
   const steps = gpu(page).getByRole("list", { name: "独显联动步骤", exact: true }).getByRole("listitem");
   await expect(steps).toHaveCount(3);
@@ -39,9 +40,9 @@ test("档案预览展示三阶段节点与延后频率，两次确认携带完�
   await expect(steps.nth(1)).toContainText("切换后关闭");
   await expect(steps.nth(2)).toContainText("最终开启");
   expect(await calls(page)).toHaveLength(0);
-  await openConfigurationReview(page);
+  await previewConfiguration(page);
   expect(await calls(page)).toHaveLength(0);
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
   const results = await openProfileResults(page);
   await expect(results).toContainText("GPU 偏移");
   const [call] = await calls(page), graph = call.args.expectedMode.gpu.value.stages;
@@ -55,9 +56,9 @@ test("档案预览展示三阶段节点与延后频率，两次确认携带完�
 
 test("确认前模式前态变化拒绝整个旧档案目标", async ({ page }) => {
   await expect(gpu(page)).toBeVisible();
-  await openConfigurationReview(page);
+  await previewConfiguration(page);
   await page.evaluate(() => { window.__uiFixture.performanceOptions.currentMode = 3; });
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "模式联动已变化" })).toBeVisible();
   expect(await page.evaluate(() => window.__uiFixture.profileGpuAuthorizations ?? 0)).toBe(0);
   expect(await page.evaluate(() => window.__uiFixture.gpuPower.devices[0].enabled)).toBe(false);

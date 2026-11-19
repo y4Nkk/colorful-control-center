@@ -16,7 +16,7 @@ pub(super) fn revision(loaded: &Loaded, facts: &Facts) -> Result<String> {
 pub(super) fn change(
     io: &impl Io,
     expected: &str,
-    target: impl FnOnce(&Facts) -> Result<Record>,
+    target: impl FnOnce(&Record, &Facts) -> Result<Record>,
     baseline: &mut Option<Record>,
 ) -> Result<()> {
     let loaded = io.load()?;
@@ -24,7 +24,7 @@ pub(super) fn change(
     if revision(&loaded, &facts)? != expected {
         bail!("热键策略或设备预览已变化，请重新读取确认");
     }
-    let next = target(&facts)?;
+    let next = target(&loaded.record, &facts)?;
     next.validate()?;
     if next.settings.enabled {
         next.verify(&facts)?;

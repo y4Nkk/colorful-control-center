@@ -14,7 +14,7 @@ export function SupplyModeCurrent({ view }: { view: SupplyModeStatus }) {
       <PowerSourceVisual source={facts?.onAc === true ? "ac" : facts?.onAc === false ? "battery" : "unknown"} />
       <FactList compact facts={[
         { label: "当前模式", value: facts ? OEM_POWER_MODES[facts.currentMode] ?? `未知模式 ${facts.currentMode}` : "未知" },
-        { label: "交流偏好", value: facts ? OEM_POWER_MODES[facts.acMode] ?? `未知模式 ${facts.acMode}` : "未知" },
+        { label: "插电模式偏好", value: facts ? OEM_POWER_MODES[facts.acMode] ?? `未知模式 ${facts.acMode}` : "未知" },
         { label: "当前固件节能", value: facts ? energyValue(facts.currentEnergy) : "未知" },
         { label: "独显状态", value: facts?.gpu.current ? facts.gpu.current.enabled ? "开启" : "关闭" : "未报告" },
         { label: "自动关断", value: facts?.gpu.current ? facts.gpu.current.automaticPowerOff ? "允许" : "关闭" : "未报告" },

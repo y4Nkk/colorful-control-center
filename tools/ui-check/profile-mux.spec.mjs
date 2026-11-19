@@ -1,18 +1,19 @@
-import { openStartupParameters, openProfileResults } from "./profile-review.mjs";
-import { changeButton, configurationDialog, openConfigurationReview } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { openProfileResults, openProfileSave, openStartupParameters, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
+import { changeButton, configurationView, previewConfiguration } from "./configuration-review.mjs";
+import { openWorkspace, openSystemArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
 const panel = page => page.getByRole("region", { name: "档案预览", exact: true });
-const mux = page => panel(page).getByLabel("档案显卡模式", { exact: true });
+const muxPanel = page => panel(page).getByLabel("档案显卡模式", { exact: true });
 async function select(page) {
-  await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: "性能档案", exact: true }).click();
+  await openSystemArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
+  await showProfileSettings(page);
 }
 async function apply(page) {
-  await openConfigurationReview(page);
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await previewConfiguration(page);
+  await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
 }
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
@@ -20,17 +21,22 @@ test.beforeEach(async ({ page }) => {
     const data = window.__uiFixture;
     data.profile.settings.graphicsMode = { owner: "a".repeat(64), availableMask: 15, mode: 2 };
   });
-  await page.goto("/"); await openWorkspace(page, "显示与显卡");
+  await page.goto("/"); await openWorkspace(page, "设备配置");
 });
 
-test("完整来源预览，两步确认只发送选择而不重启", async ({ page }) => {
+test("完整来源预览，一次应用只发送显卡选择", async ({ page }) => {
   await select(page);
-  await expect(mux(page)).toContainText("混合");
-  await expect(mux(page)).toContainText("实际显示路径需重启后核对");
-  await expect(mux(page).getByRole("meter")).toHaveCount(0);
-  await openConfigurationReview(page);
+  const mux = muxPanel(page);
+  await expect(mux).toContainText("混合");
+  await expect(mux).toContainText("需重启生效 · 单独确认重启");
+  await expect(mux.getByRole("meter")).toHaveCount(0);
+  await expect(mux).toHaveCount(1);
+  await expect(panel(page).getByRole("button", { name: "详情", exact: true })).toHaveCount(0);
+  await expect(panel(page).locator("time")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "档案列表", exact: true })).toContainText("显示与显卡");
+  await previewConfiguration(page);
   expect(await page.evaluate(() => window.__uiFixture.calls.filter(c => c.command === "apply_profile"))).toEqual([]);
-  await configurationDialog(page).getByRole("button", { name: "应用档案", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
   const results = await openProfileResults(page);
   await expect(results).toContainText("显卡模式选择请求（重启后核对）");
   const state = await page.evaluate(() => ({ mode: window.__uiFixture.graphicsMode, reboots: window.__uiFixture.graphicsReboots,
@@ -53,9 +59,10 @@ test("旧选择修订阻止执行", async ({ page }) => {
 test("预览失败保留文件目标并禁用执行", async ({ page }) => {
   await page.evaluate(() => window.__uiFixture.profileMuxPreviewFault = "隔离MUX不可用");
   await select(page);
-  await expect(mux(page)).toContainText("未读取");
+  await expect(muxPanel(page)).toContainText("未读取");
+  await expect(muxPanel(page)).toHaveCount(1);
   await expect(changeButton(page)).toHaveCount(0);
-  await expect(panel(page).getByRole("button", { name: "导出", exact: true })).toBeEnabled();
+  await expect((await showProfileMenu(page)).getByRole("button", { name: "导出档案", exact: true })).toBeEnabled();
 });
 
 test("整组显示试用保留后才发送MUX", async ({ page }) => {
@@ -79,7 +86,7 @@ test("后续失败恢复已知选择并保留首次基线", async ({ page }) => 
     data.profileMuxAfterSendFault = "隔离接受记录保存失败";
   });
   await select(page);
-  await expect(mux(page)).toContainText("动态");
+  await expect(muxPanel(page)).toContainText("动态");
   await apply(page);
   const results = await openProfileResults(page);
   await expect(results).toContainText("恢复本次显卡选择");
@@ -88,14 +95,14 @@ test("后续失败恢复已知选择并保留首次基线", async ({ page }) => 
 });
 
 test("启动选择复用完整MUX预览且保存不执行硬件", async ({ page }) => {
-  await openWorkspace(page, "自动策略");
+  await openWorkspace(page, "电源");
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
   const parameters = await openStartupParameters(page);
-  await expect(parameters.getByLabel("档案显卡模式")).toContainText("重启在显示与显卡页单独确认");
+  await expect(parameters.getByLabel("档案显卡模式")).toContainText("需重启生效 · 单独确认重启");
   await page.keyboard.press("Escape");
-  await configurationDialog(page).getByRole("button", { name: "确认应用", exact: true }).click();
+  await configurationView(page).getByRole("button", { name: "授权启动应用档案", exact: true }).click();
   expect(await page.evaluate(() => window.__uiFixture.graphicsMode.lastRequest)).toBeNull();
 });
 
@@ -106,9 +113,8 @@ test("捕获保留当前已接受选择，不复制旧档案目标", async ({ pa
     data.graphicsMode.lastRequest = { initialMode: 3, target: 4, verification: "pendingReboot" };
   });
   await select(page);
-  await page.getByPlaceholder("游戏 / 静音").fill("当前MUX");
-  await page.getByRole("button", { name: "保存当前", exact: true }).click();
-  await page.getByRole("button", { name: "保存当前设置？", exact: true }).click();
+  await openProfileSave(page, "当前MUX", ["显示与显卡"]);
+  await saveProfileButton(page).click();
   await expect(panel(page).getByRole("heading", { name: "当前MUX", exact: true })).toBeVisible();
   const saved = await page.evaluate(() => window.__uiFixture.calls.find(c => c.command === "save_profile"));
   expect(saved.args.args.settings.graphicsMode.mode).toBe(4);
@@ -121,8 +127,9 @@ for (const [theme, width] of [["light", 1440], ["dark", 360]]) {
     await page.emulateMedia({ colorScheme: theme });
     await select(page);
     await page.evaluate(value => document.documentElement.dataset.theme = value, theme);
-    await expect(mux(page)).toBeVisible();
-    expect(await mux(page).evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
-    await mux(page).screenshot({ path: `target/ui-check/profile-mux-${theme}-${width}.png` });
+    const mux = muxPanel(page);
+    await expect(mux).toBeVisible();
+    expect(await mux.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await mux.screenshot({ path: `target/ui-check/profile-mux-${theme}-${width}.png` });
   });
 }

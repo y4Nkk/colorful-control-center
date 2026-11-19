@@ -1,17 +1,27 @@
 /** 一级工作区的唯一页面、标题与语义图标清单。 */
 import type { IconName } from "../components/Icon";
-export type PageId = "dashboard" | "cooling" | "performance" | "graphics" | "lighting" | "input" | "battery" | "automation" | "profiles" | "settings";
+export type PageId = "dashboard" | "graphics" | "keyboard" | "power" | "settings";
 export interface PageDefinition { id: PageId; title: string; icon: IconName; workspace?: string }
 export const PAGES: readonly PageDefinition[] = [
-  { id: "dashboard", workspace: "ControlWorkspace", title: "概览", icon: "overview" },
-  { id: "cooling", title: "风扇散热", icon: "fan" },
-  { id: "performance", title: "性能调校", icon: "performance" },
-  { id: "graphics", title: "显示与显卡", icon: "display" },
-  { id: "lighting", title: "灯光效果", icon: "lighting" },
-  { id: "input", title: "键盘与输入", icon: "keyboard" },
-  { id: "battery", title: "电池与节能", icon: "battery" },
-  { id: "automation", title: "自动策略", icon: "power" },
-  { id: "profiles", title: "性能档案", icon: "profiles" },
+  { id: "dashboard", workspace: "SystemWorkspace", title: "系统", icon: "overview" },
+  { id: "keyboard", title: "键盘与灯光", icon: "keyboard" },
+  { id: "power", title: "电源", icon: "power" },
+  { id: "graphics", workspace: "DeviceConfigurationWorkspace", title: "设备配置", icon: "display" },
   { id: "settings", title: "设置", icon: "settings" },
 ];
 export function pageTitle(page: PageId): string { return PAGES.find(entry => entry.id === page)!.title; }
+
+export const SYSTEM_AREAS = [
+  { value: "overview", label: "概览" },
+  { value: "cooling", label: "风扇散热" },
+  { value: "performance", label: "性能调校" },
+  { value: "profiles", label: "配置档案" },
+] as const;
+export type SystemArea = typeof SYSTEM_AREAS[number]["value"];
+export function systemAreaTitle(area: SystemArea): string { return SYSTEM_AREAS.find(entry => entry.value === area)!.label; }
+export interface WorkspaceLocation { page: PageId; systemArea: SystemArea }
+
+export const PROFILES_LOCATION = { page: "dashboard", systemArea: "profiles" } as const satisfies WorkspaceLocation;
+export function workspaceLocationKey({ page, systemArea }: WorkspaceLocation) {
+  return page === "dashboard" && systemArea === "profiles" ? "dashboard:profiles" : page;
+}

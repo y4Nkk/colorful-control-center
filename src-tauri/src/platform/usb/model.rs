@@ -97,7 +97,7 @@ impl Frame {
     }
     pub fn review(&self, expected: &str) -> Result<()> {
         if self.revision()? != expected {
-            bail!("USB策略、计划或固件建议已变化，请重新预览确认");
+            bail!("USB 选择性暂停、系统计划或固件建议已变化，请重新读取后重试");
         }
         Ok(())
     }
@@ -133,7 +133,7 @@ impl Frame {
     pub fn changes_for(&self, target: &Target) -> Result<Vec<Change>> {
         target.validate()?;
         if self.firmware.is_none() {
-            bail!("固件未声明USB选择性暂停控制，只能恢复本次修改");
+            bail!("固件未声明USB 选择性暂停控制，只能恢复本次修改");
         }
         let mut changes = Vec::new();
         for plan in &target.plans {
