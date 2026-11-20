@@ -35,6 +35,18 @@ fn power_patches(hal: &Hal, settings: &ProfileSettings) -> Result<(Vec<Patch>, V
     Ok((patches, before))
 }
 
+#[cfg(not(test))]
+fn require_oem_control(settings: &ProfileSettings) -> Result<()> {
+    if settings.oem_power_mode.is_some()
+        || settings.performance_options.is_some()
+        || settings.display.is_some()
+        || settings.power_delivery.is_some()
+    {
+        crate::hal::oem_owner::ensure_owner_absent()?;
+    }
+    Ok(())
+}
+
 pub(super) fn preflight(
     hal: &Hal,
     gpu: &GpuController,
@@ -42,6 +54,8 @@ pub(super) fn preflight(
     devices: &mut Scopes<'_>,
     initial: Option<&Checkpoint>,
 ) -> Result<(Checkpoint, Vec<Patch>)> {
+    #[cfg(not(test))]
+    require_oem_control(settings)?;
     let mode = crate::profiles::preview::checkpoint_mode(
         &devices.mode.context,
         settings,

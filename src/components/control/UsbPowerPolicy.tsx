@@ -4,6 +4,7 @@ import { Button } from "../Button";
 import { DetailsDialog } from "../DetailsDialog";
 import { ConfigurationAction } from "../ConfigurationAction";
 import { FactList } from "../FactList";
+import { OemConflictAction } from "../OemConflictAction";
 import { Select } from "../Select";
 import { Surface } from "../Surface";
 import { useDeviceSettings } from "./useDeviceSettings";
@@ -41,6 +42,7 @@ export function UsbPowerPolicy({ active, revision }: { active: boolean; revision
       </DetailsDialog>}
       <Button icon="refresh" variant="ghost" size="icon-compact" aria-label={`重新读取 ${USB_POLICY_LABEL}`} disabled={busy} onClick={reread} /></div></div>
     {error && <p className="ccc-control-error" role="alert">{error}</p>}
+    <OemConflictAction issues={[error, profile?.blockedReason, profile?.restoreBlockedReason]} disabled={busy} onClosed={reread} />
     {!profile ? <p className="ccc-control-caption">{error ? "读取失败" : "读取中…"}</p> : <>
       <p className="ccc-control-caption">活动计划 · {profile.activePlan ? NAMES[profile.activePlan] : "自定义计划"}</p>
       <div className="ccc-display-controls">

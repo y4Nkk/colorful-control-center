@@ -335,7 +335,6 @@ mod tests {
             warnings: vec![],
             safety_status: "自动".into(),
             blocked_reason: None,
-            software_blocked_reason: None,
         };
         let curve = ccc_core::fan::FanCurve::new(
             vec![
@@ -418,7 +417,6 @@ mod tests {
             warnings: vec![],
             safety_status: "自动".into(),
             blocked_reason: None,
-            software_blocked_reason: None,
         };
         f.rpm_fans[0].points[0].rpm_pct = 0;
         let mut s = ProfileSettings::default();

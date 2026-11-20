@@ -26,8 +26,10 @@
 .ccc-radio[data-appearance="overlay"] { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; opacity: 0; }
 
 .ccc-segmented { display: inline-flex; flex-wrap: wrap; gap: var(--ccc-space-1); padding: var(--ccc-space-1); background: var(--ccc-content-muted); border-radius: var(--ccc-radius-card); }
-.ccc-segmented-option { position: relative; display: inline-flex; align-items: center; min-height: var(--ccc-control-height-compact); padding: var(--ccc-space-1) var(--ccc-space-3); border-radius: var(--ccc-radius-control); color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); cursor: pointer; transition: background var(--ccc-motion-fast) var(--ccc-easing), color var(--ccc-motion-fast) var(--ccc-easing); }
+.ccc-segmented-option { position: relative; display: inline-flex; align-items: center; justify-content: center; min-height: var(--ccc-control-height-compact); padding: var(--ccc-space-1) var(--ccc-space-3); border-radius: var(--ccc-radius-control); color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); cursor: pointer; transition: background var(--ccc-motion-fast) var(--ccc-easing), color var(--ccc-motion-fast) var(--ccc-easing); }
 .ccc-segmented-option:hover { color: var(--ccc-text); }
 .ccc-segmented-option:has(.ccc-radio:checked) { background: var(--ccc-content); color: var(--ccc-text); font-weight: 500; }
+.ccc-segmented-option[data-pending] { background: var(--ccc-nav-selected); color: var(--ccc-text); }
 .ccc-segmented-option:has(.ccc-radio:focus-visible) { box-shadow: var(--ccc-focus-shadow); }
 .ccc-segmented-option:has(.ccc-radio:disabled) { cursor: not-allowed; opacity: 0.5; }
+.ccc-segmented-option .ccc-radio[aria-disabled="true"]:enabled { cursor: wait; }

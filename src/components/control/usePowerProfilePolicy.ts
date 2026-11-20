@@ -3,6 +3,7 @@ import { pausePowerProfilePolicy, readPowerProfilePolicy, reloadPowerProfilePoli
   type PowerPolicyRecord, type PowerPolicyRequest, type PowerPolicyTrigger, type PowerPolicyView } from "../../api/client";
 import { loadBackgroundProfile, useProfileList, type ProfileSelection } from "../../app/useProfileReads";
 import { toast } from "../use-toast";
+import { useOemConflict } from "../OemConflictHost";
 
 export const POWER_RULES: { key: PowerPolicyTrigger; label: string }[] = [{ key: "ac", label: "插电时" }, { key: "battery", label: "使用电池时" }, { key: "resume", label: "唤醒后" }];
 interface Draft { ac: string; battery: string; resume: string }
@@ -11,6 +12,7 @@ const EMPTY: Record<PowerPolicyTrigger, Choice> = { ac: { selection: null, error
 function toDraft(record: PowerPolicyRecord | null): Draft { return { ac: record?.ac?.profile ?? "", battery: record?.battery?.profile ?? "", resume: record?.resume?.profile ?? "" }; }
 
 export function usePowerProfilePolicy(active: boolean, revision: number) {
+  const conflict = useOemConflict();
   const [view, setView] = useState<PowerPolicyView | null>(null), [draft, updateDraft] = useState<Draft>(toDraft(null));
   const [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null), [readError, setReadError] = useState<string | null>(null), [listError, setListError] = useState<string | null>(null);
   const [selectionRevision, setSelectionRevision] = useState(0);
@@ -42,6 +44,11 @@ export function usePowerProfilePolicy(active: boolean, revision: number) {
     const binding = view?.record?.[key];
     return binding && profiles.find(profile => profile.name === binding.profile)?.revision !== binding.digest;
   }) : [];
+  const refreshAfterExit = () => {
+    setError(null);
+    setSelectionRevision(value => value + 1);
+    void reload().catch(() => {});
+  };
   const run = async (action: () => Promise<void>, title: string, reset = true) => {
     if (!active || writing.current) return;
     writing.current = true; ++generation.current; setBusy(true); setError(null);
@@ -49,7 +56,12 @@ export function usePowerProfilePolicy(active: boolean, revision: number) {
       await action(); await reload(reset, true);
       if (reset) setSelectionRevision(value => value + 1);
       toast({ kind: "success", title });
-    } catch (error) { setError(String(error)); await reload(false, true).catch(() => {}); }
+    } catch (error) {
+      const message = String(error);
+      setError(message);
+      await reload(false, true).catch(() => {});
+      conflict.review([message], refreshAfterExit);
+    }
     finally { writing.current = false; setBusy(false); }
   };
   const pause = () => run(async () => {
@@ -59,7 +71,7 @@ export function usePowerProfilePolicy(active: boolean, revision: number) {
   const toggle = (enabled: boolean) => view?.record
     ? run(() => setPowerProfilePolicyEnabled(view.record!, enabled), enabled ? "自动档案已启用" : "自动档案已停用", false)
     : Promise.resolve();
-  return { view, draft, setDraft, profiles, choices, busy, edited: dirty.current, staleRules, error: error ?? readError ?? listError, request,
+  return { view, draft, setDraft, profiles, choices, busy, edited: dirty.current, staleRules, error: error ?? readError ?? listError, request, refreshAfterExit,
     save: () => request ? run(() => savePowerProfilePolicy(request), "自动档案规则已保存") : Promise.resolve(),
     pause, toggle, restore: () => view?.record ? run(() => restorePowerProfilePolicy(view.record!), "初始规则已恢复，自动应用已暂停") : Promise.resolve(),
     reset: () => view?.resetRevision ? run(() => resetPowerProfilePolicy(view.resetRevision!), "旧规则已清除，自动应用保持停用") : Promise.resolve(),

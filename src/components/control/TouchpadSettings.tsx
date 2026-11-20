@@ -4,6 +4,7 @@ import { ConfirmButton } from "../ConfirmButton";
 import { DetailsDialog } from "../DetailsDialog";
 import { FactList } from "../FactList";
 import { Icon } from "../Icon";
+import { OemConflictAction } from "../OemConflictAction";
 import { SegmentedControl } from "../SegmentedControl";
 import { Surface } from "../Surface";
 import { InputDeviceVisual } from "./InputDeviceVisual";
@@ -38,11 +39,10 @@ export function TouchpadSettings({ active, revision }: { active: boolean; revisi
     </div>
     <div className="ccc-device-status" aria-label="当前触摸板状态">
       <InputDeviceVisual kind="touchpad" />
-      {(summary || profile?.blockedReason) && <div>
-        {summary && <strong>{summary}</strong>}
-        {profile?.blockedReason && <p className="ccc-control-caption">更改暂不可用，查看详情</p>}
-      </div>}
+      {summary && <strong>{summary}</strong>}
     </div>
+    {profile?.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
+    <OemConflictAction issues={[error, profile?.blockedReason, profile?.restoreBlockedReason]} disabled={busy} onClosed={reread} />
     {error && <p role="alert" className="ccc-control-error">{error}</p>}
     <SegmentedControl className="ccc-module-control-end" label="触摸板" value={value} options={options} disabled={busy || !canChange} onChange={change} />
     {profile?.canRestore && <div className="ccc-actions">

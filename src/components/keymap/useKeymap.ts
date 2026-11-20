@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { applyKeymap, readKeymap, type KeymapConfiguration, type KeymapDevice, type KeymapDeviceSettings, type KeymapProfile } from "../../api/client";
+import { useOemConflict } from "../OemConflictHost";
 import { toast } from "../use-toast";
 import { preserveEditedFields } from "../control/settings-draft";
 
 export function useKeymap(active: boolean, revision = 0) {
+  const conflict = useOemConflict();
   const [profile, setProfile] = useState<KeymapProfile | null>(null), [draft, setDraft] = useState<KeymapConfiguration | null>(null);
   const [loaded, setLoaded] = useState(false), [busy, setBusy] = useState(false);
   const [readError, setReadError] = useState<string | null>(null), [actionError, setActionError] = useState<string | null>(null);
@@ -38,11 +40,16 @@ export function useKeymap(active: boolean, revision = 0) {
     const timer = setInterval(() => { void reload().catch(() => {}); }, 5000);
     return () => { disposed = true; clearInterval(timer); ++generation.current; };
   }, [active, revision, reload]);
+  const reread = () => { setActionError(null); if (!writing.current) void reload().catch(() => {}); };
   const run = async (action: () => Promise<void>, title: string, resetDraft = true) => {
     if (!active || writing.current) return;
     writing.current = true; ++generation.current; setBusy(true); setActionError(null);
     try { await reading.current?.catch(() => undefined); await action(); await reload(resetDraft, true); toast({ kind: "success", title }); }
-    catch (error) { setActionError(String(error)); await reload(false, true).catch(() => {}); }
+    catch (error) {
+      setActionError(String(error));
+      await reload(false, true).catch(() => {});
+      conflict.review([String(error)], reread);
+    }
     finally { writing.current = false; setBusy(false); }
   };
   const toggle = (device: KeymapDevice, enabled: boolean) => {
@@ -52,6 +59,5 @@ export function useKeymap(active: boolean, revision = 0) {
   };
   const changeGroup = (next: KeymapDeviceSettings) => setDraft(previous => previous &&
     { devices: previous.devices.map(group => group.device === next.device ? next : group) });
-  return { profile, draft, setDraft, changeGroup, loaded, busy, error: [actionError, readError].filter(Boolean).join("；") || null, run, toggle,
-    reread: () => { if (!writing.current) void reload().catch(() => {}); } };
+  return { profile, draft, setDraft, changeGroup, loaded, busy, error: [actionError, readError].filter(Boolean).join("；") || null, run, toggle, reread };
 }

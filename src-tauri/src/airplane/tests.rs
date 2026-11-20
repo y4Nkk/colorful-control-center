@@ -4,6 +4,7 @@ struct Fake {
     current: RefCell<Snapshot>,
     log: RefCell<Vec<String>>,
     fail: Cell<bool>,
+    blocked: Cell<bool>,
 }
 impl Fake {
     fn new() -> Self {
@@ -14,6 +15,7 @@ impl Fake {
             }),
             log: RefCell::new(vec![]),
             fail: Cell::new(false),
+            blocked: Cell::new(false),
         }
     }
 }
@@ -25,6 +27,9 @@ impl Io for Fake {
         Ok(self.current.borrow().clone())
     }
     fn ensure_writable(&self) -> Result<()> {
+        if self.blocked.get() {
+            bail!("隔离原厂进程占用");
+        }
         Ok(())
     }
     fn firmware(&self, enabled: bool) -> Result<()> {
@@ -58,6 +63,17 @@ fn reading_and_preview_never_write() {
     let frame = profile(&io, None).unwrap();
     assert!(frame.revision.is_some());
     assert!(frame.restore_revision.is_none());
+    assert!(io.log.borrow().is_empty());
+}
+#[test]
+fn ownership_blocker_is_visible_without_discarding_actual_radio_state() {
+    let io = Fake::new();
+    let before = io.current().unwrap();
+    io.blocked.set(true);
+    let frame = profile(&io, Some(before.clone())).unwrap();
+    assert_eq!(frame.current, Some(before));
+    assert_eq!(frame.blocked_reason.as_deref(), Some("隔离原厂进程占用"));
+    assert!(frame.restore_revision.is_some());
     assert!(io.log.borrow().is_empty());
 }
 #[test]

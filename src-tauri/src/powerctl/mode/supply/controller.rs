@@ -27,6 +27,7 @@ pub(crate) struct Status {
     pub sleeping: bool,
     pub active: bool,
     pub can_resume: bool,
+    pub blocked_reason: Option<String>,
     pub issue: Option<String>,
     pub last: Option<Report>,
 }
@@ -92,6 +93,7 @@ impl Controller {
             listener_online: state.scheduler.online && !state.scheduler.stopping,
             sleeping: state.scheduler.sleeping,
             active,
+            blocked_reason: None,
             issue,
             last: state.last.clone(),
         })

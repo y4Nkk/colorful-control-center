@@ -2,6 +2,7 @@
 import { invoke } from "./client";
 import type { StoredFanCheckpoint } from "./fans";
 import type { OpResult } from "./shared";
+import type { FnKeyIdentity } from "./oem-owner";
 import type { GpuPowerDevice, OemModeGpuAction, OemModeGpuState } from "./devices";
 import type { GpuModeSelection, GpuModeClockBaseline, GpuModeObservation } from "./gpu";
 
@@ -93,7 +94,7 @@ export interface OemModeRestoreTarget {
   systemPlans: { scheme: string; initial: [number, number]; current: [number, number] | null }[];
 }
 export const OEM_POWER_MODES = ["安静", "省电", "性能", "娱乐", "静音增强"] as const;
-export interface FnKeyModeConfirmation { identity: { pid: number; creationTime: [number, number] }; modeRevision: string }
+export interface FnKeyModeConfirmation { identity: FnKeyIdentity; modeRevision: string }
 export const readOemPowerMode = (): Promise<OemPowerMode> => invoke("read_oem_power_mode");
 export const applyOemPowerMode = (expected: OemModeTarget, confirmedFnKey: FnKeyModeConfirmation | null = null):
   Promise<OpResult | { confirmFnKey: FnKeyModeConfirmation }> => invoke("apply_oem_power_mode", { expected, confirmedFnKey });

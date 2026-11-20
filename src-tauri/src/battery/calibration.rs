@@ -11,8 +11,6 @@ mod events;
 mod model;
 #[path = "calibration/native.rs"]
 mod native;
-#[path = "calibration/ownership.rs"]
-pub(crate) mod ownership;
 #[path = "calibration/power_plan.rs"]
 pub(crate) mod power_plan;
 #[path = "calibration/process.rs"]

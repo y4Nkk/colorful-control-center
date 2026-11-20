@@ -4,6 +4,7 @@ import { ConfirmButton } from "../ConfirmButton";
 import { DetailsDialog } from "../DetailsDialog";
 import { FactList } from "../FactList";
 import { Icon } from "../Icon";
+import { OemConflictAction } from "../OemConflictAction";
 import { SegmentedControl } from "../SegmentedControl";
 import { Surface } from "../Surface";
 import { InputDeviceVisual } from "./InputDeviceVisual";
@@ -53,8 +54,10 @@ export function MicrophoneSettings({ active, revision }: { active: boolean; revi
     <div className="ccc-device-status" aria-label="当前麦克风状态">
       <InputDeviceVisual kind="microphone" />
       <div>{summary && <strong>{summary}</strong>}{endpoints.length > 0 && <p className="ccc-control-caption">{endpoints.length} 个设备</p>}
-        {profile?.blockedReason && <p className="ccc-control-caption">{profile.canRestore ? "可先恢复初始设备" : "更改暂不可用，查看详情"}</p>}</div>
+        {profile?.blockedReason && profile.canRestore && <p className="ccc-control-caption">可先恢复初始设备</p>}</div>
     </div>
+    {profile?.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
+    <OemConflictAction issues={[error, profile?.blockedReason, profile?.restoreBlockedReason]} disabled={busy} onClosed={reread} />
     {error && <p role="alert" className="ccc-control-error">{error}</p>}
     <SegmentedControl className="ccc-module-control-end" label={TITLE} value={value} options={options} disabled={busy || !canChange} onChange={change} />
     {profile?.canRestore && <div className="ccc-actions">

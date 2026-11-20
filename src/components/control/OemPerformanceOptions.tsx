@@ -5,6 +5,7 @@ import { applyOemPerformanceOptions, readOemPerformanceOptions, NOISELESS_FAN_LA
 import { Button } from "../Button";
 import { DetailsDialog } from "../DetailsDialog";
 import { Dialog } from "../Dialog";
+import { OemConflictAction } from "../OemConflictAction";
 import { Surface } from "../Surface";
 import { Switch } from "../Switch";
 import { useDeviceSettings } from "./useDeviceSettings";
@@ -60,6 +61,7 @@ export function OemPerformanceOptions({ active, revision, onSettled }: { active:
       </DetailsDialog><Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取性能选项" disabled={busy} onClick={reread} /></div>
     </div>
     {error && <p className="ccc-control-error" role="alert">{error}</p>}
+    <OemConflictAction issues={[error, profile?.blockedReason]} disabled={busy} onClosed={reread} />
     {!profile || !current ? <p className="ccc-control-caption">{error ? "暂时无法读取，请重试。" : "正在读取性能选项。"}</p> : <>
       <div className="ccc-setting-tiles">{fields.map(({ key, label }) => <Surface as="div" variant="inset" className="ccc-keyboard-setting" key={key}>
         <div><strong>{label}</strong>

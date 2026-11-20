@@ -7,7 +7,7 @@ export interface DisplayProfile {
   displays: { current: DisplayMode; frequencies: number[]; primary: boolean }[];
   rotation: { before: DisplayMode; target: DisplayMode } | null;
   pending: { before: DisplayMode[]; targets: DisplayMode[]; rotation: boolean; automatic: boolean; trialId: number | null; remainingMs: number | null; profileSession: number | null; error: string | null } | null;
-  canRestore: boolean; error: string | null;
+  canRestore: boolean; error: string | null; blockedReason: string | null;
 }
 export type DisplayPending = NonNullable<DisplayProfile["pending"]>;
 export type OemModeGpuValues = Pick<GpuPowerDevice, "enabled" | "automaticPowerOff">;
@@ -24,7 +24,7 @@ export interface AutomaticRefreshStatus {
   revision: string; current: AutomaticRefreshFacts | null; initial: [number, number, number] | null;
   initialDisplay: DisplayMode | null; preview: { before: DisplayMode; target: DisplayMode } | null;
   active: boolean; canStart: boolean; canRestore: boolean; error: string | null;
-  listenerOnline: boolean; sleeping: boolean; issue: string | null;
+  listenerOnline: boolean; sleeping: boolean; blockedReason: string | null; issue: string | null;
 }
 export interface GpuPowerDevice { id: string; name: string; enabled: boolean; automaticPowerOff: boolean; problem: number; drivesDisplay: boolean; canDisable: boolean }
 export interface GpuPowerProfile { devices: GpuPowerDevice[]; canRestore: boolean }

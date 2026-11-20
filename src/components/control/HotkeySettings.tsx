@@ -5,6 +5,7 @@ import { Checkbox } from "../Checkbox";
 import { ConfigurationAction } from "../ConfigurationAction";
 import { ConfirmButton } from "../ConfirmButton";
 import { DetailsDialog } from "../DetailsDialog";
+import { OemConflictAction } from "../OemConflictAction";
 import { Surface } from "../Surface";
 import { Switch } from "../Switch";
 import { useHotkeySettings } from "./useHotkeySettings";
@@ -121,6 +122,7 @@ export function HotkeySettings({ active, revision }: { active: boolean; revision
         </ConfirmButton>}
       </div>
     </div>
+    <OemConflictAction issues={[error, profile?.facts.blockedReason, profile?.status.error]} disabled={busy} onClosed={model.reread} />
     <HotkeyChanges model={model} />
   </Surface>;
 }

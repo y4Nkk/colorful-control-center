@@ -5,6 +5,7 @@ import { Button } from "../Button";
 import { DetailsDialog } from "../DetailsDialog";
 import { ConfigurationAction } from "../ConfigurationAction";
 import { FactList } from "../FactList";
+import { OemConflictAction } from "../OemConflictAction";
 import { Select } from "../Select";
 import { Surface } from "../Surface";
 import { LAN_FIELDS, lanString, lanValue, lanMeaning } from "./lan-values";
@@ -54,6 +55,7 @@ export function LanPolicy({ active, revision }: { active: boolean; revision: num
       </div>
     </div>
     {error && <p className="ccc-control-error" role="alert">{error}</p>}
+    <OemConflictAction issues={[error, profile?.blockedReason, profile?.lastError, preview.error]} disabled={busy} onClosed={reread} />
     {!profile ? <p className="ccc-control-caption">{error ? "读取失败" : "读取中…"}</p> : <>
       <div className="ccc-display-controls">
         <label className="ccc-config-field">网卡<Select label="网络策略设备" value={deviceId} options={devices} disabled={busy || !devices.length}

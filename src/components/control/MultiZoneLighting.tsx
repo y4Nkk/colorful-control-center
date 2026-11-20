@@ -2,6 +2,7 @@ import { Icon } from "../Icon";
 import { applyMultiZoneLighting, restoreMultiZoneLighting, type MultiZoneValues } from "../../api/client";
 import { Button } from "../Button";
 import { ConfigurationAction } from "../ConfigurationAction";
+import { OemConflictAction } from "../OemConflictAction";
 import { Surface } from "../Surface";
 import { MultiZoneColors } from "./MultiZoneColors";
 import { MultiZoneEditor } from "./MultiZoneEditor";
@@ -24,6 +25,7 @@ export function MultiZoneLighting({ active, revision }: { active: boolean; revis
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="lighting" />多区键盘灯</h2>
       <Button icon="refresh" variant="ghost" size="compact" disabled={busy} onClick={model.reread}>重新读取多区键盘</Button></div>
     {model.error && <p className="ccc-control-error" role="alert">{model.error}</p>}
+    <OemConflictAction issues={[model.error, profile?.blockedReason]} disabled={busy} onClosed={model.reread} />
     {profile ? <div className="ccc-multi-zone-columns">
       <Surface variant="group" className="ccc-multi-zone-section">
         <strong>当前保存配置</strong>

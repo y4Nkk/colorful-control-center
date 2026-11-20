@@ -9,6 +9,8 @@ macro_rules! handler {
             crate::commands::airplane::read_airplane,
             crate::commands::airplane::apply_airplane,
             crate::commands::airplane::restore_airplane,
+            crate::commands::oem_owner::read_fn_key_close_target,
+            crate::commands::oem_owner::close_fn_key,
             crate::commands::osd::read_osd,
             crate::commands::osd::preview_osd,
             crate::commands::hotkeys::read_hotkeys,
@@ -110,7 +112,6 @@ macro_rules! handler {
             crate::commands::fans::read_fan_profile,
             crate::commands::fans::apply_fan_curve,
             crate::commands::fans::apply_rpm_fan_curves,
-            crate::commands::fans::apply_software_fan_curves,
             crate::commands::fans::set_fan_mode,
             crate::commands::fans::set_fan_offset,
             crate::commands::fans::restore_fan_default,
@@ -205,6 +206,8 @@ mod tests {
             "resume_oem_supply_mode",
             "pause_oem_supply_mode",
             "restore_oem_supply_mode",
+            "read_fn_key_close_target",
+            "close_fn_key",
         ] {
             assert!(!super::allowed("osd", command));
             assert!(super::allowed("main", command));

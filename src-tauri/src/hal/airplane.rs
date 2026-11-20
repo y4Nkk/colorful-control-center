@@ -28,6 +28,9 @@ fn device() -> Result<String> {
     let mut size = 0;
     let status =
         unsafe { CM_Get_Device_Interface_List_SizeW(&mut size, &INTERFACE, ptr::null(), 0) };
+    if status == CR_SUCCESS && size == 1 {
+        bail!("Windows 未发现原厂飞行模式设备接口");
+    }
     if status != CR_SUCCESS || !(2..=65536).contains(&size) {
         bail!("飞行模式设备列表长度无效：CONFIGRET={status:#x}, size={size}");
     }

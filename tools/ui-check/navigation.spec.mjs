@@ -20,7 +20,7 @@ test("所有工作区共用品牌顶栏，浏览不写硬件", async ({ page }) 
   expect(writes).toEqual([]);
 });
 
-test("系统四个标签共用导航，切区保留草稿并只预览当前可见设置", async ({ page }) => {
+test("系统四个标签共用导航，切区保留已应用的风扇偏移与档案预览", async ({ page }) => {
   const nav = page.getByRole("navigation", { name: "主导航" });
   const names = ["概览", "风扇散热", "性能调校", "配置档案"];
   for (const name of names)
@@ -36,11 +36,11 @@ test("系统四个标签共用导航，切区保留草稿并只预览当前可�
   await expect(page.locator(".ccc-sensor-summary output")).toHaveText(["1800 RPM", "1500 RPM"]);
   await openSystemArea(page, "风扇散热");
   await expect(page.getByRole("region", { name: "风扇散热", exact: true })).toBeVisible();
-  await expect(page.getByRole("region", { name: "风扇曲线", exact: true })).not.toContainText(/(?:CPU|GPU) 转速/);
+  await expect(page.getByRole("region", { name: "风扇设置", exact: true })).toContainText("1800 RPM");
   const offset = page.getByRole("slider", { name: "加速偏移", exact: true });
   await offset.fill("38");
-  const fanChanges = page.getByRole("region", { name: "固件曲线 · 应用固件曲线与偏移", exact: true });
-  await expect(fanChanges.getByRole("button", { name: "应用固件曲线与偏移", exact: true })).toBeEnabled();
+  await expect.poll(() => page.evaluate(() => window.__uiFixture.fan.offsetPct)).toBe(38);
+  await expect(offset).toBeEnabled();
   await openSystemArea(page, "配置档案");
   await expect(page.getByRole("region", { name: "配置档案", exact: true })).toBeVisible();
   const profileApply = page.getByRole("region", { name: "档案预览", exact: true }).getByRole("button", { name: "应用档案", exact: true });
@@ -50,17 +50,16 @@ test("系统四个标签共用导航，切区保留草稿并只预览当前可�
   await openSystemArea(page, "性能调校");
   await expect(page.getByRole("region", { name: "性能调校", exact: true })).toBeVisible();
   await expect(page.getByRole("slider", { name: "持续功耗上限", exact: true })).toBeVisible();
-  await expect(fanChanges).toHaveCount(0);
   await expect(page.locator('section[aria-label="预设模式"]')).toHaveCount(1);
   await expect(page.getByRole("region", { name: "预设模式", exact: true })).toBeVisible();
   await openSystemArea(page, "风扇散热");
   await expect(offset).toHaveValue("38");
-  await expect(fanChanges).toContainText("38%");
   await expect(profileApply).toHaveCount(0);
   await openSystemArea(page, "配置档案");
   await expect(selected).toHaveAttribute("aria-pressed", "true");
   await expect(profileApply).toBeEnabled();
-  expect(await page.evaluate(() => window.__uiFixture.calls.filter(call => /^(set_fan|apply_fan|apply_profile)/.test(call.command)))).toEqual([]);
+  expect(await page.evaluate(() => window.__uiFixture.calls.filter(call => /^(set_fan|apply_fan|apply_profile)/.test(call.command))))
+    .toEqual([{ command: "set_fan_offset", args: { pct: 38 } }]);
 });
 
 test("托盘请求打开系统的配置档案标签并预览指定档案", async ({ page }) => {

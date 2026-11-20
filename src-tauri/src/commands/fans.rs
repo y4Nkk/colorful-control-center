@@ -52,15 +52,6 @@ pub(crate) fn apply_rpm_fan_curves(
 }
 
 #[tauri::command]
-pub(crate) fn apply_software_fan_curves(
-    hal: State<'_, Hal>,
-    curves: ccc_core::software_fan::Curves,
-) -> Result<OpResult, String> {
-    let _write = hal.begin_write().map_err(|e| format!("{e:#}"))?;
-    to_result(fanctl::software::apply_confirmed(&hal, &curves))
-}
-
-#[tauri::command]
 pub(crate) fn apply_fan_curve(
     hal: State<'_, Hal>,
     cpu: Option<CurvePointsDto>,

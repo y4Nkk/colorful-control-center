@@ -1,5 +1,17 @@
 use super::*;
 
+fn apply_manual_curve(hal: &hal::Hal) -> anyhow::Result<()> {
+    let before = fanctl::checkpoint(hal, false)?;
+    fanctl::software::apply_manual(hal, &curves())?;
+    if let Err(error) = hal.acknowledge_software_fan_restart() {
+        return match fanctl::restore_checkpoint(hal, &before) {
+            Ok(()) => Err(error),
+            Err(restore) => Err(anyhow::anyhow!("{error:#}，恢复失败：{restore:#}")),
+        };
+    }
+    Ok(())
+}
+
 #[test]
 fn software_process_restored_hardware_is_not_rewritten_when_only_journal_commit_failed() {
     use std::os::windows::fs::OpenOptionsExt;
@@ -31,7 +43,7 @@ fn software_process_restored_hardware_is_not_rewritten_when_only_journal_commit_
     drop(held);
     {
         let _gate = hal.begin_write().unwrap();
-        fanctl::software::apply_confirmed(hal, &curves()).unwrap();
+        apply_manual_curve(hal).unwrap();
     }
     fanctl::release_on_exit(hal).unwrap();
 }
@@ -43,7 +55,7 @@ fn software_process_confirmation_commit_failure_releases_the_curve_and_preserves
     DEVICE.lock().unwrap().hold_on_duty = true;
     {
         let _gate = hal.begin_write().unwrap();
-        let error = fanctl::software::apply_confirmed(hal, &curves()).unwrap_err();
+        let error = apply_manual_curve(hal).unwrap_err();
         assert!(error.to_string().contains("保存软件风扇恢复记录失败"));
     }
     assert!(DEVICE.lock().unwrap().journal_hold.is_some());
@@ -53,7 +65,7 @@ fn software_process_confirmation_commit_failure_releases_the_curve_and_preserves
     DEVICE.lock().unwrap().journal_hold.take();
     {
         let _gate = hal.begin_write().unwrap();
-        fanctl::software::apply_confirmed(hal, &curves()).unwrap();
+        apply_manual_curve(hal).unwrap();
     }
     hal.ensure_software_fan_restart_allowed().unwrap();
     fanctl::release_on_exit(hal).unwrap();
@@ -78,7 +90,7 @@ fn software_process_records_the_first_output_and_a_normal_exit_clears_only_runni
     {
         let _gate = hal.begin_write().unwrap();
         assert!(fanctl::software::apply(hal, &curves()).is_err());
-        assert!(fanctl::software::apply_confirmed(hal, &curves()).is_err());
+        assert!(apply_manual_curve(hal).is_err());
     }
     assert_eq!(DEVICE.lock().unwrap().writes.len(), count);
     let mut next = hal::Hal::test_instance(
@@ -118,7 +130,7 @@ fn software_process_journal_failure_rejects_the_first_duty_and_manual_retry_can_
     drop(held);
     {
         let _gate = hal.begin_write().unwrap();
-        fanctl::software::apply_confirmed(hal, &curves()).unwrap();
+        apply_manual_curve(hal).unwrap();
     }
     hal.ensure_software_fan_restart_allowed().unwrap();
     fanctl::release_on_exit(hal).unwrap();
@@ -149,9 +161,9 @@ fn software_process_fuse_recovers_and_never_resumes_without_confirmation() {
     {
         let _write = hal.begin_write().unwrap();
         DEVICE.lock().unwrap().fail_duty = true;
-        assert!(fanctl::software::apply_confirmed(hal, &curves()).is_err());
+        assert!(apply_manual_curve(hal).is_err());
         assert!(hal.ensure_software_fan_restart_allowed().is_err());
-        fanctl::software::apply_confirmed(hal, &curves()).unwrap();
+        apply_manual_curve(hal).unwrap();
         hal.ensure_software_fan_restart_allowed().unwrap();
         fanctl::software::stop(hal).unwrap();
         hal.disarm_fan_guard().unwrap();

@@ -76,6 +76,7 @@ export interface SupplyModeStatus {
   active: boolean;
   canResume: boolean;
   issue: string | null;
+  blockedReason: string | null;
   last: { atMs: number; trigger: SupplyModeTrigger; applied: boolean; previousMode: number | null;
     mode: number | null; onAc: boolean | null; error: string | null } | null;
 }

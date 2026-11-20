@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { enableOemSupplyMode, pauseOemSupplyMode, readOemSupplyMode, restoreOemSupplyMode, resumeOemSupplyMode, type SupplyModeStatus } from "../../api/client";
+import { useOemConflict } from "../OemConflictHost";
 
 export function useSupplyMode(active: boolean, revision: number, onSettled: () => void) {
+  const conflict = useOemConflict();
   const [view, setView] = useState<SupplyModeStatus | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null);
   const [pausing, setPausing] = useState(false), [pauseRequested, setPauseRequested] = useState(false);
@@ -35,11 +37,18 @@ export function useSupplyMode(active: boolean, revision: number, onSettled: () =
     const timer = setInterval(() => { void reload(); }, 1000);
     return () => { clearInterval(timer); visible.current = false; ++generation.current; };
   }, [active, revision, reload]);
+  const reread = () => { setError(null); return reload(); };
   const run = async (action: () => Promise<void>) => {
     if (writing.current || stopping.current) return false;
     writing.current = true; ++generation.current; setBusy(true); setPauseRequested(false); setError(null);
     try { await action(); await reload(true); return true; }
-    catch (error) { await reload(true); setError(String(error)); return false; }
+    catch (error) {
+      await reload(true);
+      const message = String(error);
+      setError(message);
+      conflict.review([message], reread);
+      return false;
+    }
     finally { writing.current = false; setBusy(false); onSettled(); }
   };
   const pause = async () => {
@@ -55,6 +64,6 @@ export function useSupplyMode(active: boolean, revision: number, onSettled: () =
   };
   const confirmed = (action: (expected: string) => Promise<void>) => view ? run(() => action(view.revision)) : Promise.resolve(false);
   return { view, busy, pausing, pauseRequested, error: error ?? readError,
-    reread: () => { setError(null); return reload(); }, enable: () => confirmed(enableOemSupplyMode),
+    reread, enable: () => confirmed(enableOemSupplyMode),
     resume: () => confirmed(resumeOemSupplyMode), restore: () => confirmed(restoreOemSupplyMode), pause };
 }

@@ -30,7 +30,6 @@ export interface FanPointSet {
 }
 
 export interface FanProfile {
-  softwareSupported: boolean;
   software: SoftwareCurves | null;
   curveKind: "twoPoint" | "rpmTable";
   rpmFans: RpmFan[];
@@ -44,7 +43,6 @@ export interface FanProfile {
   warnings: string[];
   safetyStatus: string;
   blockedReason: string | null;
-  softwareBlockedReason: string | null;
 }
 
 export interface CurvePointsDto {
@@ -56,16 +54,20 @@ export interface CurvePointsDto {
 
 
 export const NOISELESS_FAN_LABEL = "寂静模式";
+export const CUSTOM_FAN_MODE = 6;
 export const FAN_MODES: ReadonlyArray<{ id: number; label: string }> = [
   { id: 0, label: "自动" },
   { id: 1, label: "全速" },
   { id: 5, label: "能效优先" },
-  { id: 6, label: "自定义" },
+  { id: CUSTOM_FAN_MODE, label: "自定义" },
   { id: 8, label: NOISELESS_FAN_LABEL },
 ];
 
+export function fanModeLabel(id: number) {
+  return FAN_MODES.find(mode => mode.id === id)?.label ?? "模式未知";
+}
+
 export const readFanProfile = (): Promise<FanProfile> => invoke("read_fan_profile");
-export const applySoftwareFanCurves = (curves: SoftwareCurves): Promise<OpResult> => invoke("apply_software_fan_curves", { curves });
 export const applyRpmFanCurves = (curves: Partial<Record<FanId, RpmPoint[]>>): Promise<OpResult> =>
   invoke("apply_rpm_fan_curves", { curves });
 export const applyFanCurve = (

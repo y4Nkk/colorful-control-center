@@ -49,13 +49,6 @@ pub fn read_profile(hal: &Hal) -> Result<FanProfile> {
     profile.blocked_reason = dust::ensure_manual_allowed(hal)
         .err()
         .map(|e| format!("{e:#}"));
-    profile.software_blocked_reason = if profile.software_supported {
-        dust::ensure_software_allowed(hal)
-            .err()
-            .map(|e| format!("{e:#}"))
-    } else {
-        None
-    };
     Ok(profile)
 }
 

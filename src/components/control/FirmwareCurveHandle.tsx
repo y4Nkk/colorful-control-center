@@ -1,0 +1,79 @@
+import { useRef, useState, type PointerEvent, type RefObject } from "react";
+import { Button } from "../Button";
+
+const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
+
+interface Props {
+  source: object;
+  plotRef: RefObject<HTMLDivElement | null>;
+  plotMin: number;
+  point?: "p2" | "p3";
+  rpmIndex?: number;
+  x: number;
+  y: number;
+  temp: number;
+  minTemp: number;
+  maxTemp: number;
+  label: string;
+  valueText: string;
+  disabled: boolean;
+  selected: boolean;
+  onSelect: () => void;
+  onMove: (temp: number, target: number) => void;
+  onStep: (temp: number, target: number) => void;
+  onCommit: () => void;
+  onCancel: () => void;
+}
+
+export function FirmwareCurveHandle({ source, plotRef, plotMin, point, rpmIndex, x, y, temp, minTemp, maxTemp, label, valueText,
+  disabled, selected, onSelect, onMove, onStep, onCommit, onCancel }: Props) {
+  const pointer = useRef<{ id: number; source: object; x: number; y: number; moved: boolean } | null>(null);
+  const keys = useRef<object | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const movePointer = (event: PointerEvent<HTMLButtonElement>) => {
+    const box = plotRef.current?.getBoundingClientRect();
+    if (!box?.width || !box.height) return;
+    const ratio = (event.clientX - box.left) / box.width;
+    onMove(plotMin + ratio * (100 - plotMin), 100 - (event.clientY - box.top) / box.height * 100);
+  };
+  const endPointer = (id: number, apply: boolean) => {
+    const gesture = pointer.current;
+    if (gesture?.id !== id) return;
+    pointer.current = null;
+    setDragging(false);
+    if (apply && gesture.moved && gesture.source === source && !disabled) onCommit();
+    else if (gesture.moved) onCancel();
+  };
+
+  return <Button variant="handle" type="button" role="slider" data-point={point} data-rpm-point={rpmIndex}
+    className={`ccc-plot-handle${selected ? " is-selected" : ""}${dragging ? " is-dragging" : ""}`}
+    style={{ left: `${x}%`, top: `${y}%` }} disabled={disabled}
+    aria-label={label} aria-valuemin={minTemp} aria-valuemax={maxTemp} aria-valuenow={temp} aria-valuetext={valueText} aria-orientation="vertical"
+    onFocus={onSelect} onBlur={() => { if (keys.current) { keys.current = null; onCancel(); } }}
+    onKeyDown={event => {
+      const delta = ARROWS[event.key];
+      if (!delta) return;
+      event.preventDefault();
+      keys.current ??= source;
+      if (keys.current === source) onStep(delta[0] * (event.shiftKey ? 5 : 1), delta[1] * (event.shiftKey ? 5 : 1));
+    }} onKeyUp={event => {
+      if (!ARROWS[event.key] || !keys.current) return;
+      const started = keys.current;
+      keys.current = null;
+      if (started === source) onCommit(); else onCancel();
+    }} onPointerDown={event => {
+      if (event.button !== 0 || !event.isPrimary) return;
+      pointer.current = { id: event.pointerId, source, x: event.clientX, y: event.clientY, moved: false };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      onSelect();
+      setDragging(true);
+    }} onPointerMove={event => {
+      const gesture = pointer.current;
+      if (gesture?.id !== event.pointerId || gesture.source !== source) return;
+      if (!gesture.moved && gesture.x === event.clientX && gesture.y === event.clientY) return;
+      gesture.moved = true;
+      movePointer(event);
+    }} onPointerUp={event => endPointer(event.pointerId, true)}
+    onPointerCancel={event => endPointer(event.pointerId, false)} onLostPointerCapture={event => endPointer(event.pointerId, false)} />;
+}

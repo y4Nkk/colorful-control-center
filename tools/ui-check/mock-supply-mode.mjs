@@ -2,8 +2,8 @@ export function invokeSupplyMode(data, command, args) {
   const view = data.supplyMode;
   if (command === "read_oem_supply_mode") {
     if (data.supplyModeReadError) throw new Error(data.supplyModeReadError);
-    return structuredClone(view ?? { revision: "unsupported", review: null, enabled: false, canEnable: false, canRestore: false,
-      recovery: null, error: null, recoveryError: null, listenerOnline: true, sleeping: false, active: false, canResume: false, issue: null, last: null });
+    return { blockedReason: null, ...structuredClone(view ?? { revision: "unsupported", review: null, enabled: false, canEnable: false, canRestore: false,
+      recovery: null, error: null, recoveryError: null, listenerOnline: true, sleeping: false, active: false, canResume: false, issue: null, last: null }) };
   }
   if (!view) throw new Error("隔离供电模式不可用");
   if (command === "pause_oem_supply_mode") {

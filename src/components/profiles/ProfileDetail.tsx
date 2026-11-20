@@ -5,6 +5,7 @@ import { ConfigurationAction } from "../ConfigurationAction";
 import { ConfirmButton } from "../ConfirmButton";
 import { DetailsDialog } from "../DetailsDialog";
 import { Icon } from "../Icon";
+import { OemConflictAction } from "../OemConflictAction";
 import { Surface } from "../Surface";
 import { ProfileCurves } from "./ProfileCurves";
 import { ProfileParameters } from "./ProfileParameters";
@@ -48,12 +49,13 @@ export function ProfileDetail({ model, onUpdate, onOpenRules }: {
       <p className="ccc-control-error" role="alert">{review.blocked}</p>
       <Button icon="refresh" variant="ghost" size="compact" disabled={model.busy} onClick={() => model.select(file.name)}>重新预览</Button>
     </div>}
+    <OemConflictAction issues={[review.blocked]} disabled={model.busy} onClosed={() => model.select(file.name)} />
     {!review.blocked && !model.pending && !model.loading && !model.busy
       ? <ConfigurationAction label="档案设置" applyLabel="应用档案"
         revision={JSON.stringify([file, review])} onConfirm={() => void model.apply(selection)}>{changes}</ConfigurationAction>
       : changes}
     <ProfileParameters key={file.name} settings={file.settings} review={review} />
-    {model.report && <ProfileReport report={model.report} />}
+    {model.report && <ProfileReport report={model.report} onClosed={() => model.select(file.name)} />}
   </Surface>;
 }
 
@@ -114,7 +116,7 @@ function ProfileValues({ rows, targetOnly }: { rows: ProfileDifference[]; target
   </div>)}</dl>;
 }
 
-function ProfileReport({ report }: { report: ProfileApplication }) {
+function ProfileReport({ report, onClosed }: { report: ProfileApplication; onClosed: () => void }) {
   const failed = report.steps.filter(step => !step.ok);
   const recovery = report.steps.filter(step => step.step.startsWith("恢复"));
   const state = report.pending ? report.pending.error ? "显示恢复待处理" : "等待显示确认"
@@ -123,6 +125,7 @@ function ProfileReport({ report }: { report: ProfileApplication }) {
   return <Surface as="section" variant="inset" className="ccc-profile-results" aria-label="最近应用记录">
     <div className="ccc-panel-head"><h3 className="ccc-panel-title"><Icon name="logs" />上次应用 · {report.name}</h3><strong>{state}</strong></div>
     {failed.map(step => <p key={step.step} className="ccc-control-error">{step.step} · {step.message}</p>)}
+    <OemConflictAction issues={failed.map(step => step.message)} onClosed={onClosed} />
     {!!report.steps.length && <DetailsDialog title={`执行明细 · ${report.steps.length} 项`} icon="logs">
       <ol className="ccc-profile-steps" aria-label="执行结果">{report.steps.map((step, index) => <li key={index}>
         <span className="ccc-step-status"><Icon name={step.ok ? "check-circle" : "error"} label={step.ok ? "成功" : "失败"} size={16} />

@@ -44,16 +44,6 @@ test("配置档案的创建入口和保存弹窗在宽窄窗口保持对齐", as
   expect(saveBox.x + saveBox.width).toBeLessThan(360);
 });
 
-test("软件风扇曲线的数值框与交还固件按钮底部对齐", async ({ page }) => {
-  await page.setViewportSize({ width: 900, height: 720 });
-  await openSystemArea(page, "风扇散热");
-  await page.getByRole("radio", { name: "软件曲线", exact: true }).check();
-  const hysteresis = page.getByRole("spinbutton", { name: "软件曲线回差" });
-  const ramp = page.getByRole("spinbutton", { name: "软件曲线斜坡" });
-  const handBack = page.getByRole("button", { name: "交还固件", exact: true });
-  expectAligned((await bounds(hysteresis, ramp, handBack)).map(bottom));
-});
-
 test("三区灯光对齐主控件中心，窄窗按组换行", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openWorkspace(page, "键盘与灯光");

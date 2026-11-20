@@ -37,7 +37,7 @@ impl Io for Native<'_> {
         #[cfg(not(test))]
         {
             crate::hal::oem_owner::ensure_owner_absent()?;
-            crate::battery::calibration::ownership::ensure_available()
+            crate::hal::oem_owner::ensure_battery_owner_absent()
         }
     }
     fn request(&self, kind: Kind) -> Result<()> {

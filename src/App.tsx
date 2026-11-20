@@ -12,6 +12,7 @@ import { useScrollActivityMarker } from "./app/useScrollActivityMarker";
 import { Toaster } from "./components/Toaster";
 import { ProfileApplicationHost } from "./components/ProfileApplicationHost";
 import { AutomaticDisplayTrialHost } from "./components/AutomaticDisplayTrialHost";
+import { OemConflictHost } from "./components/OemConflictHost";
 import { useAppPreferences } from "./app/useAppPreferences";
 import { useHotkeyState } from "./app/useHotkeyState";
 import { rememberPage, startupPage } from "./lib/startup-page";
@@ -63,7 +64,7 @@ export default function App() {
   }, [navigate]);
 
   return (
-    <>
+    <OemConflictHost workspace={`${location.page}:${systemArea}`}>
       <AppShell location={location} onPageChange={page => navigate({ page, systemArea })}
         preferences={preferences}>
         <ProfileApplicationHost />
@@ -74,6 +75,6 @@ export default function App() {
       </AppShell>
       <AutomaticDisplayTrialHost />
       <Toaster coldWarning={hotkeys.warning} dismissColdWarning={hotkeys.dismiss} />
-    </>
+    </OemConflictHost>
   );
 }

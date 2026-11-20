@@ -1,0 +1,108 @@
+.ccc-fan-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "settings" "curve" "fields" "recovery";
+  align-items: start;
+}
+
+.ccc-fan-curve {
+  grid-area: curve;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ccc-space-4);
+  margin-block: var(--ccc-space-5);
+}
+
+.ccc-fan-curve-toolbar, .ccc-fan-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ccc-space-2);
+}
+
+.ccc-fan-settings, .ccc-fan-fields, .ccc-fan-recovery {
+  min-width: 0;
+  display: grid;
+  gap: var(--ccc-space-3);
+  padding: var(--ccc-space-4);
+  border-radius: var(--ccc-radius-card);
+  background: var(--ccc-content-muted);
+}
+
+.ccc-fan-settings { grid-area: settings; gap: var(--ccc-space-4); }
+.ccc-fan-fields { grid-area: fields; }
+.ccc-fan-fields:has(+ .ccc-fan-recovery) { border-end-start-radius: 0; border-end-end-radius: 0; }
+.ccc-fan-recovery { grid-area: recovery; }
+.ccc-fan-fields + .ccc-fan-recovery { border-start-start-radius: 0; border-start-end-radius: 0; }
+.ccc-fan-layout h3 { margin: 0; font-size: var(--ccc-text-sm); font-weight: 600; }
+.ccc-fan-layout p { margin: 0; }
+
+.ccc-fan-current, .ccc-fan-parameters { display: grid; gap: var(--ccc-space-2); }
+.ccc-fan-control-state {
+  background: var(--ccc-content);
+  border-radius: var(--ccc-radius-full);
+  padding: var(--ccc-space-1) var(--ccc-space-2);
+  font-size: var(--ccc-text-xs);
+}
+
+.ccc-fan-readings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ccc-space-3);
+  margin: 0;
+}
+
+.ccc-fan-readings dt, .ccc-curve-columns, .ccc-curve-number {
+  color: var(--ccc-text-muted);
+  font-size: var(--ccc-text-xs);
+}
+
+.ccc-fan-readings dd {
+  margin: 0;
+  font: 500 var(--ccc-text-reading)/1.25 var(--ccc-font-mono);
+}
+
+.ccc-fan-readings dd > span { font-size: var(--ccc-text-sm); white-space: nowrap; }
+.ccc-fan-modes { justify-self: start; }
+
+.ccc-curve-values, .ccc-curve-number { display: grid; gap: var(--ccc-space-1); min-width: 0; }
+.ccc-curve-point, .ccc-curve-columns {
+  display: grid;
+  grid-template-columns: 2.5ch repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: var(--ccc-space-2);
+  padding-inline: var(--ccc-space-2);
+}
+
+.ccc-curve-point { padding-block: var(--ccc-space-1); border-radius: var(--ccc-radius-control); }
+.ccc-curve-point > strong { font-size: var(--ccc-text-xs); }
+.ccc-curve-point[data-selected="true"] { background: var(--ccc-nav-selected); }
+.ccc-curve-point[data-selected="true"] > strong { color: var(--ccc-action); }
+.ccc-rpm-inputs { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 0; }
+.ccc-fan-recovery-actions { display: grid; gap: var(--ccc-space-1); padding-block-start: var(--ccc-space-2); }
+.ccc-fan-recovery-actions[hidden] { display: none; }
+
+@container ccc-control (min-width: 54rem) {
+  .ccc-fan-layout {
+    grid-template-columns: minmax(0, 1fr) clamp(19rem, 30cqi, 22rem);
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    grid-template-areas: "curve settings" "curve fields" "curve recovery" "curve .";
+    column-gap: var(--ccc-space-5);
+  }
+  .ccc-fan-layout::before {
+    content: "";
+    grid-column: 2;
+    grid-row: 1 / 4;
+    align-self: stretch;
+    border-radius: var(--ccc-radius-card);
+    background: var(--ccc-content-muted);
+  }
+  .ccc-fan-settings, .ccc-fan-fields, .ccc-fan-recovery { z-index: 0; background: transparent; }
+  .ccc-fan-curve { margin: 0; }
+  .ccc-fan-layout .ccc-plot { height: clamp(216px, 36dvh, 360px); }
+}
+
+@container ccc-control (max-width: 21rem) {
+  .ccc-fan-settings, .ccc-fan-fields, .ccc-fan-recovery { padding-inline: var(--ccc-space-3); }
+}

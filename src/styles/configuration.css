@@ -9,13 +9,6 @@
 @container ccc-control (max-width: 320px) {
   .ccc-system-areas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-self: stretch; }
 }
-.ccc-fan-layout { display: grid; gap: var(--ccc-space-4); align-items: start; }
-.ccc-fan-curve, .ccc-fan-side { display: grid; min-width: 0; gap: var(--ccc-space-3); }
-.ccc-fan-selector { justify-self: start; }
-.ccc-fan-side { padding: var(--ccc-space-3); }
-@container ccc-control (min-width: 54rem) {
-  .ccc-fan-layout { grid-template-columns: minmax(0, 1.75fr) minmax(16rem, 1fr); }
-}
 .ccc-module-tools { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-1); margin-inline-start: auto; }
 .ccc-module-summary { display: grid; gap: var(--ccc-space-1); align-content: start; min-width: 0; }
 .ccc-module-summary > strong { font-size: var(--ccc-text-xl); }

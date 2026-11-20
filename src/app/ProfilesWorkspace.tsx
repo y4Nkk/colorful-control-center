@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
-import type { ProfileMeta } from "../api/client";
+import { findOemConflict, type ProfileMeta } from "../api/client";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
+import { OemConflictAction } from "../components/OemConflictAction";
 import { Surface } from "../components/Surface";
 import { ProfileSaveDialog } from "../components/profiles/ProfileSaveDialog";
 import { ProfileDetail, ProfileImport } from "../components/profiles/ProfileDetail";
@@ -27,6 +28,7 @@ export function ProfilesWorkspace({ active, requestedProfile, onOpenRules }: {
   };
   const empty = model.status === "ready" && !model.profiles.length;
   const actionError = model.error === model.selection?.review.blocked ? null : model.error;
+  const reportedConflict = findOemConflict(model.report?.steps.filter(step => !step.ok).map(step => step.message) ?? []);
   const createAndImport = <div className="ccc-actions">
     <Button ref={saveTrigger} icon="add" disabled={model.busy || model.status === "loading"} onClick={() => startEditor(null)}>保存当前配置</Button>
     <Button icon="upload" variant="secondary" disabled={model.busy} onClick={() => fileInput.current?.click()}>导入档案</Button>
@@ -47,6 +49,8 @@ export function ProfilesWorkspace({ active, requestedProfile, onOpenRules }: {
       if (file) void model.stageImport(file);
     }} />
     {!editor && actionError && <p className="ccc-control-error" role="alert">{actionError}</p>}
+    {!editor && !reportedConflict && <OemConflictAction issues={[actionError]} disabled={model.busy}
+      onClosed={() => { if (model.selectedName) model.select(model.selectedName); }} />}
     {model.status === "loading" && <p className="ccc-control-caption" role="status">正在读取档案…</p>}
     {model.listError && model.status === "error" && <div className="ccc-actions">
       <p className="ccc-control-error" role="alert">{model.listError}</p>

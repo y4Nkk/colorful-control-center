@@ -3,6 +3,7 @@ import {
   applyProfile, deleteProfile, exportProfile, loadProfile, previewProfileApplication, previewProfileImport, saveProfile,
   type ManualProfilePreview, type ProfileApplication, type ProfileFile, type ProfileMeta, type ProfileSettings,
 } from "../api/client";
+import { useOemConflict } from "../components/OemConflictHost";
 import { toast } from "../components/use-toast";
 import { useProfileList } from "./useProfileReads";
 import { runProfileApplication, useProfileApplicationState } from "./profile-application";
@@ -12,6 +13,7 @@ interface ReviewedProfile { file: ProfileFile; review: ManualProfilePreview }
 type Target = { name: string };
 
 export function useProfiles(active: boolean, requested?: Target | null) {
+  const conflict = useOemConflict();
   const [target, choose] = useState<Target | null>(null);
   const [imported, setImported] = useState<ProfileFile | null>(null);
   const [busy, setBusy] = useState(false);
@@ -21,12 +23,10 @@ export function useProfiles(active: boolean, requested?: Target | null) {
   const consumed = useRef<Target | null>(null);
   const catalog = useProfileList(active, setListError);
   const refs = useProfileReferences(active, catalog.profiles);
-  const application = useProfileApplicationState();
-  const report = application.report;
+  const { report, busy: applying } = useProfileApplicationState();
   const pending = !!report?.pending;
-  const working = busy || application.busy;
-  const detail = useManualProfile(active && !imported && !application.busy && !pending, target, report);
-
+  const working = busy || applying;
+  const detail = useManualProfile(active && !imported && !applying && !pending, target, report);
   useEffect(() => {
     if (!active || working || catalog.status !== "ready") return;
     if (requested && consumed.current !== requested) {
@@ -49,12 +49,16 @@ export function useProfiles(active: boolean, requested?: Target | null) {
     catch (error) { setListError(String(error)); }
   };
   const run = async (action: () => Promise<void>) => {
-    if (!active || running.current || application.busy) return false;
+    if (!active || running.current || applying) return false;
     running.current = true;
     setBusy(true); setError(null);
     try { await action(); return true; }
-    catch (error) { setError(String(error)); return false; }
-    finally { running.current = false; setBusy(false); }
+    catch (error) {
+      const message = String(error);
+      setError(message);
+      conflict.review([message], target ? () => select(target.name) : undefined);
+      return false;
+    } finally { running.current = false; setBusy(false); }
   };
   const persist = (name: string, settings: ProfileSettings, existing: ProfileMeta | undefined, source: "save" | "import") =>
     run(async () => {
@@ -81,6 +85,7 @@ export function useProfiles(active: boolean, requested?: Target | null) {
     if (review.blocked || pending) return;
     const result = await runProfileApplication(() => applyProfile(file, review.modeTarget, review.displayReview,
       review.gpuPowerReview, review.graphicsModeReview));
+    conflict.review([result.pending?.error, ...result.steps.filter(step => !step.ok).map(step => step.message)], () => select(file.name));
     presentApplication(result, setError);
   });
   return { ...catalog, ...detail, reload, select, selectedName: target?.name, imported, dismissImport: () => setImported(null),

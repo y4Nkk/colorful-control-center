@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useOemConflict } from "../OemConflictHost";
 import { toast } from "../use-toast";
 
 export function useDeviceSettings<T>(read: () => Promise<T>, active: boolean, revision: number | string, pollMs?: number) {
+  const conflict = useOemConflict();
   const [profile, setProfile] = useState<T | null>();
   const [readError, setReadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -49,8 +51,10 @@ export function useDeviceSettings<T>(read: () => Promise<T>, active: boolean, re
       await action();
       if (await reload() && successTitle) toast({ kind: "success", title: successTitle });
     } catch (error) {
-      setActionError(String(error));
+      const message = String(error);
+      setActionError(message);
       await reload();
+      conflict.review([message], reread);
     } finally {
       writing.current = false;
       setBusy(false);

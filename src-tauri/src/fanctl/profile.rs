@@ -24,6 +24,7 @@ pub struct FanPointSet {
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FanProfile {
+    #[serde(skip)]
     pub software_supported: bool,
     pub software: Option<ccc_core::software_fan::Curves>,
     pub curve_kind: CurveKind,
@@ -38,7 +39,6 @@ pub struct FanProfile {
     pub warnings: Vec<String>,
     pub safety_status: String,
     pub blocked_reason: Option<String>,
-    pub software_blocked_reason: Option<String>,
 }
 
 #[derive(Clone, Copy, PartialEq, Serialize)]
@@ -105,7 +105,6 @@ pub fn decode(package: &[u8; 256], page: &[u8], capabilities: &[u8]) -> Result<F
         },
         safety_status: "固件控制".into(),
         blocked_reason: None,
-        software_blocked_reason: None,
     })
 }
 

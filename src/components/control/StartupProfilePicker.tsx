@@ -3,6 +3,7 @@ import { ProfileModeAuthorization } from "../profiles/ProfileModeAuthorization";
 import { Select } from "../Select";
 import { ConfigurationAction } from "../ConfigurationAction";
 import { DetailsDialog } from "../DetailsDialog";
+import { OemConflictAction } from "../OemConflictAction";
 import { ProfilePreview } from "../profiles/ProfilePreview";
 import { useStartupProfile } from "./useStartupProfile";
 
@@ -31,6 +32,7 @@ export function StartupProfilePicker({ active }: { active: boolean }) {
       </div>
       {error && <p role="alert" className="ccc-control-error">{error}</p>}
       {[modeError, graphicsModeError, gpuPowerError, displayError].filter(Boolean).map(issue => <p role="alert" className="ccc-control-error" key={issue}>{issue}</p>)}
+      <OemConflictAction issues={[error, modeError, graphicsModeError, gpuPowerError, displayError, lastRun]} disabled={busy} onClosed={reread} />
       {ready && saved === null && <p className="ccc-control-caption">当前保存的启动选择未知。</p>}
       <ConfigurationAction label="启动档案" applyLabel="授权启动应用档案" revision={JSON.stringify([selected, saved, selection])}
         disabled={busy || !ready || unchanged || !selected || !preview || Boolean(modeError || gpuPowerError || graphicsModeError || displayError)} onConfirm={apply}>

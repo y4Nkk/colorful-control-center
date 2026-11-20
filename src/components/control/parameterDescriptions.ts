@@ -37,12 +37,7 @@ export const GPU_TUNING_HELP: readonly ParameterDescription[] = [
 export const FAN_HELP: readonly ParameterDescription[] = [
   { name: "温度阈值 · °C", description: "曲线横轴表示温度，纵轴表示散热目标。固件两点曲线的占空比与十级曲线的目标转速百分比分别按当前机型能力显示。" },
   { name: "占空比与目标转速 · %", description: "占空比是风扇控制比例；目标转速百分比按该风扇最大转速换算。两者都不保证与实际 RPM 成线性关系。" },
-  { name: "加速偏移 · %", description: "原厂风扇策略的额外加速偏移，与曲线目标分别预览，确认后才应用。" },
-];
-export const SOFTWARE_FAN_HELP: readonly ParameterDescription[] = [
-  { name: "控制温度与占空比", description: "按 CPU 与 GPU 中较高温度调节风扇，曲线点之间插值。软件曲线在应用运行期间生效。" },
-  { name: "回差 · °C", description: "降温时保留一定温度余量再降低风扇目标，减少温度小幅波动造成的频繁调速。" },
-  { name: "斜坡 · %/秒", description: "限制每秒占空比变化的幅度，用于控制调速快慢。安全恢复条件优先于普通曲线调节。" },
+  { name: "加速偏移 · %", description: "原厂风扇策略的额外加速偏移。松开滑杆或结束键盘调整后应用。" },
 ];
 export const MODE_HELP: readonly ParameterDescription[] = [
   { name: "原厂模式与风扇策略", description: "模式会联动当前机型保存的风扇及电源策略。每次应用以预览中的具体目标为准。" },

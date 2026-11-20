@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openSystemArea } from "./workspace.mjs";
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
@@ -32,7 +32,7 @@ async function expectPlotScale(frame, temperatures, measure) {
   expect(alignment.tickOverlap).toBe(false);
 }
 
-async function dragPoint(page, frame, handle, temperature, percentage) {
+async function startDrag(page, frame, handle, temperature, percentage) {
   await handle.scrollIntoViewIfNeeded();
   const origin = await handle.boundingBox();
   const target = await frame.locator("svg").evaluate((svg, { temperature, percentage }) =>
@@ -40,7 +40,6 @@ async function dragPoint(page, frame, handle, temperature, percentage) {
   await page.mouse.move(origin.x + origin.width / 2, origin.y + origin.height / 2);
   await page.mouse.down();
   await page.mouse.move(target.x, target.y, { steps: 4 });
-  await page.mouse.up();
 }
 
 async function expectNoFanWrites(page) {
@@ -49,37 +48,215 @@ async function expectNoFanWrites(page) {
   expect(faults).toEqual([]);
 }
 
-test("固件两点图的刻度贴合网格，鼠标和键盘同步草稿", async ({ page }) => {
-  await page.setViewportSize({ width: 1100, height: 720 });
+const fanWrites = (page) => page.evaluate(() => window.__uiFixture.calls.filter(({ command }) =>
+  /^(apply_(?:fan|rpm_fan)|set_fan|restore_fan)/.test(command)));
+
+test("固件曲线跟随指针和键盘，松手或释放方向键只写一次", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.evaluate(() => {
     const { fan } = window.__uiFixture;
+    fan.availableModes.push(8);
+    fan.offsetPct = 30;
     Object.assign(fan.fans[0], { t1: 51, d1Pct: 23, t2: 60, d2Pct: 32, t3: 80, d3Pct: 33 });
     fan.fans.push({ ...fan.fans[0], id: "gpu1", t1: 15 });
   });
   await openSystemArea(page, "风扇散热");
+  const panel = page.getByRole("region", { name: "风扇设置", exact: true });
+  await expect(panel).toHaveCount(1);
+  await expect(panel.getByRole("radiogroup", { name: "风扇曲线执行方式", exact: true })).toHaveCount(0);
+  await expect(panel.getByRole("radiogroup", { name: "风扇模式", exact: true })).toHaveCount(1);
   const frame = page.locator(".ccc-plot-frame:visible");
   await expectPlotScale(frame, [30, 40, 60, 80, 100], "占空比");
   await expect(frame.locator(".ccc-plot-current")).toHaveCount(0);
-  await page.screenshot({ path: "target/ui-check/fan-grid-light-1100.png" });
+  const settings = page.locator(".ccc-fan-settings:visible");
+  const fields = page.locator(".ccc-fan-fields:visible");
+  await expect(settings).toContainText("1800 RPM");
+  const plotBox = await frame.boundingBox();
+  const settingsBox = await settings.boundingBox();
+  expect(settingsBox.x).toBeGreaterThan(plotBox.x + plotBox.width);
+  expect((await fields.boundingBox()).x).toBe(settingsBox.x);
 
   const handle = frame.getByRole("slider", { name: /^T3\/D3 可调点/ });
-  await handle.press("ArrowUp");
-  await expect(page.getByRole("spinbutton", { name: "T3 占空比" })).toHaveValue("34");
-  await expect(frame.locator('.ccc-plot-label[data-point="p3"]')).toHaveCSS("opacity", "1");
-  await dragPoint(page, frame, handle, 80, 60);
-  await expect(handle).toHaveAttribute("aria-valuetext", "温度 80°C，占空比 60%");
-  await expect(page.getByRole("spinbutton", { name: "T3 占空比" })).toHaveValue("60");
+  const duty = page.getByRole("spinbutton", { name: "T3 占空比" });
+  const current = page.getByRole("status", { name: "当前控制", exact: true });
+  await handle.click();
+  await startDrag(page, frame, handle, 80, 60);
+  await expect(duty).toHaveValue("60");
+  await expect(fields.locator("[data-selected=true]")).toContainText("T3");
   await expect(frame.locator(".ccc-plot-current")).toHaveCount(1);
-  await expect(frame.locator(".ccc-plot-draft")).toHaveAttribute("d", /L80,40/);
-  await expect(page.locator(".ccc-plot-key:visible .ccc-key-item")).toHaveText(["当前设置", "草稿"]);
+  await expect(current).toHaveText("固件 · 自动");
+  await expectNoFanWrites(page);
+  await page.mouse.up();
+  await expect(current).toHaveText("固件 · 自定义");
+  await expect(duty).toHaveValue("60");
+  await expect(frame.locator(".ccc-plot-current")).toHaveCount(0);
+  expect(await fanWrites(page)).toEqual([{ command: "apply_fan_curve", args: {
+    cpu: { t2: 60, d2Pct: 32, t3: 80, d3Pct: 60 }, gpu1: null, gpu2: null,
+  } }]);
+
+  await expect(handle).toBeEnabled();
+  await handle.focus();
+  await page.keyboard.down("ArrowUp");
+  await page.keyboard.down("ArrowUp");
+  await expect(duty).toHaveValue("62");
+  expect(await fanWrites(page)).toHaveLength(1);
+  await page.keyboard.up("ArrowUp");
+  await expect.poll(() => fanWrites(page)).toHaveLength(2);
+  await expect(duty).toHaveValue("62");
+  await expect(handle).toBeEnabled();
+
+  await startDrag(page, frame, handle, 85, 75);
+  await expect(duty).toHaveValue("75");
+  await handle.dispatchEvent("pointercancel", { pointerId: 1, pointerType: "mouse", isPrimary: true, bubbles: true });
+  await page.mouse.up();
+  await expect(duty).toHaveValue("62");
+  expect(await fanWrites(page)).toHaveLength(2);
+  await expect(page.getByRole("heading", { name: "待应用变更", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /确认应用|丢弃草稿/ })).toHaveCount(0);
+  await page.evaluate(async () => window.__uiEmit("hardware-snapshot", await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot")));
+  await expect(settings).toContainText("1800 RPM");
+  await page.screenshot({ path: "target/ui-check/fan-settings-single.png" });
 
   await page.getByRole("radio", { name: "GPU 1", exact: true }).check();
   await expectPlotScale(frame, [10, 20, 40, 60, 80, 100], "占空比");
   await expect(frame.locator(".ccc-plot-draft")).toHaveAttribute("d", /^M15,/);
-  await expectNoFanWrites(page);
+  await page.getByRole("radio", { name: "GPU 1", exact: true }).press("ArrowLeft");
+  await expect(page.getByRole("radio", { name: "CPU", exact: true })).toBeFocused();
+  expect(await fanWrites(page)).toHaveLength(2);
 });
 
-test("窄窗深色下十级 RPM 与软件曲线共用网格并保留各自端点", async ({ page }) => {
+test("点位数字回车或失焦即应用，取消与空值不会提交", async ({ page }) => {
+  await openSystemArea(page, "风扇散热");
+  const input = page.getByRole("spinbutton", { name: "T2 占空比" });
+  await input.fill("62");
+  await expect(page.locator('.ccc-plot-handle[data-point="p2"]:visible')).toHaveClass(/is-selected/);
+  await expect(page.locator(".ccc-plot-draft:visible")).toHaveAttribute("d", /L60,38/);
+  await input.press("Escape");
+  await input.blur();
+  await expect(input).toHaveValue("50");
+  await expectNoFanWrites(page);
+
+  await input.fill("62");
+  await input.press("Enter");
+  await expect.poll(() => fanWrites(page)).toEqual([{ command: "apply_fan_curve", args: {
+    cpu: { t2: 60, d2Pct: 62, t3: 90, d3Pct: 99 }, gpu1: null, gpu2: null,
+  } }]);
+  await expect(input).toHaveValue("62");
+  await expect(input).toBeEnabled();
+  await input.fill("");
+  await input.blur();
+  await expect(input).toHaveValue("62");
+  expect(await fanWrites(page)).toHaveLength(1);
+  await input.fill("70");
+  await input.blur();
+  await expect.poll(() => fanWrites(page)).toHaveLength(2);
+  await expect(input).toHaveValue("70");
+  await expect(input).toBeEnabled();
+  await page.getByRole("button", { name: "恢复设置", exact: true }).click();
+  await page.getByRole("button", { name: "恢复风扇设置", exact: true }).click();
+  const restore = page.getByRole("dialog", { name: "恢复风扇设置", exact: true });
+  await expect(restore).toContainText("恢复首次调整前");
+  await restore.getByRole("button", { name: "取消", exact: true }).click();
+  expect(await fanWrites(page)).toHaveLength(2);
+});
+
+test("偏移滑杆拖动和方向键连按只在释放后写入一次", async ({ page }) => {
+  await openSystemArea(page, "风扇散热");
+  const slider = page.getByRole("slider", { name: "加速偏移", exact: true });
+  await slider.scrollIntoViewIfNeeded();
+  const box = await slider.boundingBox();
+  const y = box.y + box.height / 2;
+  await page.mouse.move(box.x + box.width * 0.2, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.6, y, { steps: 6 });
+  const target = Number(await slider.inputValue());
+  expect(target).toBeGreaterThan(45);
+  expect(target).toBeLessThan(75);
+  await expectNoFanWrites(page);
+  await page.mouse.up();
+  await expect.poll(() => fanWrites(page)).toEqual([{ command: "set_fan_offset", args: { pct: target } }]);
+  await expect(slider).toHaveValue(String(target));
+  await expect(slider).toBeEnabled();
+
+  await slider.focus();
+  await page.keyboard.down("ArrowRight");
+  await page.keyboard.down("ArrowRight");
+  await expect(slider).toHaveValue(String(target + 2));
+  expect(await fanWrites(page)).toHaveLength(1);
+  await page.keyboard.up("ArrowRight");
+  await expect.poll(() => fanWrites(page)).toHaveLength(2);
+  expect((await fanWrites(page)).at(-1)).toEqual({ command: "set_fan_offset", args: { pct: target + 2 } });
+  await expect(slider).toHaveValue(String(target + 2));
+});
+
+test("直接应用复核设备状态，写入失败后恢复实读值", async ({ page }) => {
+  await openSystemArea(page, "风扇散热");
+  const fullSpeed = page.getByRole("radio", { name: "全速", exact: true });
+  await page.evaluate(() => { window.__uiFixture.fan.currentMode = 6; });
+  await fullSpeed.click();
+  await expect(page.getByRole("alert")).toContainText("风扇设置已变化");
+  await expect(page.getByRole("status", { name: "当前控制" })).toHaveText("固件 · 自定义");
+  expect(await fanWrites(page)).toEqual([]);
+  await page.evaluate(() => { window.__uiFixture.fanWriteFault = "set_fan_mode"; });
+  await fullSpeed.click();
+  await expect(page.getByRole("alert")).toContainText("隔离风扇写入失败");
+  expect(await fanWrites(page)).toEqual([{ command: "set_fan_mode", args: { mode: 1 } }]);
+  await expect(fullSpeed).toBeEnabled();
+  await expect(fullSpeed).not.toBeChecked();
+  await page.evaluate(() => { window.__uiFixture.fanWriteFault = "apply_fan_curve"; });
+  const input = page.getByRole("spinbutton", { name: "T2 占空比" });
+  await input.fill("101");
+  await input.press("Enter");
+  await expect.poll(() => fanWrites(page)).toHaveLength(2);
+  await expect(input).toBeEnabled();
+  await expect(input).toHaveValue("50");
+  await expect(page.getByRole("alert")).toContainText("隔离风扇写入失败");
+});
+
+test("RPM 自定义点选即应用并回读调整后的停转级", async ({ page }) => {
+  await page.evaluate(() => {
+    const fixture = window.__uiFixture;
+    fixture.fanKind = "rpmTable";
+    fixture.fan.rpmFans = [{ id: "cpu", maximumRpm: 5000,
+      points: Array.from({ length: 10 }, (_, i) => ({ tempC: 40 + i * 5, rpmPct: i === 9 ? 100 : i * 10 })) }];
+  });
+  await openSystemArea(page, "风扇散热");
+  const first = page.getByRole("spinbutton", { name: "RPM 转速" });
+  await expect(first).toHaveValue("0");
+  await page.getByRole("radio", { name: "自定义", exact: true }).click();
+  await expect(first).toHaveValue("20");
+  await expect(page.getByRole("status", { name: "当前控制" })).toHaveText("固件 · 自定义");
+  await expect(page.getByRole("heading", { name: "待应用变更", exact: true })).toHaveCount(0);
+  expect((await fanWrites(page)).map(item => item.command)).toEqual(["apply_rpm_fan_curves"]);
+});
+
+test("软件曲线档案可应用，从同一个风扇设置交还固件控制", async ({ page }) => {
+  await page.evaluate(() => {
+    const { settings } = window.__uiFixture.profile;
+    settings.fanMode = null;
+    settings.fanSoftwareCurves = { cpu: { points: [{ tempC: 40, dutyPct: 30 }, { tempC: 95, dutyPct: 100 }],
+      hysteresisC: 4, rampPctPerS: 10 } };
+  });
+  await openSystemArea(page, "配置档案");
+  await page.getByRole("region", { name: "档案预览", exact: true }).getByRole("button", { name: "应用档案", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.__uiFixture.fan.software?.cpu?.hysteresisC)).toBe(4);
+  await openSystemArea(page, "风扇散热");
+  const panel = page.getByRole("region", { name: "风扇设置", exact: true });
+  const current = page.getByRole("status", { name: "当前控制", exact: true });
+  await expect(current).toHaveText("软件接管");
+  await expect(panel.getByRole("radio", { name: "软件曲线", exact: true })).toHaveCount(0);
+  const offset = page.getByRole("slider", { name: "加速偏移", exact: true });
+  await expect(offset).toBeDisabled();
+  await expect(page.getByRole("spinbutton", { name: "T2 温度", exact: true })).toBeDisabled();
+  expect(await fanWrites(page)).toEqual([]);
+  await page.getByRole("radio", { name: "自动", exact: true }).click();
+  await expect(current).toHaveText("固件 · 自动");
+  await expect(offset).toBeEnabled();
+  expect(await fanWrites(page)).toEqual([{ command: "set_fan_mode", args: { mode: 0 } }]);
+  expect(await page.evaluate(() => window.__uiFixture.profile.settings.fanSoftwareCurves.cpu.hysteresisC)).toBe(4);
+});
+
+test("窄窗深色下单一风扇设置展示十级 RPM 图及固定转速端点", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 720 });
   await page.evaluate(() => {
     document.documentElement.dataset.theme = "dark";
@@ -88,24 +265,24 @@ test("窄窗深色下十级 RPM 与软件曲线共用网格并保留各自端点
   await openSystemArea(page, "风扇散热");
   const frame = page.locator(".ccc-plot-frame:visible");
   await expectPlotScale(frame, [0, 20, 40, 60, 80, 100], "目标转速");
+  const settingsBox = await page.locator(".ccc-fan-settings:visible").boundingBox();
+  const plotBox = await frame.boundingBox();
+  const pointBox = await page.locator(".ccc-fan-fields:visible").boundingBox();
+  expect(settingsBox.y + settingsBox.height).toBeLessThan(plotBox.y);
+  expect(plotBox.y + plotBox.height).toBeLessThan(pointBox.y);
   await expect(frame.locator(".ccc-plot-draft")).toHaveAttribute("d", /^M0,80 H40 H45 V72.*H100$/);
   await expect(page.locator(".ccc-plot-key:visible")).toContainText("100% = 5000 RPM");
   await page.screenshot({ path: "target/ui-check/fan-grid-rpm-dark-360.png" });
 
   const rpmPoint = frame.getByRole("slider", { name: "第 1 级温度与转速", exact: true });
-  await dragPoint(page, frame, rpmPoint, 20, 20);
+  await startDrag(page, frame, rpmPoint, 20, 20);
   await expect(rpmPoint).toHaveAttribute("aria-valuetext", "20°C，最大转速的 20%");
   await expect(page.getByRole("spinbutton", { name: "RPM 温度" })).toHaveValue("20");
-
-  await page.getByRole("radio", { name: "软件曲线", exact: true }).check();
-  await expectPlotScale(frame, [20, 40, 60, 80, 95], "占空比");
-  await expect(frame.locator(".ccc-plot-draft")).toHaveAttribute("d", /^M20,70 L40,70.*L95,0$/);
-  await expect(page.locator(".ccc-plot-key:visible .ccc-key-item")).toHaveText(["草稿"]);
-  const point = frame.getByRole("slider", { name: "软件曲线第 2 点", exact: true });
-  await dragPoint(page, frame, point, 60, 60);
-  await expect(point).toHaveAttribute("aria-valuetext", "60°C，占空比 60%");
-  await expect(page.getByRole("spinbutton", { name: "软件点占空比" })).toHaveValue("60");
-  await expect(frame.getByRole("slider", { name: /固定安全端点/ })).toHaveAttribute("aria-valuetext", "95°C，占空比 100%");
-  await page.screenshot({ path: "target/ui-check/fan-grid-software-dark-360.png" });
   await expectNoFanWrites(page);
+  await page.mouse.up();
+  await expect(page.getByRole("status", { name: "当前控制", exact: true })).toHaveText("固件 · 自定义");
+  await expect(rpmPoint).toBeEnabled();
+  const last = frame.getByRole("slider", { name: "第 10 级温度与转速", exact: true });
+  await expect(last).toHaveAttribute("aria-valuetext", "85°C，最大转速的 100%");
+  expect((await fanWrites(page)).map(item => item.command)).toEqual(["apply_rpm_fan_curves"]);
 });

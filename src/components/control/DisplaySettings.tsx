@@ -4,6 +4,7 @@ import { Button } from "../Button";
 import { ConfirmButton } from "../ConfirmButton";
 import { DetailsDialog } from "../DetailsDialog";
 import { Icon } from "../Icon";
+import { OemConflictAction } from "../OemConflictAction";
 import { Select } from "../Select";
 import { Surface } from "../Surface";
 import { Switch } from "../Switch";
@@ -20,6 +21,7 @@ export function DisplaySettings({ active, revision, rotationRequest }: { active:
   const selected = displays.find(display => display.current.device === (pending?.targets[0]?.device ?? device))
     ?? displays.find(display => display.primary) ?? displays[0];
   const rotation = profile?.rotation;
+  const blocked = profile?.blockedReason;
   const canRotate = !!rotation && selected?.current.device === rotation.before.device;
   const disabled = busy || !!pending;
 
@@ -39,6 +41,8 @@ export function DisplaySettings({ active, revision, rotationRequest }: { active:
       </DetailsDialog></div>}
     </div>
     {(error || profile?.error) && <p role="alert" className="ccc-control-error">{error || profile?.error}</p>}
+    {blocked && blocked !== error && <p className="ccc-control-caption">{blocked}</p>}
+    <OemConflictAction issues={[blocked, error, profile?.error, pending?.error]} disabled={busy} onClosed={reread} />
     {profile && !displays.length && <p className="ccc-control-caption">没有可用的活动显示器。</p>}
     {selected && <div className="ccc-display-board">
       <DisplayModeVisual label={selected.primary ? "当前主屏" : "当前显示器"} mode={selected.current} />
@@ -46,7 +50,7 @@ export function DisplaySettings({ active, revision, rotationRequest }: { active:
         <label className="ccc-config-field">显示器<Select label="显示器" value={selected.current.device} disabled={disabled}
           options={displays.map((display, index) => ({ value: display.current.device,
             label: `${display.primary ? "主屏" : `屏幕 ${index + 1}`} · ${display.current.name}` }))} onChange={setDevice} /></label>
-        <label className="ccc-config-field">刷新率<Select label="目标刷新率" value={String(selected.current.frequency)} disabled={disabled}
+        <label className="ccc-config-field">刷新率<Select label="目标刷新率" value={String(selected.current.frequency)} disabled={disabled || !!blocked}
           options={selected.frequencies.map(frequency => ({ value: String(frequency), label: `${frequency} Hz` }))}
           onChange={value => {
             const frequency = Number(value);
@@ -62,7 +66,7 @@ export function DisplaySettings({ active, revision, rotationRequest }: { active:
             </p>}
           </div>
           <Switch label="翻转主屏" describedBy={canRotate ? rotationHint : undefined} checked={selected.current.orientation === 2 && !!selected.primary}
-            disabled={disabled || !canRotate} onChange={() => { if (canRotate) void run(() => applyDisplayRotation(rotation.before)); }} />
+            disabled={disabled || !canRotate || !!blocked} onChange={() => { if (canRotate) void run(() => applyDisplayRotation(rotation.before)); }} />
         </div>
       </div>
     </div>}
@@ -70,7 +74,7 @@ export function DisplaySettings({ active, revision, rotationRequest }: { active:
     {!selected && <Button icon="refresh" variant="ghost" size="compact" disabled={busy} onClick={reread}>重新读取屏幕</Button>}
     {profile?.canRestore && !pending && <div className="ccc-actions">
       <ConfirmButton key={JSON.stringify(profile.displays)} size="compact" icon="undo" label="恢复初始设置" confirmLabel="确认恢复"
-        busy={busy} onConfirm={() => run(restoreDisplayModes)}><p>恢复首次切换前的显示模式。</p></ConfirmButton>
+        busy={busy} disabled={!!blocked} onConfirm={() => run(restoreDisplayModes)}><p>恢复首次切换前的显示模式。</p></ConfirmButton>
     </div>}
   </Surface>;
 }

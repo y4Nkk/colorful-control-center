@@ -3,7 +3,12 @@
 use serde::Serialize;
 use tauri::{Manager, State};
 
-use crate::{assembly::mode_context, display, hal::Hal, powerctl};
+use crate::{
+    assembly::mode_context,
+    display,
+    hal::{Hal, oem_owner},
+    powerctl,
+};
 use powerctl::mode::{manual, selection};
 
 #[derive(Serialize)]
@@ -43,11 +48,15 @@ pub(crate) async fn read_oem_performance_options(
     crate::shutdown::blocking(move || {
         let hal = app.state::<Hal>();
         let _write = hal.begin_write()?;
-        selection::read_options(&mode_context(&app))
+        let mut profile = selection::read_options(&mode_context(&app))?;
+        if matches!(profile.current_mode, 2 | 3) {
+            profile.blocked_reason = profile.blocked_reason.or_else(oem_owner::blocked_reason);
+        }
+        Ok(profile)
     })
     .await
     .map_err(|e| e.to_string())?
-    .map_err(|e| format!("{e:#}"))
+    .map_err(|e: anyhow::Error| format!("{e:#}"))
 }
 #[tauri::command]
 pub(crate) async fn apply_oem_performance_options(
@@ -58,7 +67,8 @@ pub(crate) async fn apply_oem_performance_options(
         let hal = app.state::<Hal>();
         let _write = hal.begin_write()?;
         Ok(to_result(
-            powerctl::mode::boost::apply(&hal, &request),
+            oem_owner::ensure_owner_absent()
+                .and_then(|()| powerctl::mode::boost::apply(&hal, &request)),
             "性能选项已发送，保存值已回读",
         ))
     })
@@ -74,11 +84,19 @@ pub(crate) async fn read_oem_power_mode(
     crate::shutdown::blocking(move || {
         let context = mode_context(&app);
         let _gate = context.hal.begin_write()?;
-        selection::read(&context)
+        let mut profile = selection::read(&context)?;
+        if profile.can_restore {
+            profile.restore_blocked_reason =
+                manual::permit(context.hal, &app.state::<display::Controller>())
+                    .err()
+                    .map(|error| format!("{error:#}"));
+            profile.can_restore = profile.restore_blocked_reason.is_none();
+        }
+        Ok(profile)
     })
     .await
     .map_err(|e| e.to_string())?
-    .map_err(|e| format!("{e:#}"))
+    .map_err(|e: anyhow::Error| format!("{e:#}"))
 }
 
 #[tauri::command]

@@ -1,5 +1,5 @@
 export function invokeAirplane(data, command, args) {
-  data.airplane ??= { revision: "airplane-0", identity: "isolated-airplane", current: { device: "airplane-A", enabled: false }, initial: null, error: null, restoreRevision: null, restoreError: null };
+  data.airplane ??= { revision: "airplane-0", identity: "isolated-airplane", current: { device: "airplane-A", enabled: false }, initial: null, error: null, blockedReason: null, restoreRevision: null, restoreError: null };
   const profile = data.airplane;
   if (command === "read_airplane") return structuredClone(profile);
   if (command === "apply_airplane") {

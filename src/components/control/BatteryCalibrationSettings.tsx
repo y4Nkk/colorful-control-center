@@ -6,6 +6,7 @@ import { ConfirmButton } from "../ConfirmButton";
 import { ConfigurationAction } from "../ConfigurationAction";
 import { DetailsDialog } from "../DetailsDialog";
 import { FactList } from "../FactList";
+import { OemConflictAction } from "../OemConflictAction";
 import { Surface } from "../Surface";
 import { useBatteryCalibration } from "./useBatteryCalibration";
 
@@ -37,6 +38,7 @@ export function BatteryCalibrationSettings({ active, locked, onChanged, onBusy, 
       <div className="ccc-module-tools"><Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取校准"
         disabled={busy || locked} onClick={model.reread} /></div></div>
     {error && <p className="ccc-control-error" role="alert">{error}</p>}
+    <OemConflictAction issues={[error, profile?.unavailableReason, profile?.error]} disabled={busy || locked} onClosed={model.reread} />
     {profile ? <>
       {status && <div className="ccc-module-summary">
         <strong role="status">{status}</strong>

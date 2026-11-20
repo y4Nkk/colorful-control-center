@@ -104,7 +104,7 @@ impl Access for Native<'_> {
         if self.log.is_none() {
             bail!("恢复通道不能接管校准任务");
         }
-        super::ownership::ensure_available()?;
+        crate::hal::oem_owner::ensure_battery_owner_absent()?;
         service_running()?;
         super::events::ensure_logs()?;
         self.hal.with_dchu(|io| {

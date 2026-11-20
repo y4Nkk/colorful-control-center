@@ -5,6 +5,7 @@ import { Button } from "../Button";
 import { Switch } from "../Switch";
 import { ConfigurationAction } from "../ConfigurationAction";
 import { DetailsDialog } from "../DetailsDialog";
+import { OemConflictAction } from "../OemConflictAction";
 import { ConfirmButton } from "../ConfirmButton";
 import { Select } from "../Select";
 import { Surface } from "../Surface";
@@ -45,6 +46,8 @@ export function PowerProfilePolicy({ active, revision }: { active: boolean; revi
     </div>
     {view?.pending && <p className="ccc-control-caption" role="status">等待供电稳定或当前档案结束</p>}
     {issues.length > 0 && <p className="ccc-control-caption">部分规则需要处理 · 查看详情</p>}
+    <OemConflictAction issues={[...issues, ...(latest.report?.steps.filter(step => !step.ok).map(step => step.message) ?? [])]}
+      disabled={p.busy} onClosed={p.refreshAfterExit} />
     {view?.record && !savedRules && <p className="ccc-control-caption">保存一条规则后可开启自动档案。</p>}
     <PolicyFields model={p} />
     {(view?.active || view?.paused && view.record?.enabled || view?.resetRevision) && <div className="ccc-power-setting-actions">
@@ -84,7 +87,10 @@ function PolicyFields({ model: p }: { model: ReturnType<typeof usePowerProfilePo
       {p.staleRules.some(stale => stale.key === rule.key) && <p className="ccc-control-caption is-warn">
         {p.profiles.some(profile => profile.name === name) ? "档案有更新，请核对并保存规则" : "档案已不可用，请重新选择"}
       </p>}
-      {issues.length > 0 && <DetailsDialog title={`${rule.label} · 档案不可用`}>{issues.map(error => <p key={error}>{error}</p>)}</DetailsDialog>}
+      {issues.length > 0 && <DetailsDialog title={`${rule.label} · 档案不可用`}>
+        {issues.map(error => <p key={error}>{error}</p>)}
+        <OemConflictAction issues={issues} disabled={p.busy} onClosed={p.refreshAfterExit} />
+      </DetailsDialog>}
     </div>;
   })}</div>;
 }

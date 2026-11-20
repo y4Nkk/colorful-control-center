@@ -4,10 +4,13 @@ import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
 const panel = page => page.getByRole("region", { name: "预设模式", exact: true });
+const chip = page => panel(page).locator("svg.ccc-preset-chip");
+const preset = (page, name) => panel(page).getByRole("radio", { name, exact: true });
 test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); });
 
-test("静音增强复用安静的月牙插画", async ({ page }) => {
+test("五档预设在窄窗口内完整显示，静音增强沿用冷蓝色", async ({ page }) => {
   await page.addInitScript(() => {
+    window.__uiFixture.performanceOptions.currentMode = 0;
     const invoke = window.__TAURI_INTERNALS__.invoke;
     window.__TAURI_INTERNALS__.invoke = async (command, args) => {
       const result = await invoke(command, args);
@@ -17,116 +20,121 @@ test("静音增强复用安静的月牙插画", async ({ page }) => {
   await page.goto("/");
   await openSystemArea(page, "性能调校");
   const presets = panel(page);
-  await expect(presets.getByRole("radio", { name: "静音增强", exact: true })).toBeEnabled();
+  await expect(preset(page, "静音增强")).toBeEnabled();
   await expect(presets.getByRole("radio")).toHaveCount(5);
-  const quiet = presets.locator('svg[data-mode-art="quiet"]');
-  await expect(quiet).toHaveCount(2);
-  const [quietArt, enhancedArt] = await quiet.evaluateAll(items => items.map(svg => svg.innerHTML));
-  expect(quietArt).toBe(enhancedArt);
-  for (const [width, columns] of [[1440, 5], [1050, 5], [360, 2]]) {
+  await expect(chip(page)).toHaveAttribute("data-preset-palette", "quiet");
+  await expect(preset(page, "安静")).toBeChecked();
+  await openSystemArea(page, "概览");
+  await page.evaluate(() => { window.__uiFixture.performanceOptions.currentMode = 4; });
+  await openSystemArea(page, "性能调校");
+  await expect(preset(page, "静音增强")).toBeChecked();
+  await expect(presets.locator(".ccc-preset-current")).toHaveText("静音增强");
+  await expect(chip(page)).toHaveAttribute("data-preset-palette", "quiet");
+  for (const [width, columns] of [[1440, 5], [1050, 5], [360, 3]]) {
     await page.setViewportSize({ width, height: 900 });
-    const layout = await presets.locator(".ccc-mode-option").evaluateAll(items => ({
+    const layout = await presets.locator(".ccc-segmented-option").evaluateAll(items => ({
       columns: new Set(items.map(item => item.getBoundingClientRect().left)).size,
       titlesFit: items.every(item => {
-        const title = item.querySelector(".ccc-mode-copy");
-        return title.scrollWidth <= title.clientWidth + 1 && title.getBoundingClientRect().right <= item.getBoundingClientRect().right;
+        const title = item.querySelector("span").getBoundingClientRect();
+        const option = item.getBoundingClientRect();
+        return title.left >= option.left && title.right <= option.right;
       }),
     }));
     expect(layout).toEqual({ columns, titlesFit: true });
   }
 });
 
-test("预设卡只在悬停时改变对应图形，移开复位并遵循减少动效", async ({ page }) => {
+test("回读换档重用同一 SVG，并播放渐变、扫光、抬升和边缘高光", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.addInitScript(() => { window.__uiFixture.preferences.motion = "system"; });
   await page.goto("/");
   await openSystemArea(page, "性能调校");
-
-  const presets = panel(page);
-  const cards = presets.locator(".ccc-mode-option");
-  const title = presets.getByRole("heading", { name: "预设模式" });
-  const frame = () => readArtworkFrames(cards);
+  const artwork = chip(page);
   await expect(page.locator("html")).toHaveAttribute("data-motion", "system");
-  await expect(cards).toHaveCount(4);
-  const rest = await frame();
-  const changed = async () => (await frame()).flatMap((style, index) => style === rest[index] ? [] : [index]);
+  await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
+  expect(await artwork.evaluate(svg => svg.getAnimations({ subtree: true }).length)).toBe(0);
+  const gradient = artwork.locator('linearGradient[id$="-die"]');
+  const gradientId = await gradient.getAttribute("id");
+  const lightStop = gradient.locator("stop").first();
+  await expect(lightStop).toHaveCSS("stop-color", "rgb(255, 240, 196)");
 
-  for (const index of [0, 1, 3]) {
-    await cards.nth(index).hover();
-    await expect.poll(changed).toEqual([index]);
-    if (index === 3) {
-      await cards.nth(index).locator(".ccc-mode-art-needle").evaluate(async part => {
-        await Promise.all(part.getAnimations().map(animation => animation.finished));
-      });
-      await presets.screenshot({ path: "target/ui-check/preset-modes-hover-performance.png" });
-    }
-    await title.hover();
-    await expect.poll(frame).toEqual(rest);
-  }
-
-  const controller = cards.nth(2);
-  await controller.evaluate(card => {
-    window.__presetButtonEvents = [];
-    const record = event => {
-      if (event.animationName !== "ccc-mode-keypress") return;
-      const index = [...event.target.parentElement.children].indexOf(event.target);
-      window.__presetButtonEvents.push(`${event.type}:${index}`);
+  await artwork.evaluate(svg => {
+    const freeze = event => {
+      if (event.animationName !== "ccc-preset-chip-scan") return;
+      svg.removeEventListener("animationstart", freeze);
+      for (const motion of svg.getAnimations({ subtree: true })) {
+        motion.pause();
+        motion.currentTime = 250;
+      }
     };
-    card.addEventListener("animationstart", record);
-    card.addEventListener("animationend", record);
+    svg.addEventListener("animationstart", freeze);
   });
-  await controller.hover();
-  await expect.poll(() => page.evaluate(() => window.__presetButtonEvents)).toEqual([
-    "animationstart:0", "animationstart:1", "animationend:0", "animationend:1",
-  ]);
-  await expect.poll(frame).toEqual(rest);
-  expect(await controller.locator("svg[data-mode-art]").evaluate(svg => svg.getAnimations({ subtree: true }).length)).toBe(0);
-  await title.hover();
+  await preset(page, "娱乐").click();
+  await expect(preset(page, "娱乐")).toBeChecked();
+  await expect(artwork).toHaveAttribute("data-preset-palette", "entertainment");
+  await expect.poll(() => artwork.evaluate(svg => svg.getAnimations({ subtree: true })
+    .filter(motion => motion.playState === "paused" && motion.animationName).map(motion => motion.animationName).sort()))
+    .toEqual(["ccc-preset-chip-edge", "ccc-preset-chip-lift", "ccc-preset-chip-scan"]);
+  await expect(artwork.locator(".ccc-preset-chip-sweep")).toHaveCSS("opacity", "1");
+  await expect(artwork.locator(".ccc-preset-chip-die")).not.toHaveCSS("transform", "none");
+  const intermediate = await lightStop.evaluate(stop => getComputedStyle(stop).stopColor);
+  expect(intermediate).not.toBe("rgb(255, 240, 196)");
+  expect(intermediate).not.toBe("rgb(243, 223, 255)");
+  await panel(page).screenshot({ path: "target/ui-check/preset-chip-scan.png" });
+  await artwork.evaluate(svg => { for (const motion of svg.getAnimations({ subtree: true })) motion.play(); });
+  await expect(lightStop).toHaveCSS("stop-color", "rgb(243, 223, 255)");
 
-  await cards.first().hover();
-  await expect.poll(changed).toEqual([0]);
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await expect.poll(frame).toEqual(rest);
-  await page.emulateMedia({ reducedMotion: "no-preference" });
-  await expect.poll(changed).toEqual([0]);
-  await page.evaluate(() => { document.documentElement.dataset.motion = "reduce"; });
-  await expect.poll(frame).toEqual(rest);
-  expect(await page.evaluate(() => window.__uiFixture.calls.filter(call => call.command === "apply_oem_power_mode"))).toEqual([]);
-  await page.evaluate(() => { document.documentElement.dataset.motion = "system"; });
-  await openSystemArea(page, "概览");
-  await page.evaluate(async () => {
-    const sample = await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot");
-    window.__uiEmit("hardware-snapshot", sample);
-  });
-  const current = page.getByRole("region", { name: "当前模式", exact: true });
-  const currentArtwork = current.locator("svg[data-mode-art]");
-  await expect(currentArtwork).toHaveAttribute("data-mode-art", "performance");
-  await current.hover();
-  expect(await currentArtwork.evaluate(svg => svg.getAnimations({ subtree: true }).length)).toBe(0);
+  for (const [name, palette] of [["省电", "eco"], ["安静", "quiet"], ["性能", "performance"]]) {
+    await preset(page, name).click();
+    await expect(preset(page, name)).toBeChecked();
+    await expect(artwork).toHaveAttribute("data-preset-palette", palette);
+    await expect(panel(page).locator(".ccc-preset-current")).toHaveText(`${name}模式`);
+  }
+  await expect(lightStop).toHaveCSS("stop-color", "rgb(255, 240, 196)");
+  await expect(gradient).toHaveAttribute("id", gradientId);
+  await expect(artwork).not.toHaveAttribute("data-switching", "true");
 });
 
-function readArtworkFrames(cards) {
-  return cards.locator("svg[data-mode-art]").evaluateAll(items => items.map(svg =>
-    [...svg.querySelectorAll(".ccc-mode-art-leaf, .ccc-mode-art-moon-light, .ccc-mode-art-button, .ccc-mode-art-needle")]
-      .map(part => {
-        const { transform, opacity } = getComputedStyle(part);
-        return `${transform} / ${opacity}`;
-      }).join(" | ")));
+for (const [name, systemMotion, appMotion] of [["系统", "reduce", "system"], ["应用", "no-preference", "reduce"]]) {
+  test(`${name}减少动效时预设直接换色`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: systemMotion });
+    await page.addInitScript(motion => { window.__uiFixture.preferences.motion = motion; }, appMotion);
+    await page.goto("/");
+    await openSystemArea(page, "性能调校");
+    await expect(page.locator("html")).toHaveAttribute("data-motion", appMotion);
+    const artwork = chip(page);
+    await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
+    expect(await artwork.evaluate(svg => parseFloat(getComputedStyle(svg).getPropertyValue("--ccc-motion-preset")))).toBe(0);
+    await preset(page, "娱乐").click();
+    await expect(artwork).toHaveAttribute("data-preset-palette", "entertainment");
+    await expect(artwork).not.toHaveAttribute("data-switching", "true");
+    expect(await artwork.evaluate(svg => svg.getAnimations({ subtree: true }).length)).toBe(0);
+    await expect(artwork.locator(".ccc-preset-chip-sweep")).toHaveCSS("opacity", "0");
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.evaluate(() => { document.documentElement.dataset.motion = "system"; });
+    expect(await artwork.evaluate(svg => svg.getAnimations({ subtree: true }).length)).toBe(0);
+  });
 }
 
 test.describe("触屏设备", () => {
   test.use({ hasTouch: true, isMobile: true, reducedMotion: "no-preference", viewport: { width: 430, height: 800 } });
 
-  test("轻触切换预设卡片时图案保持静态", async ({ page }) => {
+  test("轻触也能在回读后触发扫光", async ({ page }) => {
     await page.addInitScript(() => { window.__uiFixture.preferences.motion = "system"; });
     await page.goto("/");
     await openSystemArea(page, "性能调校");
-    const eco = panel(page).getByRole("radio", { name: "省电", exact: true });
-    await eco.tap();
-    await expect(eco).toBeChecked();
-    const svg = panel(page).locator('svg[data-mode-art="eco"]');
-    expect(await svg.evaluate(item => item.getAnimations({ subtree: true }).length)).toBe(0);
+    const artwork = chip(page);
+    await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
+    await artwork.evaluate(svg => {
+      svg.addEventListener("animationstart", event => {
+        if (event.animationName === "ccc-preset-chip-scan") window.__presetTouchScan = true;
+      });
+    });
+    await preset(page, "省电").tap();
+    await expect(preset(page, "省电")).toBeChecked();
+    await expect(artwork).toHaveAttribute("data-preset-palette", "eco");
+    await expect.poll(() => page.evaluate(() => window.__presetTouchScan)).toBe(true);
   });
 });
 

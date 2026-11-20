@@ -4,6 +4,7 @@
  * 当前值与草稿一致时不显示标记。
  */
 import { Slider } from "../Slider";
+import { useRef } from "react";
 import { fmtInt } from "./format";
 
 interface ScaleSliderProps {
@@ -20,12 +21,27 @@ interface ScaleSliderProps {
   /** 后端未上报该通道：显示"未上报"并禁用 */
   unavailable?: boolean;
   onChange: (value: number) => void;
+  onCommit?: (value: number) => void;
+  onCancel?: () => void;
 }
 
+const RANGE_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"]);
+
 export function ScaleSlider({
-  label, unit, min, max, step = 1, current, draft, disabled = false, unavailable = false, onChange,
+  label, unit, min, max, step = 1, current, draft, disabled = false, unavailable = false, onChange, onCommit, onCancel,
 }: ScaleSliderProps) {
-  const dirty = !unavailable && draft !== current;
+  const gesture = useRef<"pointer" | "keyboard" | null>(null);
+  const dirty = !onCommit && !unavailable && draft !== current;
+  const commit = (input: HTMLInputElement, kind: "pointer" | "keyboard") => {
+    if (gesture.current !== kind) return;
+    gesture.current = null;
+    onCommit?.(input.valueAsNumber);
+  };
+  const cancel = () => {
+    if (!gesture.current) return;
+    gesture.current = null;
+    onCancel?.();
+  };
   return (
     <div className={`ccc-slider${disabled ? " is-disabled" : ""}`}>
       <div className="ccc-slider-head">
@@ -55,7 +71,18 @@ export function ScaleSlider({
         disabled={disabled || unavailable}
         aria-label={label}
         aria-valuetext={unavailable ? "未上报" : `${fmtInt(draft)} ${unit}`}
-        onChange={event => onChange(event.currentTarget.valueAsNumber)}
+        onChange={event => (onCommit && !gesture.current ? onCommit : onChange)(event.currentTarget.valueAsNumber)}
+        onPointerDown={onCommit && (event => {
+          if (event.button !== 0 || !event.isPrimary) return;
+          gesture.current = "pointer";
+          event.currentTarget.setPointerCapture(event.pointerId);
+        })}
+        onPointerUp={onCommit && (event => commit(event.currentTarget, "pointer"))}
+        onPointerCancel={onCommit && cancel}
+        onLostPointerCapture={onCommit && (() => { if (gesture.current === "pointer") cancel(); })}
+        onKeyDown={onCommit && (event => { if (RANGE_KEYS.has(event.key) && !gesture.current) gesture.current = "keyboard"; })}
+        onKeyUp={onCommit && (event => { if (RANGE_KEYS.has(event.key)) commit(event.currentTarget, "keyboard"); })}
+        onBlur={onCommit && cancel}
       />
       <div className="ccc-slider-scale ccc-mono" aria-hidden="true">
         <span>{fmtInt(min)}</span>

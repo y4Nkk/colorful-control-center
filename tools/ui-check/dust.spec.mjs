@@ -24,8 +24,11 @@ test("除尘启动预览确认，只报告请求和固件状态，不伪造停�
   await page.evaluate(() => { window.__uiFixture.dust.running = true; window.__uiFixture.dust.lastStart = "running"; });
   await panel.getByRole("button", { name: "重新读取除尘状态" }).click();
   await expect(panel.getByRole("button", { name: "立即除尘", exact: true })).toBeDisabled();
-  const fan = page.getByRole("region", { name: "风扇曲线", exact: true });
+  const fan = page.getByRole("region", { name: "风扇设置", exact: true });
   await expect(fan).toContainText("固件正在除尘");
+  await expect(fan.getByRole("radio", { name: "全速", exact: true })).toBeDisabled();
+  await expect(fan.getByRole("slider", { name: "加速偏移", exact: true })).toBeDisabled();
+  await expect(fan.getByRole("spinbutton", { name: "T2 温度", exact: true })).toBeDisabled();
   await expect(availableAction(page, "风扇设置", true)).toHaveCount(0);
   await expect(panel.getByRole("button", { name: /停止|取消除尘/ })).toHaveCount(0);
   await expect(panel.getByRole("progressbar")).toHaveCount(0);
@@ -106,13 +109,4 @@ test("左右卡片窄屏回流且无能力时隐藏", async ({ page }) => {
   await page.evaluate(() => { window.__uiFixture.dust = null; });
   await expect(panel).toHaveCount(0, { timeout: 10_000 });
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
-});
-
-test("原厂除尘计划未明确关闭时显示软件曲线冲突，关闭后允许接管", async ({ page }) => {
-  const panel=panelOf(page), fan=page.getByRole("region",{name:"风扇曲线",exact:true});
-  await fan.getByRole("radio", {name:"软件曲线",exact:true}).check();
-  await expect(fan).toContainText("请先明确关闭定时及唤醒除尘");
-  await expect(availableAction(page, "软件曲线")).toHaveCount(0);
-  await panel.getByRole("button", { name: "关闭定时与唤醒除尘", exact: true }).click();
-  await expect(availableAction(page, "软件曲线")).toBeEnabled();
 });

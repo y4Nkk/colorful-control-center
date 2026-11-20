@@ -6,7 +6,7 @@
 
 助手`NVPCF_DisableEnable`定位SoftwareDevices类GUID `62F9C741-B25A-46CE-B54C-9BCCCE08B6F2`中硬件ID含`ACPI\NVDA0820`的控制节点。应用已使用相同目标和顺序：开启先cmd4/sub34值1，再启用节点；关闭先三次尝试停用节点，再cmd4/sub34值0，间隔100ms。原PCI显示适配器PnPUtil禁用路径已删除。回读证明控制节点和保存策略，不能据此宣称测得物理电源轨断电。
 
-FnKey `FnKey.Device.DisplayManager` 使用 EnumDisplaySettings/ChangeDisplaySettings。应用保留按已枚举模式切换的机制，只动态修改本会话显示状态，不写系统显示注册表。设备配置的手动切换由用户直接发起，自动刷新率另有独立开关。
+FnKey `FnKey.Device.DisplayManager` 使用 EnumDisplaySettings/ChangeDisplaySettings。应用按已枚举模式只动态修改本会话显示状态，不写系统显示注册表。设备配置的手动切换由用户直接发起，自动刷新率另有独立开关。手动选择刷新率、翻转主屏和恢复初始显示模式前检查原厂占用，卡片提供共享退出确认。取消或超时恢复显示试用沿用原有监护。
 
 Windows显示模式接口使用[ChangeDisplaySettingsExW](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-changedisplaysettingsexw)；原厂电源控制的CM_Enable_DevNode/CM_Disable_DevNode调用以本机助手为依据，不安装或卸载设备。
 
@@ -83,6 +83,7 @@ Windows显示模式接口使用[ChangeDisplaySettingsExW](https://learn.microsof
 - cmd4/sub57 byte0仅确认0/1的Deep S5状态。当前未找到写调用链，界面只有事实显示，不提供猜测的开关。PD等级回读也不表示测得适配器协商功率或物理性能。
 - 原生读写由阻塞工作线程执行；控制台选择原厂候选即提交已回读的修订，初始等级在模块内确认恢复。读取失败撤销执行快照，适配器变化由修订校验拒绝旧请求。
 - Pi会话FnKey 7.19.5.0的Arg001事件46调用`Set_PD_Power_level(1)`，发送sub55原始编号1；旧零基设备显示等级2，一基设备显示等级1。独立授权绑定编号语义、适配器和全部候选，目标1不可用或首次基线不能恢复时拒绝执行。持有PD与HAL锁后、发包前重查许可和快照；写入、补偿和初始恢复与单项及档案共用同一Plan。热键范围的独立恢复先停止监听，再按预览修订调用现有恢复；不推断实际协商功率。
+- 平台电源卡和档案预检检查 PD 目标的原厂控制权。占用期间保留读数，用户可通过共享弹窗确认退出后重新读取和提交。
 
 事件46相关20项PD领域、15项平台档案、86项热键及28项相关页面检查通过；另复核5项PD页面与深浅宽窄布局。仅使用内存固件和模拟IPC，未调用真实PD命令、适配器或OutLog。
 

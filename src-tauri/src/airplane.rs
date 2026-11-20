@@ -35,6 +35,7 @@ pub struct Profile {
     pub identity: Option<String>,
     pub current: Option<Snapshot>,
     pub error: Option<String>,
+    pub blocked_reason: Option<String>,
     pub initial: Option<Snapshot>,
     pub restore_revision: Option<String>,
     pub restore_error: Option<String>,
@@ -89,11 +90,17 @@ fn profile(io: &dyn Io, initial: Option<Snapshot>) -> Result<Profile> {
         Ok(value) => (value, None),
         Err(error) => (None, Some(format!("{error:#}"))),
     };
+    let blocked_reason = if current.is_ok() {
+        io.ensure_writable().err().map(|error| format!("{error:#}"))
+    } else {
+        None
+    };
     Ok(Profile {
         revision,
         identity,
         current: current.as_ref().ok().cloned(),
         error: current.err().map(|e| format!("{e:#}")),
+        blocked_reason,
         initial,
         restore_revision,
         restore_error,

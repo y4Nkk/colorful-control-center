@@ -242,30 +242,16 @@
   .ccc-plot-label { padding: 0 var(--ccc-space-1); }
 }
 
-.ccc-curve-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-3); margin-top: var(--ccc-space-2); }
-.ccc-curve-point { display: grid; grid-template-columns: auto repeat(2, minmax(0, 1fr)); align-items: center; gap: var(--ccc-space-2); padding: var(--ccc-space-2); }
-.ccc-curve-point > strong { font-size: var(--ccc-text-xs); }
-.ccc-curve-number { min-width: 0; display: grid; gap: var(--ccc-space-1); color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
-@media (max-width: 700px) { .ccc-curve-values { grid-template-columns: minmax(0, 1fr); } }
-
 /* 控制关系用曲线表达，区块边界用表面与留白表达。 */
 .ccc-control .ccc-panel { padding: var(--ccc-space-4) var(--ccc-space-5); }
-.ccc-control .ccc-curve-point { background: transparent; }
 .ccc-plot-label { transition: opacity var(--ccc-motion-fast) var(--ccc-easing); }
 .ccc-plot:has(.ccc-plot-handle[data-point="p2"]:is(:hover, :focus-visible, .is-dragging)) .ccc-plot-label[data-point="p2"],
 .ccc-plot:has(.ccc-plot-handle[data-point="p3"]:is(:hover, :focus-visible, .is-dragging)) .ccc-plot-label[data-point="p3"] { opacity: 1; }
-.ccc-plot-preview { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
 .ccc-slider-scale { position: absolute; left: 0; right: 0; bottom: -10px; opacity: 0; pointer-events: none; transition: opacity var(--ccc-motion-fast) var(--ccc-easing); }
 .ccc-slider:is(:hover, :focus-within) .ccc-slider-scale { opacity: 1; }
 @media (max-width: 560px) {
   .ccc-control .ccc-panel { padding: var(--ccc-space-4); }
 }
 
-.ccc-rpm-inputs { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: var(--ccc-space-2); }
-.ccc-fan-content { display: flex; flex-direction: column; gap: var(--ccc-space-3); }
-.ccc-fan-content[hidden] { display: none; }
-.ccc-fan-executor, .ccc-software-fan-selector { align-self: flex-start; }
-.ccc-software-response { grid-template-columns: repeat(2, minmax(0, 1fr)) auto; align-items: end; }
-@media (max-width: 560px) { .ccc-software-response { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .ccc-airplane { container: ccc-airplane / inline-size; }
 .ccc-airplane-artwork { width: calc(var(--ccc-space-6) * 4); max-width: 40%; flex: none; color: var(--ccc-action); }

@@ -39,19 +39,14 @@ test("配置主位保留控件与状态，详情弹窗且浏览不写硬件", as
   const modes = page.getByRole("region", { name: "预设模式", exact: true });
   await expect(modes.getByRole("radio")).toHaveCount(4);
   await expect(modes.getByText("续航优先", { exact: true })).toHaveCount(0);
-  const artwork = modes.locator("svg[data-mode-art]");
-  await expect(artwork).toHaveCount(4);
-  for (const [index, drawing] of ["eco", "quiet", "entertainment", "performance"].entries()) {
-    const svg = artwork.nth(index);
-    await expect(svg).toHaveAttribute("data-mode-art", drawing);
-    await expect(svg).toHaveAttribute("aria-hidden", "true");
-    await expect(svg).toHaveAttribute("focusable", "false");
-    await expect(svg).toHaveAttribute("viewBox", "0 0 48 48");
-    await expect(svg).toHaveCSS("width", "56px");
-    await expect(svg).toHaveCSS("height", "56px");
-    await expect(svg).toHaveCSS("pointer-events", "none");
-    await expect(svg.locator("path").first()).toBeVisible();
-  }
+  const artwork = modes.locator("svg.ccc-preset-chip");
+  await expect(artwork).toHaveCount(1);
+  await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
+  await expect(artwork).toHaveAttribute("aria-hidden", "true");
+  await expect(artwork).toHaveAttribute("focusable", "false");
+  await expect(artwork).toHaveAttribute("viewBox", "40 0 520 250");
+  await expect(artwork).toHaveCSS("pointer-events", "none");
+  await expect(modes.locator(".ccc-preset-current")).toHaveText("性能模式");
   const cpu = page.getByRole("region", { name: "CPU 功耗与电压", exact: true });
   const gpu = page.getByRole("region", { name: "GPU 频率", exact: true });
   await expect(cpu.getByRole("slider", { name: "持续功耗上限", exact: true })).toBeVisible();
@@ -88,7 +83,7 @@ test("性能调校可用键盘切换预设，概览只展示回读后的模式",
   await expect(entertainment).toBeFocused();
   await expect(entertainment).toBeChecked();
   await expect(modes.getByText("当前使用", { exact: true })).toHaveCount(0);
-  await expect(entertainment.locator("..").locator(".ccc-mode-select-mark")).toBeVisible();
+  await expect(modes.locator(".ccc-preset-chip")).toHaveAttribute("data-preset-palette", "entertainment");
   await expect(entertainment.locator("..")).not.toHaveCSS("box-shadow", "none");
   await expect(page.getByRole("region", { name: "待应用更改", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "应用更改", exact: true })).toHaveCount(0);
@@ -129,7 +124,7 @@ for (const theme of ["light", "dark"]) {
         expect(overflow).toEqual([]);
         if (area === "性能调校") {
           const modes = main.getByRole("region", { name: "预设模式", exact: true });
-          await expectPresetLayout(modes, width === 360);
+          await expectPresetLayout(modes);
           await modes.screenshot({ path: `target/ui-check/preset-modes-${theme}-${width}.png` });
         }
         await page.screenshot({ path: `target/ui-check/configuration-${id}-${theme}-${width}.png` });
@@ -139,24 +134,21 @@ for (const theme of ["light", "dark"]) {
   });
 }
 
-async function expectPresetLayout(panel, narrow) {
-  const layout = await panel.locator(".ccc-mode-option").evaluateAll((cards, stacked) => {
-    const frames = cards.map(card => card.getBoundingClientRect());
+async function expectPresetLayout(panel) {
+  const layout = await panel.evaluate(region => {
+    const block = selector => region.querySelector(selector).getBoundingClientRect();
+    const center = ({ left, width }) => left + width / 2;
+    const stage = block(".ccc-preset-stage");
+    const artwork = block(".ccc-preset-chip");
+    const caption = block(".ccc-preset-current");
+    const controls = block(".ccc-preset-switcher");
+    const inputs = [...region.querySelectorAll(".ccc-segmented-option")];
     return {
-      columns: new Set(frames.map(frame => frame.left)).size,
-      fits: cards.every((card, index) => {
-        const outer = frames[index];
-        const caption = card.querySelector(".ccc-mode-copy");
-        const title = caption.getBoundingClientRect();
-        const artwork = card.querySelector("[data-mode-art]").getBoundingClientRect();
-        const size = stacked ? 44 : 56;
-        return Math.abs(artwork.width - size) < 1 && Math.abs(artwork.height - size) < 1
-          && artwork.left >= outer.left && artwork.top >= outer.top
-          && title.right <= outer.right && title.bottom <= outer.bottom
-          && caption.scrollWidth <= caption.clientWidth + 1
-          && (stacked ? artwork.bottom <= title.top : artwork.right <= title.left);
-      }),
+      columns: new Set(inputs.map(input => input.getBoundingClientRect().left)).size,
+      centered: [artwork, caption, controls].every(box => Math.abs(center(box) - center(stage)) < 1),
+      ordered: artwork.bottom <= caption.top + 1 && caption.bottom < controls.top,
+      fits: inputs.every(input => input.scrollWidth <= input.clientWidth + 1) && controls.width <= stage.width + 1,
     };
-  }, narrow);
-  expect(layout).toEqual({ columns: narrow ? 2 : 4, fits: true });
+  });
+  expect(layout).toEqual({ columns: 4, centered: true, ordered: true, fits: true });
 }

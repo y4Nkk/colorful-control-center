@@ -2,7 +2,7 @@ use super::Controller;
 use crate::{
     display, gpu_power,
     gpuctl::GpuController,
-    hal::Hal,
+    hal::{Hal, oem_owner},
     powerctl::mode::supply::{
         control::source,
         native::Native,
@@ -22,7 +22,26 @@ impl Controller {
         let _operation = self.lock()?;
         let io = Native::new(hal, clocks, power)?;
         let _gate = hal.begin_write()?;
-        self.read_in_control(&io)
+        let mut status = self.read_in_control(&io)?;
+        let previous_owner_issue = status
+            .issue
+            .as_deref()
+            .is_some_and(oem_owner::is_blocked_reason);
+        if status.view.can_enable
+            || status.can_resume
+            || status.view.can_restore
+            || previous_owner_issue
+        {
+            status.blocked_reason = oem_owner::blocked_reason();
+            let writable = status.blocked_reason.is_none();
+            status.view.can_enable &= writable;
+            status.can_resume &= writable;
+            status.view.can_restore &= writable;
+        }
+        if previous_owner_issue {
+            status.issue = None;
+        }
+        Ok(status)
     }
     pub fn enable(
         &self,
@@ -160,7 +179,7 @@ impl Controller {
     fn preflight(&self, hal: &Hal, display: &display::Controller) -> Result<()> {
         crate::profiles::policy::ensure_inactive(&self.profiles_path)?;
         hal.ensure_mode_change_allowed()?;
-        crate::hal::oem_owner::ensure_owner_absent()?;
+        oem_owner::ensure_owner_absent()?;
         if display.trial_pending()? {
             bail!("先结束当前显示试用，再执行原厂模式联动");
         }

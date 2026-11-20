@@ -11,14 +11,14 @@ export function useAutomaticDisplayTrial() {
   return useSyncExternalStore(subscribe, () => state);
 }
 export const useAutomaticDisplayTrialId = () => useSyncExternalStore(subscribe, () => state.pending?.trialId ?? null);
-export async function refreshAutomaticDisplayTrial() {
+export async function refreshAutomaticDisplayTrial(clearActionError = false) {
   if (state.busy) return Boolean(state.pending);
   const id = ++generation;
   try {
     const profile = await readDisplayModes();
     if (id !== generation) return Boolean(state.pending);
     const pending = profile.pending?.automatic ? profile.pending : null;
-    update({ ...state, pending, readError: null, error: pending?.trialId === state.pending?.trialId ? state.error : null });
+    update({ ...state, pending, readError: null, error: !clearActionError && pending?.trialId === state.pending?.trialId ? state.error : null });
   } catch (error) {
     if (id === generation) update({ ...state, readError: String(error) });
   }
@@ -36,7 +36,9 @@ export async function resolveAutomaticDisplayTrial(keep: boolean) {
     update({ ...state, busy: false });
     await refreshAutomaticDisplayTrial();
   } catch (error) {
-    update({ ...state, busy: false, error: String(error) });
+    const message = String(error);
+    update({ ...state, busy: false, error: message });
     await refreshAutomaticDisplayTrial();
+    return message;
   }
 }

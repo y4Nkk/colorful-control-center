@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     display,
-    hal::{Hal, power_events::Event},
+    hal::{Hal, oem_owner, power_events::Event},
 };
 use anyhow::{Result, anyhow, bail};
 use ccc_core::oem_refresh::Trigger;
@@ -25,6 +25,7 @@ pub(crate) struct Status {
     pub view: state::View,
     pub listener_online: bool,
     pub sleeping: bool,
+    pub blocked_reason: Option<String>,
     pub issue: Option<String>,
 }
 #[derive(Default)]
@@ -153,14 +154,29 @@ impl Controller {
         });
         view.can_start &= ready && !runtime.scheduler.enabled && supply_matches == Some(true);
         view.active &= ready && runtime.scheduler.enabled && runtime.scheduler.supply_known();
-        let issue = runtime.issue.clone().or_else(|| {
-            (ready && supply_matches == Some(false))
-                .then(|| "供电通知与系统状态不一致，自动刷新率已暂停".into())
-        });
+        let previous_owner_issue = runtime
+            .issue
+            .as_deref()
+            .is_some_and(oem_owner::is_blocked_reason);
+        let blocked_reason = if view.can_start || view.can_restore || previous_owner_issue {
+            oem_owner::blocked_reason()
+        } else {
+            None
+        };
+        view.can_start &= blocked_reason.is_none();
+        let issue = runtime
+            .issue
+            .clone()
+            .filter(|_| !previous_owner_issue)
+            .or_else(|| {
+                (ready && supply_matches == Some(false))
+                    .then(|| "供电通知与系统状态不一致，自动刷新率已暂停".into())
+            });
         Ok(Status {
             view,
             listener_online: ready,
             sleeping: runtime.scheduler.sleeping,
+            blocked_reason,
             issue,
         })
     }
@@ -264,5 +280,5 @@ impl Controller {
 }
 pub(super) fn permit_recovery(hal: &Hal) -> Result<()> {
     hal.ensure_mode_change_allowed()?;
-    crate::hal::oem_owner::ensure_owner_absent()
+    oem_owner::ensure_owner_absent()
 }

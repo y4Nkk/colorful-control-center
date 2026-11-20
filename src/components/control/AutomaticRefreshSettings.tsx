@@ -5,6 +5,7 @@ import { Button } from "../Button";
 import { DetailsDialog } from "../DetailsDialog";
 import { FactList } from "../FactList";
 import { Icon } from "../Icon";
+import { OemConflictAction } from "../OemConflictAction";
 import { Surface } from "../Surface";
 import { Switch } from "../Switch";
 import { useDeviceSettings } from "./useDeviceSettings";
@@ -15,7 +16,7 @@ export function AutomaticRefreshSettings({ active, revision }: { active: boolean
   const hintId = useId();
   const facts = profile?.current;
   const enabled = !!profile?.active;
-  const issues = Array.from(new Set([error, profile?.error, profile?.issue].filter((issue): issue is string => !!issue)));
+  const issues = Array.from(new Set([profile?.blockedReason, error, profile?.error, profile?.issue].filter((issue): issue is string => !!issue)));
   const status = busy ? "正在应用…" : !enabled && profile?.initial ? "已暂停" : !profile && !error ? "读取中…" : null;
   const mayChange = enabled ? profile?.canRestore : profile?.canStart;
   const preview = profile?.preview;
@@ -53,6 +54,7 @@ export function AutomaticRefreshSettings({ active, revision }: { active: boolean
     </div>
     <AutomaticRefreshReadout facts={facts} />
     {issues.length > 0 && <p className="ccc-control-error" role="alert">{issues[0]}</p>}
+    <OemConflictAction issues={issues} disabled={busy} onClosed={reread} />
     {profile?.canRestore && !enabled && <div className="ccc-actions">
       <Button size="compact" icon="undo" variant="secondary" disabled={busy}
         onClick={() => void run(() => restoreAutomaticRefresh(profile.revision))}>恢复启用前状态</Button>

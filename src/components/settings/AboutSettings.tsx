@@ -2,8 +2,10 @@ import { BrandLogo } from "../BrandLogo";
 import { Icon } from "../Icon";
 import { Surface } from "../Surface";
 import { Button } from "../Button";
+import { DetailsDialog } from "../DetailsDialog";
 import { useEffect, useId, useState } from "react";
 import { getBackendInfo, toCommandError, type BackendInfo } from "../../api/client";
+import { ChangelogHistory } from "./ChangelogHistory";
 
 export function AboutSettings({ active }: { active: boolean }) {
   const id = useId();
@@ -29,7 +31,12 @@ export function AboutSettings({ active }: { active: boolean }) {
       <div className="ccc-about-product">
         <BrandLogo className="ccc-about-logo" />
         <div className="ccc-about-copy"><h3>Colorful Control Center</h3></div>
-        <span className="ccc-settings-status ccc-mono" role="status">{loading ? "读取版本…" : error ? "版本未知" : info ? `v${info.version}` : "版本未知"}</span>
+        <div className="ccc-about-version">
+          <span className="ccc-settings-status ccc-mono" role="status">{loading ? "读取版本…" : error ? "版本未知" : info ? `v${info.version}` : "版本未知"}</span>
+          <DetailsDialog title="更新日志" icon="logs">
+            <ChangelogHistory appVersion={info?.version} />
+          </DetailsDialog>
+        </div>
       </div>
       {error && <div className="ccc-settings-feedback">
         <p className="ccc-settings-error" role="alert">版本读取失败：{error}</p>

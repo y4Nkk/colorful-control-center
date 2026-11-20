@@ -63,10 +63,23 @@ pub(crate) async fn reboot_for_graphics_mode(
 }
 #[tauri::command]
 pub(crate) async fn read_display_modes(app: tauri::AppHandle) -> Result<display::Profile, String> {
-    crate::shutdown::blocking(move || app.state::<display::Controller>().read())
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| format!("{e:#}"))
+    crate::shutdown::blocking(move || {
+        let mut profile = app.state::<display::Controller>().read()?;
+        if profile.pending.is_none()
+            && (profile.can_restore
+                || profile.rotation.is_some()
+                || profile
+                    .displays
+                    .iter()
+                    .any(|display| display.frequencies.len() > 1))
+        {
+            profile.blocked_reason = crate::hal::oem_owner::blocked_reason();
+        }
+        Ok(profile)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e: anyhow::Error| format!("{e:#}"))
 }
 #[tauri::command]
 pub(crate) async fn read_automatic_refresh(

@@ -201,7 +201,8 @@ impl Controller {
         let blocked = hal
             .ensure_mode_change_allowed()
             .err()
-            .map(|e| format!("电池校准期间不能更改PD档位：{e:#}"));
+            .map(|e| format!("电池校准期间不能更改PD档位：{e:#}"))
+            .or_else(crate::hal::oem_owner::blocked_reason);
         hal.with_dchu(|io| read(io, &scope.baseline, blocked))
     }
     pub fn apply(&self, hal: &Hal, request: &Request) -> Result<()> {
@@ -209,6 +210,7 @@ impl Controller {
         let _gate = hal.begin_write()?;
         hal.ensure_mode_change_allowed()
             .context("电池校准期间不能更改PD档位")?;
+        crate::hal::oem_owner::ensure_owner_absent()?;
         hal.with_dchu(|io| transaction::apply(io, &mut scope.baseline, request))
     }
     pub fn restore(&self, hal: &Hal, expected_revision: &str) -> Result<()> {
@@ -216,6 +218,7 @@ impl Controller {
         let _gate = hal.begin_write()?;
         hal.ensure_mode_change_allowed()
             .context("电池校准期间不能恢复PD档位")?;
+        crate::hal::oem_owner::ensure_owner_absent()?;
         hal.with_dchu(|io| transaction::restore(io, &scope.baseline, expected_revision))
     }
 }

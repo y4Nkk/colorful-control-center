@@ -2,10 +2,13 @@ import { useEffect, useRef } from "react";
 import { onAutomaticDisplayTrial } from "../api/client";
 import { refreshAutomaticDisplayTrial, resolveAutomaticDisplayTrial, useAutomaticDisplayTrial } from "../app/automatic-display-trial";
 import { Button } from "./Button";
+import { OemConflictAction } from "./OemConflictAction";
+import { useOemConflict } from "./OemConflictHost";
 import { Surface } from "./Surface";
 
 export function AutomaticDisplayTrialHost() {
   const { pending, busy, error, readError } = useAutomaticDisplayTrial();
+  const conflict = useOemConflict();
   const region = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let disposed = false, polling = false, timer: ReturnType<typeof setTimeout> | undefined;
@@ -25,6 +28,8 @@ export function AutomaticDisplayTrialHost() {
   const before = pending.before[0], target = pending.targets[0];
   const seconds = pending.remainingMs == null ? null : Math.max(0, Math.ceil(pending.remainingMs / 1000));
   const canKeep = !busy && !readError && !pending.error && target && seconds != null && seconds > 0;
+  const reread = () => void refreshAutomaticDisplayTrial(true);
+  const resolve = async (keep: boolean) => conflict.review([await resolveAutomaticDisplayTrial(keep)], reread);
   return <div ref={region} className="ccc-auto-display-host" role="dialog" aria-labelledby="automatic-display-title" tabIndex={-1}>
     <Surface as="section" variant="group" className="ccc-panel">
       <div className="ccc-panel-head"><h2 id="automatic-display-title" className="ccc-panel-title">自动刷新率试用</h2>
@@ -35,9 +40,10 @@ export function AutomaticDisplayTrialHost() {
         <Surface variant="inset" className="ccc-auto-refresh-facts"><span>正在试用</span><strong>{target ? `${target.frequency} Hz` : "未知"}</strong></Surface>
       </div>
       {(error || readError || pending.error) && <p className="ccc-control-error" role="alert">{error || readError || pending.error}</p>}
+      <OemConflictAction issues={[error, readError, pending.error]} disabled={busy} onClosed={reread} />
       <div className="ccc-actions">
-        <Button disabled={!canKeep} onClick={() => { void resolveAutomaticDisplayTrial(true); }}>保留刷新率</Button>
-        <Button icon="undo" variant="secondary" disabled={busy || pending.trialId == null} onClick={() => { void resolveAutomaticDisplayTrial(false); }}>恢复本次试用</Button>
+        <Button disabled={!canKeep} onClick={() => { void resolve(true); }}>保留刷新率</Button>
+        <Button icon="undo" variant="secondary" disabled={busy || pending.trialId == null} onClick={() => { void resolve(false); }}>恢复本次试用</Button>
       </div>
     </Surface>
   </div>;

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readLightBar, type LightBarProfile, type LightBarValues } from "../../api/client";
+import { useOemConflict } from "../OemConflictHost";
 import { toast } from "../use-toast";
 import { preserveEditedFields } from "./settings-draft";
 
 export function useLightBarSettings(active: boolean, revision: number) {
+  const conflict = useOemConflict();
   const [profile, setProfile] = useState<LightBarProfile | null>(null), [draft, setDraft] = useState<LightBarValues | null>(null);
   const [loaded, setLoaded] = useState(false), [busy, setBusy] = useState(false);
   const [readError, setReadError] = useState<string | null>(null), [actionError, setActionError] = useState<string | null>(null);
@@ -30,15 +32,19 @@ export function useLightBarSettings(active: boolean, revision: number) {
     void (async () => { await reading.current?.catch(() => undefined); if (!disposed) await reload(); })().catch(() => {});
     return () => { disposed = true; ++generation.current; };
   }, [active, revision, reload]);
+  const reread = () => { setActionError(null); if (!writing.current) void reload().catch(() => {}); };
   const run = async (action: () => Promise<void>, message: string, reset = true) => {
     if (!active || writing.current) return;
     writing.current = true; ++generation.current; setBusy(true); setActionError(null);
     try { await reading.current?.catch(() => undefined); await action(); await reload(reset, true); toast({ kind: "success", title: message }); }
-    catch (error) { setActionError(String(error)); await reload(false, true).catch(() => {}); }
+    catch (error) {
+      setActionError(String(error));
+      await reload(false, true).catch(() => {});
+      conflict.review([String(error)], reread);
+    }
     finally { writing.current = false; setBusy(false); }
   };
-  return { profile, draft, setDraft, loaded, busy, run, error: [actionError, readError].filter(Boolean).join("；") || null,
-    reread: () => { if (!writing.current) void reload().catch(() => {}); } };
+  return { profile, draft, setDraft, loaded, busy, run, error: [actionError, readError].filter(Boolean).join("；") || null, reread };
 }
 
 function reconcileLightBar(before: LightBarValues, draft: LightBarValues, current: LightBarValues | null): LightBarValues {

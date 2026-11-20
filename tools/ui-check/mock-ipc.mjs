@@ -30,8 +30,8 @@ function fixtureData() {
     preferences: { theme: "light", interfaceFont: "system", interfaceScale: 100, motion: "reduce", closeBehavior: "hideToTray",
       alwaysOnTop: false, startMinimized: false, startupPage: "dashboard", globalShortcut: "", runtimeLogLevel: "info", hardwareAcceleration: true },
     profile: { version: 1, name: "隔离档案", savedAtMs: 1, settings }, otherProfiles: [],
-    fan: { softwareSupported: true, software: null, curveKind: "twoPoint", rpmFans: [], availableModes: [0, 1, 6], fanCount: 1,
-      customSupported: true, currentMode: 0, offsetPct: 0, canRestore: true, warnings: ["隔离风扇诊断"], safetyStatus: "已读取", blockedReason: null, softwareBlockedReason: null,
+    fan: { software: null, curveKind: "twoPoint", rpmFans: [], availableModes: [0, 1, 6], fanCount: 1,
+      customSupported: true, currentMode: 0, offsetPct: 0, canRestore: true, warnings: ["隔离风扇诊断"], safetyStatus: "已读取", blockedReason: null,
       fans: [{ id: "cpu", present: true, t1: 30, d1Pct: 20, t2: 60, d2Pct: 50, t3: 90, d3Pct: 99 }] },
     power: { pl1W: 65, pl2W: 100, plTimeS: 28, coreOffsetMv: 0, gtOffsetMv: 0, defaultPl1W: 65, defaultPl2W: 100,
       defaultCoreOffsetMv: 0, msrRuntimeAvailable: true, msrRuntimeError: null, canRestore: true, runtimeWarnings: [], warnings: ["隔离功耗诊断"],
@@ -115,12 +115,30 @@ function installIpc() {
         case "restore_power_profile_policy": case "reload_power_profile_policy": case "reset_power_profile_policy": case "read_automatic_profile_application": return invokePowerPolicy(data, command, args);
         case "read_hardware_snapshot": return hardwareSnapshot(data);
         case "read_system_overview": return { cpu: { vendor: "intel", name: "Isolated CPU" }, memory: { totalBytes: 17179869184, availableBytes: 8589934592 }, volumes: [], warnings: [] };
-        case "read_fan_profile": return fanProfile(data);
+        case "read_fan_profile": return structuredClone(fanProfile(data));
+        case "apply_fan_curve": {
+          if (data.fanWriteFault === command || data.dust?.running) return { ok: false, message: "隔离风扇写入失败" };
+          for (const fan of data.fan.fans) if (args[fan.id]) Object.assign(fan, args[fan.id]);
+          data.fan.currentMode = 6; data.fan.software = null;
+          return { ok: true, message: "风扇曲线已写入" };
+        }
+        case "apply_rpm_fan_curves": {
+          if (data.fanWriteFault === command || data.dust?.running) return { ok: false, message: "隔离风扇写入失败" };
+          data.fan.rpmFans = fanProfile(data).rpmFans.map(fan => ({ ...fan, points: args.curves[fan.id] ?? fan.points }));
+          data.fan.currentMode = 6; data.fan.software = null;
+          return { ok: true, message: "转速曲线已写入" };
+        }
         case "set_fan_mode": {
+          if (data.fanWriteFault === command) return { ok: false, message: "隔离风扇写入失败" };
           if (data.dust?.running || !data.fan.availableModes.includes(args.mode)) return { ok: false, message: "风扇模式不可用" };
           data.fan.currentMode = args.mode;
           data.fan.software = null;
           return { ok: true, message: "风扇模式已写入" };
+        }
+        case "set_fan_offset": {
+          if (data.fanWriteFault === command || data.dust?.running) return { ok: false, message: "隔离风扇写入失败" };
+          data.fan.offsetPct = args.pct;
+          return { ok: true, message: "风扇偏移已写入" };
         }
         case "read_power_profile": return data.power;
         case "read_gpu_profile": return data.gpu;
@@ -365,7 +383,7 @@ async function invokeSoftware(data, command, args) {
         legacy: args.restore ? data.autostartInitial.legacy : false, canRestore: !args.restore };
       return structuredClone(data.autostart);
     }
-    case "get_backend_info": return { name: "Isolated UI", version: "1.0.0" };
+    case "get_backend_info": return { name: "Isolated UI", version: "1.0.1" };
     case "list_profiles": case "load_profile": case "preview_profile_import":
     case "save_profile": case "export_profile": case "delete_profile": return invokeProfileStorage(data, command, args);
     case "preview_profile_application": return previewManualProfile(data, args.settings);
@@ -414,10 +432,9 @@ function hardwareSnapshot(data) {
 }
 function fanProfile(data) {
   const running = data.dust?.running ? "固件正在除尘，请等待结束后再调整风扇或电源模式" : null;
-  const scheduled = !!data.dust && (!data.dust.current || data.dust.current.weekdays !== 0 || data.dust.current.onResume);
-  const fan = { ...data.fan, blockedReason: running, softwareBlockedReason: running || (scheduled ? "请先明确关闭定时及唤醒除尘，再启用软件风扇曲线" : null) };
+  const fan = { ...data.fan, blockedReason: running };
   if (data.fanKind !== "rpmTable") return fan;
-  return { ...fan, curveKind: "rpmTable", fans: [], rpmFans: [{ id: "cpu", maximumRpm: 5000,
+  return { ...fan, curveKind: "rpmTable", fans: [], rpmFans: fan.rpmFans.length ? fan.rpmFans : [{ id: "cpu", maximumRpm: 5000,
     points: Array.from({ length: 10 }, (_, i) => ({ tempC: 40 + i * 5, rpmPct: i === 9 ? 100 : 20 + i * 8 })) }] };
 }
 function dustProfile(data) {

@@ -4,7 +4,7 @@ use std::{
     ptr::null_mut,
 };
 
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use windows_sys::{
     Win32::{
@@ -30,7 +30,7 @@ use windows_sys::{
     core::BOOL,
 };
 
-use super::{FN_KEY, owners};
+use super::{EXECUTABLES, FN_KEY, owners};
 
 const APP_ID: &str = "CLEVOCO.FnhotkeysandOSD_6h6z29zh29qx0!App";
 
@@ -49,20 +49,21 @@ pub(crate) struct FnKeyProcess {
 
 impl FnKeyProcess {
     pub(crate) fn blocking() -> Result<Option<Self>> {
-        let active = owners()?;
+        let active = owners(&EXECUTABLES)?;
         match active.as_slice() {
             [] => Ok(None),
             [owner] if owner.executable == FN_KEY => Self::open(owner.pid)
                 .map(Some)
-                .context("无法核验原厂 FnKey 的关闭入口，请从任务管理器退出 FnKey.exe 后重试"),
-            owners => bail!(
+                .context("无法核验原厂 FnKey 的关闭入口，请从任务管理器退出 FnKey.exe 后重试")
+                .context(owner.blocked()),
+            [owner, ..] => Err(owner.blocked().context(format!(
                 "请先退出正在运行的原厂控制进程：{}",
-                owners
+                active
                     .iter()
                     .map(|owner| owner.executable)
                     .collect::<Vec<_>>()
                     .join("、")
-            ),
+            ))),
         }
     }
 
@@ -101,14 +102,14 @@ impl FnKeyProcess {
     pub(crate) fn close(self, approved: FnKeyIdentity) -> Result<()> {
         ensure!(
             approved == self.identity,
-            "原厂 FnKey 已重新启动，请重新选择模式并确认"
+            "原厂 FnKey 已重新启动，请重新核对后确认"
         );
         if self.wait_for_exit(0)? {
             return Ok(());
         }
         ensure!(
-            matches!(owners()?.as_slice(), [owner] if owner.executable == FN_KEY && owner.pid == self.identity.pid),
-            "原厂控制进程已变化，请重新选择模式"
+            matches!(owners(&EXECUTABLES)?.as_slice(), [owner] if owner.executable == FN_KEY && owner.pid == self.identity.pid),
+            "原厂控制进程已变化，请重新核对"
         );
         ensure!(
             is_main_window(self.window, self.identity.pid),

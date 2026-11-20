@@ -27,6 +27,13 @@
 .ccc-about-logo { flex: none; width: calc(var(--ccc-space-5) * 2); height: calc(var(--ccc-space-5) * 2); }
 .ccc-about-copy { display: grid; flex: 1; min-width: 0; gap: var(--ccc-space-1); }
 .ccc-about-copy > h3 { margin: 0; font-size: var(--ccc-text-lg); font-weight: 600; overflow-wrap: anywhere; }
+.ccc-about-version, .ccc-changelog-version { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-2); }
+.ccc-changelog-notes { line-height: 1.65; overflow-wrap: anywhere; }
+.ccc-changelog-notes h3 { font-size: var(--ccc-text-lg); margin: var(--ccc-space-5) 0 var(--ccc-space-2); }
+.ccc-changelog-notes p, .ccc-changelog-notes ul { margin: var(--ccc-space-2) 0; }
+.ccc-changelog-notes ul { padding-inline-start: var(--ccc-space-5); }
+.ccc-changelog-notes li + li { margin-block-start: var(--ccc-space-2); }
+.ccc-changelog-notes a { color: var(--ccc-action); }
 @container ccc-settings (max-width: 640px) { .ccc-setting-row:has(.ccc-select, .ccc-shortcut-setting) { grid-template-columns: minmax(0, 1fr); } }
 @container ccc-settings (max-width: 480px) {
   .ccc-settings-group { padding: var(--ccc-space-4); }

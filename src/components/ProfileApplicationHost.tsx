@@ -1,13 +1,18 @@
 import { Icon } from "./Icon";
 import { useEffect } from "react";
-import { cancelProfileApplication, keepProfileDisplay } from "../api/client";
+import { cancelProfileApplication, findOemConflict, keepProfileDisplay, type ProfileApplication } from "../api/client";
 import { refreshProfileApplication, runProfileApplication, useProfileApplicationState } from "../app/profile-application";
 import { Button } from "./Button";
+import { OemConflictAction } from "./OemConflictAction";
+import { useOemConflict } from "./OemConflictHost";
 import { Surface } from "./Surface";
 import { toast } from "./use-toast";
 
+const failedSteps = (report: ProfileApplication | null) => report?.steps.filter(step => !step.ok).map(step => step.message) ?? [];
+
 export function ProfileApplicationHost() {
   const { report, busy, error } = useProfileApplicationState();
+  const conflict = useOemConflict();
   useEffect(() => {
     let disposed = false, timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -18,17 +23,23 @@ export function ProfileApplicationHost() {
     return () => { disposed = true; clearTimeout(timer); };
   }, []);
   const pending = report?.pending;
-  if (!pending && error?.kind !== "read") return null;
+  if (!pending && error?.kind !== "read" && !findOemConflict([error?.message])) return null;
   const seconds = pending?.remainingMs == null ? null : Math.max(0, Math.ceil(pending.remainingMs / 1000));
   const canKeep = Boolean(pending && !pending.error && seconds != null && seconds > 0 && report?.steps.every(step => step.ok));
   const problem = error?.message ?? pending?.error;
+  const reread = () => void refreshProfileApplication(true);
   const run = async (keep: boolean) => {
     if (!report) return;
     try {
       const result = await runProfileApplication(() => keep ? keepProfileDisplay(report.id) : cancelProfileApplication(report.id));
+      conflict.review([result.pending?.error, ...failedSteps(result)], reread);
       if (!result.pending) toast({ kind: result.targetsApplied && result.steps.every(step => step.ok) ? "success" : "warning",
         title: result.targetsApplied ? result.steps.every(step => step.ok) ? `${result.name} 已应用` : "目标设置已应用，部分收尾待处理" : "档案应用已结束，请查看执行结果" });
-    } catch (error) { toast({ kind: "error", title: "档案确认或恢复失败", description: String(error) }); }
+    } catch (error) {
+      const message = String(error);
+      conflict.review([message], reread);
+      toast({ kind: "error", title: "档案确认或恢复失败", description: message });
+    }
   };
   return <Surface as="section" variant="group" className="ccc-panel ccc-profile-trial" aria-label="档案显示确认">
     <div className="ccc-panel-head"><h2 className="ccc-panel-title">{report?.name ?? "档案执行状态"}</h2>
@@ -43,6 +54,7 @@ export function ProfileApplicationHost() {
         <Button icon="undo" variant="secondary" disabled={busy} onClick={() => { void run(false); }}>恢复本次显示并停止</Button></div>
     </>}
     {problem && <p className="ccc-control-error" role="alert">{problem}</p>}
+    <OemConflictAction issues={[problem, ...failedSteps(report)]} disabled={busy} onClosed={reread} />
     {report?.steps.some(step => !step.ok) && <ul className="ccc-profile-steps" aria-label="档案显示执行结果">{report.steps.map((step, index) => <li key={index}><span className="ccc-step-status"><Icon name={step.ok ? "check-circle" : "error"} label={step.ok ? "成功" : "失败"} size={16} />{step.step}</span><span>{step.message}</span></li>)}</ul>}
     {!pending && error && <Button icon="refresh" variant="secondary" disabled={busy} onClick={() => { void refreshProfileApplication(true); }}>重新读取档案状态</Button>}
   </Surface>;

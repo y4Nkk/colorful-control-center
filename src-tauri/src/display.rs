@@ -120,6 +120,7 @@ pub struct Profile {
     pub pending: Option<Pending>,
     pub can_restore: bool,
     pub error: Option<String>,
+    pub blocked_reason: Option<String>,
 }
 pub struct Controller {
     io: Box<dyn Access>,
@@ -138,10 +139,12 @@ impl Controller {
         frequency: u32,
     ) -> Result<()> {
         let _write = hal.begin_write()?;
+        crate::hal::oem_owner::ensure_owner_absent()?;
         self.apply(expected, frequency, now_ms())
     }
     pub fn apply_rotation_runtime(&self, hal: &crate::hal::Hal, expected: &Mode) -> Result<()> {
         let _write = hal.begin_write()?;
+        crate::hal::oem_owner::ensure_owner_absent()?;
         self.apply_rotation(expected, now_ms())
     }
     pub fn primary(&self) -> Result<Mode> {
@@ -149,6 +152,7 @@ impl Controller {
     }
     pub fn restore_runtime(&self, hal: &crate::hal::Hal) -> Result<()> {
         let _write = hal.begin_write()?;
+        crate::hal::oem_owner::ensure_owner_absent()?;
         self.restore()
     }
     pub fn keep_runtime(&self, hal: &crate::hal::Hal, id: u64, expected: &Mode) -> Result<()> {
@@ -210,6 +214,7 @@ impl Controller {
             pending: state.pending(now_ms()),
             can_restore: !state.baseline.is_empty(),
             error: state.error.clone(),
+            blocked_reason: None,
         })
     }
     pub fn restore(&self) -> Result<()> {

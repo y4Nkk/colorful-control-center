@@ -16,6 +16,7 @@
 //! - `keyboard`：原厂Fn锁、Win锁和Fn/Win交换设置
 //! - `microphone`：活动录音端点静音、原厂偏好、本会话首次恢复
 //! - `keymap`：FlexiKey映射配置、过滤驱动事务及持久恢复
+//! - `oem_owner`：核验并确认退出原厂 FnKey
 //! - `hotkeys` / `osd`：授权原厂热键策略与只读桌面屏显
 //! - `platform`：PD档位预览/回读/恢复与Deep S5只读状态
 //! - `usb`：固件USB建议及标准Windows计划的选择性暂停事务
@@ -44,6 +45,7 @@ pub(crate) mod lan;
 pub(crate) mod lightbar;
 pub(crate) mod lighting;
 pub(crate) mod microphone;
+pub(crate) mod oem_owner;
 pub(crate) mod osd;
 pub(crate) mod platform;
 pub(crate) mod power;

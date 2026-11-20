@@ -2,6 +2,7 @@ import { Icon } from "../Icon";
 import { applyPdLevel, readPlatformPower, restorePdLevel } from "../../api/client";
 import { Button } from "../Button";
 import { ConfigurationAction } from "../ConfigurationAction";
+import { OemConflictAction } from "../OemConflictAction";
 import { Select } from "../Select";
 import { Surface } from "../Surface";
 import { useDeviceSettings } from "./useDeviceSettings";
@@ -27,6 +28,7 @@ export function PlatformPower({ active, revision }: { active: boolean; revision:
       </DetailsDialog>
       <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取平台电源" disabled={busy} onClick={reread} /></div></div>
     {error && <p className="ccc-control-error" role="alert">{error}</p>}
+    <OemConflictAction issues={[pd?.blockedReason, pd?.restoreBlockedReason, error]} disabled={busy} onClosed={reread} />
     {!profile ? <p className="ccc-control-caption">{error ? "无法读取，请重试。" : "正在读取平台电源。"}</p> : <>
       {profile.warnings.length > 0 && <p className="ccc-control-caption">部分电源信息不可用 · 查看详情</p>}
       {pd && <div className="ccc-platform-pd">

@@ -1,4 +1,5 @@
 import { Icon } from "../Icon";
+import { OemConflictAction } from "../OemConflictAction";
 import { useState } from "react";
 import { applyKeymap, restoreKeymap, retryKeymapPrograms, type KeymapBinding, type KeymapDevice } from "../../api/client";
 import { changedDevices, configurationError, keymapChanges } from "../../lib/keymap";
@@ -78,6 +79,7 @@ export function KeymapSettings({ active, revision = 0 }: { active: boolean; revi
         </div>
       </DetailsDialog></div>}
     </div>
+    <OemConflictAction issues={[error, profile?.blockedReason, profile?.programs.error]} disabled={busy || recording} onClosed={model.reread} />
     {hasDraft && <>
       {invalid && <p className="ccc-control-error" role="status">{invalid}</p>}
       <ConfigurationAction revision={JSON.stringify([profile.revision, target])} label="按键映射与宏" applyLabel="应用按键映射"

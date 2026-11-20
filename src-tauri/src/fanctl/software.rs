@@ -215,12 +215,6 @@ fn apply_inner(hal: &Hal, curves: &Curves, manual: bool) -> Result<()> {
     hal.set_safety_status("软件曲线 · 监护中".into())
 }
 
-pub(crate) fn apply_confirmed(hal: &Hal, curves: &Curves) -> Result<()> {
-    apply_manual(hal, curves)?;
-    super::fail_safe(hal, hal.acknowledge_software_fan_restart())?;
-    Ok(())
-}
-
 pub fn tick(hal: &Hal) -> Result<()> {
     let _write = hal.begin_write()?;
     let mut slot = hal

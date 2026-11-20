@@ -3,6 +3,7 @@ import { syncProfileApplication } from "./mock-profile-application.mjs";
 export async function invokeDisplay(data, command, args) {
   function snapshot() {
     const profile = structuredClone(data.display), primary = profile.displays.filter(item => item.primary);
+    profile.blockedReason ??= null;
     profile.rotation = null;
     if (primary.length === 1 && [0, 1, 2, 3].includes(primary[0].current.orientation)) {
       const before = primary[0].current, target = structuredClone(before);

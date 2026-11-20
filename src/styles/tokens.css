@@ -60,7 +60,7 @@
   --ccc-brand-surface: #ffffff;
   --ccc-brand-dark-surface: #20242b;
 
-  /* 预设图形共用轮廓，色相只用于主体的一处填充。 */
+  /* 模式小图标与性能调校的芯片材质。 */
   --ccc-mode-art-ink: color-mix(in srgb, var(--ccc-text) 79%, var(--ccc-content));
   --ccc-mode-art-eco: #2e816a;
   --ccc-mode-art-quiet: #5874be;
@@ -69,7 +69,21 @@
   --ccc-mode-art-tint: color-mix(in srgb, currentColor 24%, transparent);
   --ccc-mode-art-mark: color-mix(in srgb, currentColor 64%, var(--ccc-text));
   --ccc-mode-art-size: 56px;
-  --ccc-mode-art-compact: 44px;
+  --ccc-preset-stage: light-dark(#edf0f5, #101925);
+  --ccc-preset-grid: light-dark(#9ca6b94d, #a6bad450);
+  --ccc-preset-shadow: light-dark(#3a4565, #05080c);
+  --ccc-preset-steel-high: light-dark(#d6e1ec, #a4b5cb);
+  --ccc-preset-steel-mid: light-dark(#8091a5, #5f728a);
+  --ccc-preset-steel-low: light-dark(#38485c, #354459);
+  --ccc-preset-steel-deep: light-dark(#202b3a, #192332);
+  --ccc-preset-glint: light-dark(#ffffff, #e4efff);
+  --ccc-preset-light: var(--ccc-preset-steel-high);
+  --ccc-preset-mid: var(--ccc-preset-steel-mid);
+  --ccc-preset-low: var(--ccc-preset-steel-low);
+  --ccc-preset-deep: var(--ccc-preset-steel-deep);
+  --ccc-preset-chip-width: 480px;
+  --ccc-preset-chip-height: 204px;
+  --ccc-preset-chip-compact-height: 148px;
 
   /* 键盘示意的实体材质与选色色谱。实际灯光颜色由灯效草稿提供。 */
   --ccc-lighting-deck: #171b23;
@@ -174,10 +188,39 @@
   --ccc-motion-range: 220ms;
   --ccc-motion: 240ms;
   --ccc-motion-slow: 400ms;
+  --ccc-motion-preset: 520ms;
   --ccc-scrollbar-idle-delay: 900ms;
   --ccc-easing: cubic-bezier(0.4, 0, 0.2, 1);
   --ccc-easing-press: cubic-bezier(0.34, 1.56, 0.64, 1);
 
+}
+
+[data-preset-palette="eco"] {
+  --ccc-preset-light: #d7ffeb;
+  --ccc-preset-mid: #69d2ae;
+  --ccc-preset-low: #238367;
+  --ccc-preset-deep: #115240;
+}
+
+[data-preset-palette="quiet"] {
+  --ccc-preset-light: #e1edff;
+  --ccc-preset-mid: #81a7ed;
+  --ccc-preset-low: #466db8;
+  --ccc-preset-deep: #2a4384;
+}
+
+[data-preset-palette="entertainment"] {
+  --ccc-preset-light: #f3dfff;
+  --ccc-preset-mid: #b279df;
+  --ccc-preset-low: #8350be;
+  --ccc-preset-deep: #503177;
+}
+
+[data-preset-palette="performance"] {
+  --ccc-preset-light: #fff0c4;
+  --ccc-preset-mid: #f1ac65;
+  --ccc-preset-low: #bd633b;
+  --ccc-preset-deep: #78391f;
 }
 
 :root[data-theme="dark"],
@@ -223,6 +266,7 @@
     --ccc-motion-range: 0ms;
     --ccc-motion: 0ms;
     --ccc-motion-slow: 0ms;
+    --ccc-motion-preset: 0ms;
   }
 }
 
@@ -232,4 +276,5 @@
   --ccc-motion-range: 0ms;
   --ccc-motion: 0ms;
   --ccc-motion-slow: 0ms;
+  --ccc-motion-preset: 0ms;
 }

@@ -128,7 +128,6 @@ fn production_entrypoints_refuse_running_firmware_before_every_fan_or_mode_write
     wire(|w| w.running = 1);
     let profile = crate::fanctl::read_profile(&hal).unwrap();
     assert!(profile.blocked_reason.unwrap().contains("除尘"));
-    assert!(profile.software_blocked_reason.unwrap().contains("除尘"));
     for result in [
         crate::fanctl::set_mode(&hal, 0).map(|_| ()),
         crate::fanctl::set_offset(&hal, 0),

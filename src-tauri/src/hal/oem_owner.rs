@@ -14,6 +14,7 @@ use windows_sys::Win32::{
 pub(crate) use fn_key::{FnKeyIdentity, FnKeyProcess};
 
 const FN_KEY: &str = "FnKey.exe";
+const BATTERY_EXECUTABLES: [&str; 2] = ["BatteryPackUtility.exe", FN_KEY];
 const EXECUTABLES: [&str; 5] = [
     FN_KEY,
     "LaunchFlexikey.exe",
@@ -29,30 +30,51 @@ struct Owner {
 
 impl Owner {
     fn blocked(&self) -> anyhow::Error {
-        anyhow!(
-            "原厂 {} 正在运行，可能同时修改硬件设置。请退出后重试。",
-            self.executable
-        )
+        anyhow!(blocked_message(self.executable))
     }
 }
 
+fn blocked_message(executable: &str) -> String {
+    format!("原厂 {executable} 正在运行，可能同时修改硬件设置。请退出后重试。")
+}
+
+pub(crate) fn is_blocked_reason(reason: &str) -> bool {
+    EXECUTABLES
+        .iter()
+        .any(|executable| blocked_message(executable) == reason)
+}
+
 pub(crate) fn ensure_owner_absent() -> Result<()> {
-    match owners()?.first() {
+    ensure_absent(&EXECUTABLES)
+}
+
+pub(crate) fn blocked_reason() -> Option<String> {
+    ensure_owner_absent()
+        .err()
+        .map(|error| format!("{error:#}"))
+}
+
+pub(crate) fn ensure_battery_owner_absent() -> Result<()> {
+    ensure_absent(&BATTERY_EXECUTABLES)
+}
+
+fn ensure_absent(executables: &[&'static str]) -> Result<()> {
+    match owners(executables)?.first() {
         Some(owner) => Err(owner.blocked()),
         None => Ok(()),
     }
 }
 
-fn owners() -> Result<Vec<Owner>> {
+fn owners(executables: &[&'static str]) -> Result<Vec<Owner>> {
     let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
     if snapshot == INVALID_HANDLE_VALUE {
         return Err(std::io::Error::last_os_error().into());
     }
     let snapshot = unsafe { OwnedHandle::from_raw_handle(snapshot) };
-    inspect(snapshot.as_raw_handle())
+    inspect(snapshot.as_raw_handle(), executables)
 }
 
-fn inspect(snapshot: HANDLE) -> Result<Vec<Owner>> {
+fn inspect(snapshot: HANDLE, executables: &[&'static str]) -> Result<Vec<Owner>> {
     let mut owners = Vec::new();
     let mut entry = PROCESSENTRY32W {
         dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
@@ -66,8 +88,9 @@ fn inspect(snapshot: HANDLE) -> Result<Vec<Owner>> {
             .position(|v| *v == 0)
             .unwrap_or(entry.szExeFile.len());
         let name = String::from_utf16(&entry.szExeFile[..end])?;
-        if let Some(executable) = EXECUTABLES
-            .into_iter()
+        if let Some(executable) = executables
+            .iter()
+            .copied()
             .find(|owner| name.eq_ignore_ascii_case(owner))
         {
             owners.push(Owner {

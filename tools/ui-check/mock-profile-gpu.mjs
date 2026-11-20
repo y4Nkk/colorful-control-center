@@ -61,6 +61,7 @@ export async function commitProfileTargets(data, settings) {
     applyProfileGraphicsMode(data, settings);
     data.profileApplication.steps = profileApplicationSteps(data, settings);
     data.profileApplication.targetsApplied = data.profileTargetsApplied ?? data.profileApplication.steps.every(step => step.ok);
+    if (data.profileApplication.targetsApplied && settings.fanSoftwareCurves) data.fan.software = structuredClone(settings.fanSoftwareCurves);
   } catch (error) {
     data.profileApplication.steps = [{ step: "设备档案执行", ok: false, message: String(error) }];
     data.profileApplication.targetsApplied = false;

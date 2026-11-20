@@ -50,3 +50,4 @@ export * from "./multizone";
 export * from "./microphone";
 export * from "./touchpad";
 export * from "./airplane";
+export * from "./oem-owner";

@@ -2,9 +2,10 @@ export async function invokeAutoRefresh(data, command, args, emit) {
   const value = data.autoRefresh, current = data.display.displays[0].current;
   const snapshot = () => {
     const result = structuredClone(value);
+    result.blockedReason ??= null;
     result.revision = `automatic-${data.autoRefreshRevision}`;
     result.current.display = structuredClone(current);
-    result.canStart = !result.initial && result.listenerOnline && !result.error;
+    result.canStart = !result.initial && result.listenerOnline && !result.error && !result.blockedReason;
     result.canRestore = !!result.initial;
     result.preview = result.initial ? null : { before: structuredClone(current), target: { ...current, frequency: result.current.savedOrHighest } };
     return result;

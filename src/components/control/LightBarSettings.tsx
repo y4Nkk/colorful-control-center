@@ -3,6 +3,7 @@ import { applyLightBar, restoreLightBar, type LightBarValues } from "../../api/c
 import { Button } from "../Button";
 import { DetailsDialog } from "../DetailsDialog";
 import { ConfigurationAction } from "../ConfigurationAction";
+import { OemConflictAction } from "../OemConflictAction";
 import { Surface } from "../Surface";
 import { X170LightBarEditor, X58LightBarEditor } from "./LightBarEditor";
 import { lightBarSummary, lightBarDraftValid } from "./lightbar-values";
@@ -26,6 +27,7 @@ export function LightBarSettings({ active, revision }: { active: boolean; revisi
       <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取独立灯条" disabled={busy} onClick={model.reread} /></div>
     </div>
     {error && <p className="ccc-control-error" role="alert">{error}</p>}
+    <OemConflictAction issues={[error, profile?.blockedReason]} disabled={busy} onClosed={model.reread} />
     {profile ? <div className="ccc-light-bar-columns">
       <Surface variant="inset" className="ccc-light-bar-section">
         <strong>当前保存配置</strong><p className="ccc-control-caption">{lightBarSummary(current ?? null, !sameKind)}</p>

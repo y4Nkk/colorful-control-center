@@ -161,24 +161,46 @@ test("离开预设模式区域后丢弃迟到的 FnKey 确认", async ({ page })
   expect((await calls(page, "apply_oem_power_mode")).map(call => call.args.confirmedFnKey)).toEqual([null]);
 });
 
-test("等待写入时保持旧模式并阻止另一张卡片重复提交", async ({ page }) => {
+test("等待写入和回读时保留当前芯片配色，并阻止重复提交", async ({ page }) => {
   await setup(page);
   await page.evaluate(() => {
+    const fixture = window.__uiFixture;
     const invoke = window.__TAURI_INTERNALS__.invoke;
+    let waitingForReadback = false;
     window.__TAURI_INTERNALS__.invoke = async (command, args) => {
-      if (command === "apply_oem_power_mode") await new Promise(resolve => { window.__uiFixture.finishModeApply = resolve; });
+      if (command === "apply_oem_power_mode") {
+        await new Promise(resolve => { fixture.finishModeApply = resolve; });
+        const result = await invoke(command, args);
+        waitingForReadback = true;
+        return result;
+      }
+      if (command === "read_oem_power_mode" && waitingForReadback) {
+        waitingForReadback = false;
+        await new Promise(resolve => { fixture.finishModeRead = resolve; });
+      }
       return invoke(command, args);
     };
   });
   const panel = modes(page);
-  await panel.getByRole("radio", { name: "安静", exact: true }).click();
+  const quiet = panel.getByRole("radio", { name: "安静", exact: true });
+  const artwork = panel.locator(".ccc-preset-chip");
+  await quiet.click();
   await expect(panel.getByRole("status")).toHaveText("正在切换到安静…");
+  await expect(quiet.locator("..")).toHaveAttribute("data-pending", "true");
+  await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
+  await expect(panel.locator(".ccc-preset-current")).toHaveText("性能模式");
   await expect(panel.getByRole("radio", { name: "性能", exact: true })).toBeChecked();
   const other = panel.getByRole("radio", { name: "娱乐", exact: true });
   await expect(other).toBeDisabled();
   await other.evaluate(input => input.click());
   await page.evaluate(() => window.__uiFixture.finishModeApply());
-  await expect(panel.getByRole("radio", { name: "安静", exact: true })).toBeChecked();
+  await expect.poll(() => page.evaluate(() => typeof window.__uiFixture.finishModeRead)).toBe("function");
+  await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
+  await expect(quiet).not.toBeChecked();
+  await page.evaluate(() => window.__uiFixture.finishModeRead());
+  await expect(quiet).toBeChecked();
+  await expect(quiet.locator("..")).not.toHaveAttribute("data-pending", "true");
+  await expect(artwork).toHaveAttribute("data-preset-palette", "quiet");
   expect(await calls(page, "apply_oem_power_mode")).toHaveLength(1);
 });
 
@@ -196,6 +218,7 @@ test("写入返回成功后，显示设备实际回读的模式", async ({ page 
   await panel.getByRole("radio", { name: "安静", exact: true }).click();
   await expect(panel.getByRole("alert")).toContainText("设备回读的模式与所选模式不同");
   await expect(panel.getByRole("radio", { name: "性能", exact: true })).toBeChecked();
+  await expect(panel.locator(".ccc-preset-chip")).toHaveAttribute("data-preset-palette", "performance");
   await panel.getByRole("button", { name: "重新读取", exact: true }).click();
   await expect(panel.getByRole("alert")).toHaveCount(0);
   expect(await calls(page, "apply_oem_power_mode")).toHaveLength(1);
@@ -251,6 +274,9 @@ test("共享模式读取失败会清除旧的可执行恢复快照", async ({ pa
   await openSystemArea(page, "风扇散热");
   await openSystemArea(page, "性能调校");
   await expect(modes(page).getByRole("alert")).toContainText("隔离读取失败");
+  await expect(modes(page).locator(".ccc-preset-chip")).toHaveAttribute("data-preset-palette", "neutral");
+  await expect(modes(page).getByText("当前模式未知", { exact: true })).toBeVisible();
+  await expect(modes(page).getByRole("radio", { checked: true })).toHaveCount(0);
   await expect(availableAction(page, "模式与性能选项", true)).toHaveCount(0);
   expect(await calls(page, "restore_oem_power_mode")).toEqual([]);
 });
