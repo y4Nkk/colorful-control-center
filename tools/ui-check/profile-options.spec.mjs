@@ -1,6 +1,6 @@
 import { openProfileResults, openProfileSave, openStartupParameters, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
 import { changeButton, configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { readFile } from "node:fs/promises";
@@ -8,7 +8,7 @@ import { readFile } from "node:fs/promises";
 const preview = page => page.getByRole("region", { name: "档案预览", exact: true });
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(c => /^(apply_|save_|import_|set_startup)/.test(c.command)));
 async function selectProfile(page) {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
   await showProfileSettings(page);
 }
@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
     data.profile.settings.oemPowerMode = 2;
     data.profile.settings.performanceOptions = { turboFan: true, dtt: true };
   });
-  await page.goto("/"); await openSystemArea(page, "性能调校");
+  await page.goto("/"); await openWorkspace(page, "性能与散热");
 });
 
 test("档案组合预览包含目标选项，两次确认携带同一目标", async ({ page }) => {
@@ -97,7 +97,7 @@ test("驱动在确认后变化时拒绝激活，重新预览显示错误", async
 });
 
 test("启动选择展示组合联动，保存完整文件且不发送应用", async ({ page }) => {
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const panel = page.getByRole("region", { name: "启动档案", exact: true });
   await panel.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();

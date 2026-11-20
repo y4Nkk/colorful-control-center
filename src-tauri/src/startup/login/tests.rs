@@ -6,6 +6,7 @@ use anyhow::{Result, bail};
 use std::cell::{Cell, RefCell};
 const EXE: &str = r"C:\Apps\Colorful & Control\control.exe";
 const USER: &str = "S-1-5-21-123-456-789-1001";
+const NAME: &str = r"TESTPC\TestUser";
 fn state(level: Level) -> State {
     State {
         task: model::xml(EXE, USER, level),
@@ -63,12 +64,78 @@ impl Io for Memory {
 fn fixed_task_round_trips_all_permissions_and_escapes_path() {
     for level in [Level::Standard, Level::Administrator] {
         let task = model::xml(EXE, USER, level).unwrap();
-        assert_eq!(model::task_level(&task, EXE, USER).unwrap(), level);
+        assert_eq!(model::task_level(&task, EXE, USER, NAME).unwrap(), level);
         assert!(task.contains("&amp;"));
         assert!(task.contains("InteractiveToken"));
         assert!(task.contains("--autostart"));
     }
     assert!(model::xml(EXE, USER, Level::Disabled).is_none());
+}
+// 2026-11-20 本机 schtasks 注册后任务服务实际存储形态：丢弃等于架构默认值的
+// 元素（RunLevel=LeastPrivilege、Enabled、AllowStartOnDemand、Hidden、Priority、
+// RunOnlyIfIdle、RunOnlyIfNetworkAvailable、WakeToRun、LogonTrigger/Enabled），
+// LogonTrigger/UserId 的 SID 被规范化成 机器\用户，Principal/UserId 保留 SID，
+// RegistrationInfo 补写日期。
+fn normalized(run_level: Option<&str>) -> String {
+    let principal = format!(
+        "<UserId>{USER}</UserId><LogonType>InteractiveToken</LogonType>{}",
+        run_level.map(|level| format!("<RunLevel>{level}</RunLevel>")).unwrap_or_default()
+    );
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+<RegistrationInfo><Date>2026-11-20T12:00:00</Date><Author>ColorfulControlCenter</Author><Description>ColorfulControlCenter login startup v1</Description><URI>\ColorfulControlCenter-{USER}</URI></RegistrationInfo>
+<Triggers><LogonTrigger><UserId>{NAME}</UserId></LogonTrigger></Triggers>
+<Principals><Principal id="Owner">{principal}</Principal></Principals>
+<Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><AllowHardTerminate>false</AllowHardTerminate><StartWhenAvailable>true</StartWhenAvailable><IdleSettings><StopOnIdleEnd>false</StopOnIdleEnd><RestartOnIdle>false</RestartOnIdle></IdleSettings><ExecutionTimeLimit>PT0S</ExecutionTimeLimit></Settings>
+<Actions Context="Owner"><Exec><Command>{exe}</Command><Arguments>--autostart</Arguments></Exec></Actions></Task>"#,
+        exe = EXE.replace('&', "&amp;")
+    )
+}
+#[test]
+fn windows_normalized_task_matches_semantic_fingerprint() {
+    assert_eq!(
+        model::task_level(&normalized(None), EXE, USER, NAME).unwrap(),
+        Level::Standard
+    );
+    assert_eq!(
+        model::task_level(&normalized(Some("HighestAvailable")), EXE, USER, NAME).unwrap(),
+        Level::Administrator
+    );
+    // 触发器与主体两种用户表示可各自独立出现
+    let mixed = normalized(None).replace(NAME, USER);
+    assert_eq!(
+        model::task_level(&mixed, EXE, USER, NAME).unwrap(),
+        Level::Standard
+    );
+}
+#[test]
+fn windows_normalized_task_tamper_is_rejected() {
+    let task = normalized(Some("HighestAvailable"));
+    for changed in [
+        task.replace("--autostart", "--other"),
+        task.replace(NAME, r"OTHERPC\Other"),
+        task.replace(USER, "S-1-5-18"),
+        task.replace("<AllowHardTerminate>false</AllowHardTerminate>", ""),
+        task.replace("<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>", ""),
+        task.replace("<StartWhenAvailable>true</StartWhenAvailable>", ""),
+        task.replace("<StartWhenAvailable>true", "<StartWhenAvailable>false"),
+        task.replace(
+            "<MultipleInstancesPolicy>IgnoreNew",
+            "<MultipleInstancesPolicy>Parallel",
+        ),
+        task.replace("</Settings>", "<Volatile>true</Volatile></Settings>"),
+        task.replace("</Triggers>", "<BootTrigger/></Triggers>"),
+        task.replace(
+            "</Actions>",
+            "<Exec><Command>bad.exe</Command><Arguments>x</Arguments></Exec></Actions>",
+        ),
+        task.replace("/mit/task", "/other"),
+        task.replace("Context=\"Owner\"", "Context=\"Other\""),
+        task.replace("HighestAvailable", "SomethingElse"),
+    ] {
+        assert!(model::task_level(&changed, EXE, USER, NAME).is_err());
+    }
 }
 #[test]
 fn foreign_command_user_action_trigger_and_settings_are_rejected() {
@@ -85,7 +152,7 @@ fn foreign_command_user_action_trigger_and_settings_are_rejected() {
         task.replace("/mit/task", "/other"),
         task.replace("Context=\"Owner\"", "Context=\"Other\""),
     ] {
-        assert!(model::task_level(&changed, EXE, USER).is_err());
+        assert!(model::task_level(&changed, EXE, USER, NAME).is_err());
     }
 }
 #[test]
@@ -155,7 +222,8 @@ fn binary_change_invalidates_preview() {
                 run: Some("foreign.exe".into())
             },
             EXE,
-            USER
+            USER,
+            NAME
         )
         .is_err()
     );

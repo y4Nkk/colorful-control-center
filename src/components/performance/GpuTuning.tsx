@@ -47,7 +47,9 @@ export function GpuTuning({ active, revision, onSettled }: { active: boolean; re
   if (!profile || !profile.available) return (
     <Surface as="section" variant="group" className="ccc-panel" aria-label="GPU 频率">
       <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="gpu" />GPU 频率</h2><span className="ccc-control-caption">{error || profile ? "不可用" : "读取中…"}</span></div>
-      <DetailsDialog title="GPU 参数与诊断" label="详情"><p>{error ?? profile?.unavailableReason ?? "等待驱动读数"}</p>
+      <DetailsDialog title="GPU 参数与诊断" label="详情">{error
+        ? <p className="ccc-control-error" role="alert"><Icon name="error" size={16} />{error}</p>
+        : <p className="ccc-control-caption">{profile?.unavailableReason ?? "等待驱动读数"}</p>}
         <ParameterDescriptions items={GPU_TUNING_HELP} /></DetailsDialog>
       <Button icon="refresh" variant="ghost" size="compact" onClick={() => { void load(false).catch((e) => setError(String(e))); }}>重试</Button>
     </Surface>
@@ -71,8 +73,8 @@ function GpuControls({ profile: p, core, mem, busy, error, setCore, setMem, run 
     <Surface as="section" variant="group" className="ccc-panel" aria-label="GPU 频率">
       <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="gpu" />GPU 频率</h2>
         <div className="ccc-module-tools"><DetailsDialog title="GPU 参数与诊断" label="详情">
-          <p>{p.gpuName}</p><ParameterDescriptions items={GPU_TUNING_HELP} />
-          {p.warnings.map(w => <p key={w}>{w}</p>)}
+          <p className="ccc-control-caption">{p.gpuName}</p><ParameterDescriptions items={GPU_TUNING_HELP} />
+          {p.warnings.map(w => <p key={w} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{w}</p>)}
         </DetailsDialog></div>
       </div>
       <ScaleSlider label="核心频率偏移" unit="MHz" min={p.coreMinMhz} max={Math.max(p.coreMinMhz, p.coreMaxMhz)}

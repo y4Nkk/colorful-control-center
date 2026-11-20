@@ -1,5 +1,5 @@
-import { availableAction, configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { openSystemArea } from "./workspace.mjs";
+import { availableAction } from "./configuration-review.mjs";
+import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { modeGpuFixture } from "./mode-gpu-fixture.mjs";
@@ -20,11 +20,11 @@ async function setup(page, options = {}) {
     if (options.driverError) fixture.value.clocks.driverError = "隔离驱动范围已变化";
     data.modeGpuOverrides = { 3: fixture };
   }, { fixture: modeGpuFixture(), options });
-  await page.goto("/"); await openSystemArea(page, "性能调校");
+  await page.goto("/"); await openWorkspace(page, "性能与散热");
   await expect(entertainment(page)).toBeEnabled();
 }
 
-test("直接切换发送完整GPU目标与修订，并保留初始恢复", async ({ page }) => {
+test("直接切换发送完整GPU目标与修订", async ({ page }) => {
   await setup(page);
   expect(await calls(page, "apply_oem_power_mode")).toHaveLength(0);
   await entertainment(page).click();
@@ -34,13 +34,6 @@ test("直接切换发送完整GPU目标与修订，并保留初始恢复", async
   const expected = requests[0].args.expected;
   expect(expected.fromMode).toBe(2); expect(expected.revision).toBeTruthy();
   expect(expected.gpu.status).toBe("ready"); expect(expected.gpu.value.clocks.driver.current).toEqual(modeGpuFixture().value.clocks.driver.current);
-  const recovery = await previewConfiguration(page, "模式与性能选项", true);
-  const restore = recovery.getByRole("region", { name: "GPU初始恢复目标", exact: true });
-  await expect(restore.getByText("当前频率", { exact: true })).toBeVisible();
-  await expect(restore.getByText("初始频率目标", { exact: true })).toBeVisible();
-  expect(await calls(page, "restore_oem_power_mode")).toHaveLength(0);
-  await configurationView(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
-  await expect(restore).toHaveCount(0);
 });
 
 test("关闭独显的延后检查不伪造频率，失败后保留重试", async ({ page }) => {
@@ -74,26 +67,4 @@ test("联动条件突变拒绝旧目标，回读后可再点卡片", async ({ pa
   await entertainment(page).click();
   await expect(entertainment(page)).toBeChecked();
   await expect(modes(page).getByRole("alert")).toHaveCount(0);
-});
-
-test("GPU恢复模块宽窄及深浅布局保留独立边框", async ({ page }, testInfo) => {
-  await setup(page);
-  await entertainment(page).click();
-  const recovery = await previewConfiguration(page, "模式与性能选项", true);
-  const gpu = recovery.getByRole("region", { name: "GPU初始恢复目标", exact: true });
-  for (const [width, theme] of [[1440, "light"], [360, "dark"]]) {
-    await page.setViewportSize({ width, height: 1100 });
-    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
-    await gpu.scrollIntoViewIfNeeded();
-    const cards = gpu.locator(".ccc-mode-gpu-columns > .ccc-mode-gpu-part");
-    await expect(cards).toHaveCount(2);
-    const fits = await cards.evaluateAll(cards => cards.every(card => {
-      const bounds = card.getBoundingClientRect();
-      const column = card.parentElement.getBoundingClientRect();
-      return parseFloat(getComputedStyle(card).borderTopWidth) > 0 && bounds.left >= column.left - 1
-        && bounds.right <= column.right + 1 && card.scrollWidth <= card.clientWidth + 1;
-    }));
-    expect(fits).toBe(true);
-    await gpu.screenshot({ path: testInfo.outputPath(`gpu-mode-${theme}-${width}.png`) });
-  }
 });

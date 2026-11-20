@@ -38,9 +38,9 @@ export function KeymapSettings({ active, revision = 0 }: { active: boolean; revi
             { label: "鼠标映射", value: profile.enabledFlags[1] ? "开启" : "关闭" },
             { label: "恢复目标", value: profile.baselineName ?? "首次应用前记录原配置" },
           ]} />}
-          {profile?.blockedReason && <p>{profile.blockedReason}</p>}
-          {profile?.warnings.map(warning => <p key={warning}>{warning}</p>)}
-          {error && <p className="ccc-control-error">{error}</p>}
+          {profile?.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
+          {profile?.warnings.map(warning => <p key={warning} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{warning}</p>)}
+          {error && <p className="ccc-control-error"><Icon name="error" size={16} />{error}</p>}
         </DetailsDialog>
         <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取映射" disabled={busy || recording} onClick={model.reread} />
       </div>
@@ -57,7 +57,7 @@ export function KeymapSettings({ active, revision = 0 }: { active: boolean; revi
           <Surface as="div" variant="inset" className="ccc-keymap-section">
             {profile.programsRequired && <div className="ccc-keymap-program-status">
               {profile.recoveryRequired && <p className="ccc-control-caption" role="status">程序宏需先恢复配置</p>}
-              {profile.programs.error && <p className="ccc-control-error" role="alert">{profile.programs.error}</p>}
+              {profile.programs.error && <p className="ccc-control-error" role="alert"><Icon name="error" size={16} />{profile.programs.error}</p>}
               <Button icon="play" variant="secondary" size="compact" disabled={!active || locked || profile.programs.running}
                 onClick={() => void model.run(() => retryKeymapPrograms(profile.revision), "程序宏监听已启用", false)}>
                 {profile.programs.running ? "程序宏监听中" : "启用程序宏监听"}

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace } from "./workspace.mjs";
 import { installTouchpadFixture } from "./touchpad-fixture.mjs";
 import { installMicrophoneFixture } from "./microphone-fixture.mjs";
 import { pageActions } from "./configuration-review.mjs";
@@ -76,7 +76,7 @@ test("触摸板与麦克风独立提交，跨页回读并支持单项恢复", as
   await expect(mic(page).getByRole("radio", { name: "全部静音", exact: true })).toBeChecked();
   expect(await writes(page)).toEqual(["apply_touchpad", "apply_microphones"]);
   await expect(pageActions(page)).toHaveCount(0);
-  await openSystemArea(page, "概览");
+  await openWorkspace(page, "概览");
   await openWorkspace(page, "设备配置");
   await expect(touch(page).getByRole("radio", { name: "关闭", exact: true })).toBeChecked();
   await expect(mic(page).getByRole("radio", { name: "全部静音", exact: true })).toBeChecked();

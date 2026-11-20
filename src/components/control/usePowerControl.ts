@@ -9,29 +9,37 @@ import type { DiffItem } from "./DiffPreview";
 export type PowerTarget = "runtime" | "saved";
 export interface PowerDraft { pl1: number; pl2: number; coreMv: number; gtMv: number }
 const valuesOf = (profile: PowerProfile, target: PowerTarget): PowerValues => target === "runtime" ? profile.runtime : profile;
-const draftOf = (values: PowerValues): PowerDraft => ({
-  pl1: Math.round(values.pl1W ?? 35), pl2: Math.round(values.pl2W ?? 157),
-  coreMv: Math.round(values.coreOffsetMv ?? 0), gtMv: Math.round(values.gtOffsetMv ?? 0),
-});
+// PL 保存值未上报（固件未声明 CPUOC、page6 从未写入的机型）时草稿锚定出厂默认，
+// 首次调节整组提交 PL1+PL2；即时值在 MSR 可用时总是成对上报，不可用时整组滑杆已禁用。
+const draftOf = (profile: PowerProfile, target: PowerTarget): PowerDraft => {
+  const values = valuesOf(profile, target);
+  const pl1 = values.pl1W ?? (target === "saved" ? profile.defaultPl1W : null);
+  const pl2 = values.pl2W ?? (target === "saved" ? profile.defaultPl2W : null);
+  return {
+    pl1: Math.round(pl1 ?? 35), pl2: Math.round(pl2 ?? 157),
+    coreMv: Math.round(values.coreOffsetMv ?? 0), gtMv: Math.round(values.gtOffsetMv ?? 0),
+  };
+};
+const plFrom = (value: number | null | undefined) => value == null ? "未上报" : `${Math.round(value)} W`;
 
-export function powerChanges(values: PowerValues, draft: PowerDraft) {
-  const current = draftOf(values);
-  const plReady = values.pl1W != null && values.pl2W != null;
+function powerChanges(profile: PowerProfile, target: PowerTarget, draft: PowerDraft) {
+  const values = valuesOf(profile, target);
+  const current = draftOf(profile, target);
   const coreReady = values.coreOffsetMv != null;
   const gtReady = values.gtOffsetMv != null;
-  const pl = plReady && (current.pl1 !== draft.pl1 || current.pl2 !== draft.pl2);
+  const pl = current.pl1 !== draft.pl1 || current.pl2 !== draft.pl2;
   const core = coreReady && current.coreMv !== draft.coreMv;
   const gt = gtReady && current.gtMv !== draft.gtMv;
   const items: DiffItem[] = [];
-  if (pl) items.push({ label: "持续功耗上限", from: `${current.pl1} W`, to: `${draft.pl1} W` },
-    { label: "短时功耗上限", from: `${current.pl2} W`, to: `${draft.pl2} W` });
+  if (pl) items.push({ label: "持续功耗上限", from: plFrom(values.pl1W), to: `${draft.pl1} W` },
+    { label: "短时功耗上限", from: plFrom(values.pl2W), to: `${draft.pl2} W` });
   if (core) items.push({ label: "核心电压偏移", from: `${current.coreMv} mV`, to: `${draft.coreMv} mV` });
   if (gt) items.push({ label: "核显电压偏移", from: `${current.gtMv} mV`, to: `${draft.gtMv} mV` });
-  return { current, plReady, coreReady, gtReady, pl, core, gt, items };
+  return { current, coreReady, gtReady, pl, core, gt, items };
 }
 
-async function applyDraft(values: PowerValues, draft: PowerDraft, target: PowerTarget) {
-  const dirty = powerChanges(values, draft);
+async function applyDraft(profile: PowerProfile, target: PowerTarget, draft: PowerDraft) {
+  const dirty = powerChanges(profile, target, draft);
   const result = await (target === "runtime" ? applyRuntimeCpu : applySavedCpu)({
     pl1W: dirty.pl ? draft.pl1 : null, pl2W: dirty.pl ? draft.pl2 : null,
     coreOffsetMv: dirty.core ? draft.coreMv : null, gtOffsetMv: dirty.gt ? draft.gtMv : null,
@@ -57,8 +65,8 @@ export function usePowerControl(active: boolean, revision: number, onSettled: ()
     const before = previous.current;
     setDrafts((current) => Object.fromEntries((["runtime", "saved"] as const).map((key) => {
       const draft = current[key];
-      const dirty = before && draft && powerChanges(valuesOf(before, key), draft).items.length > 0;
-      return [key, reset !== "all" && reset !== key && dirty ? draft : draftOf(valuesOf(next, key))];
+      const dirty = before && draft && powerChanges(before, key, draft).items.length > 0;
+      return [key, reset !== "all" && reset !== key && dirty ? draft : draftOf(next, key)];
     })) as Record<PowerTarget, PowerDraft>);
     if (!before && !next.msrRuntimeAvailable) setTarget("saved");
     previous.current = next; setProfile(next); setError(null);
@@ -80,8 +88,7 @@ export function usePowerControl(active: boolean, revision: number, onSettled: ()
     } finally { running.current = false; setBusy(false); onSettled(); }
   };
   const draft = drafts[target];
-  const values = profile ? valuesOf(profile, target) : null;
-  const dirty = values && draft ? powerChanges(values, draft) : null;
+  const dirty = profile && draft ? powerChanges(profile, target, draft) : null;
   const change = (patch: Partial<PowerDraft>) => setDrafts((current) => {
     const value = current[target];
     if (!value || running.current) return current;
@@ -91,10 +98,10 @@ export function usePowerControl(active: boolean, revision: number, onSettled: ()
     return { ...current, [target]: next };
   });
   const reviews = profile ? (["runtime", "saved"] as const).flatMap(scope => {
-    const next = drafts[scope], current = valuesOf(profile, scope);
-    const changes = next && powerChanges(current, next);
+    const next = drafts[scope];
+    const changes = next && powerChanges(profile, scope, next);
     return next && changes?.items.length && (scope === "saved" || profile.msrRuntimeAvailable)
-      ? [{ scope, items: changes.items, apply: () => run(() => applyDraft(current, next, scope),
+      ? [{ scope, items: changes.items, apply: () => run(() => applyDraft(profile, scope, next),
         scope === "saved" ? "设置已保存" : "实时值已回读确认", scope) }]
       : [];
   }) : [];

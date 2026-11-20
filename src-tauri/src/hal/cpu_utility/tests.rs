@@ -8,6 +8,10 @@ use std::{
 enum Event {
     Primed,
     Value(u32, f64),
+    /// 效用与性能百分比同一次采样返回；基频计数器缺失。
+    ValueWithPerformance(u32, f64, u32, f64),
+    /// 效用、性能百分比与标称基频同一次采样返回；频率 = 基频 × 性能百分比。
+    ValueWithBase(u32, f64, u32, f64, u32, f64),
     Error,
 }
 #[derive(Default)]
@@ -27,12 +31,35 @@ impl Memory {
     }
 }
 impl Counter for Memory {
-    fn collect(&mut self) -> Result<Option<(u32, f64)>> {
+    fn collect(&mut self) -> Result<Option<Sample>> {
         let mut data = self.0.lock().unwrap();
         data.calls += 1;
         match data.events.pop_front().expect("测试没有提供CPU计数器样本") {
             Event::Primed => Ok(None),
-            Event::Value(status, value) => Ok(Some((status, value))),
+            Event::Value(status, value) => Ok(Some(Sample {
+                utility: (status, value),
+                performance: None,
+                base_clock: None,
+            })),
+            Event::ValueWithPerformance(utility_status, utility, performance_status, performance) => {
+                Ok(Some(Sample {
+                    utility: (utility_status, utility),
+                    performance: Some((performance_status, performance)),
+                    base_clock: None,
+                }))
+            }
+            Event::ValueWithBase(
+                utility_status,
+                utility,
+                performance_status,
+                performance,
+                base_status,
+                base,
+            ) => Ok(Some(Sample {
+                utility: (utility_status, utility),
+                performance: Some((performance_status, performance)),
+                base_clock: Some((base_status, base)),
+            })),
             Event::Error => bail!("隔离计数器失败"),
         }
     }
@@ -47,17 +74,14 @@ fn first_sample_is_unknown_then_short_requests_reuse_the_timestamped_reading() {
     let start = Instant::now();
     assert_eq!(sampler.sample(start, 1000).unwrap(), None);
     assert_eq!(
-        sampler
-            .sample(start + Duration::from_millis(300), 1300)
-            .unwrap(),
+        sampler.sample(start + Duration::from_millis(300), 1300).unwrap(),
         None
     );
     let reading = sampler.sample(start + INTERVAL, 1750).unwrap().unwrap();
     assert_eq!((reading.value_pct, reading.sampled_at_ms), (42.7, 1750));
+    assert_eq!(reading.clock_mhz, None);
     assert_eq!(
-        sampler
-            .sample(start + Duration::from_millis(900), 1900)
-            .unwrap(),
+        sampler.sample(start + Duration::from_millis(900), 1900).unwrap(),
         Some(reading)
     );
     assert_eq!(io.0.lock().unwrap().calls, 2);
@@ -84,11 +108,7 @@ fn failure_clears_old_value_throttles_retries_and_requires_new_baseline() {
     assert_eq!(io.0.lock().unwrap().calls, 3);
     assert!(sampler.sample(t + INTERVAL * 3, 3250).unwrap().is_none());
     assert_eq!(
-        sampler
-            .sample(t + INTERVAL * 4, 4000)
-            .unwrap()
-            .unwrap()
-            .value_pct,
+        sampler.sample(t + INTERVAL * 4, 4000).unwrap().unwrap().value_pct,
         55.0
     );
     assert_eq!(io.0.lock().unwrap().resets, 1);
@@ -109,6 +129,56 @@ fn counter_status_and_numeric_boundaries_never_turn_invalid_data_into_zero() {
     }
     assert_eq!(validate_value(0, 0.0).unwrap(), 0.0);
     assert_eq!(validate_value(1, 127.0).unwrap(), 100.0);
+}
+#[test]
+fn performance_ratio_turns_into_base_clock_frequency() {
+    let io = Memory::new([Event::ValueWithBase(0, 45.0, 0, 187.5, 1, 2400.0)]);
+    let mut sampler = Sampler::with_counter(io);
+    let reading = sampler.sample(Instant::now(), 1000).unwrap().unwrap();
+    assert_eq!(reading.value_pct, 45.0);
+    assert_eq!(reading.clock_mhz, Some(4500.0));
+}
+#[test]
+fn turbo_performance_exceeds_nominal_clock_without_clamping() {
+    let io = Memory::new([Event::ValueWithBase(1, 100.0, 1, 208.3, 1, 2400.0)]);
+    let mut sampler = Sampler::with_counter(io);
+    let reading = sampler.sample(Instant::now(), 1000).unwrap().unwrap();
+    assert_eq!(validate_performance(1, 208.3).unwrap(), 208.3);
+    assert_eq!(reading.clock_mhz, Some(2400.0 * 208.3 / 100.0));
+}
+#[test]
+fn invalid_performance_keeps_utility_and_leaves_clock_empty() {
+    for (status, value) in [(2, 187.5), (0xc0000bc6, 187.5), (0, -1.0), (0, f64::NAN)] {
+        let io = Memory::new([Event::ValueWithBase(0, 45.0, status, value, 1, 2400.0)]);
+        let mut sampler = Sampler::with_counter(io);
+        let reading = sampler.sample(Instant::now(), 1000).unwrap().unwrap();
+        assert_eq!(reading.value_pct, 45.0);
+        assert_eq!(reading.clock_mhz, None);
+    }
+}
+#[test]
+fn missing_base_clock_leaves_frequency_empty_even_when_performance_is_valid() {
+    let io = Memory::new([Event::ValueWithPerformance(0, 45.0, 0, 187.5)]);
+    let mut sampler = Sampler::with_counter(io);
+    let reading = sampler.sample(Instant::now(), 1000).unwrap().unwrap();
+    assert_eq!(reading.clock_mhz, None);
+}
+#[test]
+fn invalid_base_clock_keeps_utility_and_leaves_clock_empty() {
+    for (status, value) in [
+        (2, 2220.0),
+        (0xc0000bc6, 2220.0),
+        (0, -1.0),
+        (0, 0.0),
+        (0, f64::NAN),
+        (0, f64::INFINITY),
+    ] {
+        let io = Memory::new([Event::ValueWithBase(0, 45.0, 1, 187.5, status, value)]);
+        let mut sampler = Sampler::with_counter(io);
+        let reading = sampler.sample(Instant::now(), 1000).unwrap().unwrap();
+        assert_eq!(reading.value_pct, 45.0);
+        assert_eq!(reading.clock_mhz, None);
+    }
 }
 #[test]
 fn long_gap_and_clock_reversal_discard_previous_window_and_sample_again() {
@@ -137,12 +207,7 @@ fn long_gap_and_clock_reversal_discard_previous_window_and_sample_again() {
             .value_pct,
         40.0
     );
-    assert!(
-        sampler
-            .sample(t + Duration::from_secs(10), 900)
-            .unwrap()
-            .is_none()
-    );
+    assert!(sampler.sample(t + Duration::from_secs(10), 900).unwrap().is_none());
     assert_eq!(io.0.lock().unwrap().resets, 2);
 }
 #[test]

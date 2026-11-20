@@ -1,5 +1,6 @@
 import { restoreBatteryThresholds, type BatteryThresholdPlan, type BatteryThresholdProfile } from "../../api/client";
 import { ConfirmButton } from "../ConfirmButton";
+import { Icon } from "../Icon";
 import { Surface } from "../Surface";
 import { DetailsDialog } from "../DetailsDialog";
 import { MetricReadout } from "./MetricReadout";
@@ -24,7 +25,7 @@ export function BatteryThresholdFacts({ profile, busy, run }: Props) {
           </div>)}
           <p className="ccc-control-caption">原厂缓存：{current.cache.map(value => `${value}%`).join(" / ")}</p>
         </> : <p className="ccc-control-caption">计划阈值当前不可读取。</p>}
-        {profile.error && <p className="ccc-control-error">{profile.error}</p>}
+        {profile.error && <p className="ccc-control-error"><Icon name="error" size={16} />{profile.error}</p>}
       </Surface>
       <Surface variant="inset" className="ccc-battery-threshold-part">
         <strong>事件目标</strong>
@@ -42,7 +43,7 @@ export function BatteryThresholdFacts({ profile, busy, run }: Props) {
         </div>)}</div>
         <p className="ccc-control-caption">恢复只修改本应用接管字段及缓存，保留其他计划和字段。</p>
       </>}
-      {profile.restoreError && <p className="ccc-control-error">{profile.restoreError}</p>}
+      {profile.restoreError && <p className="ccc-control-error"><Icon name="error" size={16} />{profile.restoreError}</p>}
       {recovery && <ConfirmButton icon="undo" key={profile.restoreRevision ?? "battery-restore-unavailable"} variant="secondary"
         label="恢复初始电池阈值" confirmLabel="确认停止监听并恢复上述阈值？" busy={busy} disabled={!profile.restoreRevision}
         onConfirm={() => run(() => restoreBatteryThresholds(profile.restoreRevision!), "初始电池阈值已恢复", false)} />}

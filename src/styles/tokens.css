@@ -68,8 +68,6 @@
   --ccc-mode-art-performance: #b56d3b;
   --ccc-mode-art-tint: color-mix(in srgb, currentColor 24%, transparent);
   --ccc-mode-art-mark: color-mix(in srgb, currentColor 64%, var(--ccc-text));
-  --ccc-mode-art-size: 56px;
-  --ccc-preset-stage: light-dark(#edf0f5, #101925);
   --ccc-preset-grid: light-dark(#9ca6b94d, #a6bad450);
   --ccc-preset-shadow: light-dark(#3a4565, #05080c);
   --ccc-preset-steel-high: light-dark(#d6e1ec, #a4b5cb);
@@ -113,6 +111,7 @@
   --ccc-text-title: 20px;
   --ccc-text-reading: 24px;
   --ccc-text-temperature: 32px;
+  --ccc-text-mode: 36px;
   --ccc-control-font: 400 var(--ccc-text-lg)/1.55 var(--ccc-font-sans);
   --ccc-dialog-title-font: 600 18px/1.25 var(--ccc-font-sans);
   --ccc-fact-label-font: 400 var(--ccc-text-sm)/1.4 var(--ccc-font-sans);

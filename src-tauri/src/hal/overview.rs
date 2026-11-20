@@ -1,4 +1,4 @@
-//! 不依赖 OEM/写通道的系统概览：CPUID、可用物理内存与固定磁盘卷。
+//! 不依赖 OEM/写通道的系统概览：CPUID、可用物理内存、内存速率与固定磁盘卷。
 use serde::Serialize;
 use windows_sys::Win32::{
     Storage::FileSystem::{
@@ -40,6 +40,8 @@ pub struct Volume {
 pub struct SystemOverview {
     pub cpu: CpuIdentity,
     pub memory: Option<Capacity>,
+    /// SMBIOS Type 17 已安装内存条的最高配置速率（DDR 有效传输速率，MT/s）。
+    pub memory_speed_mts: Option<u32>,
     pub volumes: Vec<Volume>,
     pub warnings: Vec<String>,
 }
@@ -49,10 +51,14 @@ pub fn read() -> SystemOverview {
     let memory = read_memory()
         .map_err(|e| warnings.push(format!("内存读取失败：{e}")))
         .ok();
+    let memory_speed_mts = crate::hal::smbios::read_memory_speed()
+        .map_err(|e| warnings.push(format!("内存频率读取失败：{e:#}")))
+        .ok();
     let volumes = read_volumes(&mut warnings);
     SystemOverview {
         cpu: cpu::read(&mut warnings),
         memory,
+        memory_speed_mts,
         volumes,
         warnings,
     }

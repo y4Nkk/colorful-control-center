@@ -42,8 +42,8 @@ export interface HardwareSnapshot {
   cpuTempC: number | null;
   /** cmd12 buf[18] 原始 remote（校准对照用） */
   cpuRemoteRaw: number | null;
-  /** Windows处理器效用，按原厂显示规则限制到100%；包含独立采样时间。 */
-  cpuUtility: { valuePct: number; sampledAtMs: number } | null;
+  /** Windows处理器效用（限制到100%）与实时频率（标称基频 × 性能百分比），同一次采样；包含独立采样时间。 */
+  cpuUtility: { valuePct: number; clockMhz: number | null; sampledAtMs: number } | null;
   fan: FanSnapshot;
   nvidia: NvidiaSnapshot | null;
   /** 原厂共享报告，未报告或本次 OEM 传输失败时为 null。 */
@@ -69,6 +69,8 @@ export interface SystemOverview {
     physicalCores: number | null; logicalProcessors: number | null;
     baseClockMhz: number | null; maxClockMhz: number | null };
   memory: HardwareCapacity | null;
+  /** SMBIOS Type 17 已安装内存条的最高配置速率（DDR 有效传输速率，MT/s）。 */
+  memorySpeedMts: number | null;
   volumes: { mount: string; label: string | null; fileSystem: string | null; capacity: HardwareCapacity | null }[];
   warnings: string[];
 }

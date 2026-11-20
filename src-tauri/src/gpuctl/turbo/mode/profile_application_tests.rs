@@ -115,7 +115,6 @@ fn success(steps: &[crate::profiles::ApplyStep]) {
 #[test]
 fn reviewed_profile_entry_runs_three_stages_mode_clocks_and_independent_offsets_with_one_grant() {
     let h = Harness::new(true);
-    let raw = RawState::read(h.memory.as_ref()).unwrap();
     let preview = h.preview();
     assert_eq!(
         preview
@@ -142,18 +141,6 @@ fn reviewed_profile_entry_runs_three_stages_mode_clocks_and_independent_offsets_
         RawState::read(h.memory.as_ref()).unwrap().offsets[0].core_khz,
         Some(60_000)
     );
-    let initial = full_profile(&h.f, &h.memory, &h.gpu, &h.power)
-        .restore
-        .unwrap()
-        .gpu
-        .unwrap();
-    assert!(!initial.node.as_ref().unwrap().target.enabled);
-    assert!(initial.node.as_ref().unwrap().target.automatic_power_off);
-    assert_eq!(
-        initial.clocks.as_ref().unwrap().origin,
-        ClockOrigin::AfterEnable
-    );
-    assert_eq!(initial.clocks.unwrap().state, raw);
 }
 
 #[test]

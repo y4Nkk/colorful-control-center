@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { applyOemPowerMode, readOemPowerMode, restoreOemPowerMode, type OemPowerMode, type OpResult } from "../../api/client";
+import { applyOemPowerMode, readOemPowerMode, type OemPowerMode, type OpResult } from "../../api/client";
 import { useOemConflict } from "../OemConflictHost";
 import { gpuModeError } from "./gpu-values";
 
@@ -8,7 +8,7 @@ const errorMessage = (cause: unknown) => cause instanceof Error ? cause.message 
 export function useOemPowerMode(active: boolean, revision: number, onSettled: () => void) {
   const [profile, setProfile] = useState<OemPowerMode | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState<number | "restore" | null>(null);
+  const [pending, setPending] = useState<number | null>(null);
   const [reading, setReading] = useState(true);
   const conflict = useOemConflict();
   const loading = useRef(0);
@@ -37,7 +37,7 @@ export function useOemPowerMode(active: boolean, revision: number, onSettled: ()
     return () => { if (!running.current) ++loading.current; };
   }, [active, revision, load]);
   const retry = () => { if (active && !running.current) void load(); };
-  const run = async (operation: number | "restore", action: (snapshot: OemPowerMode) => Promise<OpResult | null>) => {
+  const run = async (operation: number, action: (snapshot: OemPowerMode) => Promise<OpResult | null>) => {
     if (!active || running.current || reading || !profile || profile.blockedReason) return;
     ++loading.current;
     running.current = true;
@@ -48,7 +48,7 @@ export function useOemPowerMode(active: boolean, revision: number, onSettled: ()
       const result = await action(profile);
       if (!result) { refresh = false; return; }
       const next = await load(result.ok ? null : result.message);
-      if (result.ok && typeof operation === "number" && next && next.currentMode !== operation) {
+      if (result.ok && next && next.currentMode !== operation) {
         setError("设备回读的模式与所选模式不同。");
       }
       if (!result.ok) conflict.review([result.message], retry);
@@ -77,10 +77,6 @@ export function useOemPowerMode(active: boolean, revision: number, onSettled: ()
         return confirmed;
       }));
       return null;
-    }),
-    restore: (expectedRevision: string) => run("restore", snapshot => {
-      if (!snapshot.canRestore || snapshot.restore?.revision !== expectedRevision) throw new Error("恢复目标已变化，请重新读取。");
-      return restoreOemPowerMode(expectedRevision);
     }),
   };
 }

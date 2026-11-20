@@ -39,7 +39,7 @@ export function AutomaticRefreshSettings({ active, revision }: { active: boolean
         <p>刷新率切换后有 15 秒试用时间。停用时恢复启用前的显示与保存设置。</p>
         {facts?.candidates.some(rate => rate > 255) && <p>原厂保存字段上限为 255 Hz，恢复时可能选择最高候选。</p>}
         {facts?.supplyModeSwitch && <p>供电切换时，等待性能模式更新后调整。</p>}
-        {issues.map(issue => <p key={issue} className="ccc-control-error">{issue}</p>)}
+        {issues.map(issue => <p key={issue} className="ccc-control-error"><Icon name="error" size={16} />{issue}</p>)}
       </DetailsDialog>
       {issues.length > 0 && <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取自动刷新率"
         disabled={busy} onClick={reread} />}</div>

@@ -1,4 +1,4 @@
-import { appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, modeRestoreTarget, modeRestoreIssue, rememberMode, applyModeGpu } from "./mock-mode-state.mjs";
+import { appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, rememberMode, applyModeGpu } from "./mock-mode-state.mjs";
 
 export function applyPerformanceOptions(data, { values, quietFan, replaceCustomFan }, quiet) {
   const p = data.performanceOptions;
@@ -22,7 +22,7 @@ export function applyPerformanceOptions(data, { values, quietFan, replaceCustomF
   const sendsCommand = active && (flagsChanged || command !== beforeCommand);
   if (sendsCommand && values.dtt && p.dttDriverAvailable !== true) return { ok: false, message: "未确认 Dynamic Tuning 驱动" };
   rememberMode(data, false);
-  p.current = structuredClone(values); p.canRestore = true;
+  p.current = structuredClone(values);
   if (sendsCommand) data.modeOptionsCommand = command;
   if (fanChanged) p.customFan = false;
   if (fanChanged && performance) {
@@ -55,23 +55,18 @@ export async function invokePerformance(data, command, args) {
     if (data.modeEnergy.hardwarePState !== (data.modeEnergy.energyStar === null) || !data.modeEnergy.hardwarePState && ![0, 1, 2].includes(data.modeEnergy.energyStar)) throw new Error("固件节能状态不可恢复");
     return structuredClone(data.modeEnergy);
   };
-  const restoreBlockedReason = () => data.modeInitial?.energy && data.modeInitial.energy.hardwarePState !== energy().hardwarePState ? "固件节能管理能力已变化，不能恢复此初始模式" : modeRestoreIssue(data);
-  const restore = () => modeRestoreTarget(data);
   const unsupported = [20720, 20724].includes(data.unsupportedModeProduct);
   const blockedReason = unsupported ? `尚未支持${data.unsupportedModeProduct}机型的完整电源模式控制` : data.calibration.workerRunning || data.calibration.recoveryRequired
     ? "电池校准正在接管或尚需恢复，暂不能切换电源模式及其关联策略"
     : data.dust?.running ? "固件正在除尘，请等待结束" : null;
   switch (command) {
-    case "read_oem_power_mode": return { currentMode: p.currentMode, acMode: data.acMode, energy: unsupported ? null : energy(), restore: restore(), availableModes: unsupported ? [] : [0, 1, 2, 3], restoreBlockedReason: restoreBlockedReason(),
-      canRestore: Boolean(data.modeInitial) && !restoreBlockedReason(), softwareActive: false, blockedReason,
+    case "read_oem_power_mode": return { currentMode: p.currentMode, acMode: data.acMode, energy: unsupported ? null : energy(), availableModes: unsupported ? [] : [0, 1, 2, 3], softwareActive: false, blockedReason,
       targets: unsupported ? [] : [0, 1, 2, 3].map(mode => modePreviewTarget(data, mode)) };
     case "read_oem_performance_options":
       if (data.performanceReadFault) throw new Error(data.performanceReadFault);
       return structuredClone({ ...p, appliesInCurrentMode,
         entertainmentOptionsPending: entertainment && appliesInCurrentMode && entertainmentCommand(data) !== optionCommand(3, p.current.turboFan, p.current.dtt),
-        quietFan: quiet, acMode: data.modeInitial?.acMode != null ? data.acMode : null,
-        energy: data.modeInitial?.energy != null ? energy() : null,
-        restore: restore(), restoreBlockedReason: restoreBlockedReason(), canRestore: Boolean(data.modeInitial) && !restoreBlockedReason(), blockedReason });
+        quietFan: quiet, blockedReason });
     case "apply_oem_performance_options":
       if (blockedReason) return { ok: false, message: blockedReason };
       if (args.request.expectedRevision !== p.revision) return { ok: false, message: "性能选项预览已变化" };
@@ -97,35 +92,13 @@ export async function invokePerformance(data, command, args) {
       if (args.expected.gpu?.status !== "ready") return { ok: false, message: "模式GPU预览不可执行" };
       if (args.expected.gpu.value.clocks.candidate.decision?.target && !args.expected.gpu.value.clocks.candidate.projected) return { ok: false, message: "隔离夹具未注入确认后的GPU读数" };
       rememberMode(data, true, args.expected); applyModeGpu(data, args.expected);
-      data.acMode = args.expected.acMode; p.currentMode = args.expected.mode; p.canRestore = true;
+      data.acMode = args.expected.acMode; p.currentMode = args.expected.mode;
       data.modeOptionsCommand = optionCommand(p.currentMode, args.expected.turbo, args.expected.dtt);
       data.modeEnergy = structuredClone(args.expected.energy);
       data.fan.currentMode = args.expected.fanSavedMode; data.fan.offsetPct = args.expected.fanOffsetPct; data.fan.software = null;
       p.customFan = data.fan.currentMode === 6;
       if (args.expected.mode === 2 && data.performanceFanMode !== null) data.performanceFanMode = args.expected.fanSavedMode;
       p.revision = `options-${++data.performanceRevision}`; return { ok: true, message: "模式已应用" };
-    case "restore_oem_power_mode": {
-      const target = restore();
-      if (restoreBlockedReason()) return { ok: false, message: restoreBlockedReason() };
-      if (!target || args.expectedRevision !== target.revision) return { ok: false, message: "初始模式恢复目标已变化，请重新预览并确认" };
-      p.currentMode = target.mode; p.current = structuredClone(data.modeInitial.options); p.canRestore = false;
-      data.modeOptionsCommand = data.modeInitial.command;
-      if (target.acMode !== null) data.acMode = target.acMode;
-      if (target.energy !== null) data.modeEnergy = structuredClone(target.energy);
-      data.fan.currentMode = target.fan.fields.find(field => field.offset === 5).data[0];
-      p.customFan = data.fan.currentMode === 6;
-      data.fan.offsetPct = target.fan.offset; data.fan.software = structuredClone(target.fan.software);
-      if (target.entertainmentQuiet !== null) data.entertainmentQuiet = target.entertainmentQuiet;
-      if (data.performanceFanMode !== null) data.performanceFanMode = target.fan.fields.find(field => field.offset === 70).data[2];
-      if (target.gpu?.node) {
-        const node = data.gpuPower.devices[0]; node.enabled = target.gpu.node.target.enabled;
-        node.automaticPowerOff = target.gpu.node.target.automaticPowerOff; node.problem = node.enabled ? 0 : 22;
-      }
-      if (target.gpu?.clocks) data.modeGpuCurrent = structuredClone(target.gpu.clocks.state);
-      for (const plan of target.systemPlans) data.modeSystemValues[plan.scheme] = structuredClone(plan.initial);
-      data.modeInitial = null; p.revision = `options-${++data.performanceRevision}`;
-      return { ok: true, message: "初始模式与选项已恢复" };
-    }
   }
   throw new Error(`未声明的原厂模式命令：${command}`);
 }

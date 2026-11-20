@@ -1,7 +1,6 @@
 import type { ProfileModeApproval } from "../../api/client";
 import { Surface } from "../Surface";
 import { Icon } from "../Icon";
-import { DetailsDialog } from "../DetailsDialog";
 import { GpuModeSupplyTargets, GpuModeDriverRanges } from "../control/GpuModeFacts";
 import { GpuPowerVisual } from "../control/GpuPowerVisual";
 
@@ -23,7 +22,14 @@ export function ProfileModeAuthorization({ approval }: { approval: ProfileModeAp
         </li>)}</ul> : <span className="ccc-control-caption">无节点控制</span>}
       </Surface>
     </div>
-    {approval.clocks.driver && <GpuModeDriverRanges driver={approval.clocks.driver} />}
-    <DetailsDialog title="执行与恢复说明"><p>每次执行重新检查设备与目标；开启后的驱动身份在写入前记录。失败恢复本次前态，已有初始恢复状态保留。</p></DetailsDialog>
   </Surface>;
+}
+
+export function ProfileModeExecutionNotes({ approval }: { approval: ProfileModeApproval | null }) {
+  if (!approval) return null;
+  return <section aria-label="后台 GPU 执行与恢复">
+    <h3>后台 GPU 执行与恢复</h3>
+    <p>每次执行重新检查设备与目标。开启后的驱动身份在写入前记录。失败恢复本次前态，已有初始恢复状态保留。</p>
+    {approval.clocks.driver && <GpuModeDriverRanges driver={approval.clocks.driver} />}
+  </section>;
 }

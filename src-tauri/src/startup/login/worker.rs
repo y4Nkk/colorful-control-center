@@ -87,7 +87,7 @@ impl Invocation {
             bail!("登录任务请求不属于当前程序、用户或会话");
         }
         let native = Native::new(operation.record_path.clone())?;
-        model::validate(&operation.target, &native.executable, &native.user)?;
+        model::validate(&operation.target, &native.executable, &native.user, &native.user_name)?;
         if native.state()? != operation.expected || native.record()? != operation.record {
             bail!("登录任务前态已变化");
         }

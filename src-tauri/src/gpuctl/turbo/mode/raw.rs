@@ -162,22 +162,6 @@ impl RawState {
         }
         Ok(())
     }
-    pub(crate) fn restore_identity(&self, io: &dyn TurboIo) -> Result<String> {
-        let readings = self
-            .devices
-            .iter()
-            .take(2)
-            .map(|device| io.offsets(device))
-            .collect::<Result<Vec<_>>>()?;
-        let caps: Vec<_> = readings
-            .iter()
-            .map(super::super::model::capabilities)
-            .collect();
-        if Self::read(io)? != *self {
-            bail!("GPU恢复驱动检查期间前态已变化");
-        }
-        super::super::model::digest(&("oem-mode-restore-driver-1", &self.devices, caps))
-    }
     fn recheck(&self, io: &dyn TurboIo) -> Result<()> {
         if Self::read(io)? != *self {
             bail!("GPU频率在恢复过程中被更改");

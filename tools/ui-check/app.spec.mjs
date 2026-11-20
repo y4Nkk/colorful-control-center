@@ -1,4 +1,4 @@
-import { openWorkspace as navigate, openSystemArea } from "./workspace.mjs";
+import { openWorkspace as navigate, openWorkspace, openPowerArea } from "./workspace.mjs";
 import { pageActions, previewConfiguration } from "./configuration-review.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -20,12 +20,12 @@ test("设备下拉直接试用，固件风扇模式点选后应用", async ({ pa
   await expect(screen.getByRole("status")).toContainText("试用 144 Hz");
   await expect(pageActions(page)).toHaveCount(0);
   await screen.getByRole("button", { name: "取消本次试用", exact: true }).click();
-  await navigate(page, "电源");
+  await openPowerArea(page, "电源设置");
   await choose(page, "启动档案", "隔离档案");
   await navigate(page, "设备配置");
   await expect(page.getByRole("radio", { name: "关闭独显" })).toBeDisabled();
   await page.evaluate(() => window.__uiFixture.fan.availableModes.push(8));
-  await openSystemArea(page, "风扇散热");
+  await openWorkspace(page, "性能与散热");
   const fanModes = page.getByRole("radiogroup", { name: "风扇模式", exact: true });
   const current = page.getByRole("status", { name: "当前控制", exact: true });
   await fanModes.getByRole("radio", { name: "寂静模式", exact: true }).click();
@@ -36,7 +36,7 @@ test("设备下拉直接试用，固件风扇模式点选后应用", async ({ pa
   await expect(fanModes.getByRole("radio", { name: "自动", exact: true })).toBeChecked();
   await expect(page.getByRole("region", { name: "风扇设置", exact: true })).toHaveCount(1);
   await page.evaluate(() => window.__uiFixture.fanKind = "rpmTable");
-  await navigate(page, "设置"); await openSystemArea(page, "风扇散热");
+  await navigate(page, "设置"); await openWorkspace(page, "性能与散热");
   await choose(page, "选择 RPM 级别", "第 4 级");
   await expect(page.getByRole("spinbutton", { name: "RPM 温度", exact: true })).toHaveValue("55");
   await expect(page.locator("select,option")).toHaveCount(0);
@@ -47,7 +47,7 @@ test("设备下拉直接试用，固件风扇模式点选后应用", async ({ pa
 });
 
 test("档案输入/文件引用和设置搜索选择接入同一原语", async ({ page }) => {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await openProfileSave(page, "配置草稿");
   await profileSaveDialog(page).getByRole("button", { name: "取消", exact: true }).click();
   const file = await page.evaluate(() => ({ ...window.__uiFixture.profile, name: "导入草稿" }));
@@ -64,17 +64,17 @@ test("档案输入/文件引用和设置搜索选择接入同一原语", async (
   await page.getByRole("option", { name: /Consolas/ }).click();
   await expect(font).toBeFocused(); await expect(font).toHaveText("Consolas");
   await expect(font).toBeEnabled();
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await expect(profilePanel(page).getByRole("heading", { name: "导入草稿" })).toBeVisible();
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });
 
-test("工作区及系统标签浅深与窄宽窗口无控件溢出", async ({ page }) => {
-  for (const title of ["系统", "键盘与灯光", "电源", "设备配置", "设置"]) {
+test("各工作区浅深与窄宽窗口无控件溢出", async ({ page }) => {
+  for (const title of ["概览", "性能与散热", "键盘与灯光", "电源与档案", "设备配置", "设置"]) {
     await navigate(page, title);
-    const areas = title === "系统" ? ["概览", "风扇散热", "性能调校", "配置档案"] : [null];
+    const areas = title === "电源与档案" ? ["电源设置", "配置档案"] : [null];
     for (const area of areas) {
-      if (area) await openSystemArea(page, area);
+      if (area) await openPowerArea(page, area);
       await expect(pageActions(page)).toHaveCount(0);
       for (const theme of ["light", "dark"]) {
         await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);

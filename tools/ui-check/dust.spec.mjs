@@ -1,5 +1,5 @@
 import { availableAction, previewConfiguration } from "./configuration-review.mjs";
-import { openSystemArea } from "./workspace.mjs";
+import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
     window.__uiFixture.dust = { revision: "dust-0", running: false, current: null, initial: null, softwareActive: false,
       lastStart: null, startBlockedReason: null, scheduleBlockedReason: null };
   });
-  await page.goto("/"); await openSystemArea(page, "风扇散热");
+  await page.goto("/"); await openWorkspace(page, "性能与散热");
 });
 test("除尘启动预览确认，只报告请求和固件状态，不伪造停止或进度", async ({ page }) => {
   const panel = panelOf(page);

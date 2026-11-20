@@ -1,6 +1,6 @@
 import { pageActions } from "./configuration-review.mjs";
 import { deviceRestoreButton } from "./device-settings.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_I
 
 test("分类导航统一使用本地库图标，中文名称与选中状态保留", async ({ page }) => {
   await page.goto("/");
-  for (const [title, icon] of [["系统", "overview"], ["键盘与灯光", "keyboard"], ["电源", "power"], ["设备配置", "display"], ["设置", "settings"]]) {
+  for (const [title, icon] of [["概览", "overview"], ["性能与散热", "performance"], ["键盘与灯光", "keyboard"], ["电源与档案", "power"], ["设备配置", "display"], ["设置", "settings"]]) {
     const button = page.getByRole("button", { name: title, exact: true });
     await button.click();
     await expect(button).toHaveAttribute("aria-current", "page");
@@ -26,9 +26,8 @@ test("分类导航统一使用本地库图标，中文名称与选中状态保�
 
 test("领域模块与设置标题显式使用语义图标，硬件插画继续保留", async ({ page }) => {
   await page.goto("/");
-  for (const [title, icon, workspace] of [["风扇设置", "fan", "风扇散热"], ["CPU 功耗与电压", "power", "性能调校"], ["独显电源", "gpu", "设备配置"], ["电池与充电", "charging", "电源"], ["屏幕显示", "display", "设备配置"], ["原厂热键与屏显", "keyboard", "键盘与灯光"]]) {
-    if (workspace === "风扇散热" || workspace === "性能调校") await openSystemArea(page, workspace);
-    else await openWorkspace(page, workspace);
+  for (const [title, icon, workspace] of [["风扇设置", "fan", "性能与散热"], ["CPU 功耗与电压", "power", "性能与散热"], ["独显电源", "gpu", "设备配置"], ["电池与充电", "charging", "电源与档案"], ["屏幕显示", "display", "设备配置"], ["原厂热键与屏显", "keyboard", "键盘与灯光"]]) {
+    await openWorkspace(page, workspace);
     await expect(page.getByRole("heading", { name: title, exact: true }).locator("svg")).toHaveAttribute("data-icon", icon);
   }
   expect(await page.locator("svg [data-desktop-gpu]").count()).toBeGreaterThan(0);
@@ -51,7 +50,7 @@ test("独显切换直接回读，卡内恢复沿用撤销图标", async ({ page 
 });
 
 test("深浅主题与窄窗口保持图标尺寸、模块间距和页面宽度", async ({ page }, testInfo) => {
-  await page.goto("/"); await openSystemArea(page, "风扇散热");
+  await page.goto("/"); await openWorkspace(page, "性能与散热");
   for (const [width, theme] of [[1440, "light"], [700, "dark"]]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);

@@ -37,7 +37,7 @@ export function EnergyPolicySettings({ active, revision, locked, onChanged, onBu
       <div className="ccc-actions ccc-module-control-end">
         <DetailsDialog title="编辑节能时段" icon="edit" editor wide>
           <EnergyPolicyEditor draft={draft} profile={profile} disabled={disabled} onChange={model.setDraft} onAutomaticChange={model.changeAutomatic} />
-          {invalid && <p className="ccc-control-error">{invalid}</p>}
+          {invalid && <p className="ccc-control-error"><Icon name="error" size={16} />{invalid}</p>}
           <ConfigurationAction revision={JSON.stringify([profile.revision, draft])} label={ENERGY_POLICY_LABEL}
             applyLabel="保存节能时段" disabled={disabled || !!invalid || !dirty}
             onConfirm={() => model.run(() => applyEnergyPolicy(profile.revision, draft))} />

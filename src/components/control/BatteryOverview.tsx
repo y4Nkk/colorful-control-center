@@ -7,13 +7,15 @@ export function BatteryOverview({ profile }: { profile: BatteryProfile | null })
   const percent = present ? power.percent : null;
   const reading = percent !== null && Number.isFinite(percent) && percent >= 0 && percent <= 100 ? percent : null;
   const charging = present ? power.charging : null;
+  const full = power?.acOnline === true && reading === 100 && charging === false;
+  const chargeState = charging === true ? "charging" : full ? "full" : undefined;
   const supply = power?.acOnline === true ? "外接电源" : power?.acOnline === false ? "电池供电" : present ? "供电未知" : null;
   const chargeStatus = present ? charging === null ? "充电状态未知" : charging ? "正在充电" : "未在充电" : null;
   const status = [supply, chargeStatus].filter(Boolean).join(" · ");
   const seconds = present ? power.remainingSeconds : null;
   const remaining = seconds !== null && Number.isFinite(seconds) && seconds >= 0 ? Math.ceil(seconds / 60) : null;
 
-  return <section className="ccc-battery-overview" aria-label="当前电池读数" data-charging={charging === true}>
+  return <section className="ccc-battery-overview" aria-label="当前电池读数" data-charge-state={chargeState}>
     <BatteryArtwork percent={reading} charging={charging} />
     <div className="ccc-battery-readout">
       {reading === null ? <strong className="ccc-battery-unavailable">{power?.present === false ? "未检测到电池" : "暂无电量读数"}</strong>

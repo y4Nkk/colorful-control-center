@@ -1,5 +1,5 @@
 import { availableAction, previewConfiguration, submitConfiguration } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
@@ -20,7 +20,7 @@ async function setup(page, pending = false) {
       return invoke(command, args);
     };
   }, pending);
-  await page.goto("/"); await openWorkspace(page, "电源");
+  await page.goto("/"); await openPowerArea(page, "电源设置");
   await expect(panel(page)).toBeVisible();
 }
 async function clear(page) {

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { availableAction, pageActions, previewConfiguration, submitConfiguration } from "./configuration-review.mjs";
 
 test.beforeEach(async ({ page }) => {
@@ -14,11 +14,11 @@ async function choose(page, label, option) {
 
 test("充电调整即时提交并保留启动与供电规则的独立预览", async ({ page }) => {
   await page.goto("/");
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const nav = page.getByRole("navigation", { name: "主导航" });
   for (const name of ["电池与节能", "自动策略"])
     await expect(nav.getByRole("button", { name, exact: true })).toHaveCount(0);
-  const main = page.getByRole("main", { name: "电源", exact: true });
+  const main = page.getByRole("main", { name: "电源与档案", exact: true });
   await expect(main.getByRole("region", { name: "电池与充电", exact: true })).toBeVisible();
   const profileSettings = main.getByRole("region", { name: "档案应用", exact: true });
   for (const name of ["启动档案", "供电与唤醒档案"])
@@ -30,7 +30,7 @@ test("充电调整即时提交并保留启动与供电规则的独立预览", as
   await expect(profileSettings.getByText("已保存 · 不应用档案", { exact: true })).toBeVisible();
   await choose(page, "插电时", "隔离档案");
   await openWorkspace(page, "设置");
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   for (const scope of ["启动档案", "供电与唤醒档案"])
     await expect(availableAction(page, scope)).toBeVisible();
 
@@ -58,7 +58,7 @@ for (const savedPage of ["battery", "automation"]) {
       window.__uiFixture.preferences.startupPage = "lastVisited";
     }, savedPage);
     await page.goto("/");
-    await expect(page.getByRole("main", { name: "电源", exact: true })).toBeVisible();
+    await expect(page.getByRole("main", { name: "电源与档案", exact: true })).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem("ccc-last-page"))).toBe("power");
   });
 }

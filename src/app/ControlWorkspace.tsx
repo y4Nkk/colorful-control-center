@@ -5,31 +5,42 @@ import { DetailsDialog } from "../components/DetailsDialog";
 import { OEM_POWER_MODES, type HardwareSnapshot } from "../api/client";
 import type { HardwareWorkspaceProps } from "./useControlModel";
 import { HardwareReadings } from "../components/control/HardwareReadings";
-import { ModeArtwork } from "../components/control/ModeArtwork";
-import { TemperatureHistory } from "../components/control/TemperatureHistory";
+import { PresetChipArtwork } from "../components/control/PresetChipArtwork";
 import { fmtClock } from "../components/control/format";
-import { HARDWARE_HISTORY_MS } from "./useHardwareHistory";
+import { useSystemOverview } from "./useSystemOverview";
 
 function ControlStatus({
-  live, error, stale, onRetry,
+  live, error, stale, onRetry, system,
 }: {
   live: HardwareSnapshot | null;
   error: string | null;
   stale: boolean;
   onRetry: () => void;
+  system: ReturnType<typeof useSystemOverview>;
 }) {
   const state = stale ? "读数停滞" : live ? `采样 ${fmtClock(live.sampledAtMs)}` : error ? "监控不可用" : "连接中…";
   const tone = stale ? "ccc-control-caption is-warn" : error && !live ? "ccc-control-error" : "ccc-control-caption";
+  const samplingIssues = error || (live?.warnings.length ?? 0) > 0;
+  const systemIssues = system.error || (system.overview?.warnings.length ?? 0) > 0;
   return (
     <div className="ccc-control-status">
       <span className={tone}>{state}</span>
       {error && <Button icon="refresh" variant="ghost" size="compact" type="button" onClick={onRetry}>重试</Button>}
       {live && !live.dchuAvailable && <span className="ccc-control-caption is-warn">风扇通道离线</span>}
       {live?.nvidiaSuspended && <span className="ccc-control-caption">独显监控暂停</span>}
-      {(error || (live?.warnings.length ?? 0) > 0) && <DetailsDialog title="监控诊断">
-        {error && <p className="ccc-control-error">{error}</p>}
-        {live?.warnings.map((warning) => <p key={warning}>{warning}</p>)}
-        {live?.cpuRemoteRaw != null && <p>CPU 原始温度 {live.cpuRemoteRaw}</p>}
+      {(samplingIssues || systemIssues) && <DetailsDialog title="监控诊断">
+        {samplingIssues && <section><h3>硬件采样</h3>
+          {error && <p className="ccc-control-error">{error}</p>}
+          {live?.warnings.map(warning => <p key={warning}>{warning}</p>)}
+          {live?.cpuRemoteRaw != null && <p>CPU 原始温度 {live.cpuRemoteRaw}</p>}
+        </section>}
+        {systemIssues && <section><h3>系统资料读取</h3>
+          {system.error && <p className="ccc-control-error">{system.error}</p>}
+          {system.overview?.warnings.map(warning => <p key={warning}>{warning}</p>)}
+          <Button variant="ghost" size="compact" disabled={system.reading} aria-busy={system.reading} onClick={system.retry}>
+            {system.reading ? "读取中…" : "重新读取"}
+          </Button>
+        </section>}
       </DetailsDialog>}
     </div>
   );
@@ -37,25 +48,19 @@ function ControlStatus({
 
 export function ControlWorkspace({ active, model }: HardwareWorkspaceProps) {
   const { live, samples, error, stale, retry } = model.history;
-  return <div className="ccc-control">
-    <CurrentMode mode={stale ? null : live?.oemPowerMode ?? null} reading={!live && !error} />
-    <Surface as="section" variant="group" className="ccc-panel" aria-labelledby="temperature-heading">
-      <div className="ccc-panel-head ccc-overview-head"><h2 id="temperature-heading" className="ccc-panel-title"><Icon name="temperature" />温度趋势</h2>
-        <span className="ccc-temperature-range">最近 {HARDWARE_HISTORY_MS / 60_000} 分钟</span>
-        <ControlStatus live={live} error={error} stale={stale} onRetry={retry} /></div>
-      <TemperatureHistory samples={samples} />
-    </Surface>
-    <HardwareReadings live={live} active={active} />
+  const system = useSystemOverview(active);
+  return <div className="ccc-control" role="region" aria-label="概览">
+    <CurrentMode mode={stale ? null : live?.oemPowerMode ?? null} reading={!live && !error} active={active} />
+    <ControlStatus live={live} error={error} stale={stale} onRetry={retry} system={system} />
+    <HardwareReadings live={live} samples={samples} overview={system.overview} memoryHistory={system.memoryHistory} />
   </div>;
 }
 
-function CurrentMode({ mode, reading }: { mode: number | null; reading: boolean }) {
+function CurrentMode({ mode, reading, active }: { mode: number | null; reading: boolean; active: boolean }) {
   const name = mode == null ? undefined : OEM_POWER_MODES[mode];
   return <Surface as="section" variant="group" className="ccc-panel ccc-current-mode" aria-label="当前模式">
-    <div className="ccc-current-mode-copy">
-      <h2 className="ccc-panel-title"><Icon name="performance" />当前模式</h2>
-      <output>{name ?? (reading ? "读取中…" : "未知")}</output>
-    </div>
-    <div className="ccc-current-mode-artwork">{mode != null && <ModeArtwork mode={mode} />}</div>
+    <h2 className="ccc-panel-title"><Icon name="performance" />当前模式</h2>
+    <PresetChipArtwork mode={mode ?? undefined} active={active} />
+    <output>{name ?? (reading ? "读取中…" : "未知")}</output>
   </Surface>;
 }

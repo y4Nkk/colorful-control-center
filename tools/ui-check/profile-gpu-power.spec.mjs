@@ -1,11 +1,11 @@
 import { openProfileResults, openProfileSave, openStartupParameters, profilePanel as panel, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
 const gpu = context => context.getByLabel("档案独显电源", { exact: true });
 async function select(page) {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
   await showProfileSettings(page);
 }
@@ -94,7 +94,7 @@ test("开启后驱动复核失败显示本次恢复，不能报告全部完成",
   expect(await page.evaluate(() => window.__uiFixture.gpuPower.devices[0].enabled)).toBe(false);
 });
 test("启动选择复用独显预览且保存意图不执行硬件", async ({ page }) => {
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();

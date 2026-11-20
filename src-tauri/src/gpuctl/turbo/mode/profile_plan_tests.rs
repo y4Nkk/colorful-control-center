@@ -46,14 +46,13 @@ fn initial(session: &links::Session<'_>, target: &gpu_power::profile::Target) ->
 }
 
 #[test]
-fn production_profile_mode_executes_three_node_stages_with_one_authorization_and_original_restore()
+fn production_profile_mode_executes_three_node_stages_with_one_grant()
 {
     let f = core().with_energy(2);
     let (memory, gpu, environment, power) = setup();
     close_node(&environment);
     environment.io.0.lock().unwrap().device.automatic_power_off = true;
     gpu.set_power_suspended(true).unwrap();
-    let raw = RawState::read(memory.as_ref()).unwrap();
     let session = context(&f, &memory, &gpu, &power).session().unwrap();
     let initial = initial(&session, &wanted(&environment));
     let graph = profile::stages(&initial).unwrap().unwrap();
@@ -84,32 +83,7 @@ fn production_profile_mode_executes_three_node_stages_with_one_authorization_and
     drop(gate);
     session.finish().unwrap();
     drop(session);
-    let restore = full_profile(&f, &memory, &gpu, &power).restore.unwrap();
-    let gpu_initial = restore.gpu.as_ref().unwrap();
-    assert!(!gpu_initial.node.as_ref().unwrap().target.enabled);
-    assert!(
-        gpu_initial
-            .node
-            .as_ref()
-            .unwrap()
-            .target
-            .automatic_power_off
-    );
-    assert_eq!(
-        gpu_initial.clocks.as_ref().unwrap().origin,
-        ClockOrigin::AfterEnable
-    );
-    assert_eq!(gpu_initial.clocks.as_ref().unwrap().state, raw);
     assert_eq!(environment.authorizations.load(Ordering::SeqCst), 1);
-    mode::restoration::restore(
-        context(&f, &memory, &gpu, &power),
-        &restore.revision,
-        &mut || Ok(()),
-    )
-    .unwrap();
-    assert!(!environment.io.device().enabled && environment.io.device().automatic_power_off);
-    assert_eq!(RawState::read(memory.as_ref()).unwrap(), raw);
-    assert_eq!(f.device.0.lock().unwrap().pages[1][1], 2);
 }
 
 #[test]

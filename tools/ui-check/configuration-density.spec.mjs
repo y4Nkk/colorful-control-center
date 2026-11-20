@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace } from "./workspace.mjs";
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
@@ -10,11 +10,10 @@ test.beforeEach(async ({ page }) => {
 
 for (const { name, leftNeighbor, rightNeighbor, switchCount, systemArea } of [
   { name: "键盘功能", leftNeighbor: "显卡模式", rightNeighbor: "飞行模式", switchCount: 3 },
-  { name: "性能选项", leftNeighbor: "CPU 功耗与电压", rightNeighbor: "GPU 频率", switchCount: 2, systemArea: "性能调校" },
+  { name: "性能选项", leftNeighbor: "CPU 功耗与电压", rightNeighbor: "GPU 频率", switchCount: 2, systemArea: "性能与散热" },
 ]) {
   test(`${name}在宽窄窗口下与相邻模块对齐`, async ({ page }) => {
-    if (systemArea) await openSystemArea(page, systemArea);
-    else await openWorkspace(page, "设备配置");
+    await openWorkspace(page, systemArea ?? "设备配置");
     const panel = page.getByRole("region", { name, exact: true });
     const leftPanel = page.getByRole("region", { name: leftNeighbor, exact: true });
     const rightPanel = page.getByRole("region", { name: rightNeighbor, exact: true });
@@ -35,7 +34,7 @@ for (const { name, leftNeighbor, rightNeighbor, switchCount, systemArea } of [
 
 test("配置主位保留控件与状态，详情弹窗且浏览不写硬件", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await openSystemArea(page, "性能调校");
+  await openWorkspace(page, "性能与散热");
   const modes = page.getByRole("region", { name: "预设模式", exact: true });
   await expect(modes.getByRole("radio")).toHaveCount(4);
   await expect(modes.getByText("续航优先", { exact: true })).toHaveCount(0);
@@ -47,6 +46,15 @@ test("配置主位保留控件与状态，详情弹窗且浏览不写硬件", as
   await expect(artwork).toHaveAttribute("viewBox", "40 0 520 250");
   await expect(artwork).toHaveCSS("pointer-events", "none");
   await expect(modes.locator(".ccc-preset-current")).toHaveText("性能模式");
+  const fan = page.getByRole("region", { name: "风扇设置", exact: true });
+  const fanInfo = fan.locator('button:has(> svg[data-icon="info"])');
+  await expect(fanInfo).toHaveCount(1);
+  await fanInfo.press("Enter");
+  const fanDetails = page.getByRole("dialog", { name: "风扇说明与诊断", exact: true });
+  await expect(fanDetails.getByRole("heading", { name: "参数说明", exact: true })).toBeVisible();
+  await expect(fanDetails).toContainText("隔离风扇诊断");
+  await page.keyboard.press("Escape");
+  await expect(fanInfo).toBeFocused();
   const cpu = page.getByRole("region", { name: "CPU 功耗与电压", exact: true });
   const gpu = page.getByRole("region", { name: "GPU 频率", exact: true });
   await expect(cpu.getByRole("slider", { name: "持续功耗上限", exact: true })).toBeVisible();
@@ -73,7 +81,7 @@ test("配置主位保留控件与状态，详情弹窗且浏览不写硬件", as
 
 test("性能调校可用键盘切换预设，概览只展示回读后的模式", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await openSystemArea(page, "性能调校");
+  await openWorkspace(page, "性能与散热");
   const modes = page.getByRole("region", { name: "预设模式", exact: true });
   const entertainment = modes.getByRole("radio", { name: /^娱乐/ });
   const writes = () => page.evaluate(() => window.__uiFixture.calls.filter(call => call.command === "apply_oem_power_mode"));
@@ -92,10 +100,10 @@ test("性能调校可用键盘切换预设，概览只展示回读后的模式",
   await page.evaluate(async () => {
     window.__uiEmit("hardware-snapshot", await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot"));
   });
-  await openSystemArea(page, "概览");
+  await openWorkspace(page, "概览");
   const currentMode = page.getByRole("region", { name: "当前模式", exact: true });
   await expect(currentMode.getByRole("status")).toHaveText("娱乐");
-  await expect(currentMode.locator("svg[data-mode-art]")).toHaveAttribute("data-mode-art", "entertainment");
+  await expect(currentMode.locator("svg.ccc-preset-chip")).toHaveAttribute("data-preset-palette", "entertainment");
   await expect(modes).toHaveCount(0);
   await expect(page.getByRole("region", { name: "页面操作", exact: true })).toHaveCount(0);
   expect(await writes()).toHaveLength(1);
@@ -110,9 +118,8 @@ for (const theme of ["light", "dark"]) {
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     for (const width of [1440, 360]) {
       await page.setViewportSize({ width, height: 1000 });
-      for (const [name, id, area] of [["系统", "overview", "概览"], ["系统", "performance", "性能调校"], ["设备配置", "graphics"], ["电源", "power"], ["键盘与灯光", "keyboard"]]) {
-        if (area) await openSystemArea(page, area);
-        else await openWorkspace(page, name);
+      for (const [name, id] of [["概览", "overview"], ["性能与散热", "performance"], ["设备配置", "graphics"], ["电源与档案", "power"], ["键盘与灯光", "keyboard"]]) {
+        await openWorkspace(page, name);
         const main = page.getByRole("main", { name, exact: true });
         await expect(main.getByRole("heading").first()).toBeVisible();
         const bounds = await main.boundingBox();
@@ -122,7 +129,7 @@ for (const theme of ["light", "dark"]) {
           return box.width > 0 && box.right > innerWidth + 1;
         }).map(section => section.getAttribute("aria-label")));
         expect(overflow).toEqual([]);
-        if (area === "性能调校") {
+        if (id === "performance") {
           const modes = main.getByRole("region", { name: "预设模式", exact: true });
           await expectPresetLayout(modes);
           await modes.screenshot({ path: `target/ui-check/preset-modes-${theme}-${width}.png` });
@@ -138,8 +145,8 @@ async function expectPresetLayout(panel) {
   const layout = await panel.evaluate(region => {
     const block = selector => region.querySelector(selector).getBoundingClientRect();
     const center = ({ left, width }) => left + width / 2;
-    const stage = block(".ccc-preset-stage");
-    const artwork = block(".ccc-preset-chip");
+    const stage = region.getBoundingClientRect();
+    const artwork = block(":scope > .ccc-preset-chip");
     const caption = block(".ccc-preset-current");
     const controls = block(".ccc-preset-switcher");
     const inputs = [...region.querySelectorAll(".ccc-segmented-option")];

@@ -1,5 +1,6 @@
 import { OEM_POWER_MODES, type OemModeCycleProfile } from "../../api/client";
 import { DetailsDialog } from "../DetailsDialog";
+import { Icon } from "../Icon";
 import { Surface } from "../Surface";
 import { GpuModeDriverRanges, GpuModeRawStateFacts, GpuModeSupplyTargets } from "./GpuModeFacts";
 import { OemModeEffects } from "./OemModeEffects";
@@ -14,13 +15,13 @@ export function ModeCycleFacts({ profile }: { profile: OemModeCycleProfile }) {
         <GpuPowerVisual label="当前GPU" enabled={node?.enabled ?? null} automatic={node?.automaticPowerOff ?? null} />
         {clocks.driver && <><GpuModeRawStateFacts value={clocks.driver.current} /><GpuModeDriverRanges driver={clocks.driver} /></>}
         {clocks.deferredReason && <span className="ccc-control-caption">开启后核对频率</span>}
-        {clocks.driverError && <p className="ccc-control-error" role="alert">{clocks.driverError}</p>}
+        {clocks.driverError && <p className="ccc-control-error" role="alert"><Icon name="error" size={16} />{clocks.driverError}</p>}
         {!clocks.driver && !clocks.deferredReason && !clocks.driverError && <span className="ccc-control-caption">当前频率未读取</span>}
-        <DetailsDialog title="设备与恢复说明">
-          <p>{node?.name ?? (profile.nodeSupported ? "独显节点未报告" : "固件未声明独显节点控制")}</p>
-          {clocks.deferredReason && <p>{clocks.deferredReason}</p>}
-          <p>设备和驱动范围变化后需重新确认。初始状态可在「性能调校」恢复。</p>
-        </DetailsDialog>
+        <section className="ccc-mode-clock-facts" aria-label="设备与恢复说明">
+          <p className="ccc-control-caption">{node?.name ?? (profile.nodeSupported ? "独显节点未报告" : "固件未声明独显节点控制")}</p>
+          {clocks.deferredReason && <p className="ccc-control-caption">{clocks.deferredReason}</p>}
+          <p>设备和驱动范围变化后需重新确认。初始状态可在「性能与散热」恢复。</p>
+        </section>
       </Surface>
       <Surface variant="inset" className="ccc-mode-gpu-part">
         <strong>循环候选与供电目标</strong>
@@ -31,7 +32,7 @@ export function ModeCycleFacts({ profile }: { profile: OemModeCycleProfile }) {
             <div className="ccc-mode-cycle-heading"><span className="ccc-mode-cycle-art"><ModeArtwork mode={mode.mode} /></span><strong>{OEM_POWER_MODES[mode.mode]}</strong>
               <span className="ccc-control-caption">{action ? `${action.stage === "beforeMode" ? "切换前" : "切换后"} · 确保${action.target.enabled ? "开启" : "关闭"}` : "电源保持"}</span>
             </div>
-            {nodeChoice?.unavailableReason && <p className="ccc-control-error" role="alert">{nodeChoice.unavailableReason}</p>}
+            {nodeChoice?.unavailableReason && <p className="ccc-control-error" role="alert"><Icon name="error" size={16} />{nodeChoice.unavailableReason}</p>}
             <GpuModeSupplyTargets choices={clocks.choices.filter(choice => choice.mode === mode.mode)} />
             <DetailsDialog title="风扇与系统联动"><OemModeEffects target={mode} /></DetailsDialog>
           </Surface>;

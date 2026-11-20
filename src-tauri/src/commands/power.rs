@@ -84,15 +84,7 @@ pub(crate) async fn read_oem_power_mode(
     crate::shutdown::blocking(move || {
         let context = mode_context(&app);
         let _gate = context.hal.begin_write()?;
-        let mut profile = selection::read(&context)?;
-        if profile.can_restore {
-            profile.restore_blocked_reason =
-                manual::permit(context.hal, &app.state::<display::Controller>())
-                    .err()
-                    .map(|error| format!("{error:#}"));
-            profile.can_restore = profile.restore_blocked_reason.is_none();
-        }
-        Ok(profile)
+        selection::read(&context)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -121,26 +113,6 @@ pub(crate) async fn apply_oem_power_mode(
                 "OEM 模式、GPU及关联策略已应用，保存值已回读",
             )),
         }
-    })
-    .await
-    .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub(crate) async fn restore_oem_power_mode(
-    app: tauri::AppHandle,
-    expected_revision: String,
-) -> Result<OpResult, String> {
-    crate::shutdown::blocking(move || {
-        let context = mode_context(&app);
-        let hal = context.hal;
-        let display = app.state::<display::Controller>();
-        to_result(
-            powerctl::mode::restoration::restore(context, &expected_revision, &mut || {
-                manual::permit(hal, &display)
-            }),
-            "初始 OEM 模式及已接管GPU状态已恢复",
-        )
     })
     .await
     .map_err(|e| e.to_string())

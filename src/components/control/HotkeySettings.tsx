@@ -15,7 +15,7 @@ import { HotkeyEventPreviews } from "./HotkeyEventPreviews";
 
 type HotkeyModel = ReturnType<typeof useHotkeySettings>;
 
-function HotkeyEditor({ model }: { model: HotkeyModel }) {
+function HotkeyEditor({ model, available }: { model: HotkeyModel; available: typeof ACTIONS[number][] }) {
   const { profile, draft, busy, setDraft, run } = model;
   if (!profile || !draft) return null;
   const { current, revision } = profile;
@@ -26,9 +26,6 @@ function HotkeyEditor({ model }: { model: HotkeyModel }) {
   const toggle = (scope: HotkeyScope, checked: boolean) => setDraft(previous => previous ? {
     ...previous, actions: ACTIONS.filter(action => action.scope === scope ? checked : previous.actions.includes(action.scope)).map(action => action.scope),
   } : previous);
-  const available = ACTIONS.filter(action => draft.actions.includes(action.scope) ||
-    profile.facts.capabilities.some(cap => cap.scope === action.scope && cap.identity));
-  const unavailable = ACTIONS.filter(action => !available.includes(action));
   return <div className="ccc-detail-stack">
     <div className="ccc-keyboard-setting"><strong>接管原厂热键</strong><Switch label="启用原厂热键接管" checked={draft.enabled} disabled={busy || !revision}
       onChange={enabled => {
@@ -49,10 +46,6 @@ function HotkeyEditor({ model }: { model: HotkeyModel }) {
         </div>;
       })}
     </div>
-    {unavailable.length > 0 && <DetailsDialog title="不可用的热键动作">
-      {unavailable.map(action => <p key={action.scope}><strong>{action.title}</strong> · {
-        profile.facts.capabilities.find(cap => cap.scope === action.scope)?.reason ?? "此设备未提供"}</p>)}
-    </DetailsDialog>}
     {draft.enabled && draft.actions.length === 0 && <p className="ccc-control-caption">请选择要接管的动作。</p>}
   </div>;
 }
@@ -88,6 +81,9 @@ function HotkeyChanges({ model }: { model: HotkeyModel }) {
 export function HotkeySettings({ active, revision }: { active: boolean; revision: number }) {
   const model = useHotkeySettings(active, revision), { profile, draft, busy, error, run } = model;
   const selected = new Set([...(draft?.actions ?? []), ...(profile?.current?.actions ?? [])]);
+  const available = ACTIONS.filter(action => draft?.actions.includes(action.scope) ||
+    profile?.facts.capabilities.some(cap => cap.scope === action.scope && cap.identity));
+  const unavailable = profile ? ACTIONS.filter(action => !available.includes(action)) : [];
   const status = !profile ? error ? "读取失败" : "读取中…" : profile.status.running ? "正在监听"
     : profile.current?.enabled ? "已停止监听" : null;
   const savedCount = profile?.current?.actions.length ?? 0;
@@ -99,6 +95,10 @@ export function HotkeySettings({ active, revision }: { active: boolean; revision
           {profile?.recordError && <p className="ccc-control-error">{profile.recordError}</p>}
           <HotkeyCurrent profile={profile} busy={busy} run={run} screenSelected={selected.has("screenBrightness")} panelSelected={selected.has("panelHotkey")} />
           <HotkeyEventPreviews profile={profile} selected={selected} draftActions={draft?.actions ?? []} busy={busy} run={run} />
+          {unavailable.length > 0 && <section aria-label="不可用的热键动作"><h3>不可用的热键动作</h3>
+            {unavailable.map(action => <p key={action.scope}><strong>{action.title}</strong> · {
+              profile?.facts.capabilities.find(cap => cap.scope === action.scope)?.reason ?? "此设备未提供"}</p>)}
+          </section>}
         </DetailsDialog>
         <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取热键" disabled={busy} onClick={model.reread} />
       </div>
@@ -113,7 +113,7 @@ export function HotkeySettings({ active, revision }: { active: boolean; revision
       </div>
       <div className="ccc-actions">
         {profile && draft && <DetailsDialog title="配置热键与屏显" label="配置热键" icon="edit" editor wide>
-          <HotkeyEditor model={model} />
+          <HotkeyEditor model={model} available={available} />
         </DetailsDialog>}
         {profile?.recordError && <ConfirmButton icon="delete" key={profile.resetRevision} label="清除不可用热键策略"
           confirmLabel="清除并停止监听" busy={busy} disabled={!profile.resetRevision}

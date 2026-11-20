@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium, expect } from "@playwright/test";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { pageActions } from "./configuration-review.mjs";
 import { PROFILE_REFRESH_IPC, prepareProfileRefresh, refreshCases } from "./profile-refresh-cases.mjs";
 
@@ -106,9 +106,9 @@ async function nativeZoomChecks(page) {
 async function appChecks(page) {
   await page.context().addInitScript({ content: PROFILE_REFRESH_IPC });
   await page.goto("http://127.0.0.1:1450/");
-  await record("原生 WebView2 工作区及系统区域导航与只读浏览", async () => {
-    for (const title of ["系统", "键盘与灯光", "电源", "设备配置", "设置"]) await openWorkspace(page, title);
-    for (const area of ["概览", "风扇散热", "性能调校", "配置档案"]) await openSystemArea(page, area);
+  await record("原生 WebView2 工作区导航与只读浏览", async () => {
+    for (const title of ["概览", "性能与散热", "键盘与灯光", "电源与档案", "设备配置", "设置"]) await openWorkspace(page, title);
+    await openPowerArea(page, "配置档案");
     expect(await page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_|restore_)/.test(call.command)))).toEqual([]);
   });
   await record("原生 WebView2 分类草稿和滚动保活", async () => {
@@ -120,7 +120,7 @@ async function appChecks(page) {
     await viewport.evaluate(element => { element.scrollTop = 120; });
     await expect.poll(() => viewport.evaluate(element => element.scrollTop)).toBe(120);
     await delay(100);
-    await openSystemArea(page, "风扇散热");
+    await openWorkspace(page, "性能与散热");
     await expect.poll(() => viewport.evaluate(element => element.scrollTop)).toBe(0);
     await openWorkspace(page, "键盘与灯光");
     await expect(page.getByRole("spinbutton", { name: "闲置等待分钟", exact: true })).toHaveValue("2");

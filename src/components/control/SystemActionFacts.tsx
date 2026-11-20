@@ -16,7 +16,7 @@ export function SystemActionFacts({ profile }: { profile: LidActionProfile }) {
         <strong><Icon name={action ? icons[action] : "pause"} /> {current ? action ? labels[action] : "不操作" : "未知"}</strong>
       </Surface>;
     })}</div>
-    {profile.error && <p className="ccc-control-error" role="alert">{profile.error}</p>}
-    {profile.powerError && <p className="ccc-control-error" role="alert">{profile.powerError}</p>}
+    {profile.error && <p className="ccc-control-error" role="alert"><Icon name="error" size={16} />{profile.error}</p>}
+    {profile.powerError && <p className="ccc-control-error" role="alert"><Icon name="error" size={16} />{profile.powerError}</p>}
   </section>;
 }

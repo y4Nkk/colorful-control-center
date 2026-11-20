@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { profilePanel } from "./profile-review.mjs";
-import { openSystemArea } from "./workspace.mjs";
+import { openPowerArea } from "./workspace.mjs";
 
-const openProfiles = page => openSystemArea(page, "配置档案");
+const openProfiles = page => openPowerArea(page, "配置档案");
 const savedSettings = page => page.evaluate(() => window.__uiFixture.calls.find(call => call.command === "save_profile").args.args);
 const saveButton = page => page.getByRole("button", { name: "保存当前配置", exact: true });
 const fileInput = page => page.getByLabel("导入配置档案", { exact: true });
@@ -87,7 +87,7 @@ test("覆盖提示关联规则并允许在电源页重新确认同一个档案",
   const args = await savedSettings(page);
   expect(args.expectedRevision).toMatch(/^[a-f0-9]{64}$/);
   await profile.getByRole("button", { name: "查看电源规则" }).click();
-  await expect(page.getByRole("main", { name: "电源", exact: true })).toBeVisible();
+  await expect(page.getByRole("main", { name: "电源与档案", exact: true })).toBeVisible();
   await expect(page.getByText("档案有更新，请核对并保存规则")).toBeVisible();
   await page.getByRole("button", { name: "保存自动档案规则", exact: true }).click();
   await expect(page.getByText("档案有更新，请核对并保存规则")).toHaveCount(0);

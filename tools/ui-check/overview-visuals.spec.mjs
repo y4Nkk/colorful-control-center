@@ -42,30 +42,95 @@ async function sampleMemory(page, availableBytes) {
   await page.clock.fastForward(5_100);
 }
 
-test("当前模式只显示设备采样的名称与单张插画，空值或停采显示未知", async ({ page }) => {
+function publishMode(page, value) {
+  return page.evaluate(async value => {
+    const sample = await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot");
+    window.__uiEmit("hardware-snapshot", { ...sample, oemPowerMode: value });
+  }, value);
+}
+
+test("当前模式按采样更新芯片，空值、未知编码和停采显示中性色", async ({ page }) => {
   await page.clock.install();
   await setup(page);
   const modeCard = overview(page).getByRole("region", { name: "当前模式", exact: true });
   const mode = modeCard.getByRole("status");
-  const art = modeCard.locator("svg[data-mode-art]");
+  const art = modeCard.locator("svg.ccc-preset-chip");
+  await expect(art).toHaveCount(1);
+  await expect(art).toHaveAttribute("aria-hidden", "true");
   await expect(mode).toHaveText("性能");
-  await expect(art).toHaveAttribute("data-mode-art", "performance");
-  for (const [value, name, drawing] of [[0, "安静", "quiet"], [null, "未知", null], [4, "静音增强", "quiet"]]) {
+  await expect(art).toHaveAttribute("data-preset-palette", "performance");
+  for (const [value, name, palette] of [[0, "安静", "quiet"], [99, "未知", "neutral"], [null, "未知", "neutral"], [4, "静音增强", "quiet"]]) {
     await page.clock.fastForward(30);
-    await page.evaluate(async value => {
-      const sample = await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot");
-      window.__uiEmit("hardware-snapshot", { ...sample, oemPowerMode: value });
-    }, value);
+    await publishMode(page, value);
     await expect(mode).toHaveText(name);
-    if (drawing) await expect(art).toHaveAttribute("data-mode-art", drawing);
-    else await expect(art).toHaveCount(0);
+    await expect(art).toHaveAttribute("data-preset-palette", palette);
   }
   await page.clock.fastForward(4_000);
   await expect(mode).toHaveText("未知");
-  await expect(art).toHaveCount(0);
+  await expect(art).toHaveAttribute("data-preset-palette", "neutral");
+  await expect(art).not.toHaveAttribute("data-switching", "true");
   await expect(modeCard.locator("button, input")).toHaveCount(0);
   expect(await page.evaluate(() => window.__uiFixture.calls.filter(({ command }) =>
     /^(read|apply|restore)_oem_power_mode$/.test(command)))).toEqual([]);
+});
+
+async function expectCenteredChip(card) {
+  const layout = await card.evaluate(section => {
+    const frame = section.getBoundingClientRect();
+    const art = section.querySelector(":scope > svg.ccc-preset-chip");
+    const box = art?.getBoundingClientRect();
+    const heading = section.querySelector("h2").getBoundingClientRect();
+    const label = section.querySelector("output").getBoundingClientRect();
+    return {
+      centered: !!box && Math.abs((box.left + box.right) - (frame.left + frame.right)) < 2,
+      stacked: !!box && heading.bottom <= box.top && box.bottom <= label.top,
+      contained: !!box && box.left >= frame.left && box.right <= frame.right,
+    };
+  });
+  expect(layout).toEqual({ centered: true, stacked: true, contained: true });
+}
+
+test("概览芯片嵌入大卡正中，回读扫光且短窗保留温度趋势", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await setup(page);
+  const card = overview(page).getByRole("region", { name: "当前模式", exact: true });
+  const art = card.locator("svg.ccc-preset-chip");
+  await expect(art).toHaveAttribute("data-preset-palette", "performance");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "reduce");
+  await page.evaluate(() => { document.documentElement.dataset.motion = "system"; });
+  await art.evaluate(svg => {
+    const freeze = event => {
+      if (event.animationName !== "ccc-preset-chip-scan") return;
+      svg.removeEventListener("animationstart", freeze);
+      for (const animation of svg.getAnimations({ subtree: true })) {
+        animation.pause();
+        animation.currentTime = 220;
+      }
+    };
+    svg.addEventListener("animationstart", freeze);
+  });
+  await publishMode(page, 3);
+  await expect(card.getByRole("status")).toHaveText("娱乐");
+  await expect(art).toHaveAttribute("data-preset-palette", "entertainment");
+  await expect(art.locator(".ccc-preset-chip-sweep")).toHaveCSS("opacity", "1");
+  await expectCenteredChip(card);
+  expect((await art.boundingBox()).height).toBeGreaterThan(150);
+  await card.screenshot({ path: test.info().outputPath("overview-chip-scan.png") });
+  await art.evaluate(svg => { for (const animation of svg.getAnimations({ subtree: true })) animation.play(); });
+  await expect(art).not.toHaveAttribute("data-switching", "true");
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await publishMode(page, 1);
+  await expect(art).toHaveAttribute("data-preset-palette", "eco");
+  await expect(art).not.toHaveAttribute("data-switching", "true");
+  await page.evaluate(() => { document.documentElement.dataset.theme = "dark"; });
+  await page.setViewportSize({ width: 900, height: 560 });
+  expect((await art.boundingBox()).height).toBeLessThanOrEqual(149);
+  expect((await temperature(page).getByRole("heading").boundingBox()).y).toBeLessThan(560);
+  await page.setViewportSize({ width: 360, height: 800 });
+  await expectCenteredChip(card);
+  await card.screenshot({ path: test.info().outputPath("overview-chip-dark-360.png") });
 });
 
 test("环形读数和单位对齐，四个信息图标可用键盘打开规格", async ({ page }) => {

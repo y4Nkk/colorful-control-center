@@ -1,7 +1,9 @@
-//! 只解析系统厂商；不保留序列号或设备UUID。
+//! 只解析系统厂商与内存速率；不保留序列号或设备UUID。
 use anyhow::{Context, Result, bail};
+use windows_sys::Win32::System::SystemInformation::GetSystemFirmwareTable;
 
-pub(crate) fn manufacturer(raw: &[u8]) -> Result<String> {
+/// 校验固件表头（8 字节前缀 + 结构区）并返回结构区。
+fn structure_table(raw: &[u8]) -> Result<&[u8]> {
     if raw.len() < 8 || raw.len() > 1_048_576 {
         bail!("SMBIOS数据长度无效");
     }
@@ -9,35 +11,62 @@ pub(crate) fn manufacturer(raw: &[u8]) -> Result<String> {
     if length != raw.len() - 8 {
         bail!("SMBIOS声明长度不一致");
     }
-    let table = &raw[8..];
-    let mut at = 0;
+    Ok(&raw[8..])
+}
+
+struct Structure<'a> {
+    kind: u8,
+    formatted: &'a [u8],
+    /// 双零终止符之前的字符串区。
+    strings: &'a [u8],
+}
+
+/// 读取 `at` 处的结构及下一结构偏移；`at == table.len()` 时返回 None。
+fn structure_at(table: &[u8], at: usize) -> Result<Option<(Structure<'_>, usize)>> {
+    if at == table.len() {
+        return Ok(None);
+    }
+    let header = table.get(at..at + 4).context("SMBIOS结构头不完整")?;
+    let length = usize::from(header[1]);
+    if length < 4 {
+        bail!("SMBIOS结构长度无效");
+    }
+    let formatted = table
+        .get(at..at + length)
+        .context("SMBIOS格式化结构不完整")?;
+    let strings = table.get(at + length..).context("SMBIOS字符串区缺失")?;
+    let end = strings
+        .windows(2)
+        .position(|pair| pair == [0, 0])
+        .context("SMBIOS字符串区缺少结束符")?;
+    Ok(Some((
+        Structure {
+            kind: header[0],
+            formatted,
+            strings: &strings[..end],
+        },
+        at + length + end + 2,
+    )))
+}
+
+pub(crate) fn manufacturer(raw: &[u8]) -> Result<String> {
+    let table = structure_table(raw)?;
     let mut result = None;
+    let mut at = 0;
     for _ in 0..4096 {
-        if at == table.len() {
+        let Some((structure, next)) = structure_at(table, at)? else {
             return result.context("SMBIOS缺少系统厂商");
-        }
-        let header = table.get(at..at + 4).context("SMBIOS结构头不完整")?;
-        let length = usize::from(header[1]);
-        if length < 4 {
-            bail!("SMBIOS结构长度无效");
-        }
-        let formatted = table
-            .get(at..at + length)
-            .context("SMBIOS格式化结构不完整")?;
-        let strings = table.get(at + length..).context("SMBIOS字符串区缺失")?;
-        let end = strings
-            .windows(2)
-            .position(|pair| pair == [0, 0])
-            .context("SMBIOS字符串区缺少结束符")?;
-        if header[0] == 1 {
-            if result.is_some() || formatted.len() < 8 {
+        };
+        if structure.kind == 1 {
+            if result.is_some() || structure.formatted.len() < 8 {
                 bail!("SMBIOS系统结构重复或无效");
             }
-            let index = usize::from(formatted[4]);
+            let index = usize::from(structure.formatted[4]);
             if index == 0 {
                 bail!("SMBIOS系统厂商未报告");
             }
-            let bytes = strings[..end + 1]
+            let bytes = structure
+                .strings
                 .split(|value| *value == 0)
                 .nth(index - 1)
                 .filter(|value| !value.is_empty())
@@ -48,8 +77,8 @@ pub(crate) fn manufacturer(raw: &[u8]) -> Result<String> {
             }
             result = Some(value.to_owned());
         }
-        at += length + end + 2;
-        if header[0] == 127 {
+        at = next;
+        if structure.kind == 127 {
             if at != table.len() && table[at..].iter().any(|v| *v != 0) {
                 bail!("SMBIOS结束结构后仍有未知数据");
             }
@@ -59,9 +88,43 @@ pub(crate) fn manufacturer(raw: &[u8]) -> Result<String> {
     bail!("SMBIOS结构数量超过支持范围")
 }
 
-#[cfg(not(test))]
-pub(crate) fn read_manufacturer() -> Result<String> {
-    use windows_sys::Win32::System::SystemInformation::GetSystemFirmwareTable;
+/// 已安装内存条（Type 17）的最高配置速率；DDR4/DDR5 的 SMBIOS 数值即有效传输速率（MT/s）。
+pub(crate) fn memory_speed(raw: &[u8]) -> Result<u32> {
+    let table = structure_table(raw)?;
+    let mut speed = None;
+    let mut at = 0;
+    for _ in 0..4096 {
+        let Some((structure, next)) = structure_at(table, at)? else {
+            break;
+        };
+        if structure.kind == 17 {
+            speed = speed.max(device_speed(structure.formatted));
+        }
+        if structure.kind == 127 {
+            break;
+        }
+        at = next;
+    }
+    speed.context("SMBIOS缺少已安装内存条")
+}
+
+/// 已占用插槽取配置速率（0x20，需结构长度 ≥ 0x22），未报告时回退最大速率（0x14）；空槽（0x0C）不参与。
+fn device_speed(formatted: &[u8]) -> Option<u32> {
+    let word = |offset: usize| {
+        formatted
+            .get(offset..offset + 2)
+            .map(|bytes| u16::from_le_bytes(bytes.try_into().unwrap()))
+    };
+    let size = word(0x0c)?;
+    if size == 0 || size == 0xffff {
+        return None;
+    }
+    let configured = word(0x20).filter(|value| *value != 0);
+    let maximum = word(0x14).filter(|value| *value != 0);
+    configured.or(maximum).map(u32::from)
+}
+
+fn firmware_table() -> Result<Vec<u8>> {
     let size = unsafe { GetSystemFirmwareTable(0x52534D42, 0, std::ptr::null_mut(), 0) };
     if !(8..=1_048_576).contains(&size) {
         bail!("无法取得SMBIOS表大小：{size}");
@@ -71,7 +134,16 @@ pub(crate) fn read_manufacturer() -> Result<String> {
     if read != size {
         bail!("SMBIOS表在读取期间变化或读取失败");
     }
-    manufacturer(&raw)
+    Ok(raw)
+}
+
+pub(crate) fn read_memory_speed() -> Result<u32> {
+    memory_speed(&firmware_table()?)
+}
+
+#[cfg(not(test))]
+pub(crate) fn read_manufacturer() -> Result<String> {
+    manufacturer(&firmware_table()?)
 }
 
 impl super::Hal {
@@ -120,6 +192,50 @@ mod tests {
         }
         let mut bad = raw(&good);
         bad[4] += 1;
-        assert!(manufacturer(&bad).is_err());
+        assert!(manufacturer(&raw(&bad)).is_err());
+    }
+    fn memory_device(size: u16, speed: u16, configured: Option<u16>) -> Vec<u8> {
+        let mut structure = vec![17, 0x16, 0, 0];
+        structure.extend([0; 8]); // 阵列/错误句柄与位宽
+        structure.extend(size.to_le_bytes()); // 0x0C
+        structure.extend([0; 6]); // 封装、定位、类型与位图
+        structure.extend(speed.to_le_bytes()); // 0x14
+        if let Some(value) = configured {
+            structure.extend([0; 10]); // 厂商/序列等字符串索引与扩展容量
+            structure.extend(value.to_le_bytes()); // 0x20
+            structure[1] = 0x22;
+        }
+        structure.extend([0, 0]); // 字符串区终止符
+        structure
+    }
+    #[test]
+    fn populated_devices_report_configured_speed_and_empty_slots_are_skipped() {
+        let table = [
+            memory_device(0xc000, 5600, Some(5600)), // 16GB（粒度位+MB），取配置速率
+            memory_device(0, 0, Some(0)),            // 空槽：Size 与速率均不参与
+            memory_device(0xc000, 5600, Some(5200)), // 混插时按最高报告值
+            vec![127, 4, 0, 0, 0, 0],
+        ]
+        .concat();
+        assert_eq!(memory_speed(&raw(&table)).unwrap(), 5600);
+    }
+    #[test]
+    fn missing_configured_speed_falls_back_to_maximum_speed() {
+        let table = [memory_device(0xc000, 4800, None), vec![127, 4, 0, 0, 0, 0]].concat();
+        assert_eq!(memory_speed(&raw(&table)).unwrap(), 4800);
+        let unreported = [memory_device(0xc000, 0, Some(0)), vec![127, 4, 0, 0, 0, 0]].concat();
+        assert!(memory_speed(&raw(&unreported)).is_err());
+    }
+    #[test]
+    fn absent_or_unknown_memory_devices_do_not_report_a_speed() {
+        for table in [
+            vec![],
+            vec![1, 8, 0, 0, 1, 0, 0, 0, b'A', 0, 0],
+            memory_device(0xffff, 5600, Some(5600)),
+        ] {
+            assert!(memory_speed(&raw(&table)).is_err());
+        }
+        let truncated = [vec![17, 0x22, 0, 0], vec![0; 6]].concat();
+        assert!(memory_speed(&raw(&truncated)).is_err());
     }
 }

@@ -22,9 +22,9 @@ export function PlatformPower({ active, revision }: { active: boolean; revision:
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="plug" />平台电源</h2>
       <div className="ccc-module-tools"><DetailsDialog title="平台电源说明" label="详情">
         <p>适配器功率由固件报告。PD 档位与 CPU 功耗上限分别设置。</p>
-        {profile?.deepS5 != null && <p>关机节能 · {profile.deepS5 ? "已启用" : "未启用"}</p>}
-        {pd?.restoreBlockedReason && <p>{pd.restoreBlockedReason}</p>}
-        {profile?.warnings.map(warning => <p key={warning}>{warning}</p>)}
+        {profile?.deepS5 != null && <p className="ccc-control-caption">关机节能 · {profile.deepS5 ? "已启用" : "未启用"}</p>}
+        {pd?.restoreBlockedReason && <p className="ccc-control-caption">{pd.restoreBlockedReason}</p>}
+        {profile?.warnings.map(warning => <p key={warning} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{warning}</p>)}
       </DetailsDialog>
       <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取平台电源" disabled={busy} onClick={reread} /></div></div>
     {error && <p className="ccc-control-error" role="alert">{error}</p>}

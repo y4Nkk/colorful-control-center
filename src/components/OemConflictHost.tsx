@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRe
 import { closeFnKey, findOemConflict, readFnKeyCloseTarget, type FnKeyIdentity, type OemConflict } from "../api/client";
 import { Button } from "./Button";
 import { Dialog, WorkspaceActivity } from "./Dialog";
+import { Icon } from "./Icon";
 import { toast } from "./use-toast";
 
 type Prompt = { conflict: OemConflict; onClosed?: () => void } | { mode: string; confirm: () => Promise<void> };
@@ -105,7 +106,7 @@ function OemConflictDialog({ prompt, inspection, busy, onClose, onConfirm }: {
     {mode && <p>关闭原厂 FnKey 后，控制台会切换到「{mode}」。</p>}
     {conflict && !inspection.message && <p>{conflict.message}</p>}
     {inspection.checking && <p role="status">正在核对原厂进程…</p>}
-    {inspection.message && <p role={inspection.failed ? "alert" : "status"} className={inspection.failed ? "ccc-control-error" : undefined}>{inspection.message}</p>}
+    {inspection.message && <p role={inspection.failed ? "alert" : "status"} className={inspection.failed ? "ccc-control-error" : undefined}>{inspection.failed && <Icon name="error" size={16} />}{inspection.message}</p>}
     {ready && <p>部分原厂 Fn 热键和屏显会暂停。可以从开始菜单打开「Fn hotkeys and OSD」恢复。</p>}
   </Dialog>;
 }

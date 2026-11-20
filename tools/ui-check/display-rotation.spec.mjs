@@ -1,6 +1,6 @@
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
 import { restoreDevice } from "./device-settings.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
@@ -32,7 +32,7 @@ test("旋转独立授权，热键定位主屏后由开关直接试用和恢复",
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
   await configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true }).click();
   expect((await calls(page, "apply_hotkeys"))[0].args.request.settings.actions).toEqual(["displayRotation"]);
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await request(page, 30);
   await expect(page.getByRole("region", { name: "显示控制区域", exact: true })).toBeFocused();
   await expect.poll(async () => (await calls(page, "acknowledge_hotkey_navigation")).length).toBe(1);

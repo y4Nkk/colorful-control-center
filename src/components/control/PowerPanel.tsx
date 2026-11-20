@@ -32,7 +32,7 @@ export function PowerPanel({ active, revision, onSettled }: { active: boolean; r
         <div className="ccc-module-tools"><DetailsDialog title="CPU 参数与诊断" label="详情">
           <ParameterDescriptions items={CPU_TUNING_HELP} />
           {[...profile.warnings, ...profile.runtimeWarnings, profile.msrRuntimeError].filter(Boolean)
-            .map((warning, index) => <p key={index}>{warning}</p>)}
+            .map((warning, index) => <p key={index} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{warning}</p>)}
         </DetailsDialog></div>
       </div>
       <SegmentedControl label="应用方式" value={target} disabled={busy}
@@ -41,10 +41,10 @@ export function PowerPanel({ active, revision, onSettled }: { active: boolean; r
       {unavailable && <span className="ccc-control-caption is-warn">即时调节不可用</span>}
       <ScaleSlider label="持续功耗上限" unit="W" min={35} max={157}
         current={dirty.current.pl1} draft={draft.pl1}
-        unavailable={!dirty.plReady} disabled={busy || unavailable} onChange={(pl1) => model.change({ pl1 })} />
+        disabled={busy || unavailable} onChange={(pl1) => model.change({ pl1 })} />
       <ScaleSlider label="短时功耗上限" unit="W" min={35} max={157}
         current={dirty.current.pl2} draft={draft.pl2}
-        unavailable={!dirty.plReady} disabled={busy || unavailable} onChange={(pl2) => model.change({ pl2 })} />
+        disabled={busy || unavailable} onChange={(pl2) => model.change({ pl2 })} />
       <ScaleSlider label="核心电压偏移" unit="mV" min={-150} max={50}
         current={dirty.current.coreMv} draft={draft.coreMv}
         unavailable={!dirty.coreReady} disabled={busy || unavailable} onChange={(coreMv) => model.change({ coreMv })} />

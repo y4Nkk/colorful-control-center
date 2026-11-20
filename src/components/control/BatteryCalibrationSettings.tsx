@@ -55,7 +55,7 @@ export function BatteryCalibrationSettings({ active, locked, onChanged, onBusy, 
           onConfirm={() => revision ? model.run(() => stopBatteryCalibration(revision)) : undefined}><p>停止校准并恢复原充电策略。</p></ConfirmButton>}
         <DetailsDialog title="校准阶段与恢复" label="详情">
           <ol aria-label="校准阶段">{phases.map(phase => <li key={phase.id} aria-current={task?.phase === phase.id ? "step" : undefined}>{phase.label}</li>)}</ol>
-          {task && <p>本阶段已用 {elapsed(task.phaseElapsedMs)}</p>}
+          {task && <p className="ccc-control-caption">本阶段已用 {elapsed(task.phaseElapsedMs)}</p>}
           {profile.workerRunning && task && <p className="ccc-control-caption">任务采样电量 · {taskPercent != null && taskPercent >= 0 && taskPercent <= 100 ? `${taskPercent}%` : "—"}</p>}
           <CalibrationRestoreFacts profile={profile} />
         </DetailsDialog>

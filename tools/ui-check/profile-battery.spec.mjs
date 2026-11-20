@@ -1,5 +1,5 @@
 import { openProfileResults, openProfileSave, openStartupParameters, profileSaveDialog, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -10,7 +10,7 @@ const energy = page => panel(page).getByRole("region", { name: "档案电池节�
 const apply = page => panel(page).getByRole("button", { name: "应用档案", exact: true });
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_|save_|import_|set_startup|start_battery)/.test(call.command)));
 async function select(page) {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
   await showProfileSettings(page);
 }
@@ -33,7 +33,7 @@ test.beforeEach(async ({ page }) => {
     policy.everyDay = false; policy.weekdays = 62; policy.slots = [{ start: 8, end: 18 }, { start: 20, end: 22 }];
     data.profile.settings.batteryEnergy = { policy, capability: data.energy.capability };
   });
-  await page.goto("/"); await openWorkspace(page, "电源");
+  await page.goto("/"); await openPowerArea(page, "电源设置");
 });
 
 test("电池档案以真实阈值环和时段预览，确认提交完整目标", async ({ page }) => {
@@ -97,7 +97,7 @@ test("导入无手动阈值的节能档案，展示完整配置且不触发校�
 });
 
 test("启动档案共享电池预览，保存选择不发送充电或节能命令", async ({ page }) => {
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();

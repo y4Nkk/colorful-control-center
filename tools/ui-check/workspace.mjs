@@ -5,9 +5,9 @@ export async function openWorkspace(page, title) {
   await expect(page.getByRole("main", { name: title, exact: true })).toBeVisible();
 }
 
-export async function openSystemArea(page, area) {
-  await openWorkspace(page, "系统");
-  const option = page.getByRole("radiogroup", { name: "系统区域", exact: true }).getByRole("radio", { name: area, exact: true });
+export async function openPowerArea(page, area) {
+  await openWorkspace(page, "电源与档案");
+  const option = page.getByRole("radiogroup", { name: "电源区域", exact: true }).getByRole("radio", { name: area, exact: true });
   await option.check();
   await expect(option).toBeChecked();
 }

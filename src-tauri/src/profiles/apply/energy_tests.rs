@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn complete_profile_mode_uses_common_energy_and_the_same_initial_restore() {
+fn complete_profile_mode_uses_common_energy_and_captures_the_initial_energy() {
     let f = fixtures::Fixture::new().with_energy(2);
     let wanted = ProfileSettings {
         oem_power_mode: Some(1),
@@ -12,17 +12,8 @@ fn complete_profile_mode_uses_common_energy_and_the_same_initial_restore() {
     let _gate = f.hal.begin_write().unwrap();
     let mode = powerctl::mode::read(&f.hal).unwrap();
     assert_eq!(mode.energy.unwrap().energy_star, Some(1));
-    let initial = mode.restore.unwrap();
-    assert_eq!(initial.energy.unwrap().energy_star, Some(2));
-    powerctl::mode::restore(&f.hal, &initial.revision).unwrap();
-    assert_eq!(
-        powerctl::mode::read(&f.hal)
-            .unwrap()
-            .energy
-            .unwrap()
-            .energy_star,
-        Some(2)
-    );
+    let stored = f.hal.recovery().unwrap().oem_mode.clone().unwrap().stored();
+    assert_eq!(stored.energy().unwrap().energy_star, Some(2));
 }
 
 #[test]

@@ -121,7 +121,6 @@ macro_rules! handler {
             crate::commands::power::read_oem_performance_options,
             crate::commands::power::apply_oem_performance_options,
             crate::commands::power::apply_oem_power_mode,
-            crate::commands::power::restore_oem_power_mode,
             crate::commands::supply_mode::read_oem_supply_mode,
             crate::commands::supply_mode::enable_oem_supply_mode,
             crate::commands::supply_mode::resume_oem_supply_mode,

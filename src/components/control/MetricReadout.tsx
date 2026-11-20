@@ -4,12 +4,12 @@ import { capacityParts, formatCapacity } from "../../lib/format-parameters";
 interface MetricReadoutProps {
   label: string;
   value: number | null;
-  unit: "RPM" | "%" | "bytes";
+  unit: "RPM" | "%" | "bytes" | "MHz";
   maximum?: number | null;
   colorVar: string;
 }
 
-/** 未知分母保留空环；RPM 不提供分母，不伪造可比较的转速比例。 */
+/** 未知分母保留空环；RPM/MHz 不提供分母，不伪造可比较的比例。 */
 export function MetricReadout({ label, value, unit, maximum, colorVar }: MetricReadoutProps) {
   const isCapacity = unit === "bytes";
   const reading = value != null && Number.isFinite(value) && (!isCapacity || value >= 0) ? value : null;

@@ -1,4 +1,4 @@
-import { openSystemArea } from "./workspace.mjs";
+import { openPowerArea } from "./workspace.mjs";
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -33,8 +33,8 @@ test("从其他页面切回键盘区域，保留已有草稿并确认导航", as
   await edit(page);
   await scope(page).check();
   await close(page);
-  await openSystemArea(page, "配置档案");
-  await expect(nav(page).getByRole("button", { name: "系统", exact: true })).toHaveAttribute("aria-current", "page");
+  await openPowerArea(page, "配置档案");
+  await expect(nav(page).getByRole("button", { name: "电源与档案", exact: true })).toHaveAttribute("aria-current", "page");
   await request(page, 3);
   await expect(nav(page).getByRole("button", { name: "键盘与灯光", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("region", { name: "键盘灯光区域", exact: true })).toBeFocused();
@@ -60,9 +60,9 @@ test("同页编辑时保留热键导航请求，弹窗关闭后聚焦灯光区�
 });
 
 test("窗口未就绪时保留请求，完成后才导航", async ({ page }) => {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await request(page, 7, false);
-  await expect(nav(page).getByRole("button", { name: "系统", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(nav(page).getByRole("button", { name: "电源与档案", exact: true })).toHaveAttribute("aria-current", "page");
   expect(await calls(page, "acknowledge_hotkey_navigation")).toEqual([]);
   await request(page, 7, true);
   await expect(page.getByRole("region", { name: "键盘灯光区域", exact: true })).toBeFocused();
@@ -70,7 +70,7 @@ test("窗口未就绪时保留请求，完成后才导航", async ({ page }) => 
 });
 
 test("较早确认不能清除随后到来的请求", async ({ page }) => {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.evaluate(() => { window.__uiFixture.navigationAckDelay = 700; });
   await request(page, 11);
   await expect.poll(async () => (await calls(page, "acknowledge_hotkey_navigation")).length).toBe(1);
@@ -81,12 +81,12 @@ test("较早确认不能清除随后到来的请求", async ({ page }) => {
 });
 
 test("确认失败保留请求，重新进入键盘与灯光后可以重试", async ({ page }) => {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.evaluate(() => { window.__uiFixture.navigationAckFault = "导航确认失败"; });
   await request(page, 15);
   await expect(page.getByText("导航确认失败", { exact: true }).first()).toBeVisible();
   expect(await page.evaluate(() => window.__uiFixture.hotkeys.status.navigationRequest.id)).toBe(15);
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await nav(page).getByRole("button", { name: "键盘与灯光", exact: true }).click();
   await expect.poll(async () => (await calls(page, "acknowledge_hotkey_navigation")).length).toBe(2);
   expect(await page.evaluate(() => window.__uiFixture.hotkeys.status.navigationRequest)).toBeNull();
@@ -106,7 +106,7 @@ test("订阅后新请求不被较早的状态读取覆盖", async ({ browser }) 
   const context = await browser.newContext(); const page = await context.newPage();
   await page.addInitScript({ content: `${MOCK_IPC}; window.__uiFixture.coldWarningStatusDelay = 1500;` });
   await page.goto("/"); await nav(page).getByRole("button", { name: "键盘与灯光", exact: true }).click(); await expect(panel(page)).toBeVisible();
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await request(page, 17);
   await expect(page.getByRole("region", { name: "键盘灯光区域", exact: true })).toBeFocused();
   await expect.poll(async () => (await calls(page, "acknowledge_hotkey_navigation")).length).toBe(1);

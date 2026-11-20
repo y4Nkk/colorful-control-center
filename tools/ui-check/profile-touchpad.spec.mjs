@@ -1,6 +1,6 @@
 import { openProfileResults, openProfileSave, openStartupParameters, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
 import { openDeviceRestore } from "./device-settings.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -8,7 +8,7 @@ import { installTouchpadFixture } from "./touchpad-fixture.mjs";
 const preview = page => page.getByRole("region", { name: "档案预览", exact: true });
 const navigate = (page, title) => page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: title, exact: true }).click();
 async function select(page) {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
   await showProfileSettings(page);
 }
@@ -38,7 +38,7 @@ test("档案预览分别展示目标与保存偏好，确认后与控制台共�
   expect(await page.evaluate(() => window.__uiFixture.touchpad.current.enabled)).toBe(true);
 });
 test("捕获导出导入保留设备身份、系统值和独立保存值", async ({ page }) => {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await openProfileSave(page, "完整触摸板", ["设备功能"]);
   await saveProfileButton(page).click();
   const pending = page.waitForEvent("download"); await (await showProfileMenu(page)).getByRole("button", { name: "导出档案", exact: true }).click();
@@ -63,7 +63,7 @@ test("后续独显失败恢复触摸板本次前态并保留首次基线", async
   expect(await page.evaluate(() => window.__uiFixture.touchpad.initial)).not.toBeNull();
 });
 test("启动档案预览含触摸板目标，保存选择不立即执行", async ({ page }) => {
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const panel = page.getByRole("region", { name: "启动档案", exact: true });
   await panel.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();

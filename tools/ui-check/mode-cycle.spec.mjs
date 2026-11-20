@@ -34,10 +34,8 @@ test("热键模式循环展示全部供电目标及独显阶段，确认只启�
   await expect(saving.getByRole("row", { name: /^插电/ }).getByRole("cell").first()).toHaveText("900");
   await expect(saving.getByRole("row", { name: /^电池/ }).getByRole("cell").first()).toHaveText("900");
   await expect(preview(page).getByRole("region", { name: "性能循环目标", exact: true })).toContainText("切换前 · 确保开启");
-  await preview(page).getByRole("button", { name: "查看驱动范围", exact: true }).click();
-  const driver = dialog(page, "查看驱动范围");
+  const driver = preview(page).getByRole("region", { name: "驱动范围", exact: true });
   await expect(driver).toContainText("可编辑");
-  await close(driver);
   await close(modeReview(page));
   await close(details(page));
   await previewConfiguration(page, "原厂热键与屏显");
@@ -50,10 +48,8 @@ test("热键模式循环展示全部供电目标及独显阶段，确认只启�
 test("关闭独显时不补造频率，驱动预检错误保留事实并禁用旧确认", async ({ page }) => {
   await setup(page, true);
   await expect(preview(page).getByText("开启后核对频率", { exact: true })).toBeVisible();
-  await preview(page).getByRole("button", { name: "设备与恢复说明", exact: true }).click();
-  const recovery = dialog(page, "设备与恢复说明");
+  const recovery = preview(page).getByRole("region", { name: "设备与恢复说明", exact: true });
   await expect(recovery).toContainText("独显已关闭；驱动范围和实际频率");
-  await close(recovery);
   await expect(preview(page).getByText(/^图形锁频：/)).toHaveCount(0);
   await page.evaluate(() => {
     const data = window.__uiFixture;

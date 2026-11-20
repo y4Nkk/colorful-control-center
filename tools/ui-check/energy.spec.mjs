@@ -1,8 +1,8 @@
-import { openWorkspace } from "./workspace.mjs";
+import { openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
-test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "电源"); });
+test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openPowerArea(page, "电源设置"); });
 const panelOf = page => page.getByRole("region", { name: "电池节能计划", exact: true });
 const editorOf = page => page.getByRole("dialog", { name: "编辑节能时段", exact: true });
 const detailsOf = page => page.getByRole("dialog", { name: "计划来源与恢复目标", exact: true });

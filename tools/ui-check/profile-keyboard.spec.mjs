@@ -1,6 +1,6 @@
 import { openProfileResults, openProfileSave, openStartupParameters, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { readFile } from "node:fs/promises";
@@ -8,7 +8,7 @@ const navigate = (page, title) => page.getByRole("navigation", { name: "主导�
 const preview = page => page.getByRole("region", { name: "档案预览", exact: true });
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(c => /^(apply_|save_|import_|set_startup)/.test(c.command)));
 async function select(page) {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
   await showProfileSettings(page);
 }
@@ -53,7 +53,7 @@ test("三类键盘卡片只读展示开关与保留亮度，确认携带全部�
 });
 
 test("保存捕获真实开关和档位，导出完整型号化键盘与外围配置", async ({ page }) => {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await openProfileSave(page, "完整键盘", ["设备功能", "灯光"]);
   await saveProfileButton(page).click();
   await showProfileSettings(page);
@@ -67,7 +67,7 @@ test("保存捕获真实开关和档位，导出完整型号化键盘与外围�
 });
 
 test("白光导入有独立档位与示意，无RGB色区编辑入口", async ({ page }) => {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   const file = await page.evaluate(() => ({ ...structuredClone(window.__uiFixture.profile), name: "白光档案", settings: {
     ...window.__uiFixture.profile.settings, keyboardLighting: { keyboardType: 1, enabled: true, settings: { family: "white", brightness: 5 } }, lightingOptions: null } }));
   await page.locator('input[type="file"]').setInputFiles({ name: "白光.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
@@ -80,7 +80,7 @@ test("白光导入有独立档位与示意，无RGB色区编辑入口", async ({
 });
 
 test("未知保存灯效阻止捕获，不把未识别模式自动补成默认", async ({ page }) => {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.evaluate(() => { window.__uiFixture.keyboard.current.effect = null; });
   await openProfileSave(page, "未知灯效", ["设备功能", "灯光"]);
   await expect(saveProfileButton(page)).toBeDisabled();
@@ -106,7 +106,7 @@ test("同名目标变化拒绝旧确认，失败补偿按设备分别展示", as
 });
 
 test("启动档案共用三类卡片，保存选择不执行设备写入", async ({ page }) => {
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const panel = page.getByRole("region", { name: "启动档案", exact: true });
   await panel.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();

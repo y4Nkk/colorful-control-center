@@ -24,11 +24,18 @@ pub(crate) const NOISELESS_FAN_LABEL: &str = "寂静模式";
 
 pub(crate) fn read_firmware_profile(hal: &Hal) -> Result<FanProfile> {
     hal.with_dchu(|d| {
-        profile::decode(
-            &d.read_package(13)?,
-            &d.read_settings(4, 0, 256)?,
-            &d.read_bios_capabilities(0, 256)?,
-        )
+        let capabilities = d.read_bios_capabilities(0, 256)?;
+        let mut profile =
+            profile::decode(&d.read_package(13)?, &d.read_settings(4, 0, 256)?, &capabilities)?;
+        // WMI96 bit10=1 时原厂禁用偏移（PSF 1.0 读能力字、旧页头活读）；能力位只叠加
+        // 禁用，不推翻 RPM 布局的不支持结论。读取失败不判死，保留布局默认并提示诊断。
+        match crate::powerctl::mode::feature_flags(d, &capabilities[..18], 96) {
+            Ok(flags) => profile.offset_supported &= flags & (1 << 10) == 0,
+            Err(error) => profile
+                .warnings
+                .push(format!("风扇偏移能力未知：{error:#}")),
+        }
+        Ok(profile)
     })
 }
 

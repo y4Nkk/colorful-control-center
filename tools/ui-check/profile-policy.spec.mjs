@@ -1,5 +1,5 @@
 import { availableAction, configurationView, previewConfiguration, submitConfiguration } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
@@ -25,7 +25,7 @@ async function enable(page) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
   await page.addInitScript(() => { window.__uiFixture.profile.settings.pl1W = 55; });
-  await page.goto("/"); await openWorkspace(page, "电源");
+  await page.goto("/"); await openPowerArea(page, "电源设置");
   await expect(panel(page)).toContainText("保存一条规则后可开启自动档案");
 });
 

@@ -1,4 +1,4 @@
-import { openSystemArea } from "./workspace.mjs";
+import { openWorkspace } from "./workspace.mjs";
 import { availableAction } from "./configuration-review.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -18,15 +18,15 @@ test("五档预设在窄窗口内完整显示，静音增强沿用冷蓝色", as
     };
   });
   await page.goto("/");
-  await openSystemArea(page, "性能调校");
+  await openWorkspace(page, "性能与散热");
   const presets = panel(page);
   await expect(preset(page, "静音增强")).toBeEnabled();
   await expect(presets.getByRole("radio")).toHaveCount(5);
   await expect(chip(page)).toHaveAttribute("data-preset-palette", "quiet");
   await expect(preset(page, "安静")).toBeChecked();
-  await openSystemArea(page, "概览");
+  await openWorkspace(page, "概览");
   await page.evaluate(() => { window.__uiFixture.performanceOptions.currentMode = 4; });
-  await openSystemArea(page, "性能调校");
+  await openWorkspace(page, "性能与散热");
   await expect(preset(page, "静音增强")).toBeChecked();
   await expect(presets.locator(".ccc-preset-current")).toHaveText("静音增强");
   await expect(chip(page)).toHaveAttribute("data-preset-palette", "quiet");
@@ -49,7 +49,7 @@ test("回读换档重用同一 SVG，并播放渐变、扫光、抬升和边缘�
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.addInitScript(() => { window.__uiFixture.preferences.motion = "system"; });
   await page.goto("/");
-  await openSystemArea(page, "性能调校");
+  await openWorkspace(page, "性能与散热");
   const artwork = chip(page);
   await expect(page.locator("html")).toHaveAttribute("data-motion", "system");
   await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
@@ -101,7 +101,7 @@ for (const [name, systemMotion, appMotion] of [["系统", "reduce", "system"], [
     await page.emulateMedia({ reducedMotion: systemMotion });
     await page.addInitScript(motion => { window.__uiFixture.preferences.motion = motion; }, appMotion);
     await page.goto("/");
-    await openSystemArea(page, "性能调校");
+    await openWorkspace(page, "性能与散热");
     await expect(page.locator("html")).toHaveAttribute("data-motion", appMotion);
     const artwork = chip(page);
     await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
@@ -123,7 +123,7 @@ test.describe("触屏设备", () => {
   test("轻触也能在回读后触发扫光", async ({ page }) => {
     await page.addInitScript(() => { window.__uiFixture.preferences.motion = "system"; });
     await page.goto("/");
-    await openSystemArea(page, "性能调校");
+    await openWorkspace(page, "性能与散热");
     const artwork = chip(page);
     await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
     await artwork.evaluate(svg => {
@@ -140,7 +140,7 @@ test.describe("触屏设备", () => {
 
 for (const product of [20720, 20724]) test(`未支持机型${product}保留当前模式，关闭编辑并说明范围`, async ({ page }) => {
   await page.addInitScript(product => { window.__uiFixture.unsupportedModeProduct = product; }, product);
-  await page.goto("/"); await openSystemArea(page, "性能调校");
+  await page.goto("/"); await openWorkspace(page, "性能与散热");
   await expect(panel(page)).toContainText(`尚未支持${product}机型`);
   await expect(panel(page).getByRole("radio", { name: "性能", exact: true })).toBeChecked();
   for (const radio of await panel(page).getByRole("radio").all()) await expect(radio).toBeDisabled();
@@ -149,7 +149,7 @@ for (const product of [20720, 20724]) test(`未支持机型${product}保留当�
 });
 
 test("机型变化后后端拒绝先前可用的模式目标", async ({ page }) => {
-  await page.goto("/"); await openSystemArea(page, "概览");
+  await page.goto("/"); await openWorkspace(page, "概览");
   const result = await page.evaluate(async () => {
     const invoke = window.__TAURI_INTERNALS__.invoke;
     const before = await invoke("read_oem_power_mode", {});

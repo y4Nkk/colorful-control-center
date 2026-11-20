@@ -1,6 +1,6 @@
 import { openProfileResults, showProfileSettings } from "./profile-review.mjs";
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { modeGpuFixture } from "./mode-gpu-fixture.mjs";
@@ -26,8 +26,8 @@ test.beforeEach(async ({ page }) => {
     data.profile.settings.gpuPower = { id: node.id, name: node.name, values: { enabled: true, automaticPowerOff: false } };
     data.profile.settings.gpu = { coreOffsetMhz: 60, memOffsetMhz: null };
   }, modeGpuFixture());
-  await page.goto("/"); await openSystemArea(page, "性能调校");
-  await openSystemArea(page, "配置档案");
+  await page.goto("/"); await openWorkspace(page, "性能与散热");
+  await openPowerArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
   await showProfileSettings(page);
 });

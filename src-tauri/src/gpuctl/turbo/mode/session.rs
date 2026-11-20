@@ -103,29 +103,6 @@ impl GpuController {
         let mut state = self.state.lock().map_err(|_| anyhow!("GPU控制状态异常"))?;
         confirmed_access(&mut state, permit, |_, io| RawState::read(io))
     }
-    pub(crate) fn review_mode_gpu_restore_in_control(
-        &self,
-        initial: &RawState,
-    ) -> Result<(RawState, String)> {
-        let mut state = self.state.lock().map_err(|_| anyhow!("GPU控制状态异常"))?;
-        let io = ensure_turbo(&mut state)?;
-        let current = RawState::read(io.as_ref())?;
-        initial.review_restore(io.as_ref(), &current)?;
-        let identity = current.restore_identity(io.as_ref())?;
-        Ok((current, identity))
-    }
-    pub(crate) fn review_confirmed_mode_gpu_restore_in_control(
-        &self,
-        initial: &RawState,
-        permit: &mut dyn FnMut() -> Result<()>,
-    ) -> Result<RawState> {
-        let mut state = self.state.lock().map_err(|_| anyhow!("GPU控制状态异常"))?;
-        confirmed_access(&mut state, permit, |_, io| {
-            let current = RawState::read(io)?;
-            initial.review_restore(io, &current)?;
-            Ok(current)
-        })
-    }
     pub(crate) fn restore_mode_gpu_in_control(
         &self,
         initial: &RawState,

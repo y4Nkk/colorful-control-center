@@ -1,4 +1,4 @@
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { availableAction, previewConfiguration } from "./configuration-review.mjs";
@@ -24,7 +24,7 @@ export const refreshCases = [
         steps: [{ step: "独显目标复核", ok: true, message: "已确认" }] };
     });
     await expect(gpuPower(page)).toHaveAttribute("data-enabled", "off", { timeout: 2000 });
-    await openSystemArea(page, "性能调校");
+    await openWorkspace(page, "性能与散热");
     const tuning = page.getByRole("region", { name: "GPU 频率", exact: true });
     await expect(tuning).toContainText("不可用");
     await tuning.getByRole("button", { name: "详情", exact: true }).click();
@@ -58,7 +58,7 @@ export const refreshCases = [
   } },
   { name: "未编辑的灯光、充电及节能草稿采用档案后的新事实", run: async page => {
     await ready(page);
-    await openWorkspace(page, "电源");
+    await openPowerArea(page, "电源设置");
     await openWorkspace(page, "键盘与灯光");
     await expect(page.getByRole("spinbutton", { name: "闲置等待秒数", exact: true })).toHaveValue("30");
     await page.evaluate(() => {
@@ -73,7 +73,7 @@ export const refreshCases = [
         steps: [{ step: "电池配置", ok: true, message: "已确认" }] };
     });
     await expect(page.getByRole("spinbutton", { name: "闲置等待秒数", exact: true })).toHaveValue("45", { timeout: 2000 });
-    await openWorkspace(page, "电源");
+    await openPowerArea(page, "电源设置");
     await expect(page.getByRole("switch", { name: "限制充电范围", exact: true })).toBeChecked({ timeout: 2000 });
     await expect(page.getByRole("switch", { name: "启用节能计划", exact: true })).toBeChecked({ timeout: 2000 });
     await openWorkspace(page, "键盘与灯光");

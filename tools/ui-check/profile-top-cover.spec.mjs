@@ -1,6 +1,6 @@
 import { openProfileResults, openProfileSave, openStartupParameters, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -9,7 +9,7 @@ import { installTopCoverFixture } from "./top-cover-fixture.mjs";
 const navigate = (page, title) => page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: title, exact: true }).click();
 const preview = page => page.getByRole("region", { name: "档案预览", exact: true });
 async function select(page) {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
   await showProfileSettings(page);
 }
@@ -43,7 +43,7 @@ test("独立顶盖档案预览只读，确认后更新控制台并复用初始�
 });
 
 test("捕获导出与再次导入完整保留顶盖亮度和颜色", async ({ page }) => {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await openProfileSave(page, "完整顶盖", ["灯光"]);
   await saveProfileButton(page).click();
   await showProfileSettings(page);
@@ -89,7 +89,7 @@ test("显示试用取消不执行顶盖，其余目标需保留后执行", async
 });
 
 test("启动档案预览和确认绑定完整顶盖目标，保存选择不执行", async ({ page }) => {
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const panel = page.getByRole("region", { name: "启动档案", exact: true });
   await panel.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();

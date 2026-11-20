@@ -1,4 +1,4 @@
-use super::{ModeProfile, Target, boost, links, restoration, workflow};
+use super::{ModeProfile, Target, boost, links, workflow};
 use anyhow::{Result, bail};
 
 pub(crate) fn read(context: &links::Context<'_>) -> Result<ModeProfile> {
@@ -12,15 +12,10 @@ pub(crate) fn read(context: &links::Context<'_>) -> Result<ModeProfile> {
             }
         }
     }
-    (profile.restore, profile.restore_blocked_reason) = restoration::preview(context)?;
-    profile.can_restore = profile.restore.is_some() && profile.restore_blocked_reason.is_none();
     Ok(profile)
 }
 pub(crate) fn read_options(context: &links::Context<'_>) -> Result<boost::Profile> {
-    let mut profile = boost::read(context.hal)?;
-    (profile.restore, profile.restore_blocked_reason) = restoration::preview(context)?;
-    profile.can_restore = profile.restore.is_some() && profile.restore_blocked_reason.is_none();
-    Ok(profile)
+    boost::read(context.hal)
 }
 pub(crate) fn checkpoint(
     context: &links::Context<'_>,

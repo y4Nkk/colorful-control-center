@@ -1,5 +1,5 @@
 import { availableAction, previewConfiguration, submitConfiguration } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 const panel = page => page.getByRole("region", { name: "网络驱动策略", exact: true });
@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
     window.__uiFixture.lan = { revision: "lan-0", frame: { capabilities: { powerSaving: true, wakePatch: true }, recommendation: true,
       devices: [device(1), device(2)] }, initial: [], lastError: null, blockedReason: null };
   });
-  await page.goto("/"); await openWorkspace(page, "电源");
+  await page.goto("/"); await openPowerArea(page, "电源设置");
 });
 
 test("网卡节能直接提交，组合唤醒补丁独立预览及恢复", async ({ page }) => {

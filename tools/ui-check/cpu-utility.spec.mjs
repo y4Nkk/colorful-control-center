@@ -15,7 +15,15 @@ async function publish(page, valuePct, age = 0, error = null) {
   }, { valuePct, age, error });
 }
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript({ content: MOCK_IPC }); await page.goto("/");
+  await page.addInitScript({ content: MOCK_IPC });
+  await page.addInitScript(() => {
+    const invoke = window.__TAURI_INTERNALS__.invoke;
+    window.__TAURI_INTERNALS__.invoke = async (command, args) => {
+      const result = await invoke(command, args);
+      return command === "read_system_overview" ? { ...result, warnings: ["隔离系统资料诊断"] } : result;
+    };
+  });
+  await page.goto("/");
   await expect(usage(page)).toHaveAttribute("aria-valuenow", "42");
 });
 test("CPU 利用率和风扇占空比分别显示为环形比例，查看不会写入", async ({ page }) => {
@@ -30,7 +38,10 @@ test("首次采样和读取失败显示未知，真实零值保留为零并可�
   await publish(page, 0); await expect(usage(page)).toHaveAttribute("aria-valuenow", "0");
   await publish(page, null, 0, "CPU效用读取失败：隔离计数器不可用"); await expect(missing(page)).toBeVisible();
   await page.getByRole("button", { name: "监控诊断", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "监控诊断", exact: true })).toContainText("CPU效用读取失败：隔离计数器不可用");
+  const diagnostics = page.getByRole("dialog", { name: "监控诊断", exact: true });
+  await expect(diagnostics).toContainText("CPU效用读取失败：隔离计数器不可用");
+  await expect(diagnostics).toContainText("隔离系统资料诊断");
+  await expect(diagnostics.getByRole("button", { name: "重新读取", exact: true })).toBeEnabled();
   await page.keyboard.press("Escape");
   await publish(page, 76); await expect(usage(page)).toHaveAttribute("aria-valuenow", "76");
 });

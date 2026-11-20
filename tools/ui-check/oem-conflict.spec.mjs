@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { supplyModeFixture } from "./supply-mode-fixture.mjs";
-import { openSystemArea, openWorkspace } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 
 const owner = { pid: 4301, creationTime: [20, 4] };
 const diagnostic = executable => `原厂 ${executable} 正在运行，可能同时修改硬件设置。请退出后重试。`;
@@ -158,7 +158,7 @@ test("电池校准遇到 BatteryPackUtility 时提供手动处理提示", async 
     data.calibrationSupported = true;
     Object.assign(data.calibration, { canStart: false, unavailableReason: issue });
   }, diagnostic("BatteryPackUtility.exe"));
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   await region(page, "电池校准").getByRole("button", { name: "处理原厂软件冲突", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "原厂软件冲突", exact: true });
   await expect(dialog).toContainText("BatteryPackUtility.exe");
@@ -185,7 +185,7 @@ test("无法核验 FnKey 时保留占用并提示手动退出", async ({ page })
 
 test("档案退出冲突后重做预览，等待单独确认应用", async ({ page }) => {
   await setup(page, "profile");
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   const profile = region(page, "档案预览");
   await expect(profile.getByRole("button", { name: "应用档案", exact: true })).toHaveCount(0);
   await openConflict(profile).click();
@@ -215,9 +215,9 @@ test("设备页读到占用后可直接关闭原厂软件，设置开关保持�
 
 test("供电占用时仍能暂停，PD 与性能选项复用关闭弹窗", async ({ page }) => {
   await setup(page, "power");
-  await openSystemArea(page, "性能调校");
+  await openWorkspace(page, "性能与散热");
   await expect(openConflict(region(page, "性能选项"))).toBeEnabled();
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const supply = region(page, "原厂供电模式"), pd = region(page, "平台电源");
   const toggle = supply.getByRole("switch", { name: "启用原厂自动切换" });
   await expect(toggle).toBeChecked();
@@ -241,7 +241,7 @@ test("从其他页保留档案显示时遇到占用会提示退出，用户可�
     const data = window.__uiFixture;
     data.profile.settings.display = { displays: [{ ...data.display.displays[0].current, frequency: 144 }] };
   });
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await region(page, "档案预览").getByRole("button", { name: "应用档案", exact: true }).click();
   await page.evaluate(owner => { window.__uiFixture.fnKey = owner; }, owner);
   await openWorkspace(page, "设置");

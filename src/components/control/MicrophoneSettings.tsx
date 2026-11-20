@@ -44,9 +44,9 @@ export function MicrophoneSettings({ active, revision }: { active: boolean; revi
       <div className="ccc-module-tools">
         <DetailsDialog title="麦克风详情" label="详情">
           {current && <FactList compact facts={microphoneFacts(current)} />}
-          {profile?.blockedReason && <p>{profile.blockedReason}</p>}
-          {profile?.restoreBlockedReason && profile.restoreBlockedReason !== profile.blockedReason && <p>恢复暂不可用 · {profile.restoreBlockedReason}</p>}
-          {error && <p className="ccc-control-error">{error}</p>}
+          {profile?.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
+          {profile?.restoreBlockedReason && profile.restoreBlockedReason !== profile.blockedReason && <p className="ccc-control-caption">恢复暂不可用 · {profile.restoreBlockedReason}</p>}
+          {error && <p className="ccc-control-error"><Icon name="error" size={16} />{error}</p>}
         </DetailsDialog>
         <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取麦克风" disabled={busy} onClick={reread} />
       </div>

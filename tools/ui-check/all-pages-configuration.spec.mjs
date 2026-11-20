@@ -1,13 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { supplyModeFixture } from "./supply-mode-fixture.mjs";
 import { installConfigurationFixture } from "./configuration-fixture.mjs";
 import { previewConfiguration } from "./configuration-review.mjs";
 import { colorButton, setPickerColor } from "./color-picker.mjs";
 const views = [
-  ["系统", "概览"], ["系统", "风扇散热"], ["系统", "性能调校"], ["系统", "配置档案"],
-  ["键盘与灯光"], ["电源"], ["设备配置"], ["设置"],
+  ["概览"], ["性能与散热"], ["键盘与灯光"], ["电源与档案", "电源设置"], ["电源与档案", "配置档案"], ["设备配置"], ["设置"],
 ];
 async function setup(page) {
   await page.addInitScript({ content: MOCK_IPC });
@@ -16,8 +15,10 @@ async function setup(page) {
 }
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_|set_|enable_|restore_|save_|start_fan|start_battery)/.test(call.command) && call.command !== "set_shortcut_recording"));
 async function ready(page, name) {
-  if (name === "风扇散热") await expect(page.locator("[data-dust-running]")).toBeVisible();
-  if (name === "性能调校") await expect(page.getByRole("slider", { name: "持续功耗上限", exact: true })).toBeVisible();
+  if (name === "性能与散热") {
+    await expect(page.locator("[data-dust-running]")).toBeVisible();
+    await expect(page.getByRole("slider", { name: "持续功耗上限", exact: true })).toBeVisible();
+  }
   if (name === "设备配置") await expect(page.locator('[data-mode-frequency="60"]').first()).toBeVisible();
   if (name === "键盘与灯光") {
     await expect(page.getByRole("combobox", { name: "灯效", exact: true })).toBeVisible();
@@ -25,11 +26,11 @@ async function ready(page, name) {
     await expect(page.getByRole("region", { name: "原厂热键与屏显", exact: true })).toBeVisible();
   }
   if (name === "设备配置") await expect(page.getByRole("switch", { name: "Fn 锁", exact: true })).toBeVisible();
-  if (name === "电源") {
+  if (name === "电源设置") {
     await expect(page.getByRole("img", { name: "PD 适配器报告功率 · 100 W", exact: true })).toBeVisible();
     await expect(page.getByRole("switch", { name: "启用原厂自动切换", exact: true })).toBeEnabled();
-    await expect(page.getByRole("main", { name: "电源", exact: true })).toContainText("保存一条规则后可开启自动档案");
-    const power = page.getByRole("main", { name: "电源", exact: true });
+    await expect(page.getByRole("main", { name: "电源与档案", exact: true })).toContainText("保存一条规则后可开启自动档案");
+    const power = page.getByRole("main", { name: "电源与档案", exact: true });
     await expect(power.getByText("外接电源 · 未在充电", { exact: true })).toHaveCount(1);
     await expect(power.getByText("已插电", { exact: true })).toHaveCount(0);
   }
@@ -63,15 +64,17 @@ async function misplacedModules(main) {
 }
 
 for (const theme of ["light", "dark"]) {
-  test(`各工作区与系统区域 ${theme} 宽窄、模块边界与只读浏览`, async ({ page }) => {
+  test(`各工作区 ${theme} 宽窄、模块边界与只读浏览`, async ({ page }) => {
     await setup(page);
     await openWorkspace(page, "设置");
-    await page.getByRole("radio", { name: theme === "light" ? "浅色" : "深色", exact: true }).check();
+    const appearance = page.getByRole("radio", { name: theme === "light" ? "浅色" : "深色", exact: true });
+    await appearance.click();
+    await expect(appearance).toBeChecked();
     const before = (await writes(page)).length;
     for (const width of [1440, 360]) {
       await page.setViewportSize({ width, height: 1000 });
       for (const [index, [name, area]] of views.entries()) {
-        if (area) await openSystemArea(page, area);
+        if (area) await openPowerArea(page, area);
         else await openWorkspace(page, name);
         if (area === "配置档案") await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
         await ready(page, area ?? name);
@@ -82,6 +85,15 @@ for (const theme of ["light", "dark"]) {
             || !button.title || button.dataset.size !== "icon-compact"))
           .map(button => button.outerHTML));
         expect(wrongInfoButtons, `${area ?? name} · 信息按钮`).toEqual([]);
+        const duplicateInfo = await main.locator('button:has(> svg[data-icon="info"])').evaluateAll(buttons => {
+          const counts = new Map();
+          for (const button of buttons.filter(button => button.checkVisibility())) {
+            const module = button.closest("section[aria-label], section[aria-labelledby], [role=region][aria-label]");
+            if (module) counts.set(module, (counts.get(module) ?? 0) + 1);
+          }
+          return [...counts].filter(([, count]) => count > 1).map(([module]) => module.getAttribute("aria-label") ?? module.getAttribute("aria-labelledby"));
+        });
+        expect(duplicateInfo, `${area ?? name} · 重复信息按钮`).toEqual([]);
         expect(await misplacedModules(main), `${area ?? name} · ${width}px 模块边缘`).toEqual([]);
         const misaligned = await main.locator(".ccc-panel-head, .ccc-control-status").evaluateAll(rows => rows
           .filter(row => row.checkVisibility())
@@ -145,14 +157,14 @@ test("白光SVG区分保存值和草稿，跨页与外部读数更新不混同",
   await expect(panel.locator(".ccc-backlight-visual strong")).toHaveCount(0);
   await expect(panel.locator(".ccc-slider-read")).toHaveText("3 → 5 级");
   await page.evaluate(() => { window.__uiFixture.keyboard.current.brightnessLevel = 2; });
-  await openSystemArea(page, "概览"); await openWorkspace(page, "键盘与灯光");
+  await openWorkspace(page, "概览"); await openWorkspace(page, "键盘与灯光");
   await expect(panel.getByRole("img", { name: "目标亮度：5 级", exact: true })).toBeVisible();
   await expect(await previewConfiguration(page, "键盘灯光")).toContainText("2 级 → 5 级");
   expect(await writes(page)).toEqual([]);
 });
 
 test("供电SVG、适配器瓦数与除尘状态只取各自报告，未知不冒充零", async ({ page }) => {
-  await setup(page); await openWorkspace(page, "电源");
+  await setup(page); await openPowerArea(page, "电源设置");
   const supply = page.getByRole("region", { name: "原厂供电模式", exact: true });
   const details = page.getByRole("dialog", { name: "供电状态与切换规则", exact: true });
   await supply.getByRole("button", { name: "详情", exact: true }).click();
@@ -169,7 +181,7 @@ test("供电SVG、适配器瓦数与除尘状态只取各自报告，未知不�
   await pd.getByRole("button", { name: "重新读取平台电源", exact: true }).click();
   await expect(pd.getByRole("img", { name: "PD 适配器报告功率 · 未报告功率", exact: true })).toBeVisible();
   await expect(pd).toContainText("未报告"); await expect(pd).not.toContainText("0 W"); await expect(pd).not.toContainText("已插电");
-  await openSystemArea(page, "风扇散热");
+  await openWorkspace(page, "性能与散热");
   const dust = page.getByRole("region", { name: "风扇除尘", exact: true });
   await expect(dust.locator('[data-dust-running="false"]')).toBeVisible();
   await page.evaluate(() => { window.__uiFixture.dust.running = true; });
@@ -192,7 +204,7 @@ test("关灯保留真实档位，读取失败移除白光图形，重试保留�
     window.__lightingReadFail = true;
     window.__TAURI_INTERNALS__.invoke = (command, args) => command === "read_keyboard_lighting" && window.__lightingReadFail ? Promise.reject(new Error("隔离白光读取失败")) : invoke(command, args);
   });
-  await openSystemArea(page, "概览"); await openWorkspace(page, "键盘与灯光");
+  await openWorkspace(page, "概览"); await openWorkspace(page, "键盘与灯光");
   await expect(panel.getByRole("alert")).toContainText("隔离白光读取失败");
   await expect(panel.locator("[data-backlight-level]")).toHaveCount(0);
   await page.evaluate(() => { window.__lightingReadFail = false; });

@@ -34,6 +34,7 @@ pub struct FanProfile {
     pub custom_supported: bool,
     pub current_mode: u8,
     pub offset_pct: u8,
+    pub offset_supported: bool,
     pub can_restore: bool,
     pub fans: Vec<FanPointSet>,
     pub warnings: Vec<String>,
@@ -89,6 +90,7 @@ pub fn decode(package: &[u8; 256], page: &[u8], capabilities: &[u8]) -> Result<F
         custom_supported: supported,
         current_mode: page[5],
         offset_pct: page[7],
+        offset_supported: !rpm_layout,
         can_restore: false,
         fans,
         warnings: if supported {

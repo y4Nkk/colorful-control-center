@@ -53,9 +53,10 @@ fn explicit_selection_saves_preference_before_command_and_restores_the_exact_ori
             .unwrap();
         assert!(save < command);
     }
-    let target = restore_target(&f.hal).unwrap().unwrap();
-    assert_eq!(target.ac_mode, Some(241));
-    restore(&f.hal, &target.revision).unwrap();
+    let before = f.hal.recovery().unwrap().oem_mode.clone().unwrap();
+    assert_eq!(before.core.ac_mode, Some(241));
+    restore_snapshot(&f.hal, &before).unwrap();
+    f.hal.recovery().unwrap().oem_mode = None;
     let data = f.device.0.lock().unwrap();
     assert_eq!(data.pages[1][16], 241);
     assert_eq!(data.pages[1][1], 2);
@@ -72,11 +73,11 @@ fn preference_changes_after_checkpoint_reject_before_any_output() {
     assert!(f.hal.recovery().unwrap().oem_mode.is_none());
 }
 #[test]
-fn cancellation_before_output_does_not_expand_an_existing_options_restore_target() {
+fn cancellation_before_output_does_not_alter_an_existing_options_baseline() {
     let f = setup(1);
     let _gate = f.hal.begin_write().unwrap();
     options(&f);
-    let original = restore_target(&f.hal).unwrap().unwrap();
+    let original = f.hal.recovery().unwrap().oem_mode.clone();
     let events = f.device.0.lock().unwrap().events.clone();
     let plan = checkpoint(&f.hal, 3).unwrap();
     let mut checks = 0;
@@ -90,9 +91,9 @@ fn cancellation_before_output_does_not_expand_an_existing_options_restore_target
         })
         .is_err()
     );
-    let after = restore_target(&f.hal).unwrap().unwrap();
-    assert_eq!(after.revision, original.revision);
-    assert_eq!(after.ac_mode, None);
+    let after = f.hal.recovery().unwrap().oem_mode.clone();
+    assert!(after == original);
+    assert_eq!(after.unwrap().core.ac_mode, None);
     assert_eq!(f.device.0.lock().unwrap().events, events);
 }
 #[test]
@@ -100,34 +101,30 @@ fn options_do_not_own_or_restore_the_ac_preference() {
     let f = setup(1);
     let _gate = f.hal.begin_write().unwrap();
     options(&f);
-    let target = restore_target(&f.hal).unwrap().unwrap();
-    assert_eq!(target.ac_mode, None);
+    let before = f.hal.recovery().unwrap().oem_mode.clone().unwrap();
+    assert_eq!(before.core.ac_mode, None);
     assert_eq!(f.device.0.lock().unwrap().pages[1][16], 1);
     f.device.0.lock().unwrap().pages[1][16] = 3;
-    restore(&f.hal, &target.revision).unwrap();
+    restore_snapshot(&f.hal, &before).unwrap();
     assert_eq!(f.device.0.lock().unwrap().pages[1][16], 3);
 }
 #[test]
-fn selecting_after_options_adds_only_the_first_ac_baseline_and_invalidates_old_restore() {
+fn selecting_after_options_adds_only_the_first_ac_baseline() {
     let f = setup(1);
     let _gate = f.hal.begin_write().unwrap();
     options(&f);
-    let old = restore_target(&f.hal).unwrap().unwrap();
+    let old = f.hal.recovery().unwrap().oem_mode.clone().unwrap();
     f.device.0.lock().unwrap().pages[1][16] = 3;
     checkpoint(&f.hal, 0).unwrap().execute(&f.hal).unwrap();
-    let target = restore_target(&f.hal).unwrap().unwrap();
-    assert_eq!(target.ac_mode, Some(3));
-    assert_eq!(target.mode, 2);
-    assert!(!target.turbo);
-    let events = f.device.0.lock().unwrap().events.clone();
-    assert!(restore(&f.hal, &old.revision).is_err());
-    assert_eq!(f.device.0.lock().unwrap().events, events);
+    let baseline = f.hal.recovery().unwrap().oem_mode.clone().unwrap();
+    assert_eq!(baseline.core.ac_mode, Some(3));
+    assert_eq!(baseline.core.mode, 2);
+    assert_eq!(baseline.core.preferences[0], 0);
+    assert!(baseline.stored() != old.stored());
     checkpoint(&f.hal, 1).unwrap().execute(&f.hal).unwrap();
-    assert_eq!(
-        restore_target(&f.hal).unwrap().unwrap().revision,
-        target.revision
-    );
-    restore(&f.hal, &target.revision).unwrap();
+    let later = f.hal.recovery().unwrap().oem_mode.clone().unwrap();
+    assert!(later.stored() == baseline.stored());
+    restore_snapshot(&f.hal, &later).unwrap();
     let data = f.device.0.lock().unwrap();
     assert_eq!(data.pages[1][16], 3);
     assert_eq!(data.pages[1][1], 2);
@@ -142,8 +139,8 @@ fn automatic_mode_targets_and_restore_leave_the_ac_preference_untouched() {
     plan.execute(&f.hal).unwrap();
     assert_eq!(f.device.0.lock().unwrap().pages[1][16], 2);
     f.device.0.lock().unwrap().pages[1][16] = 3;
-    let target = restore_target(&f.hal).unwrap().unwrap();
-    assert_eq!(target.ac_mode, None);
-    restore(&f.hal, &target.revision).unwrap();
+    let before = f.hal.recovery().unwrap().oem_mode.clone().unwrap();
+    assert_eq!(before.core.ac_mode, None);
+    restore_snapshot(&f.hal, &before).unwrap();
     assert_eq!(f.device.0.lock().unwrap().pages[1][16], 3);
 }

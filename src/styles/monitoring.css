@@ -1,7 +1,7 @@
-/* 监控语义：温度是历史趋势，转速是读数，比例是容量；不以同一折线重复表示。 */
+/* 监控语义：温度折线内嵌传感器卡片，频率与转速是读数，比例是容量。 */
 .ccc-parameter-descriptions { display: grid; gap: var(--ccc-space-3); margin: var(--ccc-space-3) 0 0; padding: 0; list-style: none; }
 .ccc-parameter-descriptions strong { color: var(--ccc-text); font-weight: 500; }
-.ccc-parameter-descriptions p { margin: var(--ccc-space-1) 0 0; line-height: 1.7; }
+.ccc-parameter-descriptions p { margin: var(--ccc-space-1) 0 0; line-height: 1.7; color: var(--ccc-text-muted); }
 .ccc-sensor-group { display: grid; grid-template-rows: subgrid; gap: var(--ccc-space-3); min-width: 0; padding: var(--ccc-space-4); }
 .ccc-sensor-identity { display: grid; grid-template-columns: minmax(0, 1fr) minmax(80px, 40%); align-items: center; gap: var(--ccc-space-2); min-height: 115px; }
 .ccc-hardware-description { min-width: 0; }
@@ -65,43 +65,14 @@
 .ccc-storage-info h4 > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ccc-storage-info h4 > :last-child { flex: none; }
 
-.ccc-temperature-range { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
-.ccc-temperature-history { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--ccc-space-3) var(--ccc-space-4); align-items: center; }
-.ccc-temperature-row { display: contents; }
-.ccc-temperature-reading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ccc-space-3); }
-.ccc-temperature-sensor { color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); font-weight: 600; }
 .ccc-temperature-value { color: var(--ccc-text); font-size: var(--ccc-text-temperature); line-height: 1.15; white-space: nowrap; }
 .ccc-temperature-value em { margin-inline-start: var(--ccc-space-1); color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); font-style: normal; }
 .ccc-temperature-value.is-hot { color: var(--ccc-danger); }
-.ccc-temperature-track {
-  position: relative;
-  block-size: 34px;
-  min-width: 0;
-  overflow: hidden;
-  border-radius: calc(var(--ccc-radius-control) / 2);
-  background-color: var(--ccc-content-muted);
-  box-shadow: inset 0 0 0 1px var(--ccc-hairline);
-}
-.ccc-temperature-track::after {
-  position: absolute;
-  inset: 0;
-  content: "";
-  background-image: linear-gradient(to right, transparent calc(100% - 1px), color-mix(in srgb, var(--ccc-content) 82%, transparent) calc(100% - 1px));
-  background-size: var(--ccc-temperature-minute) 100%;
-  pointer-events: none;
-}
-.ccc-temperature-sample {
-  position: absolute;
-  inset-block: 0;
-  background-color: color-mix(in oklab, color-mix(in srgb, var(--ccc-action) 28%, var(--ccc-content)), var(--ccc-warning) var(--ccc-temperature-heat));
-}
-.ccc-temperature-legend { grid-column: 2; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--ccc-space-1) var(--ccc-space-3); color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
-.ccc-temperature-legend > span { display: inline-flex; gap: var(--ccc-space-1); align-items: center; white-space: nowrap; }
-.ccc-temperature-swatch { width: 14px; height: 10px; border-radius: 2px; background: var(--ccc-content-muted); box-shadow: inset 0 0 0 1px var(--ccc-hairline); }
-.ccc-temperature-sample.is-hot, .ccc-temperature-swatch.is-hot {
-  background-color: var(--ccc-danger);
-  background-image: repeating-linear-gradient(to bottom, transparent 0 4px, color-mix(in srgb, var(--ccc-content) 30%, transparent) 4px 5px);
-}
+.ccc-sensor-temperature { display: grid; gap: var(--ccc-space-2); min-width: 0; }
+.ccc-sensor-temperature-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ccc-space-3); }
+.ccc-sensor-temperature-head > span { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); white-space: nowrap; }
+.ccc-sensor-temperature-plot { height: 64px; }
+.ccc-temperature-limit { stroke: color-mix(in srgb, var(--ccc-danger) 32%, transparent); }
 .ccc-trend-plot { position: relative; min-width: 0; }
 .ccc-trend-lines { display: block; width: 100%; height: 100%; box-shadow: 0 1px var(--ccc-hairline); }
 .ccc-trend-line { fill: none; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }
@@ -109,9 +80,6 @@
 .ccc-trend-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
 @container ccc-control (max-width: 835px) { .ccc-meter-ring { --ccc-ring-diameter: var(--ccc-meter-ring-compact); } }
 @container ccc-control (max-width: 560px) {
-  .ccc-temperature-history { column-gap: var(--ccc-space-2); }
-  .ccc-temperature-reading { flex-direction: column; gap: var(--ccc-space-1); }
-  .ccc-temperature-value { font-size: var(--ccc-text-reading); }
   .ccc-capacity-head { grid-template-columns: minmax(0, 1fr) 76px; }
   .ccc-memory-usage { grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-3); }
 }

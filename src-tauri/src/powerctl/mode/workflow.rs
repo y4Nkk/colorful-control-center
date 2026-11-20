@@ -1,16 +1,7 @@
 use super::*;
 use crate::fanctl;
 mod storage;
-pub use storage::RestoreTarget;
 pub(crate) use storage::{RecoveryPreview, StoredModeSnapshot};
-
-pub(super) fn restore_target(hal: &Hal) -> Result<Option<RestoreTarget>> {
-    hal.recovery()?
-        .oem_mode
-        .as_ref()
-        .map(RestoreTarget::new)
-        .transpose()
-}
 
 #[derive(Clone, PartialEq)]
 pub struct Snapshot {
@@ -368,21 +359,4 @@ pub fn apply_preview(hal: &Hal, expected: &Target) -> Result<()> {
 }
 pub fn restore_checkpoint(hal: &Hal, plan: &Plan) -> Result<()> {
     plan.restore(hal)
-}
-#[cfg(test)]
-pub fn restore(hal: &Hal, expected_revision: &str) -> Result<()> {
-    let before = hal
-        .recovery()?
-        .oem_mode
-        .clone()
-        .ok_or_else(|| anyhow!("没有初始模式快照"))?;
-    if RestoreTarget::new(&before)?.revision != expected_revision {
-        bail!("初始模式恢复目标已变化，请重新预览并确认");
-    }
-    if before.links.is_some() {
-        bail!("GPU模式恢复必须使用完整预览、授权及恢复入口");
-    }
-    restore_snapshot(hal, &before)?;
-    hal.recovery()?.oem_mode = None;
-    Ok(())
 }

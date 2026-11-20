@@ -12,7 +12,6 @@ pub(crate) mod manual;
 pub use energy::State as EnergyState;
 mod policy;
 pub(crate) mod profile;
-pub(crate) mod restoration;
 pub(crate) mod selection;
 pub(crate) mod supply;
 mod support;
@@ -21,8 +20,6 @@ mod workflow;
 pub use policy::Target;
 #[cfg(test)]
 pub(crate) use workflow::checkpoint_for_profile;
-#[cfg(test)]
-pub use workflow::restore;
 pub use workflow::{Plan, Snapshot, restore_checkpoint};
 #[cfg(test)]
 pub use workflow::{apply_preview, checkpoint};
@@ -43,10 +40,7 @@ pub struct ModeProfile {
     pub current_mode: u8,
     pub ac_mode: u8,
     pub energy: Option<EnergyState>,
-    pub restore: Option<workflow::RestoreTarget>,
-    pub restore_blocked_reason: Option<String>,
     pub available_modes: Vec<u8>,
-    pub can_restore: bool,
     pub targets: Vec<Target>,
     pub software_active: bool,
     pub blocked_reason: Option<String>,
@@ -181,7 +175,7 @@ pub(crate) fn mode_choices(io: &impl ModeIo) -> Result<(Vec<u8>, Option<String>)
     Ok((modes, issue))
 }
 
-fn feature_flags(io: &impl ModeIo, caps: &[u8], command: i32) -> Result<u32> {
+pub(crate) fn feature_flags(io: &impl ModeIo, caps: &[u8], command: i32) -> Result<u32> {
     let word = |at| u32::from_le_bytes(caps[at..at + 4].try_into().unwrap());
     let short = |at| u16::from_le_bytes(caps[at..at + 2].try_into().unwrap()) as u32;
     if caps[..2] == [1, 0]
@@ -217,10 +211,7 @@ pub fn read(hal: &Hal) -> Result<ModeProfile> {
             current_mode: current_mode(io)?,
             ac_mode: byte(io, 1, 16)?,
             energy,
-            restore: None,
-            restore_blocked_reason: None,
             available_modes: modes,
-            can_restore: false,
             software_active: false,
             blocked_reason: support_issue.or_else(|| {
                 hal.ensure_mode_change_allowed()
@@ -230,12 +221,6 @@ pub fn read(hal: &Hal) -> Result<ModeProfile> {
             targets,
         })
     })?;
-    profile.restore = workflow::restore_target(hal)?;
-    profile.restore_blocked_reason = energy::restore_issue(
-        profile.restore.as_ref().and_then(|target| target.energy),
-        profile.energy,
-    );
-    profile.can_restore = profile.restore.is_some() && profile.restore_blocked_reason.is_none();
     profile.blocked_reason = profile.blocked_reason.or_else(|| {
         crate::fanctl::dust::ensure_manual_allowed(hal)
             .err()

@@ -1,4 +1,4 @@
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 const panel = page => page.getByRole("region", { name: "网络驱动策略", exact: true });
@@ -27,15 +27,15 @@ async function install(page, mode) {
       return result;
     };
   }, mode);
-  await page.goto("/"); await openWorkspace(page, "电源");
+  await page.goto("/"); await openPowerArea(page, "电源设置");
 }
 
 test("严格模式及返回页面允许新读取，过时响应不能阻塞或覆盖新网卡快照", async ({ page }) => {
   await install(page, "reads");
   await expect.poll(() => page.evaluate(() => window.__uiFixture.pendingLanReads.length)).toBe(1);
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.evaluate(() => window.__uiFixture.lan.frame.devices[0].name = "新读取网卡");
-  await navigate(page, "电源");
+  await openPowerArea(page, "电源设置");
   await expect(panel(page)).toContainText("新读取网卡");
   await page.evaluate(() => window.__uiFixture.pendingLanReads.splice(0).forEach(resolve => resolve()));
   await expect(panel(page)).toContainText("新读取网卡");
@@ -49,7 +49,7 @@ test("写入回读期间切页返回仍发布确认后的状态", async ({ page 
   await panel(page).getByRole("combobox", { name: "网卡节能", exact: true }).click();
   await page.getByRole("option", { name: "开启网卡节能", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.__uiFixture.pendingLanReads.length)).toBe(1);
-  await openSystemArea(page, "配置档案"); await navigate(page, "电源");
+  await openPowerArea(page, "配置档案"); await openPowerArea(page, "电源设置");
   await page.evaluate(() => {
     window.__uiFixture.deferAfterWrite = false;
     window.__uiFixture.pendingLanReads.splice(0).forEach(resolve => resolve());

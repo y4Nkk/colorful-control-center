@@ -38,6 +38,8 @@ export interface FanProfile {
   customSupported: boolean;
   currentMode: number;
   offsetPct: number;
+  /** 固件 WMI96 bit10 未置位且 RPM 布局允许加速偏移 */
+  offsetSupported: boolean;
   fans: FanPointSet[];
   canRestore: boolean;
   warnings: string[];
@@ -54,17 +56,24 @@ export interface CurvePointsDto {
 
 
 export const NOISELESS_FAN_LABEL = "寂静模式";
+export const FAN_MODE_AUTO = 0;
+export const FAN_MODE_NOISELESS = 8;
 export const CUSTOM_FAN_MODE = 6;
 export const FAN_MODES: ReadonlyArray<{ id: number; label: string }> = [
   { id: 0, label: "自动" },
   { id: 1, label: "全速" },
   { id: 5, label: "能效优先" },
   { id: CUSTOM_FAN_MODE, label: "自定义" },
-  { id: 8, label: NOISELESS_FAN_LABEL },
+  { id: FAN_MODE_NOISELESS, label: NOISELESS_FAN_LABEL },
 ];
 
 export function fanModeLabel(id: number) {
   return FAN_MODES.find(mode => mode.id === id)?.label ?? "模式未知";
+}
+
+/** 原厂在自动档及其寂静覆盖档接受加速偏移；其余固件模式不提供该参数。 */
+export function offsetModeAvailable(mode: number) {
+  return mode === FAN_MODE_AUTO || mode === FAN_MODE_NOISELESS;
 }
 
 export const readFanProfile = (): Promise<FanProfile> => invoke("read_fan_profile");

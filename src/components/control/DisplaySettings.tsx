@@ -34,9 +34,9 @@ export function DisplaySettings({ active, revision, rotationRequest }: { active:
   return <Surface as="section" variant="group" className="ccc-panel" aria-label="屏幕显示" aria-busy={busy || undefined}>
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="display" />屏幕显示</h2>
       {selected && <div className="ccc-module-tools"><DetailsDialog title="显示器详情" label="详情">
-        <p>{selected.current.name} · {selected.current.device}</p>
-        <p>支持刷新率 · {selected.frequencies.join(" / ")} Hz</p>
-        {!canRotate && <p>{rotation ? "翻转只适用于主显示器。" : "当前主显示器无法翻转。"}</p>}
+        <p className="ccc-control-caption">{selected.current.name} · {selected.current.device}</p>
+        <p className="ccc-control-caption">支持刷新率 · {selected.frequencies.join(" / ")} Hz</p>
+        {!canRotate && <p className="ccc-control-caption">{rotation ? "翻转只适用于主显示器。" : "当前主显示器无法翻转。"}</p>}
         <p>刷新率和主屏方向切换后可在 15 秒内保留。</p>
       </DetailsDialog></div>}
     </div>

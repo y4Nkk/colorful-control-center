@@ -39,14 +39,19 @@ fn repeated_approved_profile_modes_save_the_preference_without_invalidating_futu
         assert_eq!(data.pages[1][16], mode);
     }
     h.policy.restore(&h.f.hal, &h.record()).unwrap();
-    let target = crate::powerctl::mode::read(&h.f.hal)
+    let stored = h
+        .f
+        .hal
+        .recovery()
         .unwrap()
-        .restore
-        .unwrap();
-    assert_eq!(target.ac_mode, Some(3));
-    let _gate = h.f.hal.begin_write().unwrap();
-    crate::powerctl::mode::restore(&h.f.hal, &target.revision).unwrap();
-    assert_eq!(h.f.device.0.lock().unwrap().pages[1][16], 3);
+        .oem_mode
+        .clone()
+        .unwrap()
+        .stored();
+    assert_eq!(
+        stored.recovery_preview(&stored).unwrap().initial_ac_mode,
+        Some(3)
+    );
 }
 
 #[test]

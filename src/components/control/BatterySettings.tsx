@@ -100,6 +100,6 @@ function BatteryDetails({ profile }: { profile: BatteryProfile | null }) {
       { label: "故障状态码", value: `0x${diagnostics.permanentFailureStatus.toString(16)}` },
     ]} />}
     <p>当前电量取系统读数。满充容量与设计容量的比例用于比较容量变化。</p>
-    {profile?.warnings.map(warning => <p key={warning}>{warning}</p>)}
+    {profile?.warnings.map(warning => <p key={warning} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{warning}</p>)}
   </DetailsDialog>;
 }

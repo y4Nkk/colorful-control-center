@@ -1,5 +1,5 @@
 import { Icon } from "../Icon";
-import { ProfileModeAuthorization } from "../profiles/ProfileModeAuthorization";
+import { ProfileModeAuthorization, ProfileModeExecutionNotes } from "../profiles/ProfileModeAuthorization";
 import type { PowerPolicyRecord, ProfileApplication } from "../../api/client";
 import { Button } from "../Button";
 import { Switch } from "../Switch";
@@ -20,6 +20,10 @@ export function PowerProfilePolicy({ active, revision }: { active: boolean; revi
   const source = view?.source === "ac" || view?.source === "battery" || view?.source === "ups" ? view.source : "unknown";
   const status = view?.paused && view.record?.enabled ? "已暂停" : !view && !p.error ? "读取中…" : null;
   const issues = Array.from(new Set([p.error, view?.configurationError, view?.listenerError, view?.lastIssue, latest.error].filter(Boolean)));
+  const unavailableRules = POWER_RULES.map(rule => {
+    const { error, selection } = p.choices[rule.key];
+    return { ...rule, issues: [error, selection?.modeError, selection?.displayError, selection?.gpuPowerError, selection?.graphicsModeError].filter(Boolean) };
+  }).filter(rule => rule.issues.length > 0);
   const savedRules = !!view?.record && POWER_RULES.some(rule => view.record?.[rule.key]);
   const canEnable = savedRules && !!view?.route && !view.listenerError;
   const blocked = !view?.record || !!view.configurationError;
@@ -35,8 +39,13 @@ export function PowerProfilePolicy({ active, revision }: { active: boolean; revi
             <PowerSourceVisual source={source} />
             <SavedRules record={view?.record ?? null} />
             {latest.report && <AutomaticReport report={latest.report} />}
-            {issues.map(issue => <p key={issue} className="ccc-control-error">{issue}</p>)}
+            {issues.map(issue => <p key={issue} className="ccc-control-error"><Icon name="error" size={16} />{issue}</p>)}
             {view?.route?.warnings.map(warning => <p key={warning} className="ccc-control-caption">{warning}</p>)}
+            {unavailableRules.map(rule => <section key={rule.key} aria-label={`${rule.label} · 档案不可用`}>
+              <h3>{rule.label} · 档案不可用</h3>
+              {rule.issues.map(issue => <p key={issue}>{issue}</p>)}
+              <OemConflictAction issues={rule.issues} disabled={p.busy} onClosed={p.refreshAfterExit} />
+            </section>)}
             <Button icon="refresh" variant="secondary" disabled={p.busy} onClick={() => void p.reread()}>重新读取并暂停</Button>
           </div>
         </DetailsDialog>
@@ -49,7 +58,7 @@ export function PowerProfilePolicy({ active, revision }: { active: boolean; revi
     <OemConflictAction issues={[...issues, ...(latest.report?.steps.filter(step => !step.ok).map(step => step.message) ?? [])]}
       disabled={p.busy} onClosed={p.refreshAfterExit} />
     {view?.record && !savedRules && <p className="ccc-control-caption">保存一条规则后可开启自动档案。</p>}
-    <PolicyFields model={p} />
+    <PolicyFields model={p} unavailable={unavailableRules.map(rule => rule.key)} />
     {(view?.active || view?.paused && view.record?.enabled || view?.resetRevision) && <div className="ccc-power-setting-actions">
       {view.active &&
         <Button icon="pause" variant="secondary" size="compact" disabled={p.busy}
@@ -73,12 +82,13 @@ export function PowerProfilePolicy({ active, revision }: { active: boolean; revi
   </section>;
 }
 
-function PolicyFields({ model: p }: { model: ReturnType<typeof usePowerProfilePolicy> }) {
+function PolicyFields({ model: p, unavailable }: {
+  model: ReturnType<typeof usePowerProfilePolicy>; unavailable: readonly (typeof POWER_RULES)[number]["key"][];
+}) {
   return <div className="ccc-power-subsettings">{POWER_RULES.map(rule => {
-    const choice = p.choices[rule.key], selection = choice.selection, name = p.draft[rule.key];
+    const name = p.draft[rule.key];
     const options = [{ value: "", label: "不应用档案" }, ...p.profiles.map(profile => ({ value: profile.name, label: profile.name }))];
     if (name && !options.some(option => option.value === name)) options.push({ value: name, label: `${name}（不可读取）` });
-    const issues = [choice.error, selection?.modeError, selection?.displayError, selection?.gpuPowerError, selection?.graphicsModeError].filter(Boolean);
     return <div key={rule.key}>
       <label className="ccc-power-setting"><span>{rule.label}</span><span className="ccc-power-setting-picker">
         <Select label={rule.label} size="compact" value={name} options={options}
@@ -87,10 +97,7 @@ function PolicyFields({ model: p }: { model: ReturnType<typeof usePowerProfilePo
       {p.staleRules.some(stale => stale.key === rule.key) && <p className="ccc-control-caption is-warn">
         {p.profiles.some(profile => profile.name === name) ? "档案有更新，请核对并保存规则" : "档案已不可用，请重新选择"}
       </p>}
-      {issues.length > 0 && <DetailsDialog title={`${rule.label} · 档案不可用`}>
-        {issues.map(error => <p key={error}>{error}</p>)}
-        <OemConflictAction issues={issues} disabled={p.busy} onClosed={p.refreshAfterExit} />
-      </DetailsDialog>}
+      {unavailable.includes(rule.key) && <p className="ccc-control-caption is-warn">档案不可用 · 查看详情</p>}
     </div>;
   })}</div>;
 }
@@ -98,12 +105,13 @@ function PolicyFields({ model: p }: { model: ReturnType<typeof usePowerProfilePo
 function PolicyTargets({ model: p }: { model: ReturnType<typeof usePowerProfilePolicy> }) {
   return <div className="ccc-detail-stack">{POWER_RULES.map(rule => {
     const selection = p.choices[rule.key].selection;
-    return <section className="ccc-review-section" key={rule.key}>
+    return <section className="ccc-review-section" key={rule.key} aria-label={rule.label}>
       <h3>{rule.label}</h3><p>{p.draft[rule.key] || "不应用档案"}</p>
       <ProfileModeAuthorization approval={selection?.modeAuthorization ?? null} />
       {selection && <DetailsDialog title={`查看「${selection.file.name}」参数`} wide>
         <ProfilePreview settings={selection.file.settings} modeTarget={selection.modeTarget} displayReview={selection.displayReview}
           gpuPowerReview={selection.gpuPowerReview} graphicsModeReview={selection.graphicsModeReview} />
+        <ProfileModeExecutionNotes approval={selection.modeAuthorization} />
       </DetailsDialog>}
     </section>;
   })}</div>;

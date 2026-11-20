@@ -1,5 +1,6 @@
 import { restoreLowBatteryBrightness, type LowBatteryBrightnessProfile } from "../../api/client";
 import { ConfirmButton } from "../ConfirmButton";
+import { Icon } from "../Icon";
 import { Surface } from "../Surface";
 import { MetricReadout } from "./MetricReadout";
 
@@ -18,7 +19,7 @@ export function BatteryLowBrightnessFacts({ profile, powerSummary, busy, run, ab
             <MetricReadout key={labels[index]} label={labels[index]} value={value} maximum={100} unit="%" colorVar="var(--ccc-action)" />)}</div>
           {powerSummary && <p className="ccc-control-caption">{powerSummary}</p>}
         </> : <p className="ccc-control-caption">当前计划亮度不可读取。</p>}
-        {profile.error && <p className="ccc-control-error">{profile.error}</p>}
+        {profile.error && <p className="ccc-control-error"><Icon name="error" size={16} />{profile.error}</p>}
       </Surface>
       <Surface variant="inset" className="ccc-battery-low-part">
         {absolute ? <>
@@ -41,7 +42,7 @@ export function BatteryLowBrightnessFacts({ profile, powerSummary, busy, run, ab
           : `${label}保留`).join(" · ")}</p>
         <span className="ccc-control-caption">仅恢复接管字段和缓存</span>
       </>}
-      {profile.restoreError && <p className="ccc-control-error">{profile.restoreError}</p>}
+      {profile.restoreError && <p className="ccc-control-error"><Icon name="error" size={16} />{profile.restoreError}</p>}
       {recovery && <ConfirmButton icon="undo" key={profile.restoreRevision ?? "low-brightness-unavailable"} variant="secondary"
         label="恢复低电量前亮度" confirmLabel="确认停止监听并恢复上述亮度？" busy={busy} disabled={!profile.restoreRevision}
         onConfirm={() => run(() => restoreLowBatteryBrightness(profile.restoreRevision!), "低电量前亮度已恢复", false)} />}

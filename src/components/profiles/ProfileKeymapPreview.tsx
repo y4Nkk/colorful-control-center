@@ -11,7 +11,16 @@ export function ProfileKeymapPreview({ target }: { target: KeymapTarget }) {
       <FactList compact facts={target.configuration.devices.map(device => ({ label: KEYMAP_DEVICE_LABELS[device.device],
         value: `${device.enabled ? "启用" : "关闭"} · ${device.bindings.length} 项映射` }))} />
       <p className="ccc-control-caption">{target.programsEnabled ? "全部设置成功后启用程序宏监听，需保持应用运行" : "不启用程序宏监听，保留宏配置"}</p>
-      <DetailsDialog title="映射回读说明"><p>目标为保存配置及驱动接受结果，过滤器未提供映射表回读。</p></DetailsDialog>
+      <DetailsDialog title="映射详情">
+        <p>目标为保存配置及驱动接受结果，过滤器未提供映射表回读。</p>
+        {target.configuration.devices.map(device => <section className="ccc-profile-values" key={device.device} aria-label={KEYMAP_DEVICE_LABELS[device.device]}>
+          <h3>{KEYMAP_DEVICE_LABELS[device.device]} · {device.bindings.length} 项映射</h3>
+          {device.bindings.map(binding => <div className="ccc-profile-values" key={binding.trigger}>
+            <strong className="ccc-control-caption">{keyLabel(device.device, binding.trigger)} · {actionLabel(binding.action)}</strong>
+            <p className="ccc-keymap-preview-value ccc-mono">{actionDetails(binding.action)}</p>
+          </div>)}{!device.bindings.length && <p className="ccc-control-caption">此设备使用原键功能</p>}
+        </section>)}
+      </DetailsDialog>
     </div>
     <div className="ccc-profile-values">{target.configuration.devices.map(device => <div className="ccc-profile-values" key={device.device}>
       <svg viewBox="0 0 210 50" role="img" aria-label={`${KEYMAP_DEVICE_LABELS[device.device]}映射范围`}>
@@ -20,12 +29,6 @@ export function ProfileKeymapPreview({ target }: { target: KeymapTarget }) {
           : <g fill="var(--ccc-content-muted)" stroke="var(--ccc-hairline)"><rect x="70" y="1" width="68" height="48" rx="20" />
             <path d="M104 2v20m-30 0h60" fill="none" /><rect x="100" y="6" width="8" height="12" rx="4" fill={device.enabled ? "var(--ccc-action)" : "var(--ccc-text-muted)"} /></g>}
       </svg>
-      <DetailsDialog title={`${KEYMAP_DEVICE_LABELS[device.device]} · 查看全部 ${device.bindings.length} 项映射`}>
-        <div className="ccc-profile-values">{device.bindings.map(binding => <div className="ccc-profile-values" key={binding.trigger}>
-          <strong className="ccc-control-caption">{keyLabel(device.device, binding.trigger)} · {actionLabel(binding.action)}</strong>
-          <p className="ccc-keymap-preview-value ccc-mono">{actionDetails(binding.action)}</p>
-        </div>)}{!device.bindings.length && <p className="ccc-control-caption">此设备使用原键功能</p>}</div>
-      </DetailsDialog>
     </div>)}</div>
   </Surface>;
 }

@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -67,66 +67,157 @@ fn escape(value: &str) -> String {
         .replace('"', "&quot;")
         .replace('\'', "&apos;")
 }
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
-struct Tree {
-    name: String,
-    namespace: String,
-    attributes: Vec<String>,
-    text: String,
-    children: Vec<Tree>,
-}
-fn tree(node: roxmltree::Node<'_, '_>) -> Tree {
-    let mut attributes: Vec<_> = node
-        .attributes()
-        .map(|a| format!("{}={}", a.name(), a.value()))
-        .collect();
-    attributes.sort();
-    let mut children: Vec<_> = node
-        .children()
-        .filter(|n| n.is_element())
-        .map(tree)
-        .collect();
-    children.sort();
-    Tree {
-        name: node.tag_name().name().into(),
-        namespace: node.tag_name().namespace().unwrap_or("").into(),
-        attributes,
-        text: if children.is_empty() {
-            node.text().unwrap_or("").into()
-        } else {
-            String::new()
-        },
-        children,
+const NAMESPACE: &str = "http://schemas.microsoft.com/windows/2004/02/mit/task";
+// 设置元素、唯一接受值、是否必须显式存在：任务服务存储时丢弃等于架构默认值的元素，
+// 省略即默认值时才允许省略；必须项的架构默认值与模板不同，省略即语义偏离。
+const SETTINGS: &[(&str, &str, bool)] = &[
+    ("MultipleInstancesPolicy", "IgnoreNew", false),
+    ("DisallowStartIfOnBatteries", "false", false),
+    ("StopIfGoingOnBatteries", "false", false),
+    ("AllowHardTerminate", "false", true),
+    ("StartWhenAvailable", "true", true),
+    ("ExecutionTimeLimit", "PT0S", true),
+    ("Enabled", "true", false),
+    ("Hidden", "false", false),
+    ("AllowStartOnDemand", "true", false),
+    ("RunOnlyIfIdle", "false", false),
+    ("RunOnlyIfNetworkAvailable", "false", false),
+    ("WakeToRun", "false", false),
+    ("Priority", "7", false),
+];
+fn element<'a, 'i>(
+    parent: roxmltree::Node<'a, 'i>,
+    name: &str,
+) -> Result<Option<roxmltree::Node<'a, 'i>>> {
+    let mut found = None;
+    for child in parent.children().filter(|n| n.is_element()) {
+        if child.tag_name().name() == name && found.replace(child).is_some() {
+            bail!("登录任务包含多个{name}");
+        }
     }
+    Ok(found)
 }
-pub fn task_level(value: &str, executable: &str, user: &str) -> Result<Level> {
+fn required<'a, 'i>(
+    parent: roxmltree::Node<'a, 'i>,
+    name: &str,
+) -> Result<roxmltree::Node<'a, 'i>> {
+    element(parent, name)?.ok_or_else(|| anyhow!("登录任务缺少{name}"))
+}
+fn only_child<'a, 'i>(
+    parent: roxmltree::Node<'a, 'i>,
+    name: &str,
+) -> Result<roxmltree::Node<'a, 'i>> {
+    let mut children = parent.children().filter(|n| n.is_element());
+    let child = children.next().ok_or_else(|| anyhow!("登录任务缺少{name}"))?;
+    if children.next().is_some() || child.tag_name().name() != name {
+        bail!("登录任务{name}节不属于当前软件");
+    }
+    Ok(child)
+}
+fn text<'a>(node: roxmltree::Node<'a, '_>) -> &'a str {
+    node.text().unwrap_or("").trim()
+}
+fn reject_other_children(node: roxmltree::Node<'_, '_>, allowed: &[&str]) -> Result<()> {
+    for child in node.children().filter(|n| n.is_element()) {
+        if !allowed.contains(&child.tag_name().name()) {
+            bail!("登录任务包含未声明的{}节", child.tag_name().name());
+        }
+    }
+    Ok(())
+}
+pub fn task_level(value: &str, executable: &str, user: &str, user_name: &str) -> Result<Level> {
     if value.len() > 65536 {
         bail!("登录任务XML过大");
     }
     let document = roxmltree::Document::parse(value)?;
     let root = document.root_element();
-    // 仅接受本程序固定任务；额外动作、触发器或用户均改变结构指纹。
-    for level in [Level::Standard, Level::Administrator] {
-        let expected = xml(executable, user, level).unwrap();
-        let expected = roxmltree::Document::parse(&expected)?;
-        if tree(root) == tree(expected.root_element())
-            && root.descendants().filter(|n| n.is_element()).all(|n| {
-                n.attributes().all(|a| {
-                    matches!(
-                        (n.tag_name().name(), a.name(), a.value()),
-                        ("Task", "version", "1.2")
-                            | ("Principal", "id", "Owner")
-                            | ("Actions", "Context", "Owner")
-                    )
-                })
-            })
-        {
-            return Ok(level);
+    if root.tag_name().name() != "Task"
+        || root.tag_name().namespace() != Some(NAMESPACE)
+        || root.attribute("version") != Some("1.2")
+    {
+        bail!("同名登录任务的程序、用户或执行设置不属于当前软件，未覆盖");
+    }
+    // 注册信息由任务服务维护（补写日期、改写URI），不影响执行语义，不纳入指纹。
+    reject_other_children(
+        root,
+        &["RegistrationInfo", "Triggers", "Principals", "Settings", "Actions"],
+    )?;
+    // 动作：唯一Exec，程序与参数逐字一致。
+    let actions = required(root, "Actions")?;
+    if actions.attribute("Context") != Some("Owner") {
+        bail!("同名登录任务的程序、用户或执行设置不属于当前软件，未覆盖");
+    }
+    let exec = only_child(actions, "Exec")?;
+    if text(required(exec, "Command")?) != executable {
+        bail!("同名登录任务的程序、用户或执行设置不属于当前软件，未覆盖");
+    }
+    if text(required(exec, "Arguments")?) != "--autostart" {
+        bail!("同名登录任务的程序、用户或执行设置不属于当前软件，未覆盖");
+    }
+    reject_other_children(exec, &["Command", "Arguments"])?;
+    // 触发器：唯一本用户登录触发；任务服务会把SID规范化成 机器\用户。
+    let logon = only_child(required(root, "Triggers")?, "LogonTrigger")?;
+    if let Some(enabled) = element(logon, "Enabled")? {
+        if text(enabled) != "true" {
+            bail!("同名登录任务的程序、用户或执行设置不属于当前软件，未覆盖");
         }
     }
-    bail!("同名登录任务的程序、用户或执行设置不属于当前软件，未覆盖")
+    let trigger_user = text(required(logon, "UserId")?);
+    if trigger_user != user && trigger_user != user_name {
+        bail!("同名登录任务的程序、用户或执行设置不属于当前软件，未覆盖");
+    }
+    reject_other_children(logon, &["Enabled", "UserId"])?;
+    // 主体：本用户、交互令牌；RunLevel省略即LeastPrivilege。
+    let principal = only_child(required(root, "Principals")?, "Principal")?;
+    if principal.attribute("id") != Some("Owner") {
+        bail!("同名登录任务的程序、用户或执行设置不属于当前软件，未覆盖");
+    }
+    let principal_user = text(required(principal, "UserId")?);
+    if principal_user != user && principal_user != user_name {
+        bail!("同名登录任务的程序、用户或执行设置不属于当前软件，未覆盖");
+    }
+    if text(required(principal, "LogonType")?) != "InteractiveToken" {
+        bail!("同名登录任务的程序、用户或执行设置不属于当前软件，未覆盖");
+    }
+    let level = match element(principal, "RunLevel")?.map(text) {
+        None | Some("LeastPrivilege") => Level::Standard,
+        Some("HighestAvailable") => Level::Administrator,
+        _ => bail!("同名登录任务的程序、用户或执行设置不属于当前软件，未覆盖"),
+    };
+    reject_other_children(principal, &["UserId", "LogonType", "RunLevel"])?;
+    // 设置：逐项等于模板值，或省略后架构默认值仍等于模板值。
+    let settings = required(root, "Settings")?;
+    let mut present = [false; SETTINGS.len()];
+    let mut idle = None;
+    for child in settings.children().filter(|n| n.is_element()) {
+        let name = child.tag_name().name();
+        if let Some(index) = SETTINGS.iter().position(|(n, _, _)| *n == name) {
+            if text(child) != SETTINGS[index].1 {
+                bail!("同名登录任务的程序、用户或执行设置不属于当前软件，未覆盖");
+            }
+            present[index] = true;
+        } else if name == "IdleSettings" && idle.replace(child).is_none() {
+        } else {
+            bail!("同名登录任务的程序、用户或执行设置不属于当前软件，未覆盖");
+        }
+    }
+    for (index, (name, _, explicit)) in SETTINGS.iter().enumerate() {
+        if *explicit && !present[index] {
+            bail!("登录任务缺少{name}设置，未覆盖");
+        }
+    }
+    if let Some(idle) = idle {
+        for child in idle.children().filter(|n| n.is_element()) {
+            if !matches!(child.tag_name().name(), "StopOnIdleEnd" | "RestartOnIdle")
+                || text(child) != "false"
+            {
+                bail!("同名登录任务的程序、用户或执行设置不属于当前软件，未覆盖");
+            }
+        }
+    }
+    Ok(level)
 }
-pub fn validate(state: &State, executable: &str, user: &str) -> Result<Level> {
+pub fn validate(state: &State, executable: &str, user: &str, user_name: &str) -> Result<Level> {
     if state
         .run
         .as_ref()
@@ -135,6 +226,6 @@ pub fn validate(state: &State, executable: &str, user: &str) -> Result<Level> {
         bail!("同名旧自启项不属于当前程序，未覆盖");
     }
     state.task.as_ref().map_or(Ok(Level::Disabled), |task| {
-        task_level(task, executable, user)
+        task_level(task, executable, user, user_name)
     })
 }

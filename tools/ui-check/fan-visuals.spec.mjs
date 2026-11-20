@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
-import { openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
@@ -60,7 +60,7 @@ test("固件曲线跟随指针和键盘，松手或释放方向键只写一次",
     Object.assign(fan.fans[0], { t1: 51, d1Pct: 23, t2: 60, d2Pct: 32, t3: 80, d3Pct: 33 });
     fan.fans.push({ ...fan.fans[0], id: "gpu1", t1: 15 });
   });
-  await openSystemArea(page, "风扇散热");
+  await openWorkspace(page, "性能与散热");
   const panel = page.getByRole("region", { name: "风扇设置", exact: true });
   await expect(panel).toHaveCount(1);
   await expect(panel.getByRole("radiogroup", { name: "风扇曲线执行方式", exact: true })).toHaveCount(0);
@@ -126,7 +126,7 @@ test("固件曲线跟随指针和键盘，松手或释放方向键只写一次",
 });
 
 test("点位数字回车或失焦即应用，取消与空值不会提交", async ({ page }) => {
-  await openSystemArea(page, "风扇散热");
+  await openWorkspace(page, "性能与散热");
   const input = page.getByRole("spinbutton", { name: "T2 占空比" });
   await input.fill("62");
   await expect(page.locator('.ccc-plot-handle[data-point="p2"]:visible')).toHaveClass(/is-selected/);
@@ -161,7 +161,7 @@ test("点位数字回车或失焦即应用，取消与空值不会提交", async
 });
 
 test("偏移滑杆拖动和方向键连按只在释放后写入一次", async ({ page }) => {
-  await openSystemArea(page, "风扇散热");
+  await openWorkspace(page, "性能与散热");
   const slider = page.getByRole("slider", { name: "加速偏移", exact: true });
   await slider.scrollIntoViewIfNeeded();
   const box = await slider.boundingBox();
@@ -189,8 +189,60 @@ test("偏移滑杆拖动和方向键连按只在释放后写入一次", async ({
   await expect(slider).toHaveValue(String(target + 2));
 });
 
+test("加速偏移可在自动和寂静模式调节，提交偏移不切换档位", async ({ page }) => {
+  await page.evaluate(() => {
+    const { fan } = window.__uiFixture;
+    fan.availableModes.push(5, 8);
+    fan.offsetPct = 50;
+  });
+  await openWorkspace(page, "性能与散热");
+  const fan = page.getByRole("region", { name: "风扇设置", exact: true });
+  const slider = fan.getByRole("slider", { name: "加速偏移", exact: true });
+  const quiet = fan.getByRole("radio", { name: "寂静模式", exact: true });
+  const modeOnly = "仅自动或寂静模式可调节加速偏移。";
+  await expect(slider).toBeEnabled();
+  await quiet.click();
+  await expect(quiet).toBeChecked();
+  await expect(slider).toBeEnabled();
+  await expect(fan).not.toContainText(modeOnly);
+  await expect(slider).toHaveValue("50");
+
+  const quietWrite = { command: "set_fan_mode", args: { mode: 8 } };
+  await slider.focus();
+  await page.keyboard.down("ArrowRight");
+  await expect(slider).toHaveValue("51");
+  expect(await fanWrites(page)).toEqual([quietWrite]);
+  await page.keyboard.up("ArrowRight");
+  const writes = [quietWrite, { command: "set_fan_offset", args: { pct: 51 } }];
+  await expect.poll(() => fanWrites(page)).toEqual(writes);
+  await expect(slider).toBeEnabled();
+  await expect(slider).toHaveValue("51");
+  await expect(quiet).toBeChecked();
+
+  for (const name of ["全速", "能效优先", "自定义"]) {
+    const mode = fan.getByRole("radio", { name, exact: true });
+    await mode.click();
+    await expect(mode).toBeChecked();
+    await expect(slider).toBeDisabled();
+    await expect(fan).toContainText(modeOnly);
+  }
+  await fan.getByRole("radio", { name: "自动", exact: true }).click();
+  await expect(slider).toBeEnabled();
+  await expect(fan).not.toContainText(modeOnly);
+  await page.evaluate(() => {
+    window.__uiFixture.fan.offsetSupported = false;
+    window.__uiEmit("hardware-controls-changed", null);
+  });
+  await expect(slider).toBeDisabled();
+  await expect(fan).toContainText("此机型不支持风扇加速偏移");
+  await quiet.click();
+  await expect(quiet).toBeChecked();
+  await expect(slider).toBeDisabled();
+  expect((await fanWrites(page)).filter(({ command }) => command === "set_fan_offset")).toEqual([writes[1]]);
+});
+
 test("直接应用复核设备状态，写入失败后恢复实读值", async ({ page }) => {
-  await openSystemArea(page, "风扇散热");
+  await openWorkspace(page, "性能与散热");
   const fullSpeed = page.getByRole("radio", { name: "全速", exact: true });
   await page.evaluate(() => { window.__uiFixture.fan.currentMode = 6; });
   await fullSpeed.click();
@@ -220,7 +272,7 @@ test("RPM 自定义点选即应用并回读调整后的停转级", async ({ page
     fixture.fan.rpmFans = [{ id: "cpu", maximumRpm: 5000,
       points: Array.from({ length: 10 }, (_, i) => ({ tempC: 40 + i * 5, rpmPct: i === 9 ? 100 : i * 10 })) }];
   });
-  await openSystemArea(page, "风扇散热");
+  await openWorkspace(page, "性能与散热");
   const first = page.getByRole("spinbutton", { name: "RPM 转速" });
   await expect(first).toHaveValue("0");
   await page.getByRole("radio", { name: "自定义", exact: true }).click();
@@ -237,10 +289,10 @@ test("软件曲线档案可应用，从同一个风扇设置交还固件控制",
     settings.fanSoftwareCurves = { cpu: { points: [{ tempC: 40, dutyPct: 30 }, { tempC: 95, dutyPct: 100 }],
       hysteresisC: 4, rampPctPerS: 10 } };
   });
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.getByRole("region", { name: "档案预览", exact: true }).getByRole("button", { name: "应用档案", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.__uiFixture.fan.software?.cpu?.hysteresisC)).toBe(4);
-  await openSystemArea(page, "风扇散热");
+  await openWorkspace(page, "性能与散热");
   const panel = page.getByRole("region", { name: "风扇设置", exact: true });
   const current = page.getByRole("status", { name: "当前控制", exact: true });
   await expect(current).toHaveText("软件接管");
@@ -262,7 +314,7 @@ test("窄窗深色下单一风扇设置展示十级 RPM 图及固定转速端点
     document.documentElement.dataset.theme = "dark";
     window.__uiFixture.fanKind = "rpmTable";
   });
-  await openSystemArea(page, "风扇散热");
+  await openWorkspace(page, "性能与散热");
   const frame = page.locator(".ccc-plot-frame:visible");
   await expectPlotScale(frame, [0, 20, 40, 60, 80, 100], "目标转速");
   const settingsBox = await page.locator(".ccc-fan-settings:visible").boundingBox();

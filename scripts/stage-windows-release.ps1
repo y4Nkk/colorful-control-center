@@ -48,7 +48,10 @@ if ($digest -ine $report.sha256) {
 $notes = $section.Groups['notes'].Value.Trim()
 if ($env:GITHUB_SERVER_URL -and $env:GITHUB_REPOSITORY -and $env:GITHUB_SHA) {
   $source = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/blob/$env:GITHUB_SHA"
-  $notes = $notes -replace '\]\((?![/#]|[a-z][a-z0-9+.-]*:)([^)\s]+)\)', ("]($source/" + '$1)')
+  $notes = $notes -replace '\]\((?![/#]|[a-z][a-z0-9+.-]*:)([^)\s]+)\)', ("]($source/" + '$1')
+  $template = Get-Content -LiteralPath '.github/release_template.md' -Raw -Encoding utf8
+  $downloadTable = $template -replace 'REPOSITORY', $env:GITHUB_REPOSITORY -replace 'VERSION', $version -replace 'PRODUCTNAME', $config.productName
+  $notes = "$downloadTable`n`n$notes"
 }
 $integrity = 'Windows x64 安装包的 SHA-256 为 `{0}`。' -f $digest
 [IO.File]::WriteAllText((Join-Path $staging 'SHA256SUMS.txt'), "$digest  $fileName`n")

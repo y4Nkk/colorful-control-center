@@ -42,28 +42,6 @@ export function modePreviewTarget(data, mode) {
     turbo, dtt: active && p.current.dtt === true, fanMode, fanSavedMode, fanOffsetPct: 0, aspm: null, powerPlan: null };
   return { ...target, revision: JSON.stringify([target, data.acMode, data.modeEnergy, p.current, data.fan.currentMode, data.fan.offsetPct, data.fan.software]) };
 }
-export function modeRestoreTarget(data) {
-  const before = data.modeInitial;
-  if (!before) return null;
-  const device = data.gpuPower.devices[0];
-  const entertainmentQuiet = before.fan.fields.find(field => field.offset === 9);
-  const target = { mode: before.mode, acMode: before.acMode, turbo: before.options.turboFan === true, dtt: before.options.dtt === true,
-    entertainmentQuiet: entertainmentQuiet ? entertainmentQuiet.data[0] === 1 : null, fan: before.fan, system: null, energy: before.energy,
-    systemPlans: (before.systemPlans ?? []).map(plan => ({ ...plan, current: data.modeSystemValues?.[plan.scheme] ?? null })),
-    gpu: before.gpu ?? null, currentGpuPower: before.gpu && device ? structuredClone(device) : null,
-    currentGpuClocks: before.gpu?.clocks ? device?.enabled ? data.modeGpuCurrent ? { status: "ready", value: data.modeGpuCurrent } : { status: "unavailable", value: "隔离夹具缺少恢复频率实读" } : { status: "poweredOff" } : { status: "untracked" },
-    currentGpuDriverIdentity: before.gpu?.clocks && device?.enabled ? before.gpu.driverIdentity : null };
-  return { ...structuredClone(target), revision: JSON.stringify([target, before.command]) };
-}
-export function modeRestoreIssue(data) {
-  const target = modeRestoreTarget(data);
-  if (target?.systemPlans.some(plan => plan.current === null)) return "系统计划恢复前态不可读";
-  if (target?.currentGpuClocks.status === "unavailable") return target.currentGpuClocks.value;
-  const node = data.gpuPower.devices[0], initial = target?.gpu?.node;
-  if (initial && initial.id !== node?.id) return "独显恢复基线属于其他设备";
-  if (initial && !initial.target.enabled && (node.drivesDisplay || !node.canDisable)) return "独显正在驱动显示输出，不能恢复关闭状态";
-  return data.modeRestoreFault ?? null;
-}
 export function rememberMode(data, selection, target) {
   const p = data.performanceOptions;
   const fanFields = [{ offset: 5, data: [data.fan.currentMode] }, { offset: 7, data: [data.fan.offsetPct] }];

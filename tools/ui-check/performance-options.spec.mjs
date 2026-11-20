@@ -1,15 +1,10 @@
-import { openSystemArea } from "./workspace.mjs";
+import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
-test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openSystemArea(page, "性能调校"); });
+test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "性能与散热"); });
 const panel = page => page.getByRole("region", { name: "性能选项", exact: true });
 const calls = (page, command) => page.evaluate(command => window.__uiFixture.calls.filter(c => c.command === command).length, command);
-async function openRestore(page) {
-  const name = "恢复模式与性能选项";
-  await page.getByRole("button", { name, exact: true }).click();
-  return page.getByRole("dialog", { name, exact: true });
-}
-test("性能选项独立回读并共享模式恢复", async ({ page }) => {
+test("性能选项独立回读", async ({ page }) => {
   const p = panel(page);
   expect(await calls(page, "apply_oem_performance_options")).toBe(0);
   await p.getByRole("switch", { name: "Turbo 风扇", exact: true }).check();
@@ -17,12 +12,7 @@ test("性能选项独立回读并共享模式恢复", async ({ page }) => {
   await expect(p.getByRole("switch", { name: "动态调校 DTT", exact: true })).toBeChecked();
   await expect(p.getByText("当前开启", { exact: true })).toHaveCount(0);
   expect(await calls(page, "apply_oem_performance_options")).toBe(2);
-  const recovery = await openRestore(page);
-  await expect(recovery.getByRole("region", { name: "初始模式恢复目标", exact: true })).toContainText("保持当前偏好");
-  await recovery.getByRole("button", { name: "确认恢复", exact: true }).click();
-  await expect(p.getByRole("switch", { name: "Turbo 风扇", exact: true })).not.toBeChecked();
-  await expect(p.getByRole("switch", { name: "动态调校 DTT", exact: true })).not.toBeChecked();
-  expect(await calls(page, "restore_oem_power_mode")).toBe(1); expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
+  expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });
 test("娱乐模式独立保存性能偏好，切换到性能模式时预览生效", async ({ page }) => {
   const p = panel(page);
@@ -47,8 +37,8 @@ test("娱乐模式独立保存性能偏好，切换到性能模式时预览生�
   expect(await calls(page, "apply_oem_power_mode")).toBe(0);
 
   await page.evaluate(() => window.__uiFixture.performanceOptions.dttDriverAvailable = true);
-  await openSystemArea(page, "概览");
-  await openSystemArea(page, "性能调校");
+  await openWorkspace(page, "概览");
+  await openWorkspace(page, "性能与散热");
   const performance = page.getByRole("region", { name: "预设模式", exact: true }).getByRole("radio", { name: /^性能/ });
   await performance.click();
   await expect(performance).toBeChecked();
@@ -102,7 +92,7 @@ test("娱乐档将缺少能力证据的开关标为未确认支持", async ({ pa
   expect(await calls(page, "apply_oem_performance_options")).toBe(0);
 });
 
-test("娱乐档的 DTT 保留自定义曲线，Turbo 经确认交接并可恢复", async ({ page }) => {
+test("娱乐档的 DTT 保留自定义曲线，Turbo 经确认交接", async ({ page }) => {
   const p = panel(page);
   await page.evaluate(() => {
     const data = window.__uiFixture;
@@ -130,10 +120,6 @@ test("娱乐档的 DTT 保留自定义曲线，Turbo 经确认交接并可恢复
     const data = window.__uiFixture;
     return [data.performanceOptions.currentMode, data.fan.currentMode, data.modeOptionsCommand];
   })).toEqual([3, 0, 195]);
-  const restore = await openRestore(page);
-  await restore.getByRole("button", { name: "确认恢复", exact: true }).click();
-  await expect(turbo).not.toBeChecked();
-  expect(await page.evaluate(() => window.__uiFixture.fan.currentMode)).toBe(6);
 });
 
 test("缺少驱动时禁用性能模式的 DTT，固件未声明时隐藏寂静模式", async ({ page }) => {
@@ -146,7 +132,7 @@ test("缺少驱动时禁用性能模式的 DTT，固件未声明时隐藏寂静�
   expect(await calls(page, "apply_oem_performance_options")).toBe(0);
 });
 
-test("性能模式的寂静模式与 Turbo 互斥并可恢复", async ({ page }) => {
+test("性能模式的寂静模式与 Turbo 互斥", async ({ page }) => {
   const p = panel(page);
   const turbo = p.getByRole("switch", { name: "Turbo 风扇", exact: true });
   const quiet = p.getByRole("switch", { name: "寂静模式", exact: true });
@@ -166,13 +152,6 @@ test("性能模式的寂静模式与 Turbo 互斥并可恢复", async ({ page })
     const f = window.__uiFixture;
     return [f.performanceOptions.currentMode, f.fan.currentMode, f.performanceFanMode];
   })).toEqual([2, 8, 8]);
-
-  const recovery = await openRestore(page);
-  await expect(recovery.getByRole("region", { name: "风扇恢复目标" })).toContainText("自动");
-  await recovery.getByRole("button", { name: "确认恢复", exact: true }).click();
-  await expect(turbo).toBeChecked();
-  await expect(quiet).not.toBeChecked();
-  expect(await page.evaluate(() => window.__uiFixture.performanceFanMode)).toBe(0);
 });
 
 test("娱乐与性能独立开关寂静模式，换档读取对应状态", async ({ page }) => {
@@ -211,9 +190,6 @@ test("娱乐与性能独立开关寂静模式，换档读取对应状态", async
     const f = window.__uiFixture;
     return [f.entertainmentQuiet, f.performanceFanMode, f.performanceOptions.current.turboFan];
   })).toEqual([false, 8, false]);
-
-  const recovery = await openRestore(page);
-  await expect(recovery.getByRole("region", { name: "模式与性能恢复目标" })).toContainText("娱乐 · 寂静模式");
 });
 
 test("寂静模式支持键盘操作并能重新读取外部状态", async ({ page }) => {

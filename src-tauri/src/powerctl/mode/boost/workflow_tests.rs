@@ -108,31 +108,10 @@ fn performance_noiseless_compensates_failure_and_restores_fan_and_turbo() {
             .iter()
             .any(|target| target.mode == 2 && target.fan_mode == FAN_MODE_NOISELESS)
     );
-
-    let expected = super::super::workflow::restore_target(&f.hal)
-        .unwrap()
-        .unwrap()
-        .revision;
-    f.device.0.lock().unwrap().events.clear();
-    super::super::restore(&f.hal, &expected).unwrap();
-    let s = f.device.0.lock().unwrap();
-    assert_eq!([s.pages[4][5], s.pages[4][8], s.pages[4][72]], [0, 1, 0]);
-    assert_eq!([s.pages[4][9], s.pages[4][73]], [1, 5]);
-    let fan_auto = s
-        .events
-        .iter()
-        .position(|event| event == "PAGE4:5:[0]")
-        .unwrap();
-    let turbo = s
-        .events
-        .iter()
-        .position(|event| event == "MODE:66")
-        .unwrap();
-    assert!(fan_auto < turbo);
 }
 
 #[test]
-fn confirmed_custom_curve_handoff_applies_and_restores_quiet_in_both_modes() {
+fn confirmed_custom_curve_handoff_applies_quiet_in_both_modes() {
     for mode in [2_u8, 3] {
         let f = setup();
         {
@@ -168,12 +147,7 @@ fn confirmed_custom_curve_handoff_applies_and_restores_quiet_in_both_modes() {
             Some(FAN_MODE_NOISELESS)
         );
 
-        let target = active.restore.unwrap();
-        super::super::restore(&f.hal, &target.revision).unwrap();
-        let state = f.device.0.lock().unwrap();
-        assert_eq!(state.pages[4][5], FAN_MODE_CUSTOM);
-        assert_eq!(state.fan_command, Some(FAN_MODE_CUSTOM));
-        assert_eq!(state.pages[4][9], u8::from(mode == 3));
+        assert!(active.quiet_fan.as_ref().unwrap().enabled);
     }
 }
 
@@ -209,20 +183,11 @@ fn entertainment_noiseless_remembers_its_own_preference_across_mode_changes() {
         .execute(&f.hal)
         .unwrap();
     assert!(read(&f.hal).unwrap().quiet_fan.unwrap().enabled);
-    let target = super::super::workflow::restore_target(&f.hal)
-        .unwrap()
-        .unwrap();
-    assert_eq!(target.entertainment_quiet, Some(false));
-    super::super::restore(&f.hal, &target.revision).unwrap();
-    let state = f.device.0.lock().unwrap();
-    assert_eq!(
-        (state.pages[1][1], state.pages[4][9], state.pages[4][72]),
-        (2, 0, 0)
-    );
+    assert_eq!(f.device.0.lock().unwrap().pages[4][9], 1);
 }
 
 #[test]
-fn entertainment_noiseless_can_switch_off_and_restore_after_save_failure() {
+fn entertainment_noiseless_can_switch_off_after_save_failure() {
     let f = setup();
     {
         let mut state = f.device.0.lock().unwrap();
@@ -253,14 +218,6 @@ fn entertainment_noiseless_can_switch_off_and_restore_after_save_failure() {
         );
         assert_eq!(state.fan_command, Some(FAN_MODE_AUTO));
     }
-    let target = super::super::workflow::restore_target(&f.hal)
-        .unwrap()
-        .unwrap();
-    assert_eq!(target.entertainment_quiet, Some(true));
-    super::super::restore(&f.hal, &target.revision).unwrap();
-    let state = f.device.0.lock().unwrap();
-    assert_eq!((state.pages[4][5], state.pages[4][9]), (0, 1));
-    assert_eq!(state.fan_command, Some(FAN_MODE_NOISELESS));
 }
 
 #[test]
@@ -309,15 +266,6 @@ fn real_workflow_sends_independent_dtt_without_touching_windows_or_fan() {
         );
     }
     assert!(f.hal.recovery().unwrap().oem_mode.is_some());
-    super::super::restore(
-        &f.hal,
-        &super::super::workflow::restore_target(&f.hal)
-            .unwrap()
-            .unwrap()
-            .revision,
-    )
-    .unwrap();
-    assert_eq!(f.device.0.lock().unwrap().pages[1][32], 0);
 }
 #[test]
 fn real_turbo_fan_failure_restores_saved_flags_and_keeps_initial_retry() {
@@ -336,14 +284,6 @@ fn real_turbo_fan_failure_restores_saved_flags_and_keeps_initial_retry() {
         assert!(s.events.iter().any(|e| e == "FAN_MODE_FAILURE"));
     }
     assert!(f.hal.recovery().unwrap().oem_mode.is_some());
-    super::super::restore(
-        &f.hal,
-        &super::super::workflow::restore_target(&f.hal)
-            .unwrap()
-            .unwrap()
-            .revision,
-    )
-    .unwrap();
 }
 #[test]
 fn command_and_compensation_failure_keep_shared_baseline_for_user_retry() {
@@ -356,42 +296,12 @@ fn command_and_compensation_failure_keep_shared_baseline_for_user_retry() {
     assert!(error.contains("恢复失败"));
     assert!(f.hal.recovery().unwrap().oem_mode.is_some());
     f.device.0.lock().unwrap().fail_mode = false;
-    super::super::restore(
-        &f.hal,
-        &super::super::workflow::restore_target(&f.hal)
-            .unwrap()
-            .unwrap()
-            .revision,
-    )
-    .unwrap();
-    let s = f.device.0.lock().unwrap();
-    assert_eq!(s.pages[4][8], 0);
-    assert_eq!(s.pages[1][32], 0);
-    assert!(f.hal.recovery().unwrap().oem_mode.is_none());
-}
-#[test]
-fn later_mode_change_restores_the_first_shared_options_baseline() {
-    let f = setup();
-    let _gate = f.hal.begin_write().unwrap();
-    apply(&f.hal, &request(&f, true, false)).unwrap();
-    super::super::checkpoint(&f.hal, 3)
+    super::super::checkpoint(&f.hal, 2)
         .unwrap()
         .execute(&f.hal)
         .unwrap();
-    super::super::restore(
-        &f.hal,
-        &super::super::workflow::restore_target(&f.hal)
-            .unwrap()
-            .unwrap()
-            .revision,
-    )
-    .unwrap();
-    let s = f.device.0.lock().unwrap();
-    assert_eq!(s.pages[1][1], 2);
-    assert_eq!(s.pages[4][8], 0);
-    assert_eq!(s.pages[1][32], 0);
+    assert_eq!(f.device.0.lock().unwrap().pages[1][1], 2);
 }
-
 #[test]
 fn revoked_before_first_mode_output_does_not_write_or_create_baseline() {
     let f = setup();

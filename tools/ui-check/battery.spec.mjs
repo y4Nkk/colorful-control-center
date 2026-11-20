@@ -1,8 +1,8 @@
 import { availableAction, configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
-test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "电源"); });
+test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openPowerArea(page, "电源设置"); });
 const panel = page => page.getByRole("region", { name: "电池与充电", exact: true });
 const calls = (page, command) => page.evaluate(command => window.__uiFixture.calls.filter(c => c.command === command).length, command);
 async function choose(page, label, value) {

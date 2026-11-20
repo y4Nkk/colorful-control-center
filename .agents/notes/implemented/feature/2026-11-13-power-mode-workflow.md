@@ -31,7 +31,9 @@ Original product illustration for a premium Windows laptop power-mode picker. A 
 
 2026-11-19 预设选择改用单层中性色卡片与同一套 48 × 48 SVG。参考 G-Helper 的档位层级、Tabler 的轮廓和 IBM 的光学对齐方法，重画电池与叶片、月牙、手柄和仪表。宽窗图形与名称同排，窄窗两列并在卡内上下排列。图形共用描边，淡色只用于局部填充。先检查浅深色与窗口宽度，再让叶片展开、月牙内弧提亮、手柄键短按和仪表指针绕轴。移开复位，概览与联动缩略图复用静态绘图。
 
-2026-11-20 性能调校用居中的等轴芯片 SVG 和分段单选器取代预设卡片及其悬停动画。直接选择时在目标按钮反馈切换进度，主图与已选项跟随设备回读。已知模式变更播放一次渐变、芯片抬升和扫描高光，首次读取与未知状态显示静态画面。动效遵循系统与应用设置。静音增强共享冷蓝材质，保留独立档名。概览、供电与热键候选仍使用静态模式图标。沿用既有固件可用性、同档重选、冲突确认、失败回读与恢复事务。
+2026-11-20 性能调校用居中的等轴芯片 SVG 和分段单选器取代预设卡片及其悬停动画。直接选择时在目标按钮反馈切换进度，主图与已选项跟随设备回读。已知模式变更播放一次渐变、芯片抬升和扫描高光，首次读取与未知状态显示静态画面。动效遵循系统与应用设置。静音增强共享冷蓝材质，保留独立档名。沿用既有固件可用性、同档重选、冲突确认、失败回读与恢复事务。
+
+2026-11-20 概览顶部用宽幅只读卡片共用同一芯片、配色和回读切换动效。芯片直接嵌入卡片中央，档名居中放在芯片下方。短窗压缩图形。采样为空、未知或停滞时显示中性静态芯片。供电与热键候选使用原尺寸的静态模式图标。
 
 - 2026-11-18 预设卡片作为直接切换入口，激活时提交后端返回的完整模式目标及修订。移除模式草稿、差异区及应用按钮。事务期间显示切换状态并暂停再次激活，以设备回读决定当前模式。失败回读并显示原因，再次激活才继续执行。明确重选当前模式仍可应用插电偏好；首次加载和重新读取均只读。后端沿用资格检查、授权、执行锁、失败补偿及首次恢复，恢复设置继续审核独立目标。
 
@@ -39,9 +41,11 @@ Original product illustration for a premium Windows laptop power-mode picker. A 
 
 - 2026-11-20 预设的「关闭并切换」由应用根的共享弹窗呈现。其他模块可独立确认退出并重新读取。见[原厂控制进程冲突确认](2026-11-20-oem-conflict-dialog.md)。
 
+- 2026-11-20 应用户要求完整移除模式域手动初始恢复，无兼容层、无过渡入口：前端删除 `OemPowerMode` 的恢复按钮、详情中「模式恢复暂不可用」分区、`OemModeRestore`/`OemModeGpuRestore` 组件、`useOemPowerMode` 恢复路径、`restoreOemPowerMode` 封装、`OemModeRestoreTarget` 类型，以及读取载荷中的 `restore`/`canRestore`/`restoreBlockedReason`。后端删除 `restore_oem_power_mode` 命令与注册项、`powerctl/mode/restoration` 模块、`workflow::RestoreTarget`（含 `bind_system`/`bind_gpu` 与 GPU 恢复预览）、`system::RestorePlan`、`RawState::restore_identity` 及两个仅服务该预览的 GPU 恢复复核方法。`ModeProfile.energy` 保留，因为供电模式六条件证据仍依赖它；失败补偿仍由 `Snapshot`、`recover_snapshot` 与 `restore_checkpoint` 承担，供电、档案、启动与热键仍复用同一事务与补偿链。相关测试改为断言首次基线内容或走补偿入口，纯手动恢复用例删除。
+
 - 2026-11-19 真机确认关闭 FnKey 后，模式写入与温度采样同时停滞。预设与模式循环的许可回调曾在 DCHU 锁内重复查询除尘，试图再次获得同一锁。公共模式事务由 HAL 写锁串行化，所有调用方许可在 DCHU 锁外检查。DCHU 锁只保护性能偏好、插电偏好、模式命令与保存、EnergyStar 等设备操作各自的读写，保留写入间的许可、EnergyStar 写前核对与写后回读及失败补偿。除尘检查由模式事务与风扇域负责。
 
-- 删除已无调用者的StoredModeSnapshot单计划system_summary辅助入口；当前消费者统一使用逐计划system_plan_values和恢复预览，不保留旧摘要访问路径。
+- 删除已无调用者的StoredModeSnapshot单计划system_summary辅助入口；当前消费者统一使用逐计划system_plan_values，不保留旧摘要访问路径。
 
 - 以本机 FnKey Features/OnChangePowerMode/FAN.Load_FanMode_forFn_3 为事实源；page7[17] bit7 开放模式4（即时命令0），保留 Turbo/DTT；未知能力页仍拒绝。
 - 把可执行目标、关联域快照和恢复步骤归入 powerctl/mode；按已声明的 page7 能力读取 ASPM 双向包15、电源计划包29、分模式风扇保存槽，先全量预检再写入。

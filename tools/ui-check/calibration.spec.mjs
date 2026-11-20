@@ -1,11 +1,11 @@
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
   await page.addInitScript(() => { window.__uiFixture.calibrationSupported = true; });
-  await page.goto("/"); await openWorkspace(page, "电源");
+  await page.goto("/"); await openPowerArea(page, "电源设置");
 });
 const panelOf = page => page.getByRole("region", { name: "电池校准", exact: true });
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(c => /^(start|stop|restore)_battery_calibration$/.test(c.command)));
@@ -33,7 +33,7 @@ test("开始前预览确认，运行期间充电和节能互斥，切页保留�
   await expect(battery.getByRole("switch", { name: "限制充电范围", exact: true })).toHaveAttribute("aria-disabled", "true");
   await expect(page.getByRole("switch", { name: "启用节能计划", exact: true })).toHaveAttribute("aria-disabled", "true");
   await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page.getByRole("button", { name: "电源", exact: true }).click();
+  await page.getByRole("button", { name: "电源与档案", exact: true }).click();
   await expect(panel.getByRole("status")).toHaveText("正在校准");
   expect((await writes(page)).map(c => c.command)).toEqual(["start_battery_calibration"]);
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
@@ -124,14 +124,14 @@ test("校准取得和释放控制时，同步锁定模式与性能选项", async
   const panel = panelOf(page), modes = page.getByRole("region", { name: "预设模式", exact: true });
   const options = page.getByRole("region", { name: "性能选项", exact: true });
   await start(panel);
-  await openSystemArea(page, "性能调校");
+  await openWorkspace(page, "性能与散热");
   await expect(modes).toContainText("电池校准正在接管或尚需恢复");
   await expect(modes.getByRole("radio").first()).toBeDisabled();
   await expect(options.getByRole("switch", { name: "Turbo 风扇", exact: true })).toHaveAttribute("aria-disabled", "true");
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   await panel.getByRole("button", { name: "停止校准", exact: true }).click();
   await panel.getByRole("button", { name: "停止并恢复", exact: true }).click();
-  await openSystemArea(page, "性能调校");
+  await openWorkspace(page, "性能与散热");
   await expect(modes.getByRole("radio").first()).toBeEnabled();
   await expect(options.getByRole("switch", { name: "Turbo 风扇", exact: true })).not.toHaveAttribute("aria-disabled", "true");
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);

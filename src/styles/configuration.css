@@ -5,9 +5,9 @@
 .ccc-review-section > p { margin: 0; }
 .ccc-review-section + [role="alert"] { margin-top: var(--ccc-space-3); }
 .ccc-detail-stack { display: grid; gap: var(--ccc-space-4); min-width: 0; }
-.ccc-system-areas { justify-self: start; }
+.ccc-power-areas { justify-self: start; }
 @container ccc-control (max-width: 320px) {
-  .ccc-system-areas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-self: stretch; }
+  .ccc-power-areas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-self: stretch; }
 }
 .ccc-module-tools { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-1); margin-inline-start: auto; }
 .ccc-module-summary { display: grid; gap: var(--ccc-space-1); align-content: start; min-width: 0; }
@@ -46,7 +46,7 @@
 .ccc-airplane-switch > :last-child { grid-column: -2 / -1; }
 .ccc-device-status strong { font-size: var(--ccc-text-xl); }
 .ccc-device-status > svg { width: 100%; max-width: none; color: var(--ccc-action); }
-.ccc-overview-head > .ccc-control-status { margin-inline-start: auto; }
+.ccc-control > .ccc-control-status { margin-inline-start: auto; }
 .ccc-profile-art { width: min(42%, 200px); color: var(--ccc-action); }
 .ccc-perkey-color-preview > svg { display: block; width: min(100%, 360px); }
 @container ccc-control (max-width: 600px) {

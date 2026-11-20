@@ -1,12 +1,12 @@
 import { changeButton, configurationView, previewConfiguration } from "./configuration-review.mjs";
 import { openProfileResults, openProfileSave, openStartupParameters, profilePanel as panel, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
 const host = page => page.getByRole("region", { name: "档案显示确认", exact: true });
 async function select(page) {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
   await showProfileSettings(page);
 }
@@ -137,7 +137,7 @@ test("捕获与保存包含完整双屏身份和频率", async ({ page }) => {
 });
 
 test("启动档案显示共享预览和必须保留的说明，保存不立即切换", async ({ page }) => {
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
@@ -222,7 +222,7 @@ test("启动档案在显示保留后更新当前执行结果，无需切页重�
     };
   });
   await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: "设备配置", exact: true }).click();
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await expect(startup.getByRole("status")).toContainText("等待显示确认");
   await host(page).getByRole("button", { name: "保留显示并继续档案", exact: true }).click();

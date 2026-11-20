@@ -298,7 +298,7 @@ fn partial_restore_continues_other_flags_and_can_retry_the_same_checkpoint() {
 }
 
 #[test]
-fn single_and_profile_options_share_the_earliest_mode_restore_baseline() {
+fn single_and_profile_options_share_the_earliest_mode_baseline() {
     let f = setup();
     {
         let _gate = f.hal.begin_write().unwrap();
@@ -315,22 +315,11 @@ fn single_and_profile_options_share_the_earliest_mode_restore_baseline() {
         .unwrap();
     }
     assert!(apply(&f, &wanted(true, false)).iter().all(|step| step.ok));
-    {
-        let _gate = f.hal.begin_write().unwrap();
-        powerctl::mode::restore(
-            &f.hal,
-            &powerctl::mode::read(&f.hal)
-                .unwrap()
-                .restore
-                .unwrap()
-                .revision,
-        )
-        .unwrap();
-    }
-    let state = f.device.0.lock().unwrap();
+    let stored = f.hal.recovery().unwrap().oem_mode.clone().unwrap().stored();
+    let preview = stored.recovery_preview(&stored).unwrap();
     assert_eq!(
-        (state.pages[1][1], state.pages[4][8], state.pages[1][32]),
-        (2, 0, 0)
+        (preview.initial_mode, preview.initial_dtt),
+        (2, false)
     );
 }
 

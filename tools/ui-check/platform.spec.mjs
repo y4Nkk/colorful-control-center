@@ -1,5 +1,5 @@
 import { availableAction, configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
@@ -15,7 +15,7 @@ test.beforeEach(async ({ page }) => {
     window.__uiFixture.platform = { deepS5: true, warnings: [], powerDelivery: { revision: "pd-0", encoding: "adapterV1", currentLevel: 1, currentValid: true,
       availableLevels: [1,2,4], zeroBased: false, adapterWatts: 100, initial: null, restoreBlockedReason: null, blockedReason: null } };
   });
-  await page.goto("/"); await openWorkspace(page, "电源");
+  await page.goto("/"); await openPowerArea(page, "电源设置");
 });
 
 test("PD 选择按固件候选直接写入并独立恢复", async ({ page }) => {

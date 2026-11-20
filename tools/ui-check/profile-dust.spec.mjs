@@ -1,13 +1,13 @@
 import { openProfileResults, openProfileSave, openStartupParameters, saveProfileButton, showProfileSettings } from "./profile-review.mjs";
 import { availableAction, configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 const navigate = (page, title) => page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: title, exact: true }).click();
 const preview = page => page.getByRole("region", { name: "档案预览", exact: true });
 const mutations = page => page.evaluate(() => window.__uiFixture.calls.filter(c => /^(apply_|save_|start_fan_dust|import_|set_startup)/.test(c.command)));
 async function selectProfile(page) {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
   await showProfileSettings(page);
 }
@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
       lastStart: null, startBlockedReason: null, scheduleBlockedReason: null };
     window.__uiFixture.profile.settings.dustSchedule = structuredClone(current);
   });
-  await page.goto("/"); await openSystemArea(page, "风扇散热");
+  await page.goto("/"); await openWorkspace(page, "性能与散热");
 });
 
 test("除尘档案以星期和唤醒语义预览，确认仅提交计划目标", async ({ page }) => {
@@ -39,7 +39,7 @@ test("除尘档案以星期和唤醒语义预览，确认仅提交计划目标",
 });
 
 test("保存当前捕获除尘计划，未报告初态明确失败且不生成默认计划", async ({ page }) => {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await openProfileSave(page, "除尘档案", ["设备功能"]);
   await saveProfileButton(page).click();
   await showProfileSettings(page);
@@ -64,7 +64,7 @@ test("关闭计划明确展示全部触发关闭，不伪造进度或立即执�
 });
 
 test("启动确认发现文件被外部修改后拒绝保存，重选后预览新计划", async ({ page }) => {
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const panel = page.getByRole("region", { name: "启动档案", exact: true });
   const select = panel.getByRole("combobox", { name: "启动档案", exact: true });
   await select.click(); await page.getByRole("option", { name: "隔离档案", exact: true }).click();

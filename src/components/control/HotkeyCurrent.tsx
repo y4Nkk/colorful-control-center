@@ -2,7 +2,6 @@ import { previewOsd, stopHotkeys, type HotkeyProfile } from "../../api/client";
 import type { useHotkeySettings } from "./useHotkeySettings";
 import { Surface } from "../Surface";
 import { Button } from "../Button";
-import { DetailsDialog } from "../DetailsDialog";
 import { ScreenBrightnessFacts } from "./ScreenBrightnessFacts";
 import { PanelHotkeyFacts } from "./PanelHotkeyFacts";
 import { summary } from "./hotkey-actions";
@@ -26,10 +25,10 @@ export function HotkeyCurrent({ profile, busy, run, screenSelected, panelSelecte
     </div>
     {screen && (screenSelected || screen.initial.length > 0) && <ScreenBrightnessFacts profile={screen} busy={busy} run={run} />}
     {panel && (panelSelected || panel.session !== null) && <PanelHotkeyFacts profile={panel} busy={busy} run={run} />}
-    <DetailsDialog title="监听与恢复说明">
+    <section className="ccc-detail-stack" aria-label="监听与恢复说明">
       {profile?.current && <p>当前范围：{summary(profile.current)}</p>}
       <p>临时停止保留已保存策略，重新打开应用可恢复监听；硬件初始状态在对应模块恢复。</p>
       {profile?.initial && <p>初始策略：{profile.initial.enabled ? "启用" : "关闭"} · {summary(profile.initial)}</p>}
-    </DetailsDialog>
+    </section>
   </Surface>;
 }

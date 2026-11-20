@@ -1,13 +1,13 @@
 import { openProfileResults, openProfileSave, openStartupParameters, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { readFile } from "node:fs/promises";
 const panel = page => page.getByRole("region", { name: "档案预览", exact: true });
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_|save_|import_|set_startup)/.test(call.command)));
 async function selectProfile(page) {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
   await showProfileSettings(page);
 }
@@ -26,7 +26,7 @@ test.beforeEach(async ({ page }) => {
       identity: structuredClone(device.identity), name: device.name, values: { powerSavingMode: string("1"),
         pnpCapabilities: structuredClone(device.values.pnpCapabilities), wakeOnLink: null } })) };
   });
-  await page.goto("/"); await openWorkspace(page, "电源");
+  await page.goto("/"); await openPowerArea(page, "电源设置");
 });
 
 test("逐设备预览使用语义与缺失状态，应用携带完整目标", async ({ page }) => {
@@ -113,7 +113,7 @@ test("后续失败和网络补偿失败逐项展示，不报告全部成功", as
 });
 
 test("启动选择共享网络预览，保存选择不申请网络写入", async ({ page }) => {
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();

@@ -7,9 +7,7 @@ impl Hal {
             .cpu_utility
             .lock()
             .map_err(|_| anyhow::anyhow!("CPU效用采样状态异常"))
-            .and_then(|mut sampler| {
-                sampler.sample(std::time::Instant::now(), snapshot.sampled_at_ms)
-            });
+            .and_then(|mut sampler| sampler.sample(std::time::Instant::now(), snapshot.sampled_at_ms));
         match reading {
             Ok(value) => snapshot.cpu_utility = value,
             Err(error) => snapshot

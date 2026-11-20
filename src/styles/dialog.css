@@ -50,6 +50,13 @@
 .ccc-dialog-body > :first-child > :last-child { margin-bottom: 0; }
 .ccc-dialog-body p, .ccc-dialog-body pre { overflow-wrap: anywhere; }
 .ccc-dialog-body pre { white-space: pre-wrap; }
+/* 弹窗内错误与警示段落前置语义图标；图标随文字色，多行文本悬挂对齐。 */
+.ccc-dialog-body .ccc-control-error, .ccc-dialog-body .ccc-control-caption.is-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ccc-space-1);
+}
+.ccc-dialog-body .ccc-control-error > .ccc-icon, .ccc-dialog-body .ccc-control-caption.is-warn > .ccc-icon { margin-top: 0.2em; color: inherit; }
 @media (max-width: 640px) {
   .ccc-dialog {
     max-width: calc(100% - 2 * var(--ccc-space-3));

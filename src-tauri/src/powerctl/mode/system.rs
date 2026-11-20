@@ -41,23 +41,6 @@ impl Snapshot {
             self.aspm.entry(*id).or_insert(*values);
         }
     }
-    pub(super) fn plans(&self) -> Vec<RestorePlan> {
-        self.aspm
-            .iter()
-            .map(|(id, values)| RestorePlan {
-                scheme: format!("{id:032x}"),
-                initial: *values,
-                current: None,
-            })
-            .collect()
-    }
-}
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct RestorePlan {
-    pub scheme: String,
-    pub initial: [u32; 2],
-    pub current: Option<[u32; 2]>,
 }
 impl StoredSnapshot {
     pub(super) fn restore(&self) -> Result<Snapshot> {

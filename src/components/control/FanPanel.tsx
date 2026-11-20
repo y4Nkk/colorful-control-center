@@ -3,7 +3,7 @@ import { Surface } from "../Surface";
 import { Button } from "../Button";
 import { SegmentedControl } from "../SegmentedControl";
 import { useId, useState, type ReactNode } from "react";
-import { CUSTOM_FAN_MODE, FAN_LABELS, FAN_MODES, fanModeLabel, type FanId, type FanProfile, type HardwareSnapshot } from "../../api/client";
+import { CUSTOM_FAN_MODE, FAN_LABELS, FAN_MODES, fanModeLabel, offsetModeAvailable, type FanId, type FanProfile, type HardwareSnapshot } from "../../api/client";
 import { ConfigurationAction } from "../ConfigurationAction";
 import { DetailsDialog } from "../DetailsDialog";
 import { FanCurveEditor } from "./FanCurveEditor";
@@ -13,7 +13,7 @@ import { ScaleSlider } from "./ScaleSlider";
 import { normalizeDraft } from "./curve";
 import { useFanControl } from "./useFanControl";
 import { RpmCurveEditor } from "./RpmCurveEditor";
-import { ParameterHelp } from "./ParameterHelp";
+import { ParameterDescriptions } from "./ParameterHelp";
 import { FAN_HELP } from "./parameterDescriptions";
 import { useFanEdit } from "./useFanEdit";
 
@@ -25,11 +25,12 @@ export function FanPanel({ active, revision, onSettled, live }: { active: boolea
   return (
     <Surface as="section" variant="group" className="ccc-panel" aria-label="风扇设置">
       <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="fan" />风扇设置</h2>
-        <div className="ccc-module-tools"><ParameterHelp title="风扇参数说明" items={FAN_HELP} />
-          {profile && <DetailsDialog title="风扇诊断" label="诊断">
-            <p>{profile.safetyStatus}</p>
-            {profile.warnings.map(warning => <p key={warning}>{warning}</p>)}
-          </DetailsDialog>}</div>
+        <div className="ccc-module-tools"><DetailsDialog title="风扇说明与诊断" label="详情">
+          <section><h3>参数说明</h3><ParameterDescriptions items={FAN_HELP} /></section>
+          {profile && <section><h3>安全诊断</h3><p className="ccc-control-caption">{profile.safetyStatus}</p>
+            {profile.warnings.map(warning => <p key={warning} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{warning}</p>)}
+          </section>}
+        </DetailsDialog></div>
       </div>
       {model.error && <div role="alert" className="ccc-control-error">{model.error}
         <Button icon="refresh" variant="ghost" size="compact" type="button" disabled={model.busy} onClick={model.retry}>重试</Button></div>}
@@ -71,6 +72,7 @@ function FanSettings({ model, profile, live, tab, onTabChange, recovery }: {
 function FirmwareSettings({ model, profile, live, id }: { model: FanModel; profile: FanProfile; live: HardwareSnapshot | null; id?: FanId }) {
   const control = !model.readValid ? "状态未读取" : profile.software ? "软件接管" : `固件 · ${fanModeLabel(profile.currentMode)}`;
   const disabled = model.busy || !model.readValid || !!profile.blockedReason;
+  const offsetLocked = !offsetModeAvailable(profile.currentMode);
   const offset = useFanEdit(profile, profile.offsetPct, model.setOffset);
   return <>
     <FanLiveReadings live={live} id={id} control={control} />
@@ -82,8 +84,12 @@ function FirmwareSettings({ model, profile, live, id }: { model: FanModel; profi
           value: String(mode.id), label: mode.label, disabled: mode.id === CUSTOM_FAN_MODE && !profile.customSupported,
         }))} />
       <ScaleSlider label="加速偏移" unit="%" min={0} max={100} current={profile.offsetPct} draft={offset.value}
-        disabled={disabled || !!profile.software} onChange={value => offset.update(() => value)}
+        disabled={disabled || !!profile.software || offsetLocked || !profile.offsetSupported} onChange={value => offset.update(() => value)}
         onCommit={value => offset.commit(() => value)} onCancel={offset.cancel} />
+      {profile.offsetSupported
+        ? offsetLocked && !profile.software && !profile.blockedReason &&
+          <p className="ccc-control-caption">仅自动或寂静模式可调节加速偏移。</p>
+        : <p className="ccc-control-caption">此机型不支持风扇加速偏移。</p>}
       {profile.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
       {model.busy && <p className="ccc-control-caption" role="status">应用中…</p>}
       {profile.software && !disabled && <p className="ccc-control-caption">选择固件模式可交还风扇控制。</p>}

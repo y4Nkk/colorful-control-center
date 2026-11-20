@@ -1,5 +1,5 @@
 import { openProfileResults, openProfileSave, openStartupParameters, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -10,7 +10,7 @@ const usb = page => panel(page).getByRole("region", { name: "档案 USB 选择�
 const apply = page => panel(page).getByRole("button", { name: "应用档案", exact: true });
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_|save_|import_|set_startup)/.test(call.command)));
 async function select(page) {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
   await showProfileSettings(page);
 }
@@ -26,7 +26,7 @@ test.beforeEach(async ({ page }) => {
     data.profile.settings.powerDelivery = { level: 4, encoding: "adapterV1", adapterWatts: 100, availableLevels: [1, 2, 4] };
     data.profile.settings.usbPolicy = { plans: structuredClone(data.usb.plans) };
   });
-  await page.goto("/"); await openWorkspace(page, "电源");
+  await page.goto("/"); await openPowerArea(page, "电源设置");
 });
 
 test("平台档案逐计划只读预览，确认提交完整PD绑定和异构USB目标", async ({ page }) => {
@@ -75,7 +75,7 @@ test("旧版零起始档案按语义显示且确认保留原始编号", async ({
 });
 
 test("启动选择共享完整平台预览，保存选择不写平台", async ({ page }) => {
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();

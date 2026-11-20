@@ -1,6 +1,6 @@
 import { openProfileResults, openProfileSave, openStartupParameters, profilePanel, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -8,7 +8,7 @@ const panel = page => page.getByRole("region", { name: "档案预览", exact: tr
 const card = dialog => dialog.getByRole("region", { name: "档案按键映射与宏", exact: true });
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(c => /^(apply_|save_|import_|set_startup|retry_)/.test(c.command)));
 async function select(page) {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
   await showProfileSettings(page);
 }
@@ -36,15 +36,15 @@ test("完整宏预览只读，全部动作可展开且确认携带监听意图",
   const keymap = card(panel(page));
   await expect(keymap).toContainText("不启用程序宏监听，保留宏配置");
   await expect(keymap.getByRole("img", { name: "键盘映射范围" })).toBeVisible();
-  for (const [name, first, second] of [
-    ["键盘 · 查看全部 2 项映射", "按下 D", "释放 D"],
-    ["鼠标 · 查看全部 2 项映射", "隔离宏内容", "F:\\isolated\\helper.exe"],
-  ]) {
-    await keymap.getByRole("button", { name, exact: true }).click();
-    const details = page.getByRole("dialog", { name, exact: true });
-    await expect(details).toContainText(first); await expect(details).toContainText(second);
-    await page.keyboard.press("Escape");
+  await expect(keymap.getByRole("button")).toHaveCount(1);
+  await keymap.getByRole("button", { name: "映射详情", exact: true }).click();
+  const details = page.getByRole("dialog", { name: "映射详情", exact: true });
+  await expect(details).toContainText("过滤器未提供映射表回读");
+  for (const [name, first, second] of [["键盘", "按下 D", "释放 D"], ["鼠标", "隔离宏内容", "F:\\isolated\\helper.exe"]]) {
+    const device = details.getByRole("region", { name, exact: true });
+    await expect(device).toContainText(first); await expect(device).toContainText(second);
   }
+  await page.keyboard.press("Escape");
   await expect(keymap.locator("input")).toHaveCount(0);
   expect(await writes(page)).toEqual([]);
   await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
@@ -79,7 +79,7 @@ test("程序监听导入明确说明应用后启用，预览不执行程序", as
 });
 
 test("启动档案共享映射目标，保存选择不应用或启用监听", async ({ page }) => {
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
@@ -117,7 +117,7 @@ test("缺少来源或待恢复记录拒绝捕获，不生成空映射", async ({
 test("映射卡片宽窄深浅布局可展开完整长内容且保持模块边框", async ({ page }) => {
   await select(page);
   const keymap = card(profilePanel(page));
-  const name = "鼠标 · 查看全部 2 项映射";
+  const name = "映射详情";
   await keymap.getByRole("button", { name, exact: true }).click();
   const details = page.getByRole("dialog", { name, exact: true });
   for (const theme of ["light", "dark"]) {

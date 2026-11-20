@@ -3,7 +3,7 @@ import { invokeAirplane } from "./mock-airplane.mjs";
 import { invokeAutoRefresh } from "./mock-auto-refresh.mjs";
 import { invokeSupplyMode } from "./mock-supply-mode.mjs";
 import { applyPerformanceOptions, invokePerformance } from "./mock-performance.mjs";
-import { modeGpuReview, appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, modeRestoreTarget, modeRestoreIssue, rememberMode, applyModeGpu } from "./mock-mode-state.mjs";
+import { modeGpuReview, appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, rememberMode, applyModeGpu } from "./mock-mode-state.mjs";
 import { initPowerPolicy, savePowerPolicy, invokePowerPolicy } from "./mock-profile-policy.mjs";
 import { invokeLightingOptions, applyProfileLightingOptions } from "./mock-lighting-options.mjs";
 import { invokeTouchpad, applyTouchpadTarget, applyProfileTouchpad } from "./mock-touchpad.mjs";
@@ -31,7 +31,7 @@ function fixtureData() {
       alwaysOnTop: false, startMinimized: false, startupPage: "dashboard", globalShortcut: "", runtimeLogLevel: "info", hardwareAcceleration: true },
     profile: { version: 1, name: "隔离档案", savedAtMs: 1, settings }, otherProfiles: [],
     fan: { software: null, curveKind: "twoPoint", rpmFans: [], availableModes: [0, 1, 6], fanCount: 1,
-      customSupported: true, currentMode: 0, offsetPct: 0, canRestore: true, warnings: ["隔离风扇诊断"], safetyStatus: "已读取", blockedReason: null,
+      customSupported: true, currentMode: 0, offsetPct: 0, offsetSupported: true, canRestore: true, warnings: ["隔离风扇诊断"], safetyStatus: "已读取", blockedReason: null,
       fans: [{ id: "cpu", present: true, t1: 30, d1Pct: 20, t2: 60, d2Pct: 50, t3: 90, d3Pct: 99 }] },
     power: { pl1W: 65, pl2W: 100, plTimeS: 28, coreOffsetMv: 0, gtOffsetMv: 0, defaultPl1W: 65, defaultPl2W: 100,
       defaultCoreOffsetMv: 0, msrRuntimeAvailable: true, msrRuntimeError: null, canRestore: true, runtimeWarnings: [], warnings: ["隔离功耗诊断"],
@@ -74,7 +74,7 @@ function fixtureData() {
       recoveryRequired: false, chargeOnStop: { current: { enabled: false, start: 95, stop: 100 }, startValues: [40, 50, 60, 70, 80, 95], stopValues: [60, 70, 80, 90, 100] },
       chargeReported: { enabled: false, start: 95, stop: 100 }, hasInitialPlan: true, initialCharge: { enabled: false, start: 95, stop: 100 }, error: null, canWrite: true }, energySupported: true, energyRevision: 0, energyFault: null, energyRecoveryFault: false,
     performanceOptions: { current: { turboFan: false, dtt: false }, currentMode: 2, customFan: false, softwareActive: false, blockedReason: null,
-      dttDriverAvailable: true, revision: "options-0", canRestore: false, warnings: [] }, performanceRevision: 0, performanceFault: null, performanceFanMode: null, entertainmentQuiet: false,
+      dttDriverAvailable: true, revision: "options-0", warnings: [] }, performanceRevision: 0, performanceFault: null, performanceFanMode: null, entertainmentQuiet: false,
     perkey: { revision: "perkey-0", current: { brightness: 3, enabled: true, speed: 1,
       pattern: { kind: "static", colors: Array.from({ length: 120 }, () => ({ r: 20, g: 80, b: 160 })) } },
       device: { newEffects: true, language: 0, narrowBorder: true, threeColumn: false, compact: false, physicalThreeColumn: false },
@@ -141,6 +141,18 @@ function installIpc() {
           return { ok: true, message: "风扇偏移已写入" };
         }
         case "read_power_profile": return data.power;
+        case "apply_saved_cpu": case "apply_runtime_cpu": {
+          const controls = args.controls;
+          if (data.cpuWriteFault) { const message = data.cpuWriteFault; data.cpuWriteFault = null; return { ok: false, message }; }
+          const values = command === "apply_saved_cpu" ? data.power : data.power.runtime;
+          if (controls.pl1W != null) values.pl1W = controls.pl1W;
+          if (controls.pl2W != null) values.pl2W = controls.pl2W;
+          if (controls.coreOffsetMv != null) values.coreOffsetMv = controls.coreOffsetMv;
+          if (controls.gtOffsetMv != null) values.gtOffsetMv = controls.gtOffsetMv;
+          data.power.canRestore = true;
+          return { ok: true, message: command === "apply_saved_cpu" ? "CPU 设置已保存；即时效果未验证" : "即时 CPU 目标已回读确认" };
+        }
+        case "restore_power_profile": return { ok: true, message: "已恢复初始设置" };
         case "read_gpu_profile": return data.gpu;
         case "read_touchpad": case "apply_touchpad": case "restore_touchpad": return invokeTouchpad(data, command, args);
         case "read_microphones": case "apply_microphones": case "restore_microphones": return invokeMicrophones(data, command, args);
@@ -161,7 +173,6 @@ function installIpc() {
           return invokeBattery(data, command, args);
         case "read_oem_power_mode": case "read_oem_performance_options":
         case "apply_oem_performance_options": case "apply_oem_power_mode":
-        case "restore_oem_power_mode":
           return invokePerformance(data, command, args);
         case "read_display_modes": case "apply_display_refresh": case "apply_display_rotation":
         case "keep_display_mode": case "cancel_display_trial": case "restore_display_modes":
@@ -434,7 +445,7 @@ function fanProfile(data) {
   const running = data.dust?.running ? "固件正在除尘，请等待结束后再调整风扇或电源模式" : null;
   const fan = { ...data.fan, blockedReason: running };
   if (data.fanKind !== "rpmTable") return fan;
-  return { ...fan, curveKind: "rpmTable", fans: [], rpmFans: fan.rpmFans.length ? fan.rpmFans : [{ id: "cpu", maximumRpm: 5000,
+  return { ...fan, curveKind: "rpmTable", offsetSupported: false, fans: [], rpmFans: fan.rpmFans.length ? fan.rpmFans : [{ id: "cpu", maximumRpm: 5000,
     points: Array.from({ length: 10 }, (_, i) => ({ tempC: 40 + i * 5, rpmPct: i === 9 ? 100 : 20 + i * 8 })) }] };
 }
 function dustProfile(data) {
@@ -474,5 +485,5 @@ async function invokeDust(data, command, args) {
   if (data.dustFault) { const error = data.dustFault; data.dustFault = null; if (command === "start_fan_dust") dust.lastStart = "uncertain"; throw new Error(error); }
   return null;
 }
-export const MOCK_IPC = `(() => {${[invokeAirplane, modeGpuReview, appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, modeRestoreTarget, modeRestoreIssue, rememberMode, applyModeGpu, invokeSupplyMode, profileDigest, backgroundProfileBinding, previewProfileAuthorization, invokeStartup, initPowerPolicy, savePowerPolicy, invokePowerPolicy, fixtureData, installIpc, invokeTouchpad, applyTouchpadTarget, applyProfileTouchpad, invokeMicrophones, applyMicrophoneTarget, applyProfileMicrophones, invokeLightingOptions, applyProfileLightingOptions, invokeLighting, invokeCalibration, invokeEnergy, invokeBattery, applyPerformanceOptions, invokePerformance, invokeDisplay, invokeAutoRefresh, invokeGraphics, invokeGpuPower, invokeSoftware, invokePlatform, hardwareSnapshot, fanProfile, dustProfile, invokeDust, invokeKeymap, batteryThresholdFixture, restoreBatteryThresholdFixture, lowBatteryBrightnessFixture, restoreLowBatteryBrightnessFixture, restorePdEventFixture, dismissColdWarningFixture, acknowledgeNavigationFixture, gpuTurboFixture, initializeHotkeys, invokeHotkeys, invokeLightBar, invokeUsb, invokeLan, invokeMultiZone, captureMultiZone, applyProfileMultiZone, profileFields, profileGroups, emptyProfileSettings, captureProfileDevices, captureProfilePower, captureProfileLighting, captureProfileInputs, profileFiles, invokeProfileStorage, captureProfileGraphicsMode, previewProfileGraphicsMode, applyProfileGraphicsMode, restoreProfileGraphicsMode, captureProfileGpuPower, previewProfileGpuPower, applyProfileGpuPower, commitProfileTargets, profileNodeStages, previewProfileMode, applyProfileMode, captureProfileLan, reviewProfileLan, previewProfileDisplay, previewManualProfile, profileApplicationSteps, recoverProfileDisplay, syncProfileApplication, beginProfileApplication, invokeProfileApplication, restoreBatteryAlertFixture, stopHotkeysFixture].map(fn => fn.toString()).join("\n")}; fixtureData(); installIpc();})();`;
+export const MOCK_IPC = `(() => {${[invokeAirplane, modeGpuReview, appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, rememberMode, applyModeGpu, invokeSupplyMode, profileDigest, backgroundProfileBinding, previewProfileAuthorization, invokeStartup, initPowerPolicy, savePowerPolicy, invokePowerPolicy, fixtureData, installIpc, invokeTouchpad, applyTouchpadTarget, applyProfileTouchpad, invokeMicrophones, applyMicrophoneTarget, applyProfileMicrophones, invokeLightingOptions, applyProfileLightingOptions, invokeLighting, invokeCalibration, invokeEnergy, invokeBattery, applyPerformanceOptions, invokePerformance, invokeDisplay, invokeAutoRefresh, invokeGraphics, invokeGpuPower, invokeSoftware, invokePlatform, hardwareSnapshot, fanProfile, dustProfile, invokeDust, invokeKeymap, batteryThresholdFixture, restoreBatteryThresholdFixture, lowBatteryBrightnessFixture, restoreLowBatteryBrightnessFixture, restorePdEventFixture, dismissColdWarningFixture, acknowledgeNavigationFixture, gpuTurboFixture, initializeHotkeys, invokeHotkeys, invokeLightBar, invokeUsb, invokeLan, invokeMultiZone, captureMultiZone, applyProfileMultiZone, profileFields, profileGroups, emptyProfileSettings, captureProfileDevices, captureProfilePower, captureProfileLighting, captureProfileInputs, profileFiles, invokeProfileStorage, captureProfileGraphicsMode, previewProfileGraphicsMode, applyProfileGraphicsMode, restoreProfileGraphicsMode, captureProfileGpuPower, previewProfileGpuPower, applyProfileGpuPower, commitProfileTargets, profileNodeStages, previewProfileMode, applyProfileMode, captureProfileLan, reviewProfileLan, previewProfileDisplay, previewManualProfile, profileApplicationSteps, recoverProfileDisplay, syncProfileApplication, beginProfileApplication, invokeProfileApplication, restoreBatteryAlertFixture, stopHotkeysFixture].map(fn => fn.toString()).join("\n")}; fixtureData(); installIpc();})();`;
 

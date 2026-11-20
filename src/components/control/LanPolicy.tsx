@@ -48,8 +48,8 @@ export function LanPolicy({ active, revision }: { active: boolean; revision: num
             ...(Object.keys(LAN_FIELDS) as LanField[]).map(field => ({ label: LAN_FIELDS[field],
               value: `当前 ${lanValue(device.values[field])} · 初始 ${lanValue(initial?.fields[field])}` })),
           ]} />}
-          {preview.error && <p className="ccc-control-error">{preview.error}</p>}
-          {profile.lastError && <p className="ccc-control-error">{profile.lastError}</p>}
+          {preview.error && <p className="ccc-control-error"><Icon name="error" size={16} />{preview.error}</p>}
+          {profile.lastError && <p className="ccc-control-error"><Icon name="error" size={16} />{profile.lastError}</p>}
         </DetailsDialog>}
         <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取网络策略" disabled={busy} onClick={reread} />
       </div>

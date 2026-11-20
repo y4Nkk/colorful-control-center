@@ -15,10 +15,18 @@ const MAX_AGE_MS: u64 = 2500;
 #[serde(rename_all = "camelCase")]
 pub struct Reading {
     pub value_pct: f64,
+    /// PDH 标称基频 × 处理器性能百分比；基频计数缺失或无效时为空。
+    pub clock_mhz: Option<f64>,
     pub sampled_at_ms: u64,
 }
+/// 同一次 PDH 采样的效用、性能百分比与标称基频；性能或基频计数缺失（系统未提供）时为 None。
+pub(super) struct Sample {
+    utility: (u32, f64),
+    performance: Option<(u32, f64)>,
+    base_clock: Option<(u32, f64)>,
+}
 trait Counter: Send {
-    fn collect(&mut self) -> Result<Option<(u32, f64)>>;
+    fn collect(&mut self) -> Result<Option<Sample>>;
     fn reset(&mut self);
 }
 pub(super) struct Sampler {
@@ -81,16 +89,13 @@ impl Sampler {
             .and_then(|counter| counter.collect())
             .and_then(|value| {
                 value
-                    .map(|(status, value)| validate_value(status, value))
+                    .map(|sample| reading_from(sample, sampled_at_ms))
                     .transpose()
             });
         match result {
             Ok(value) => {
                 self.last_error = None;
-                self.last_reading = value.map(|value_pct| Reading {
-                    value_pct,
-                    sampled_at_ms,
-                });
+                self.last_reading = value;
                 Ok(self.last_reading.clone())
             }
             Err(error) => self.failure(format!("{error:#}")),
@@ -115,10 +120,54 @@ impl Sampler {
 }
 fn validate_value(status: u32, value: f64) -> Result<f64> {
     if ![0, 1].contains(&status) {
-        bail!("CPU效用计数器数据状态无效：{status:#x}");
+        bail!("CPU效用计数器数据状态无效：{status:#010x}");
     }
     if !value.is_finite() || value < 0.0 {
         bail!("CPU效用计数器数值无效：{value}");
     }
     Ok(value.min(100.0))
+}
+fn validate_performance(status: u32, value: f64) -> Result<f64> {
+    if ![0, 1].contains(&status) {
+        bail!("CPU性能计数器数据状态无效：{status:#010x}");
+    }
+    if !value.is_finite() || value < 0.0 {
+        bail!("CPU性能计数器数值无效：{value}");
+    }
+    // 性能百分比在睿频时超过 100，不设上限。
+    Ok(value)
+}
+fn validate_base_clock(status: u32, value: f64) -> Result<f64> {
+    if ![0, 1].contains(&status) {
+        bail!("CPU基频计数器数据状态无效：{status:#010x}");
+    }
+    if !value.is_finite() || value <= 0.0 {
+        bail!("CPU基频计数器数值无效：{value}");
+    }
+    Ok(value)
+}
+/// 三项读数来自同一次采样；性能或基频计数无效只让 clock 为空，不拖垮效用读数。
+fn reading_from(sample: Sample, sampled_at_ms: u64) -> Result<Reading> {
+    let value_pct = validate_value(sample.utility.0, sample.utility.1)?;
+    let performance = sample
+        .performance
+        .map(|(status, value)| validate_performance(status, value))
+        .transpose()
+        .ok()
+        .flatten();
+    let base_clock = sample
+        .base_clock
+        .map(|(status, value)| validate_base_clock(status, value))
+        .transpose()
+        .ok()
+        .flatten();
+    let clock_mhz = base_clock
+        .zip(performance)
+        .map(|(base, pct)| base * pct / 100.0)
+        .filter(|mhz| mhz.is_finite() && *mhz > 0.0);
+    Ok(Reading {
+        value_pct,
+        clock_mhz,
+        sampled_at_ms,
+    })
 }

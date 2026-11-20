@@ -30,9 +30,9 @@ export function TouchpadSettings({ active, revision }: { active: boolean; revisi
       <div className="ccc-module-tools">
         <DetailsDialog title="触摸板详情" label="详情">
           {current && <FactList compact facts={[{ label: "系统触摸板", value: stateText(current.enabled) }, { label: "保存偏好", value: savedText(current.saved) }]} />}
-          {profile?.blockedReason && <p>{profile.blockedReason}</p>}
-          {profile?.restoreBlockedReason && profile.restoreBlockedReason !== profile.blockedReason && <p>恢复暂不可用 · {profile.restoreBlockedReason}</p>}
-          {error && <p className="ccc-control-error">{error}</p>}
+          {profile?.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
+          {profile?.restoreBlockedReason && profile.restoreBlockedReason !== profile.blockedReason && <p className="ccc-control-caption">恢复暂不可用 · {profile.restoreBlockedReason}</p>}
+          {error && <p className="ccc-control-error"><Icon name="error" size={16} />{error}</p>}
         </DetailsDialog>
         <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取触摸板" disabled={busy} onClick={reread} />
       </div>

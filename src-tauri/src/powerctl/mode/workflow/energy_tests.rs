@@ -198,8 +198,10 @@ fn a_failed_command_or_false_ack_restores_mode_and_keeps_the_energy_baseline() {
         assert_eq!(f.device.0.lock().unwrap().pages[1][1], 3);
         assert_eq!(current(&f).energy_star, Some(2));
         assert_eq!(
-            restore_target(&f.hal)
+            f.hal.recovery()
                 .unwrap()
+                .oem_mode
+                .clone()
                 .unwrap()
                 .energy
                 .unwrap()
@@ -236,13 +238,13 @@ fn changed_preflight_energy_and_unrestorable_firmware_stop_before_all_outputs() 
 }
 
 #[test]
-fn hardware_managed_energy_never_sends_79_for_selection_or_restore() {
+fn hardware_managed_energy_never_sends_79_for_selection_or_compensation() {
     let f = Fixture::new();
     let _gate = f.hal.begin_write().unwrap();
     apply(&f, 1).unwrap();
     assert!(current(&f).hardware_p_state);
-    let target = restore_target(&f.hal).unwrap().unwrap();
-    restore(&f.hal, &target.revision).unwrap();
+    let before = f.hal.recovery().unwrap().oem_mode.clone().unwrap();
+    restore_snapshot(&f.hal, &before).unwrap();
     assert!(
         !f.device
             .0
@@ -260,10 +262,10 @@ fn option_only_recovery_leaves_a_later_energy_value_untouched() {
     options(&mut f);
     let _gate = f.hal.begin_write().unwrap();
     apply_options(&f);
-    let target = restore_target(&f.hal).unwrap().unwrap();
-    assert!(target.energy.is_none());
+    let before = f.hal.recovery().unwrap().oem_mode.clone().unwrap();
+    assert!(before.energy.is_none());
     f.device.0.lock().unwrap().bios[2] = 0;
-    restore(&f.hal, &target.revision).unwrap();
+    restore_snapshot(&f.hal, &before).unwrap();
     assert_eq!(current(&f).energy_star, Some(0));
     assert!(
         !f.device
@@ -277,36 +279,35 @@ fn option_only_recovery_leaves_a_later_energy_value_untouched() {
 }
 
 #[test]
-fn choosing_after_options_adds_only_the_first_energy_baseline_and_rejects_old_restore() {
+fn choosing_after_options_adds_only_the_first_energy_baseline() {
     let mut f = setup(3);
     options(&mut f);
     let _gate = f.hal.begin_write().unwrap();
     apply_options(&f);
-    let old = restore_target(&f.hal).unwrap().unwrap();
+    let old = f.hal.recovery().unwrap().oem_mode.clone().unwrap();
     f.device.0.lock().unwrap().bios[2] = 0;
     apply(&f, 1).unwrap();
-    let target = restore_target(&f.hal).unwrap().unwrap();
-    assert_eq!(target.energy.unwrap().energy_star, Some(0));
-    assert_eq!((target.mode, target.turbo), (old.mode, old.turbo));
-    f.device.0.lock().unwrap().events.clear();
-    assert!(restore(&f.hal, &old.revision).is_err());
-    assert!(f.device.0.lock().unwrap().events.is_empty());
-    restore(&f.hal, &target.revision).unwrap();
+    let baseline = f.hal.recovery().unwrap().oem_mode.clone().unwrap();
+    assert_eq!(baseline.energy.unwrap().energy_star, Some(0));
+    assert_eq!(
+        (baseline.core.mode, baseline.core.preferences[0]),
+        (old.core.mode, old.core.preferences[0])
+    );
+    assert!(baseline.stored() != old.stored());
+    restore_snapshot(&f.hal, &baseline).unwrap();
     assert_eq!(current(&f).energy_star, Some(0));
     assert_eq!(f.device.0.lock().unwrap().pages[4][8], 0);
 }
 
 #[test]
-fn changed_energy_management_blocks_every_initial_restore_output_and_is_visible() {
+fn changed_energy_management_blocks_every_restore_output_and_is_visible() {
     let f = setup(1);
     let _gate = f.hal.begin_write().unwrap();
     apply(&f, 2).unwrap();
-    let target = restore_target(&f.hal).unwrap().unwrap();
+    let before = f.hal.recovery().unwrap().oem_mode.clone().unwrap();
     f.device.0.lock().unwrap().bios[9] = 0x40;
-    let profile = super::super::read(&f.hal).unwrap();
-    assert!(!profile.can_restore && profile.restore_blocked_reason.is_some());
     f.device.0.lock().unwrap().events.clear();
-    assert!(restore(&f.hal, &target.revision).is_err());
+    assert!(restore_snapshot(&f.hal, &before).is_err());
     assert!(f.device.0.lock().unwrap().events.is_empty());
     assert!(f.hal.recovery().unwrap().oem_mode.is_some());
 }
@@ -333,7 +334,7 @@ fn unreadable_energy_during_compensation_does_not_skip_other_owned_domains() {
     assert_eq!(f.device.0.lock().unwrap().pages[4][5], 0);
     assert!(f.hal.recovery().unwrap().oem_mode.is_some());
     f.device.0.lock().unwrap().bios[2] = 1 << 4;
-    let target = restore_target(&f.hal).unwrap().unwrap();
-    restore(&f.hal, &target.revision).unwrap();
+    let before = f.hal.recovery().unwrap().oem_mode.clone().unwrap();
+    restore_snapshot(&f.hal, &before).unwrap();
     assert_eq!(current(&f).energy_star, Some(2));
 }

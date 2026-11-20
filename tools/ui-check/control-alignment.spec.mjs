@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { colorButton } from "./color-picker.mjs";
-import { openSystemArea, openWorkspace } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { profileSaveDialog, saveProfileButton } from "./profile-review.mjs";
 
 test.beforeEach(async ({ page }) => {
@@ -25,7 +25,7 @@ function expectAligned(positions) {
 
 test("配置档案的创建入口和保存弹窗在宽窄窗口保持对齐", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   const capture = page.getByRole("button", { name: "保存当前配置", exact: true });
   const importFile = page.getByRole("button", { name: "导入档案", exact: true });
   expectAligned((await bounds(capture, importFile)).map(bottom));

@@ -35,7 +35,7 @@ fn hash() -> Result<String> {
 fn inspect(native: &Native) -> Result<(Snapshot, State, Option<Record>)> {
     let state = native.state()?;
     let record = native.record()?;
-    let mut level = model::validate(&state, &native.executable, &native.user)?;
+    let mut level = model::validate(&state, &native.executable, &native.user, &native.user_name)?;
     if state.task.is_none() && state.run.is_some() {
         level = Level::Standard;
     }

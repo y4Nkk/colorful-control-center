@@ -480,17 +480,11 @@ fn failed_mode_command_and_compensation_keep_user_baseline_for_retry() {
     assert!(error.contains("恢复失败"));
     assert!(f.hal.recovery().unwrap().oem_mode.is_some());
     f.device.0.lock().unwrap().fail_mode = false;
-    powerctl::mode::restore(
-        &f.hal,
-        &powerctl::mode::read(&f.hal)
-            .unwrap()
-            .restore
-            .unwrap()
-            .revision,
-    )
-    .unwrap();
-    assert!(f.hal.recovery().unwrap().oem_mode.is_none());
-    assert_eq!(f.device.0.lock().unwrap().pages[1][1], 3);
+    powerctl::mode::checkpoint(&f.hal, 2)
+        .unwrap()
+        .execute(&f.hal)
+        .unwrap();
+    assert_eq!(f.device.0.lock().unwrap().pages[1][1], 2);
 }
 
 #[path = "touchpad_tests.rs"]

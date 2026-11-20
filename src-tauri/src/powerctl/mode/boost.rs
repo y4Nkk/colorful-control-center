@@ -64,15 +64,10 @@ pub struct Profile {
     pub current_mode: u8,
     pub applies_in_current_mode: bool,
     pub entertainment_options_pending: bool,
-    pub ac_mode: Option<u8>,
-    pub energy: Option<energy::State>,
-    pub restore: Option<super::workflow::RestoreTarget>,
-    pub restore_blocked_reason: Option<String>,
     pub custom_fan: bool,
     pub software_active: bool,
     pub dtt_driver_available: Option<bool>,
     pub revision: String,
-    pub can_restore: bool,
     pub warnings: Vec<String>,
     pub blocked_reason: Option<String>,
 }
@@ -423,25 +418,6 @@ pub fn read(hal: &Hal) -> Result<Profile> {
     let support_issue = hal.with_dchu(|io| super::support::issue(io))?;
     let (driver, warnings) = driver_status(hal)?;
     let p = hal.with_dchu(|io| preview(io, driver))?;
-    let restore = super::workflow::restore_target(hal)?;
-    let energy = if restore
-        .as_ref()
-        .is_some_and(|target| target.energy.is_some())
-    {
-        Some(hal.with_dchu(|io| energy::read(io, hal.reviewed_dsdt))?)
-    } else {
-        None
-    };
-    let ac_mode = if restore
-        .as_ref()
-        .is_some_and(|target| target.ac_mode.is_some())
-    {
-        Some(hal.with_dchu(|io| byte(io, 1, 16))?)
-    } else {
-        None
-    };
-    let restore_blocked_reason =
-        energy::restore_issue(restore.as_ref().and_then(|target| target.energy), energy);
     Ok(Profile {
         current: p.values(),
         quiet_fan: p.quiet_fan,
@@ -449,15 +425,10 @@ pub fn read(hal: &Hal) -> Result<Profile> {
         applies_in_current_mode: p.runtime_options != [false; 2],
         entertainment_options_pending: p.core.mode == 3
             && p.core.command != option_command(p.core.mode, p.core.preferences, p.runtime_options),
-        ac_mode,
-        energy,
         custom_fan: p.fan == FAN_MODE_CUSTOM,
         software_active: crate::fanctl::software::read(hal)?.is_some(),
         dtt_driver_available: driver,
         revision: p.revision,
-        can_restore: restore.is_some() && restore_blocked_reason.is_none(),
-        restore_blocked_reason,
-        restore,
         warnings,
         blocked_reason: support_issue.or_else(|| {
             hal.ensure_mode_change_allowed()

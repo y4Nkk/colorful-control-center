@@ -35,7 +35,7 @@ function CapacityBar({ values, label }: { values: CapacityValues; label: string 
   </svg>;
 }
 
-function MemoryUsage({ values, history }: { values: CapacityValues | null; history: readonly MemorySample[] }) {
+function MemoryUsage({ values, speedMts, history }: { values: CapacityValues | null; speedMts: number | null; history: readonly MemorySample[] }) {
   const points = history.map(({ atMs, capacity }) => ({ atMs, value: capacityValues(capacity)?.usedPercent ?? null }));
   return <div className="ccc-memory-usage">
     {values ? <dl className="ccc-memory-stats">
@@ -48,6 +48,7 @@ function MemoryUsage({ values, history }: { values: CapacityValues | null; histo
       </div>
       <div><dt>可用</dt><dd>{formatCapacity(values.available)}</dd></div>
       <div><dt>总容量</dt><dd>{formatCapacity(values.total)}</dd></div>
+      <div><dt>频率</dt><dd aria-label="内存频率">{formatParameter(speedMts, "MT/s")}</dd></div>
     </dl> : <p className="ccc-capacity-empty">容量未知</p>}
     <MemoryTrend points={points} />
   </div>;
@@ -82,6 +83,7 @@ export function CapacityOverview({ overview, oemMemory, memoryHistory }: {
               { label: "总容量", value: formatCapacity(memory?.total) },
               { label: "已用容量", value: formatCapacity(memory?.used) },
               { label: "可用容量", value: formatCapacity(memory?.available) },
+              { label: "内存频率", value: formatParameter(overview?.memorySpeedMts, "MT/s") },
               { label: "原厂报告频率", value: formatParameter(oemMemory?.reportedClockMhz, "MHz") },
               { label: "原厂参考频率", value: formatParameter(oemMemory?.referenceClockMhz, "MHz") },
             ]} />
@@ -90,7 +92,7 @@ export function CapacityOverview({ overview, oemMemory, memoryHistory }: {
         </div>
         <HardwareArtwork kind="memory" />
       </div>
-      <MemoryUsage values={memory} history={memoryHistory} />
+      <MemoryUsage values={memory} speedMts={overview?.memorySpeedMts ?? null} history={memoryHistory} />
     </Surface>
     <Surface as="section" variant="card" className="ccc-capacity-card" aria-label="本地存储概览">
       <div className="ccc-capacity-head">

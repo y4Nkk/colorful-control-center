@@ -55,8 +55,8 @@ export function OemPerformanceOptions({ active, revision, onSettled }: { active:
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="performance" />性能选项</h2>
       <div className="ccc-module-tools"><DetailsDialog title="性能选项说明与诊断" label="详情">
         {fields.map(field => <p key={field.key}><strong>{field.label}</strong> · {field.description}</p>)}
-        {applies && profile?.quietFan && current?.turboFan != null && <p>{NOISELESS_FAN_LABEL}与 {PERFORMANCE_OPTION_LABELS.turboFan}互斥。</p>}
-        {profile?.warnings.map(warning => <p key={warning}>{warning}</p>)}
+        {applies && profile?.quietFan && current?.turboFan != null && <p className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{NOISELESS_FAN_LABEL}与 {PERFORMANCE_OPTION_LABELS.turboFan}互斥。</p>}
+        {profile?.warnings.map(warning => <p key={warning} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{warning}</p>)}
         <p>可在「预设模式」查看和恢复初始设置。</p>
       </DetailsDialog><Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取性能选项" disabled={busy} onClick={reread} /></div>
     </div>

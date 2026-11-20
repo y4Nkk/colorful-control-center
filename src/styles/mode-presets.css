@@ -1,13 +1,6 @@
-.ccc-preset-stage {
-  display: grid;
-  justify-items: center;
-  padding: var(--ccc-space-1) var(--ccc-space-2) var(--ccc-space-3);
-  border-radius: var(--ccc-radius-card);
-  background: var(--ccc-preset-stage);
-}
-
 .ccc-preset-chip {
   display: block;
+  align-self: center;
   inline-size: min(100%, var(--ccc-preset-chip-width));
   block-size: auto;
   max-block-size: var(--ccc-preset-chip-height);
@@ -68,20 +61,23 @@
 .ccc-mode-art[data-mode-art="entertainment"] { color: var(--ccc-mode-art-entertainment); }
 .ccc-mode-art[data-mode-art="performance"] { color: var(--ccc-mode-art-performance); }
 
-.ccc-panel.ccc-current-mode {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--ccc-mode-art-size);
-  align-items: center;
+.ccc-panel.ccc-current-mode { gap: var(--ccc-space-1); }
+.ccc-current-mode > output {
+  color: var(--ccc-text);
+  font-size: var(--ccc-text-mode);
+  line-height: 1.15;
+  font-weight: 600;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
-.ccc-current-mode-copy { display: grid; gap: var(--ccc-space-2); min-width: 0; }
-.ccc-current-mode output { color: var(--ccc-text); font-size: var(--ccc-text-reading); line-height: 1.15; font-weight: 600; }
+
+@container ccc-control (max-width: 30rem) {
+  .ccc-current-mode > output { font-size: var(--ccc-text-reading); }
+}
 
 .ccc-mode-gpu-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: var(--ccc-space-3); width: 100%; }
 .ccc-mode-gpu-part, .ccc-mode-clock-facts { display: flex; flex-direction: column; gap: var(--ccc-space-2); min-width: 0; }
 .ccc-mode-gpu-part { padding: var(--ccc-space-3); }
 .ccc-mode-gpu-part p, .ccc-mode-clock-facts p { margin: 0; }
-.ccc-mode-restore { display: flex; flex-direction: column; gap: var(--ccc-space-4); width: 100%; padding: var(--ccc-space-3); }
 .ccc-mode-restore-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: var(--ccc-space-4); }
-.ccc-mode-restore-block { display: flex; flex-direction: column; gap: var(--ccc-space-3); min-width: 0; }
-.ccc-mode-restore-block h3 { margin: 0; font-size: var(--ccc-text-sm); }
 .ccc-mode-restore-raw { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font-size: var(--ccc-text-sm); }

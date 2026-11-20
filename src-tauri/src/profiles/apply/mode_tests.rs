@@ -154,20 +154,11 @@ fn mode_only_transaction_applies_quiet_plus_and_restores_fan_and_system_baseline
         assert_eq!(state.pages[4][5], 0);
         assert_eq!(state.pages[4][7], 0);
     }
-    powerctl::mode::restore(
-        &f.hal,
-        &powerctl::mode::read(&f.hal)
-            .unwrap()
-            .restore
-            .unwrap()
-            .revision,
-    )
-    .unwrap();
+    powerctl::mode::restore_checkpoint(&f.hal, &plan).unwrap();
     let state = f.device.0.lock().unwrap();
     assert_eq!(state.pages[1][1], 3);
     assert_eq!(state.active_plan, SCHEMES[0]);
     assert_eq!(state.plan_values[&SCHEMES[0]], [0, 1]);
-    assert!(f.hal.recovery().unwrap().oem_mode.is_none());
 }
 #[test]
 fn stale_linked_preview_is_rejected_before_any_mode_or_system_write() {
@@ -213,16 +204,6 @@ fn failed_plan_activation_restores_all_previous_targets_and_keeps_retryable_base
         assert_eq!(state.plan_values[&SCHEMES[0]], [0, 1]);
     }
     assert!(f.hal.recovery().unwrap().oem_mode.is_some());
-    f.device.0.lock().unwrap().fail_plan = false;
-    powerctl::mode::restore(
-        &f.hal,
-        &powerctl::mode::read(&f.hal)
-            .unwrap()
-            .restore
-            .unwrap()
-            .revision,
-    )
-    .unwrap();
 }
 #[test]
 fn later_profile_gpu_failure_recovers_linked_policy_then_exact_runtime_cpu() {
@@ -388,10 +369,9 @@ fn manual_profile_binds_linked_target_and_rejects_missing_or_stale_review() {
     );
     assert_eq!(f.device.0.lock().unwrap().pages[1][1], 4);
     assert_eq!(f.device.0.lock().unwrap().pages[1][16], 4);
-    let target = powerctl::mode::read(&f.hal).unwrap().restore.unwrap();
-    assert_eq!(target.ac_mode, Some(2));
-    powerctl::mode::restore(&f.hal, &target.revision).unwrap();
-    assert_eq!(f.device.0.lock().unwrap().pages[1][16], 2);
+    let stored = f.hal.recovery().unwrap().oem_mode.clone().unwrap().stored();
+    let preview = stored.recovery_preview(&stored).unwrap();
+    assert_eq!(preview.initial_ac_mode, Some(2));
 }
 
 #[path = "mode_plan_recovery_tests.rs"]

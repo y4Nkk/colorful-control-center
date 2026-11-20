@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import { WorkspaceActivity } from "../components/Dialog";
+import { SegmentedControl } from "../components/SegmentedControl";
 import { BatterySettings } from "../components/control/BatterySettings";
 import { StartupProfilePicker } from "../components/control/StartupProfilePicker";
 import { PowerProfilePolicy } from "../components/control/PowerProfilePolicy";
@@ -8,8 +11,30 @@ import { LanPolicy } from "../components/control/LanPolicy";
 import { Icon } from "../components/Icon";
 import { Surface } from "../components/Surface";
 import type { HardwareWorkspaceProps } from "./useControlModel";
+import { ProfilesWorkspace } from "./ProfilesWorkspace";
+import { POWER_AREAS, type PowerArea } from "./navigation";
 
-export function PowerWorkspace({ active, model }: HardwareWorkspaceProps) {
+export function PowerWorkspace({ active, model, area, requestedProfile, onAreaChange }: HardwareWorkspaceProps & {
+  area: PowerArea; requestedProfile: { name: string } | null; onAreaChange: (area: PowerArea) => void;
+}) {
+  const [opened, setOpened] = useState<ReadonlySet<PowerArea>>(() => new Set([area]));
+  useEffect(() => { setOpened(previous => previous.has(area) ? previous : new Set([...previous, area])); }, [area]);
+  return <div className="ccc-control">
+    <SegmentedControl className="ccc-power-areas" label="电源区域" value={area} options={POWER_AREAS}
+      onChange={value => onAreaChange(value as PowerArea)} />
+    {POWER_AREAS.filter(option => option.value === area || opened.has(option.value)).map(({ value, label }) => {
+      const visible = value === area;
+      return <WorkspaceActivity.Provider key={value} value={active && visible}>
+        <div hidden={!visible} role="region" aria-label={label}>
+          {value === "settings" ? <PowerSettings active={active && visible} model={model} />
+            : <ProfilesWorkspace active={active && visible} requestedProfile={requestedProfile} onOpenRules={() => onAreaChange("settings")} />}
+        </div>
+      </WorkspaceActivity.Provider>;
+    })}
+  </div>;
+}
+
+function PowerSettings({ active, model }: HardwareWorkspaceProps) {
   const { deviceRevision, revisions, refreshAll, refreshSystemPolicy } = model;
   return <div className="ccc-control" data-module-layout="power">
     <BatterySettings active={active} revision={deviceRevision} onPolicyChanged={refreshSystemPolicy} />

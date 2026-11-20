@@ -1,4 +1,4 @@
-import { openWorkspace } from "./workspace.mjs";
+import { openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 const title = "USB 选择性暂停";
@@ -29,7 +29,7 @@ test.beforeEach(async ({ page }) => {
       plans: ["balanced", "highPerformance", "powerSaver"].map(id => ({ id, ac: false, dc: false })),
       missing: [], initial: [], blockedReason: null, restoreBlockedReason: null, warnings: ["隔离系统计划"] };
   });
-  await page.goto("/"); await openWorkspace(page, "电源");
+  await page.goto("/"); await openPowerArea(page, "电源设置");
 });
 
 test("原厂建议应用六个字段，恢复前预览初始值", async ({ page }) => {

@@ -1,5 +1,5 @@
 import { deviceRestoreButton, restoreDevice } from "./device-settings.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(c => c.command === "apply_gpu_power").length);
@@ -17,7 +17,7 @@ test("原厂关断直接提交并绑定策略，卡内可恢复混合初态", as
   await expect(panel.locator('[data-enabled="off"]')).toBeVisible();
   const request = await page.evaluate(() => window.__uiFixture.calls.find(call => call.command === "apply_gpu_power").args);
   expect(request).toMatchObject({ expected: { enabled: true, automaticPowerOff: true }, enabled: false });
-  await openSystemArea(page, "概览");
+  await openWorkspace(page, "概览");
   await expect(page.getByText("独显监控暂停", { exact: true })).toBeVisible();
   await openWorkspace(page, "设备配置");
   expect(await writes(page)).toBe(1);
@@ -25,7 +25,7 @@ test("原厂关断直接提交并绑定策略，卡内可恢复混合初态", as
   await expect(panel.locator('[data-enabled="on"]')).toBeVisible();
   const device = await page.evaluate(() => window.__uiFixture.gpuPower.devices[0]);
   expect(device.enabled).toBe(true); expect(device.automaticPowerOff).toBe(true);
-  await openSystemArea(page, "概览");
+  await openWorkspace(page, "概览");
   await expect(page.getByText("独显监控暂停", { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });

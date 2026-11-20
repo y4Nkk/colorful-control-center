@@ -37,7 +37,7 @@ fn full_cycle_preview_checks_both_supplies_without_enabling_a_closed_node() {
 }
 
 #[test]
-fn full_cycle_authorization_survives_owned_changes_and_shares_first_core_and_gpu_restore() {
+fn full_cycle_authorization_survives_owned_changes() {
     let f = core().with_energy(1);
     let (memory, gpu, environment, power) = setup();
     environment.io.0.lock().unwrap().device.automatic_power_off = true;
@@ -45,7 +45,6 @@ fn full_cycle_authorization_survives_owned_changes_and_shares_first_core_and_gpu
     let profile = cycle_profile(&f, &memory, &gpu, &power);
     let identity = profile.identity().unwrap();
     let driver = profile.driver_identity().unwrap().to_owned();
-    let raw = RawState::read(memory.as_ref()).unwrap();
     for _ in 0..3 {
         let mode = mode::cycle::execute(
             context(&f, &memory, &gpu, &power),
@@ -61,31 +60,7 @@ fn full_cycle_authorization_survives_owned_changes_and_shares_first_core_and_gpu
         let current = cycle_profile(&f, &memory, &gpu, &power);
         assert_eq!(current.identity().unwrap(), identity);
         assert_eq!(f.device.0.lock().unwrap().pages[1][16], mode);
-        assert_eq!(
-            full_profile(&f, &memory, &gpu, &power)
-                .restore
-                .unwrap()
-                .ac_mode,
-            Some(3)
-        );
     }
-    let restore = full_profile(&f, &memory, &gpu, &power).restore.unwrap();
-    assert_eq!(restore.energy.unwrap().energy_star, Some(1));
-    assert_eq!(
-        restore.gpu.as_ref().unwrap().clocks.as_ref().unwrap().state,
-        raw
-    );
-    mode::restoration::restore(
-        context(&f, &memory, &gpu, &power),
-        &restore.revision,
-        &mut || Ok(()),
-    )
-    .unwrap();
-    assert_eq!(f.device.0.lock().unwrap().pages[1][1], 2);
-    assert_eq!(f.device.0.lock().unwrap().pages[1][16], 3);
-    assert_eq!(RawState::read(memory.as_ref()).unwrap(), raw);
-    assert!(environment.io.device().enabled);
-    assert!(f.hal.recovery().unwrap().oem_mode.is_none());
 }
 
 #[test]

@@ -8,7 +8,11 @@ use windows::{
     Win32::System::{Com::*, TaskScheduler::*, Variant::VARIANT},
     core::BSTR,
 };
-use windows_sys::Win32::{Foundation::*, Security::*, System::Threading::*};
+use windows_sys::Win32::{
+    Foundation::*,
+    Security::{self, *},
+    System::Threading::*,
+};
 
 struct Apartment;
 impl Drop for Apartment {
@@ -20,6 +24,7 @@ pub struct Native {
     folder: ITaskFolder,
     _apartment: Apartment,
     pub user: String,
+    pub user_name: String,
     pub executable: String,
     pub path: PathBuf,
 }
@@ -67,8 +72,27 @@ pub fn user() -> Result<String> {
         }
         Ok(text)
     })();
-    unsafe { CloseHandle(token) };
+        unsafe { CloseHandle(token) };
     result
+}
+// 任务服务存储任务时会把 LogonTrigger 的 SID 规范化成 机器\用户，指纹需要第二形态。
+pub fn user_name() -> Result<String> {
+    let mut buffer = [0u16; 512];
+    let mut size = buffer.len() as u32;
+    if !unsafe {
+        Security::Authentication::Identity::GetUserNameExW(
+            Security::Authentication::Identity::NameSamCompatible,
+            buffer.as_mut_ptr(),
+            &mut size,
+        )
+    } {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    let end = buffer
+        .iter()
+        .position(|&value| value == 0)
+        .unwrap_or(size as usize);
+    Ok(String::from_utf16_lossy(&buffer[..end]))
 }
 impl Native {
     pub fn new(path: PathBuf) -> Result<Self> {
@@ -82,6 +106,7 @@ impl Native {
             folder: unsafe { service.GetFolder(&BSTR::from("\\"))? },
             _apartment: apartment,
             user: user()?,
+            user_name: user_name()?,
             executable: std::env::current_exe()?
                 .to_str()
                 .ok_or_else(|| anyhow::anyhow!("程序路径不是UTF-8"))?
@@ -106,7 +131,7 @@ impl Io for Native {
         let task = raw
             .as_ref()
             .map(|value| {
-                model::task_level(value, &self.executable, &self.user)
+                model::task_level(value, &self.executable, &self.user, &self.user_name)
                     .map(|level| model::xml(&self.executable, &self.user, level).unwrap())
             })
             .transpose()?;
@@ -114,7 +139,7 @@ impl Io for Native {
             task,
             run: super::super::registry::read_value()?,
         };
-        model::validate(&state, &self.executable, &self.user)?;
+        model::validate(&state, &self.executable, &self.user, &self.user_name)?;
         Ok(state)
     }
     fn record(&self) -> Result<Option<Record>> {
@@ -132,13 +157,13 @@ impl Io for Native {
         if record.version != 1 {
             bail!("登录自启恢复记录版本无效");
         }
-        model::validate(&record.before, &self.executable, &self.user)?;
-        model::validate(&record.applied, &self.executable, &self.user)?;
+        model::validate(&record.before, &self.executable, &self.user, &self.user_name)?;
+        model::validate(&record.applied, &self.executable, &self.user, &self.user_name)?;
         Ok(Some(record))
     }
     fn task(&self, xml: Option<&str>) -> Result<()> {
         if let Some(xml) = xml {
-            model::task_level(xml, &self.executable, &self.user)?;
+            model::task_level(xml, &self.executable, &self.user, &self.user_name)?;
             let empty = VARIANT::default();
             unsafe {
                 self.folder.RegisterTask(

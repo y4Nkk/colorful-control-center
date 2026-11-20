@@ -1,6 +1,6 @@
 import { openProfileResults, openProfileSave, openStartupParameters, saveProfileButton, showProfileSettings } from "./profile-review.mjs";
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { installMultiZoneFixture } from "./multizone-fixture.mjs";
@@ -8,7 +8,7 @@ import { installMultiZoneFixture } from "./multizone-fixture.mjs";
 const panel = page => page.getByRole("region", { name: "档案预览", exact: true });
 const card = page => panel(page).getByLabel("档案多区键盘", { exact: true });
 async function select(page) {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
   await showProfileSettings(page);
 }
@@ -50,7 +50,7 @@ test("捕获导出保留四区及能力，普通和逐键目标为空", async ({
   expect(JSON.parse(exported).settings.multiZoneLighting).toEqual(settings.multiZoneLighting);
 });
 test("启动选择共享多区预览，保存选择不执行设置", async ({ page }) => {
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();

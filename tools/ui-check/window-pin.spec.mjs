@@ -63,7 +63,7 @@ test("顶栏图钉与设置共用已确认的置顶值和保存锁", async ({ pa
 
 test("在设置页之外提示置顶保存失败并允许重试", async ({ page }) => {
   await openDesktop(page);
-  await openWorkspace(page, "系统");
+  await openWorkspace(page, "概览");
   const toggle = pin(page);
   await page.evaluate(() => { window.__uiFixture.preferencesFault = "隔离置顶保存失败"; });
   await toggle.click();
@@ -99,6 +99,6 @@ test("已保存置顶和窗口按钮在浅深主题及不同宽度下正常显�
 test("普通浏览器预览隐藏原生窗口按钮", async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
   await page.goto("/");
-  await expect(page.getByRole("main", { name: "系统", exact: true })).toBeVisible();
+  await expect(page.getByRole("main", { name: "概览", exact: true })).toBeVisible();
   await expect(pin(page)).toHaveCount(0);
 });

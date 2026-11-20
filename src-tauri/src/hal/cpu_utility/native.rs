@@ -1,4 +1,4 @@
-use super::Counter as CounterAccess;
+use super::{Counter as CounterAccess, Sample};
 use anyhow::{Result, bail};
 use windows_sys::Win32::System::Performance::*;
 
@@ -8,7 +8,9 @@ pub(super) struct Counter {
 }
 struct Query {
     handle: PDH_HQUERY,
-    counter: PDH_HCOUNTER,
+    utility: PDH_HCOUNTER,
+    performance: Option<PDH_HCOUNTER>,
+    frequency: Option<PDH_HCOUNTER>,
     primed: bool,
 }
 // 查询句柄由采样器的互斥锁独占，PDH负责内部计数器生命周期。
@@ -18,6 +20,18 @@ fn checked(status: u32, operation: &str) -> Result<()> {
         bail!("{operation}失败：PDH {status:#010x}");
     }
     Ok(())
+}
+fn add_counter(
+    handle: PDH_HQUERY,
+    path: &str,
+    slot: &mut PDH_HCOUNTER,
+    operation: &str,
+) -> Result<()> {
+    let wide: Vec<u16> = path.encode_utf16().chain([0]).collect();
+    checked(
+        unsafe { PdhAddEnglishCounterW(handle, wide.as_ptr(), 0, slot) },
+        operation,
+    )
 }
 impl Query {
     fn open() -> Result<Self> {
@@ -31,28 +45,47 @@ impl Query {
         }
         let mut query = Self {
             handle,
-            counter: std::ptr::null_mut(),
+            utility: std::ptr::null_mut(),
+            performance: None,
+            frequency: None,
             primed: false,
         };
-        let path: Vec<u16> = r"\Processor Information(_Total)\% Processor Utility"
-            .encode_utf16()
-            .chain([0])
-            .collect();
-        checked(
-            unsafe { PdhAddEnglishCounterW(query.handle, path.as_ptr(), 0, &mut query.counter) },
+        add_counter(
+            query.handle,
+            r"\Processor Information(_Total)\% Processor Utility",
+            &mut query.utility,
             "添加CPU效用计数器",
         )?;
-        if query.counter.is_null() {
+        if query.utility.is_null() {
             bail!("CPU效用计数器返回空句柄");
+        }
+        // 性能计数缺席只损失频率读数，不影响效用采样。
+        let mut performance = std::ptr::null_mut();
+        match add_counter(
+            query.handle,
+            r"\Processor Information(_Total)\% Processor Performance",
+            &mut performance,
+            "添加CPU性能计数器",
+        ) {
+            Ok(()) if !performance.is_null() => query.performance = Some(performance),
+            Ok(_) => log::warn!("[cpu-utility] 性能计数器返回空句柄，频率读数留空"),
+            Err(error) => log::warn!("[cpu-utility] 性能计数器不可用：{error:#}；频率读数留空"),
+        }
+        // 标称基频与性能百分比同组配套；缺席时频率读数留空，效用不受影响。
+        let mut frequency = std::ptr::null_mut();
+        match add_counter(
+            query.handle,
+            r"\Processor Information(_Total)\Processor Frequency",
+            &mut frequency,
+            "添加CPU基频计数器",
+        ) {
+            Ok(()) if !frequency.is_null() => query.frequency = Some(frequency),
+            Ok(_) => log::warn!("[cpu-utility] 基频计数器返回空句柄，频率读数留空"),
+            Err(error) => log::warn!("[cpu-utility] 基频计数器不可用：{error:#}；频率读数留空"),
         }
         Ok(query)
     }
-    fn collect(&mut self) -> Result<Option<(u32, f64)>> {
-        checked(unsafe { PdhCollectQueryData(self.handle) }, "采集CPU效用")?;
-        if !self.primed {
-            self.primed = true;
-            return Ok(None);
-        }
+    fn formatted(&self, counter: PDH_HCOUNTER, operation: &str) -> Result<(u32, f64)> {
         let mut value = PDH_FMT_COUNTERVALUE {
             CStatus: u32::MAX,
             Anonymous: PDH_FMT_COUNTERVALUE_0 {
@@ -61,18 +94,36 @@ impl Query {
         };
         checked(
             unsafe {
-                PdhGetFormattedCounterValue(
-                    self.counter,
-                    PDH_FMT_DOUBLE,
-                    std::ptr::null_mut(),
-                    &mut value,
-                )
+                PdhGetFormattedCounterValue(counter, PDH_FMT_DOUBLE, std::ptr::null_mut(), &mut value)
             },
-            "计算CPU效用",
+            operation,
         )?;
-        Ok(Some((value.CStatus, unsafe {
-            value.Anonymous.doubleValue
-        })))
+        Ok((value.CStatus, unsafe { value.Anonymous.doubleValue }))
+    }
+    fn collect(&mut self) -> Result<Option<Sample>> {
+        checked(unsafe { PdhCollectQueryData(self.handle) }, "采集CPU效用")?;
+        if !self.primed {
+            self.primed = true;
+            return Ok(None);
+        }
+        let utility = self.formatted(self.utility, "计算CPU效用")?;
+        let performance = self
+            .performance
+            .map(|counter| self.formatted(counter, "计算CPU性能"))
+            .transpose()
+            .ok()
+            .flatten();
+        let base_clock = self
+            .frequency
+            .map(|counter| self.formatted(counter, "计算CPU基频"))
+            .transpose()
+            .ok()
+            .flatten();
+        Ok(Some(Sample {
+            utility,
+            performance,
+            base_clock,
+        }))
     }
 }
 impl Drop for Query {
@@ -84,7 +135,7 @@ impl Drop for Query {
     }
 }
 impl CounterAccess for Counter {
-    fn collect(&mut self) -> Result<Option<(u32, f64)>> {
+    fn collect(&mut self) -> Result<Option<Sample>> {
         if self.query.is_none() {
             self.query = Some(Query::open()?);
         }

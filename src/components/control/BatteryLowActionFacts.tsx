@@ -16,8 +16,8 @@ export function BatteryLowActionFacts({ profile, powerSummary }: { profile: Batt
           <p>严重电量：{action(current.critical)}</p>
           {powerSummary && <p className="ccc-control-caption">{powerSummary}</p>}
         </> : <p className="ccc-control-caption">当前电池计划动作不可读取。</p>}
-        {profile.error && <p className="ccc-control-error">{profile.error}</p>}
-        {profile.powerError && <p className="ccc-control-error">{profile.powerError}</p>}
+        {profile.error && <p className="ccc-control-error"><Icon name="error" size={16} />{profile.error}</p>}
+        {profile.powerError && <p className="ccc-control-error"><Icon name="error" size={16} />{profile.powerError}</p>}
       </Surface>
       <Surface variant="inset" className="ccc-battery-action-part">
         <strong>事件执行与恢复</strong>

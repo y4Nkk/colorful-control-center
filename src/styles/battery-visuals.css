@@ -7,7 +7,7 @@
   padding-block: var(--ccc-space-3);
 }
 .ccc-battery-artwork { display: block; width: 100%; height: auto; color: var(--ccc-action); }
-.ccc-battery-overview[data-charging="true"] > .ccc-battery-artwork { color: var(--ccc-safe); }
+.ccc-battery-overview:is([data-charge-state="charging"], [data-charge-state="full"]) > .ccc-battery-artwork { color: var(--ccc-safe); }
 .ccc-battery-readout { display: grid; gap: var(--ccc-space-1); min-width: 0; }
 .ccc-battery-level-value { font-size: var(--ccc-text-temperature); font-weight: 600; line-height: 1.1; }
 .ccc-battery-level-value small { font-size: var(--ccc-text-xl); margin-inline-start: var(--ccc-space-1); }

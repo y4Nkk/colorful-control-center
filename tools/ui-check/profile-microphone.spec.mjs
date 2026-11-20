@@ -1,7 +1,7 @@
 import { openProfileResults, openProfileSave, openStartupParameters, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
 import { openDeviceRestore } from "./device-settings.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -9,7 +9,7 @@ import { installMicrophoneFixture } from "./microphone-fixture.mjs";
 const preview = page => page.getByRole("region", { name: "档案预览", exact: true });
 const navigate = (page, title) => page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: title, exact: true }).click();
 async function select(page) {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
   await showProfileSettings(page);
 }
@@ -45,7 +45,7 @@ test("档案逐端点预览，确认后刷新控制台并共用混合状态恢�
 });
 
 test("捕获导出及导入保留混合状态和独立保存偏好", async ({ page }) => {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await openProfileSave(page, "完整麦克风", ["设备功能"]);
   await saveProfileButton(page).click();
   const pending = page.waitForEvent("download");
@@ -90,7 +90,7 @@ test("显示试用取消不修改麦克风，保留后才执行完整目标", as
 });
 
 test("启动选择共用完整麦克风预览，确认只保存选择", async ({ page }) => {
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const panel = page.getByRole("region", { name: "启动档案", exact: true });
   await panel.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();

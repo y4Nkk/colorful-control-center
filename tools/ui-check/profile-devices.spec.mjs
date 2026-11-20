@@ -1,6 +1,6 @@
 import { openProfileResults, openProfileSave, openStartupParameters, saveProfileButton, showProfileMenu, showProfileSettings } from "./profile-review.mjs";
 import { changeButton, configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { openWorkspace, openSystemArea } from "./workspace.mjs";
+import { openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { readFile } from "node:fs/promises";
@@ -8,7 +8,7 @@ const navigate = (page, title) => page.getByRole("navigation", { name: "主导�
 const preview = page => page.getByRole("region", { name: "档案预览", exact: true });
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(c => /^(apply_|save_|import_|set_startup)/.test(c.command)));
 async function selectProfile(page) {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
   await showProfileSettings(page);
 }
@@ -37,7 +37,7 @@ test("型号灯条预览与确认携带完整档案，浏览不触发写入", as
 });
 
 test("保存当前捕获完整灯条配置并回到同一图形预览", async ({ page }) => {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   await openProfileSave(page, "灯条档案", ["灯光"]);
   expect(await writes(page)).toEqual([]);
   await saveProfileButton(page).click();
@@ -51,7 +51,7 @@ test("保存当前捕获完整灯条配置并回到同一图形预览", async ({
 });
 
 test("导入X170先显示模式颜色，确认导入仍不应用设备", async ({ page }) => {
-  await openSystemArea(page, "配置档案");
+  await openPowerArea(page, "配置档案");
   const file = await page.evaluate(() => ({ ...structuredClone(window.__uiFixture.profile), name: "导入灯条",
     settings: { ...window.__uiFixture.profile.settings, lightBar: { kind: "x170", settings: {
       effect: "breath", enabled: true, brightness: 4, speed: 0, color: { r: 18, g: 52, b: 86 } } } } }));
@@ -102,7 +102,7 @@ test("组合失败及恢复失败逐步显示，不报告档案全部成功", as
 });
 
 test("启动选择复用完整参数预览，保存只改变启动意图", async ({ page }) => {
-  await openWorkspace(page, "电源");
+  await openPowerArea(page, "电源设置");
   const panel = page.getByRole("region", { name: "启动档案", exact: true });
   await panel.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();

@@ -23,9 +23,9 @@ export function KeyboardLighting({ active, revision = 0 }: { active: boolean; re
   return <Surface as="section" variant="group" className="ccc-panel ccc-keyboard-panel" aria-label="键盘灯光">
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="lighting" />键盘灯光</h2>
       <div className="ccc-module-tools"><DetailsDialog title="键盘灯诊断" label="详情">
-        {profile?.warnings.map(warning => <p key={warning}>{warning}</p>)}
-        <p>类型 {profile?.detectedType ?? "未知"}{profile?.detectionSource && ` · ${profile.detectionSource}`}</p>
-        {profile?.unavailableReason && <p>{profile.unavailableReason}</p>}
+        {profile?.warnings.map(warning => <p key={warning} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{warning}</p>)}
+        <p className="ccc-control-caption">类型 {profile?.detectedType ?? "未知"}{profile?.detectionSource && ` · ${profile.detectionSource}`}</p>
+        {profile?.unavailableReason && <p className="ccc-control-caption">{profile.unavailableReason}</p>}
       </DetailsDialog>
       <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取键盘灯" disabled={busy} onClick={state.reload} />
       </div>

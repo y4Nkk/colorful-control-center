@@ -11,8 +11,6 @@ use fixtures::Fixture;
 mod cycle_tests;
 #[path = "manual_apply_tests.rs"]
 mod manual_apply_tests;
-#[path = "manual_restore_tests.rs"]
-mod manual_restore_tests;
 #[path = "profile_application_tests.rs"]
 #[cfg(not(control_sim))]
 mod profile_application_tests;

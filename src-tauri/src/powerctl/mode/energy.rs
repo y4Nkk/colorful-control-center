@@ -150,15 +150,6 @@ pub(super) fn review_restore(
         })
         .transpose()
 }
-pub(super) fn restore_issue(initial: Option<State>, current: Option<State>) -> Option<String> {
-    match (initial, current) {
-        (Some(_), None) => Some("初始模式包含固件节能，当前状态未知，暂不能恢复".into()),
-        (Some(initial), Some(current)) if initial.hardware_p_state != current.hardware_p_state => {
-            Some("固件节能管理能力已变化，不能恢复此初始模式".into())
-        }
-        _ => None,
-    }
-}
 
 #[cfg(test)]
 mod tests;

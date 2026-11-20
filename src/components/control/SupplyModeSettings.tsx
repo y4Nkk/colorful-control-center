@@ -31,10 +31,11 @@ export function SupplyModeSettings({ active, revision, onSettled }: { active: bo
           <div className="ccc-detail-stack">
             {view && <SupplyModeCurrent view={view} />}
             {review && <SupplyModeScenarios review={review} />}
-            {issues.map(issue => <p key={issue} className="ccc-control-error">{issue}</p>)}
-            {view?.recovery && !view.canRestore && <DetailsDialog title="供电恢复详情" wide>
+            {issues.map(issue => <p key={issue} className="ccc-control-error"><Icon name="error" size={16} />{issue}</p>)}
+            {view?.recovery && !view.canRestore && <section className="ccc-detail-stack" aria-label="供电恢复详情">
+              <h3>供电恢复详情</h3>
               <SupplyModeRecovery value={view.recovery} />
-            </DetailsDialog>}
+            </section>}
           </div>
         </DetailsDialog>
         <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取供电模式" disabled={mutating} onClick={() => void p.reread()} />
