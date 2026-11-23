@@ -50,19 +50,19 @@ function CpuControls({ model }: { model: ReturnType<typeof usePowerControl> }) {
       <section className="ccc-tuning-group" aria-label="功耗上限">
         <h3>功耗上限</h3>
         {!unavailable && !draft.limits && <p className="ccc-control-caption is-warn">缺少有效的成对功耗读数，暂不可调节功耗上限。</p>}
-        <ScaleSlider label="持续功耗上限" unit="W" min={CPU_PL_MIN} max={CPU_PL_MAX}
+        <ScaleSlider label="持续功耗上限" unit="W" min={CPU_PL_MIN} max={CPU_PL_MAX} magnetInterval={5}
           current={dirty.current.limits?.pl1 ?? CPU_PL_MIN} draft={draft.limits?.pl1 ?? CPU_PL_MIN} unavailable={!draft.limits}
           disabled={disabled} onChange={(pl1) => model.change({ pl1 })} />
-        <ScaleSlider label="短时功耗上限" unit="W" min={CPU_PL_MIN} max={CPU_PL_MAX}
+        <ScaleSlider label="短时功耗上限" unit="W" min={CPU_PL_MIN} max={CPU_PL_MAX} magnetInterval={5}
           current={dirty.current.limits?.pl2 ?? CPU_PL_MIN} draft={draft.limits?.pl2 ?? CPU_PL_MIN} unavailable={!draft.limits}
           disabled={disabled} onChange={(pl2) => model.change({ pl2 })} />
       </section>
       <section className="ccc-tuning-group" aria-label="电压偏移">
         <h3>电压偏移</h3>
-        <ScaleSlider label="核心电压偏移" unit="mV" min={-150} max={50}
+        <ScaleSlider label="核心电压偏移" unit="mV" min={-150} max={50} magnetInterval={25}
           current={dirty.current.coreMv} draft={draft.coreMv}
           unavailable={!dirty.coreReady} disabled={disabled} onChange={(coreMv) => model.change({ coreMv })} />
-        <ScaleSlider label="核显电压偏移" unit="mV" min={-150} max={0}
+        <ScaleSlider label="核显电压偏移" unit="mV" min={-150} max={0} magnetInterval={25}
           current={dirty.current.gtMv} draft={draft.gtMv}
           unavailable={!dirty.gtReady} disabled={disabled} onChange={(gtMv) => model.change({ gtMv })} />
       </section>

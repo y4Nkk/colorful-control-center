@@ -8,6 +8,7 @@ const styles = (text, scope) => inspectUiStyles("src/styles/example.css", text, 
 test("图标库只通过全局语义组件接入", () => {
   assert.equal(source('import { Fan } from "lucide-react";').violations.length, 1);
   assert.equal(source('import Fan from "lucide-react/icons/fan";').violations.length, 1);
+  assert.equal(source('import { GaugeIcon } from "@phosphor-icons/react/dist/csr/Gauge";').violations.length, 1);
   assert.deepEqual(inspectUiSource("src/components/Icon.tsx", 'import { Fan } from "lucide-react";').violations, []);
   assert.deepEqual(source('import { Icon } from "../Icon"; <Icon name="fan" />').violations, []);
 });

@@ -1,7 +1,7 @@
 import { Icon } from "../Icon";
 import { Surface } from "../Surface";
 import { Button } from "../Button";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { applyGpuClockOffsets, readGpuProfile, restoreGpuBaseline, type GpuApplyOutcome, type GpuProfile } from "../../api/client";
 import { ConfigurationAction } from "../ConfigurationAction";
 import { DetailsDialog } from "../DetailsDialog";
@@ -15,55 +15,77 @@ const TITLE = "GPU 频率";
 
 export function GpuTuning({ active, revision, onSettled }: { active: boolean; revision: number; onSettled: () => void }) {
   const [profile, setProfile] = useState<GpuProfile | null>(null);
-  const [core, setCore] = useState(0);
-  const [mem, setMem] = useState(0);
+  const [coreDraft, setCoreDraft] = useState<number | null>(null);
+  const [memDraft, setMemDraft] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const lastProfile = useRef<GpuProfile | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
+  const readVersion = useRef(0);
   const running = useRef(false);
-  const accept = (current: GpuProfile, reset: boolean) => {
-    const previous = lastProfile.current;
-    setCore((draft) => reset || !previous || draft === previous.coreOffsetMhz ? current.coreOffsetMhz ?? 0 : draft);
-    setMem((draft) => reset || !previous || draft === previous.memOffsetMhz ? current.memOffsetMhz ?? 0 : draft);
-    lastProfile.current = current; setProfile(current); setError(null);
-  };
-  const load = async (reset: boolean) => accept(await readGpuProfile(), reset);
+  const load = useCallback(async () => {
+    const version = ++readVersion.current;
+    try {
+      const current = await readGpuProfile();
+      if (version !== readVersion.current) return false;
+      setProfile(current);
+      setReadError(null);
+      return current.available;
+    } catch (error) {
+      if (version === readVersion.current) {
+        setProfile(null);
+        setReadError(String(error));
+      }
+      return false;
+    }
+  }, []);
   useEffect(() => {
-    if (!active) return;
-    let cancelled = false;
-    readGpuProfile().then((current) => { if (!cancelled) accept(current, false); })
-      .catch((error) => { if (!cancelled) { setProfile(null); setError(String(error)); } });
-    return () => { cancelled = true; };
-  }, [active, revision]);
+    if (active && !running.current) void load();
+  }, [active, revision, load]);
   const run = async (action: () => Promise<GpuApplyOutcome>) => {
     if (running.current) return;
     running.current = true;
-    setBusy(true); setError(null);
+    ++readVersion.current;
+    setBusy(true);
+    setActionError(null);
     try {
       const result = await action();
-      if (!result.ok) throw new Error([result.message, result.rollbackError].filter(Boolean).join("；"));
-      await load(true); toast({ kind: "success", title: "GPU 偏移已确认" });
-    } catch (error) { setError(String(error)); }
+      if (!result.ok) {
+        setActionError([result.message, result.rollbackError].filter(Boolean).join("；"));
+        if (result.rollbackError) {
+          setProfile(null);
+          await load();
+        }
+        return;
+      }
+      setCoreDraft(null);
+      setMemDraft(null);
+      if (await load()) toast({ kind: "success", title: "GPU 偏移已确认" });
+    } catch (error) { setActionError(String(error)); }
     finally { running.current = false; setBusy(false); onSettled(); }
   };
+  const unavailableReason = readError ?? profile?.unavailableReason;
   return <Surface as="section" variant="group" className="ccc-panel" aria-label={TITLE}>
     <div className="ccc-tuning-head">
       <h2 className="ccc-panel-title"><Icon name="gpu" />{TITLE}</h2>
       <div className="ccc-tuning-meta">
         {profile?.gpuName && <p className="ccc-control-caption">{profile.gpuName}</p>}
         <DetailsDialog title="GPU 参数与诊断" label="说明与诊断" icon={null}>
-          {error && <p className="ccc-control-error" role="alert"><Icon name="error" size={16} />{error}</p>}
-          {!error && !profile?.available && <p className="ccc-control-caption">{profile?.unavailableReason ?? "等待驱动读数"}</p>}
+          {actionError && <p className="ccc-control-error" role="alert"><Icon name="error" size={16} />{actionError}</p>}
+          {!profile?.available && <p className="ccc-control-caption">{unavailableReason ?? "等待读取偏移"}</p>}
+          {profile?.writeBlockedReason && <p className="ccc-control-caption">{profile.writeBlockedReason}</p>}
           <ParameterDescriptions items={GPU_TUNING_HELP} />
           {profile?.warnings.map(w => <p key={w} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{w}</p>)}
         </DetailsDialog>
       </div>
     </div>
-    {profile?.available ? <GpuControls profile={profile} core={core} mem={mem} busy={busy} error={error}
-      setCore={setCore} setMem={setMem} run={run} /> : <>
-      <p className="ccc-control-caption">{error || profile ? "不可用" : "读取中…"}{profile?.unavailableReason && ` · ${profile.unavailableReason}`}</p>
-      <div className="ccc-tuning-scope"><Button icon="refresh" variant="ghost" size="compact"
-        onClick={() => { void load(false).catch((e) => setError(String(e))); }}>重试</Button></div>
+    {profile?.available ? <GpuControls profile={profile} core={coreDraft ?? profile.coreOffsetMhz ?? 0}
+      mem={memDraft ?? profile.memOffsetMhz ?? 0} busy={busy} error={actionError}
+      setCore={(value) => setCoreDraft(value === profile.coreOffsetMhz ? null : value)}
+      setMem={(value) => setMemDraft(value === profile.memOffsetMhz ? null : value)} run={run} /> : <>
+      {actionError && <p className="ccc-control-error" role="alert">{actionError}</p>}
+      <p className="ccc-control-caption">{unavailableReason ? `无法读取当前偏移 · ${unavailableReason}` : "读取中…"}</p>
+      {!busy && <div className="ccc-tuning-scope"><Button icon="refresh" variant="ghost" size="compact"
+        onClick={() => void load()}>重试</Button></div>}
     </>}
   </Surface>;
 }
@@ -73,6 +95,7 @@ function GpuControls({ profile: p, core, mem, busy, error, setCore, setMem, run 
   setCore: (v: number) => void; setMem: (v: number) => void;
   run: (action: () => Promise<GpuApplyOutcome>) => Promise<void>;
 }) {
+  const controlsDisabled = busy || p.writeBlockedReason !== null;
   const coreDirty = p.coreEditable && core !== p.coreOffsetMhz;
   const memDirty = p.memEditable && mem !== p.memOffsetMhz;
   const changes = [
@@ -81,19 +104,20 @@ function GpuControls({ profile: p, core, mem, busy, error, setCore, setMem, run 
   ];
   return <>
     <div className="ccc-tuning-group ccc-tuning-columns">
-      <ScaleSlider label="核心频率偏移" unit="MHz" min={p.coreMinMhz} max={Math.max(p.coreMinMhz, p.coreMaxMhz)}
-        current={p.coreOffsetMhz ?? 0} draft={core} disabled={busy || !p.coreEditable}
+      <ScaleSlider label="核心频率偏移" unit="MHz" min={p.coreMinMhz} max={Math.max(p.coreMinMhz, p.coreMaxMhz)} magnetInterval={50}
+        current={p.coreOffsetMhz ?? 0} draft={core} disabled={controlsDisabled || !p.coreEditable}
         unavailable={p.coreOffsetMhz == null} onChange={setCore} />
-      <ScaleSlider label="显存频率偏移" unit="MHz" min={p.memMinMhz} max={Math.max(p.memMinMhz, p.memMaxMhz)}
-        current={p.memOffsetMhz ?? 0} draft={mem} disabled={busy || !p.memEditable}
+      <ScaleSlider label="显存频率偏移" unit="MHz" min={p.memMinMhz} max={Math.max(p.memMinMhz, p.memMaxMhz)} magnetInterval={100}
+        current={p.memOffsetMhz ?? 0} draft={mem} disabled={controlsDisabled || !p.memEditable}
         unavailable={p.memOffsetMhz == null} onChange={setMem} />
     </div>
+      {p.writeBlockedReason && <p className="ccc-control-caption">{p.writeBlockedReason}</p>}
       {error && <p className="ccc-control-error" role="alert">{error}</p>}
-      <ConfigurationAction label="GPU 频率" revision={JSON.stringify([p, changes])} disabled={busy || changes.length === 0}
+      <ConfigurationAction label="GPU 频率" revision={JSON.stringify([p, changes])} disabled={controlsDisabled || changes.length === 0}
         onConfirm={() => run(() => applyGpuClockOffsets(coreDirty ? core : null, memDirty ? mem : null))}>
         <DiffPreview items={changes} />
       </ConfigurationAction>
-      <ConfigurationAction label="GPU 频率" revision={JSON.stringify(p)} restore disabled={busy || !p.baseline}
+      <ConfigurationAction label="GPU 频率" revision={JSON.stringify(p)} restore disabled={controlsDisabled || !p.baseline}
         onConfirm={() => run(restoreGpuBaseline)}>
         <p>恢复 GPU 初始频率偏移{p.baseline ? ` · 核心 ${p.baseline.coreOffsetMhz ?? "—"} MHz，显存 ${p.baseline.memOffsetMhz ?? "—"} MHz` : ""}。</p>
       </ConfigurationAction>

@@ -1,12 +1,16 @@
 import type { ComponentProps, CSSProperties } from "react";
+import { useSliderInput } from "./use-slider-input";
 
-interface SliderProps extends Omit<ComponentProps<"input">, "type" | "min" | "max" | "step" | "value" | "defaultValue"> {
+interface SliderProps extends Pick<ComponentProps<"input">, "id" | "aria-label" | "aria-valuetext" | "disabled"> {
   min: number;
   max: number;
-  step?: number;
   value: number;
   appearance?: "hue";
   marker?: { value: number; label: string };
+  magnetInterval?: number;
+  onChange: (value: number) => void;
+  onCommit?: (value: number) => void;
+  onCancel?: () => void;
 }
 
 function progress(value: number, min: number, max: number) {
@@ -18,31 +22,43 @@ function position(ratio: number) {
   return `calc(${ratio * 100}% + ${0.5 - ratio} * var(--ccc-range-thumb))`;
 }
 
-export function Slider({ className, appearance, min, max, step = 1, value, marker, disabled, ...props }: SliderProps) {
+function tickPositions(min: number, max: number, magnetInterval?: number) {
+  if (max <= min) return [];
+  if (magnetInterval) {
+    const ticks = [0];
+    for (let mark = Math.ceil((min + 1) / magnetInterval) * magnetInterval; mark < max; mark += magnetInterval) {
+      ticks.push(progress(mark, min, max));
+    }
+    return [...ticks, 1];
+  }
+  const ticks = max - min >= 13 ? 7 : max - min + 1;
+  return Array.from({ length: ticks }, (_, index) => index / (ticks - 1));
+}
+
+export function Slider({ appearance, min, max, value, marker, magnetInterval, disabled = false,
+  onChange, onCommit, onCancel, ...props }: SliderProps) {
+  const { input, rail, dragging, pointer, keyboard } = useSliderInput({ min, max, magnetInterval, disabled, onChange, onCommit, onCancel });
   const ratio = progress(value, min, max);
   const thumb = position(ratio);
   const style = {
     "--range-position": thumb,
     "--range-fill": ratio === 1 ? "100%" : thumb,
   } as CSSProperties;
-  const stops = Math.floor((max - min) / step) + 1;
-  const ticks = appearance === "hue" || max <= min ? 0 : stops > 13 ? 7 : Math.max(2, stops);
+  const ticks = appearance === "hue" ? [] : tickPositions(min, max, magnetInterval);
 
-  return <div className="ccc-range" data-appearance={appearance} data-disabled={disabled || undefined} style={style}>
+  return <div className="ccc-range" data-appearance={appearance} data-disabled={disabled || undefined}
+    data-dragging={dragging || undefined} style={style} {...pointer}>
     <div className="ccc-range-track" aria-hidden="true">
       {appearance !== "hue" && <span className="ccc-range-fill" />}
-      {ticks > 0 && <span className="ccc-range-ticks">
-        {Array.from({ length: ticks }, (_, index) => {
-          const stop = index / (ticks - 1);
-          return <span key={index} className="ccc-range-tick" data-filled={stop <= ratio + 1e-6}
-            style={{ left: `${stop * 100}%` }} />;
-        })}
-      </span>}
+      <span ref={rail} className="ccc-range-ticks">
+        {ticks.map(stop => <span key={stop} className="ccc-range-tick" data-filled={stop <= ratio + 1e-6}
+          style={{ left: `${stop * 100}%` }} />)}
+      </span>
     </div>
     {marker && <span className="ccc-range-marker" style={{ left: position(progress(marker.value, min, max)) }}
       aria-hidden="true" title={marker.label} />}
     <span className="ccc-range-thumb" aria-hidden="true" />
-    <input {...props} type="range" min={min} max={max} step={step} value={value} disabled={disabled}
-      className={["ccc-range-input", className].filter(Boolean).join(" ")} />
+    <input {...props} {...keyboard} ref={input} className="ccc-range-input" type="range"
+      min={min} max={max} step={1} value={value} disabled={disabled} />
   </div>;
 }

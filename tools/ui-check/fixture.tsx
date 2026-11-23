@@ -43,7 +43,7 @@ function Fixture() {
         options={[{ value: "one", label: "第一项" }, { value: "two", label: "第二项" }, { value: "three", label: "不可选项", disabled: true }]} />
       <Checkbox label="测试复选" checked={checked} disabled={disabled} onChange={event => setChecked(event.target.checked)} />
       <Switch label="测试开关" checked={checked} disabled={disabled} onChange={setChecked} />
-      <Slider aria-label="测试滑杆" min={0} max={100} value={range} disabled={disabled} onChange={event => setRange(Number(event.target.value))} />
+      <Slider aria-label="测试滑杆" min={0} max={100} value={range} disabled={disabled} onChange={setRange} />
       <output aria-label="滑杆数值">{range}</output>
       <ConfirmButton label="执行隔离操作" confirmLabel="确认执行隔离操作？" busy={disabled} onConfirm={() => setWrites(value => value + 1)} />
       <output aria-label="执行次数">{writes}</output>

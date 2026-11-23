@@ -45,22 +45,24 @@ test("五档预设在窄窗口内完整显示，静音增强沿用冷蓝色", as
   }
 });
 
-test("回读换档重用同一 SVG，更新轮廓和文字渐变并播放一次入场", async ({ page }, info) => {
+test("回读从娱乐换到性能时紫色轨迹淡出，风刃分层入场后继续掠光", async ({ page }, info) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.addInitScript(() => { window.__uiFixture.preferences.motion = "system"; });
+  await page.addInitScript(() => {
+    window.__uiFixture.preferences.motion = "system";
+    window.__uiFixture.performanceOptions.currentMode = 3;
+  });
   await page.goto("/");
   await openWorkspace(page, "性能与散热");
   const artwork = artworkFor(page);
-  const drawing = artwork.locator(".ccc-preset-drawing");
+  const incoming = artwork.locator(".ccc-preset-layer:not([data-outgoing])");
+  const drawing = incoming.locator(".ccc-preset-drawing");
   const current = panel(page).locator(".ccc-preset-current");
   await expect(page.locator("html")).toHaveAttribute("data-motion", "system");
-  await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
-  expect(await artwork.evaluate(svg => svg.getAnimations({ subtree: true }).length)).toBe(0);
-  const gradient = artwork.locator('linearGradient[id$="-body"]');
-  const gradientId = await gradient.getAttribute("id");
-  const lightStop = gradient.locator("stop").first();
-  await expect(lightStop).toHaveCSS("stop-color", "rgb(255, 240, 196)");
+  await expect(artwork).toHaveAttribute("data-preset-palette", "entertainment");
+  expect(await drawing.evaluate(group => group.getAnimations().length)).toBe(0);
+  expect(await incoming.locator(".ccc-preset-orbit-front").evaluate(path => path.getAnimations()[0].animationName))
+    .toBe("ccc-preset-orbit");
 
   await artwork.evaluate(svg => {
     const freeze = event => {
@@ -68,31 +70,61 @@ test("回读换档重用同一 SVG，更新轮廓和文字渐变并播放一次�
       svg.removeEventListener("animationstart", freeze);
       for (const motion of svg.getAnimations({ subtree: true })) {
         motion.pause();
-        motion.currentTime = 250;
+        motion.currentTime = 180;
       }
     };
     svg.addEventListener("animationstart", freeze);
   });
-  await preset(page, "娱乐").click();
-  await expect(preset(page, "娱乐")).toBeChecked();
-  await expect(artwork).toHaveAttribute("data-preset-palette", "entertainment");
+  await preset(page, "性能").click();
+  await expect(preset(page, "性能")).toBeChecked();
+  await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
   await expect.poll(() => drawing.evaluate(group => group.getAnimations().map(motion => [motion.animationName, motion.playState])))
     .toEqual([["ccc-preset-reveal", "paused"]]);
   await expect(drawing).not.toHaveCSS("opacity", "1");
   await expect(drawing).not.toHaveCSS("transform", "none");
-  const intermediate = await lightStop.evaluate(stop => getComputedStyle(stop).stopColor);
-  expect(intermediate).not.toBe("rgb(255, 240, 196)");
-  expect(intermediate).not.toBe("rgb(243, 223, 255)");
+  const outgoing = artwork.locator(".ccc-preset-layer[data-outgoing]");
+  await expect(outgoing).toHaveAttribute("data-preset-palette", "entertainment");
+  await expect(outgoing.locator(".ccc-preset-drawing")).not.toHaveCSS("opacity", "1");
+  await expect(outgoing.locator('linearGradient[id$="-body"] stop').first()).toHaveCSS("stop-color", "rgb(243, 223, 255)");
+  await expect(incoming.locator('linearGradient[id$="-body"] stop').first()).toHaveCSS("stop-color", "rgb(255, 240, 196)");
+  const ribbonPositions = await incoming.locator(".ccc-preset-wind").evaluateAll(ribbons =>
+    ribbons.map(ribbon => getComputedStyle(ribbon).transform));
+  expect(new Set(ribbonPositions).size).toBe(3);
+  await panel(page).screenshot({ path: info.outputPath("preset-entertainment-to-performance.png") });
   await artwork.evaluate(svg => { for (const motion of svg.getAnimations({ subtree: true })) motion.play(); });
-  await expect(lightStop).toHaveCSS("stop-color", "rgb(243, 223, 255)");
+  await expect(outgoing).toHaveCount(0);
+  const glint = await incoming.locator(".ccc-preset-wind-light").evaluate(path => {
+    const [motion] = path.getAnimations();
+    motion.pause();
+    motion.currentTime = 2000;
+    const first = getComputedStyle(path).strokeDashoffset;
+    motion.currentTime = 3100;
+    const second = getComputedStyle(path).strokeDashoffset;
+    const visible = Number(getComputedStyle(path).opacity) > 0;
+    motion.play();
+    return { changing: first !== second, visible, iterations: motion.effect.getTiming().iterations };
+  });
+  expect(glint).toEqual({ changing: true, visible: true, iterations: Infinity });
+  await expect(current).toHaveText("性能模式");
+  await openWorkspace(page, "概览");
+  const hiddenArtwork = page.locator('section[aria-label="预设模式"] .ccc-preset-artwork');
+  expect(await hiddenArtwork.evaluate(svg => svg.getAnimations({ subtree: true }).length)).toBe(0);
+});
 
+test("各档位使用独立轮廓与档名渐变，并兼容强制色彩", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await openWorkspace(page, "性能与散热");
+  const artwork = artworkFor(page);
+  const drawing = artwork.locator(".ccc-preset-drawing");
+  const current = panel(page).locator(".ccc-preset-current");
   const silhouettes = new Set();
   const gradients = new Set();
   for (const [name, palette] of [["娱乐", "entertainment"], ["省电", "eco"], ["安静", "quiet"], ["性能", "performance"]]) {
     const option = panel(page).locator(`.ccc-preset-switcher .ccc-preset-label[data-preset-palette="${palette}"]`);
     await expect(option).toHaveCSS("background-image", /linear-gradient/);
     gradients.add(await option.evaluate(label => getComputedStyle(label).backgroundImage));
-    if (palette !== "entertainment") await preset(page, name).click();
+    await preset(page, name).click();
     await expect(preset(page, name)).toBeChecked();
     await expect(artwork).toHaveAttribute("data-preset-palette", palette);
     await expect(current).toHaveText(`${name}模式`);
@@ -103,8 +135,6 @@ test("回读换档重用同一 SVG，更新轮廓和文字渐变并播放一次�
   }
   expect(silhouettes.size).toBe(4);
   expect(gradients.size).toBe(4);
-  await expect(lightStop).toHaveCSS("stop-color", "rgb(255, 240, 196)");
-  await expect(gradient).toHaveAttribute("id", gradientId);
   await page.emulateMedia({ forcedColors: "active" });
   await expect(current).toHaveCSS("background-image", "none");
   await expect(current).not.toHaveCSS("color", "rgba(0, 0, 0, 0)");
@@ -128,7 +158,9 @@ for (const [name, systemMotion, appMotion] of [["系统", "reduce", "system"], [
     await expect(artwork.locator(".ccc-preset-drawing")).toHaveCSS("opacity", "1");
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.evaluate(() => { document.documentElement.dataset.motion = "system"; });
-    expect(await artwork.evaluate(svg => svg.getAnimations({ subtree: true }).length)).toBe(0);
+    expect(await artwork.evaluate(svg => svg.getAnimations({ subtree: true }).map(motion => motion.animationName)))
+      .toEqual(["ccc-preset-orbit", "ccc-preset-orbit"]);
+    await expect(artwork).not.toHaveAttribute("data-switching", "true");
   });
 }
 

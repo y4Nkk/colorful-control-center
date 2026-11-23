@@ -17,6 +17,7 @@
   scrollbar-gutter: stable;
 }
 .ccc-nav-pages > .ccc-scroll-viewport { scrollbar-gutter: auto; }
+.ccc-nav-pages > .ccc-scroll-viewport::-webkit-scrollbar { width: var(--ccc-space-2); }
 
 .ccc-scroll-viewport:focus-visible {
   outline-offset: -2px;

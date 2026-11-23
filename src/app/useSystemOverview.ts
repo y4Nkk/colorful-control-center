@@ -12,24 +12,21 @@ export interface MemorySample {
 
 interface OverviewState {
   overview: SystemOverview | null;
-  error: string | null;
   memoryHistory: MemorySample[];
 }
 
 export function useSystemOverview(active: boolean) {
-  const [state, setState] = useState<OverviewState>({ overview: null, error: null, memoryHistory: [] });
-  const [attempt, setAttempt] = useState(0);
-  const [reading, setReading] = useState(false);
+  const [state, setState] = useState<OverviewState>({ overview: null, memoryHistory: [] });
   const inFlight = useRef<Promise<SystemOverview> | null>(null);
   useEffect(() => {
     if (!active) return;
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const record = (overview: SystemOverview | null, error: string | null) => {
+    const record = (overview: SystemOverview | null) => {
       if (disposed) return;
       const atMs = Date.now();
       setState(({ memoryHistory }) => ({
-        overview, error,
+        overview,
         memoryHistory: [
           ...memoryHistory.filter(sample => sample.atMs >= atMs - MEMORY_HISTORY_MS && sample.atMs < atMs),
           { atMs, capacity: overview?.memory ?? null },
@@ -37,26 +34,23 @@ export function useSystemOverview(active: boolean) {
       }));
     };
     const refresh = async () => {
-      setReading(true);
-      // IPC 读取不能取消；重试或重新进入页面须等待旧请求结束。
+      // IPC 读取不能取消；重新进入页面须等待旧请求结束。
       if (inFlight.current) await inFlight.current.catch(() => undefined);
       if (disposed) return;
       const request = readSystemOverview();
       inFlight.current = request;
       try {
-        record(await request, null);
+        record(await request);
       } catch (cause) {
-        record(null, String(cause));
+        if (!disposed) console.warn("系统概览读取失败", cause);
+        record(null);
       } finally {
         if (inFlight.current === request) inFlight.current = null;
-        if (!disposed) {
-          setReading(false);
-          timer = setTimeout(() => void refresh(), POLL_INTERVAL_MS);
-        }
+        if (!disposed) timer = setTimeout(() => void refresh(), POLL_INTERVAL_MS);
       }
     };
     void refresh();
     return () => { disposed = true; clearTimeout(timer); };
-  }, [active, attempt]);
-  return { ...state, reading: active && reading, retry: () => setAttempt(previous => previous + 1) };
+  }, [active]);
+  return state;
 }

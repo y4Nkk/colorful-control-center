@@ -97,7 +97,7 @@ fn load_system_library(names: &[&str]) -> Result<HMODULE> {
     Err(anyhow!("加载系统目录 {} 失败：{}", names.join("/"), detail))
 }
 
-/// 把 NVAPI 状态码翻译成“符号名 + 驱动描述”（若可用）。
+/// 格式化 NVAPI 状态名称、数值及可用的驱动描述。
 fn nvapi_status_text(get_error_message: GetErrorMessageFn, status: i32) -> String {
     let mut buf = [0u8; SHORT_STRING_MAX];
     // SAFETY: buf 是 64 字节 NvAPI_ShortString 的合法存储。
@@ -108,10 +108,11 @@ fn nvapi_status_text(get_error_message: GetErrorMessageFn, status: i32) -> Strin
     } else {
         String::new()
     };
-    if text.is_empty() {
-        ffi::status_name(status).to_string()
+    let name = ffi::status_name(status);
+    if text.is_empty() || text == name {
+        format!("{name} ({status})")
     } else {
-        format!("{} ({})", ffi::status_name(status), text)
+        format!("{name} ({status}): {text}")
     }
 }
 
@@ -261,7 +262,7 @@ impl NvApi {
         let status = unsafe { (self.set_pstates20)(handle, request as *const _ as *mut _) };
         if status != ffi::STATUS_OK {
             return Err(anyhow!(
-                "写入 GPU 频率偏移失败：{}",
+                "NvAPI_GPU_SetPstates20：{}",
                 self.status_text(status)
             ));
         }

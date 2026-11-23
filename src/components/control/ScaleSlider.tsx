@@ -1,10 +1,9 @@
 /**
- * 原生数值滑杆（键盘/读屏可用），边界数值在交互时出现。
+ * 数值滑杆的业务读数和边界。
  * 应用中的当前值以圆环标记；草稿即滑块本身。
  * 当前值与草稿一致时不显示标记。
  */
 import { Slider } from "../Slider";
-import { useRef } from "react";
 import { fmtInt } from "./format";
 
 interface ScaleSliderProps {
@@ -12,7 +11,7 @@ interface ScaleSliderProps {
   unit: string;
   min: number;
   max: number;
-  step?: number;
+  magnetInterval?: number;
   /** 已应用的当前值（圆环标记） */
   current: number;
   /** 草稿值（滑块位置） */
@@ -25,23 +24,10 @@ interface ScaleSliderProps {
   onCancel?: () => void;
 }
 
-const RANGE_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"]);
-
 export function ScaleSlider({
-  label, unit, min, max, step = 1, current, draft, disabled = false, unavailable = false, onChange, onCommit, onCancel,
+  label, unit, min, max, magnetInterval, current, draft, disabled = false, unavailable = false, onChange, onCommit, onCancel,
 }: ScaleSliderProps) {
-  const gesture = useRef<"pointer" | "keyboard" | null>(null);
   const dirty = !onCommit && !unavailable && draft !== current;
-  const commit = (input: HTMLInputElement, kind: "pointer" | "keyboard") => {
-    if (gesture.current !== kind) return;
-    gesture.current = null;
-    onCommit?.(input.valueAsNumber);
-  };
-  const cancel = () => {
-    if (!gesture.current) return;
-    gesture.current = null;
-    onCancel?.();
-  };
   return (
     <div className={`ccc-slider${disabled ? " is-disabled" : ""}`}>
       <div className="ccc-slider-head">
@@ -65,24 +51,15 @@ export function ScaleSlider({
       <Slider
         min={min}
         max={max}
-        step={step}
+        magnetInterval={magnetInterval}
         value={unavailable ? min : draft}
         marker={dirty ? { value: current, label: `当前 ${fmtInt(current)} ${unit}` } : undefined}
         disabled={disabled || unavailable}
         aria-label={label}
         aria-valuetext={unavailable ? "未上报" : `${fmtInt(draft)} ${unit}`}
-        onChange={event => (onCommit && !gesture.current ? onCommit : onChange)(event.currentTarget.valueAsNumber)}
-        onPointerDown={onCommit && (event => {
-          if (event.button !== 0 || !event.isPrimary) return;
-          gesture.current = "pointer";
-          event.currentTarget.setPointerCapture(event.pointerId);
-        })}
-        onPointerUp={onCommit && (event => commit(event.currentTarget, "pointer"))}
-        onPointerCancel={onCommit && cancel}
-        onLostPointerCapture={onCommit && (() => { if (gesture.current === "pointer") cancel(); })}
-        onKeyDown={onCommit && (event => { if (RANGE_KEYS.has(event.key) && !gesture.current) gesture.current = "keyboard"; })}
-        onKeyUp={onCommit && (event => { if (RANGE_KEYS.has(event.key)) commit(event.currentTarget, "keyboard"); })}
-        onBlur={onCommit && cancel}
+        onChange={onChange}
+        onCommit={onCommit}
+        onCancel={onCancel}
       />
       <div className="ccc-slider-scale ccc-mono" aria-hidden="true">
         <span>{fmtInt(min)}</span>

@@ -68,7 +68,7 @@ cargo test --locked --manifest-path tools/control-sim/Cargo.toml --test watchdog
 
 ### README 截图
 
-发布文档图片位于 [docs/screenshots](screenshots/)。刷新时使用当前 `npm run build` 产物，在无外部网络、无设备映射的 Linux 容器内用 Chromium 无头模式打开静态前端。在加载应用前注入 [模拟 IPC](../tools/ui-check/mock-ipc.mjs)，检查传感读数、风扇曲线、键盘预览和电池状态已渲染，再导出各工作区的 PNG。截图中的读数、机型信息及配置均来自隔离夹具。1.0.0 截图使用容器的文泉驿正黑与文泉驿等宽正黑。
+发布文档图片位于 [docs/screenshots](screenshots/)。刷新时使用当前 `npm run build` 产物，在无外部网络、无设备映射的 Linux 容器内用 Chromium 无头模式打开静态前端。在加载应用前注入 [模拟 IPC](../tools/ui-check/mock-ipc.mjs)，待传感读数、风扇曲线、键盘预览和电池状态渲染后导出 PNG。逐张核对标题栏标识与 [正式 Logo 源文件](../src-tauri/icons/icon.svg) 一致。截图中的读数、机型信息及配置均来自隔离夹具。当前预览使用容器的文泉驿中文字体。
 
 ## 硬件探测与契约
 

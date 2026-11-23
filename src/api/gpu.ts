@@ -48,6 +48,8 @@ export interface GpuProfile {
   available: boolean;
   /** 不可用时的确切原因（阶段 + NVAPI 状态） */
   unavailableReason: string | null;
+  /** 当前进程无法执行单项调校及恢复的权限原因。 */
+  writeBlockedReason: string | null;
   gpuName: string | null;
   coreOffsetMhz: number | null;
   memOffsetMhz: number | null;

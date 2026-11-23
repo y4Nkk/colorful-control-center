@@ -1,5 +1,7 @@
 #[path = "native/menu.rs"]
 mod menu;
+#[path = "native/preset_bitmap.rs"]
+mod preset_bitmap;
 
 use anyhow::{Context as _, Result, bail};
 use std::{

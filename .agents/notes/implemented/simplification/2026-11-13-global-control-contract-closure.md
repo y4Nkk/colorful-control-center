@@ -21,8 +21,11 @@ Status: implemented
 - 2026-11-19 详情与确认共用 Agent Switchboard 的弹窗尺寸、标题和滚动结构。`Dialog` 保有原生模态隔离，展示时聚焦标题，关闭后由原生对话框恢复焦点。详情支持图标、Escape 和遮罩关闭，遮罩手势优先收起内层菜单。编辑和确认保留明确关闭与完成动作，忙碌时拦截用户关闭。`FactList` 的行布局按最宽标签对齐值列，窄窗限制标签列并让两列换行。弹窗、正文块和行使用留白安排层级。交互参考 [Apple Sheets](https://developer.apple.com/design/human-interface-guidelines/sheets)、[WAI-ARIA Modal Dialog](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/) 与 [React Aria Modal](https://react-aria.adobe.com/Modal)，键值布局对照 [Ant Design Descriptions](https://ant.design/components/descriptions/) 的无边框样式。
 
 - 2026-11-23 全局 Tabs 统一拥有内容页签、面板关联、键盘操作及样式。电源区域、风扇、CPU 调校方式、键鼠映射、键盘灯区和档案参数视图同时迁移。方向键、Home 与 End 仅移动焦点，Enter 或空格选择当前焦点项。电源区域保活已访问面板，其他页签按选择挂载内容。独立设置继续使用其选择或操作原语。
+- 全局 Slider 统一处理指针拖动、键盘和提交。以轨道刻度实际宽度换算指针位置，性能与散热指定整值刻度间隔。靠近刻度时吸入，离开稍宽的范围后释放。吸附区随刻度间距收窄，方向键保持单单位步进。风扇偏移只在成功结束手势时提交，取消时还原偏移预览。CPU 和 GPU 的滑动值进入原有确认流程。
 
 ## 影响与验证
+
+- 滑杆磁吸通过前端构建、Rust 工作区离线检查、33 项控件检查及 34 项聚焦 Chrome 用例。浏览器用例覆盖吸入、保持、脱开、缩放、逐单位微调、触摸取消、风扇释放提交及既有调校确认。硬件操作用模拟 IPC。
 
 - 2026-11-23 页签迁移通过前端构建、Rust 工作区离线检查、33 项控件检查和 73 个聚焦 Edge 用例。首轮通过 71 项。键鼠映射保留选中项的修复与通知入口断言更新后，两个失败用例复测通过。浅深主题下核对 360px 和 1440px 的页签布局，方向键、Home、End、Enter、空格、Tab 焦点及面板关联均经浏览器验证。硬件交互使用隔离模拟 IPC。
 

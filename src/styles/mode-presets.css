@@ -51,16 +51,78 @@
   .ccc-preset-artwork { max-block-size: var(--ccc-preset-artwork-compact-height); }
 }
 
-.ccc-preset-artwork[data-switching] stop {
-  transition: stop-color var(--ccc-motion-slow) var(--ccc-easing);
-}
-.ccc-preset-artwork[data-switching] .ccc-preset-drawing {
-  animation: ccc-preset-reveal var(--ccc-motion-preset) var(--ccc-easing);
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="reduce"]) .ccc-preset-artwork[data-active] {
+    .ccc-preset-leaf {
+      transform-origin: 125px 165px;
+      animation: ccc-preset-sway var(--ccc-motion-preset-idle) ease-in-out infinite;
+    }
+    .ccc-preset-moon {
+      animation: ccc-preset-float var(--ccc-motion-preset-idle) ease-in-out infinite;
+    }
+    .ccc-preset-orbit-light {
+      stroke-dasharray: 9 91;
+      animation: ccc-preset-orbit var(--ccc-motion-preset-idle) linear infinite;
+    }
+    .ccc-preset-orbit-front {
+      animation-delay: calc(var(--ccc-motion-preset-idle) / -2);
+    }
+    .ccc-preset-wind-light {
+      stroke-dasharray: 13 110;
+      animation: ccc-preset-glint var(--ccc-motion-preset-idle) ease-in-out infinite;
+    }
+
+    &[data-switching] {
+      .ccc-preset-layer:not([data-outgoing]) .ccc-preset-drawing {
+        transform-origin: center;
+        animation: ccc-preset-reveal var(--ccc-motion-preset) var(--ccc-easing) both;
+      }
+      [data-outgoing] .ccc-preset-drawing {
+        animation: ccc-preset-exit var(--ccc-motion-preset) var(--ccc-easing) both;
+      }
+      .ccc-preset-layer:not([data-outgoing]) .ccc-preset-wind {
+        animation: ccc-preset-wind-in calc(var(--ccc-motion-preset) * .8) var(--ccc-easing) both;
+        &[data-wind="main"] { animation-delay: calc(var(--ccc-motion-preset) * .08); }
+        &[data-wind="lower"] { animation-delay: calc(var(--ccc-motion-preset) * .18); }
+      }
+    }
+  }
 }
 
 @keyframes ccc-preset-reveal {
-  from { opacity: .38; transform: translateY(7px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: var(--ccc-preset-entry, translateY(8px)); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ccc-preset-exit {
+  from { opacity: 1; }
+  72%, to { opacity: 0; transform: translate(-7px, 4px); }
+}
+
+@keyframes ccc-preset-wind-in {
+  from { opacity: 0; transform: translate(-24px, 12px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ccc-preset-sway {
+  0%, 100% { transform: rotate(0); }
+  50% { transform: rotate(-2deg); }
+}
+
+@keyframes ccc-preset-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes ccc-preset-orbit {
+  from { opacity: .85; stroke-dashoffset: 9; }
+  to { opacity: .85; stroke-dashoffset: -91; }
+}
+
+@keyframes ccc-preset-glint {
+  0%, 16% { opacity: 0; stroke-dashoffset: 13; }
+  34%, 61% { opacity: .88; }
+  80%, 100% { opacity: 0; stroke-dashoffset: -100; }
 }
 
 .ccc-mode-art { display: block; width: 100%; height: auto; aspect-ratio: 1; pointer-events: none; }

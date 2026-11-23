@@ -137,6 +137,60 @@ test("调校分组随窗口回流，GPU 草稿经预览提交并可恢复", asyn
   expect((await writes()).map(({ command }) => command)).toEqual(["apply_gpu_clock_offsets", "restore_gpu_baseline"]);
 });
 
+test("GPU 调校缺少管理员权限时保留读数并禁止写入", async ({ page }) => {
+  await page.evaluate(() => Object.assign(window.__uiFixture.gpu, {
+    coreOffsetMhz: 35, baseline: { coreOffsetMhz: 0, memOffsetMhz: 0 },
+    writeBlockedReason: "调整或恢复 GPU 偏移需要管理员权限。",
+  }));
+  await openWorkspace(page, "性能与散热");
+  const gpu = page.getByRole("region", { name: "GPU 频率", exact: true });
+  const core = gpu.getByRole("slider", { name: "核心频率偏移" });
+  await expect(core).toBeDisabled();
+  await expect(core).toHaveAttribute("aria-valuetext", "35 MHz");
+  await expect(gpu.getByRole("slider", { name: "显存频率偏移" })).toBeDisabled();
+  await expect(gpu).toContainText("需要管理员权限");
+  await expect(gpu.getByRole("button", { name: /应用更改|恢复GPU 频率/ })).toHaveCount(0);
+});
+
+for (const readFails of [false, true]) {
+  test(`GPU 回滚失败${readFails ? "且首次回读失败" : ""}后更新实际读数并保留草稿`, async ({ page }) => {
+    await page.evaluate(failRead => {
+      const ipc = window.__TAURI_INTERNALS__;
+      const invoke = ipc.invoke;
+      let rejectNextRead = false;
+      ipc.invoke = async (command, args) => {
+        if (command === "read_gpu_profile" && rejectNextRead) {
+          rejectNextRead = false;
+          throw new Error("隔离回读失败");
+        }
+        if (command !== "apply_gpu_clock_offsets") return invoke(command, args);
+        Object.assign(window.__uiFixture.gpu, { coreOffsetMhz: 25, memOffsetMhz: 80 });
+        rejectNextRead = failRead;
+        return { ok: false, message: "写入 GPU 频率偏移失败: NVAPI_INVALID_USER_PRIVILEGE (-137)",
+          rollbackError: "回滚失败: NVAPI_ERROR (-1)", coreOffsetMhz: null, memOffsetMhz: null };
+      };
+    }, readFails);
+    await openWorkspace(page, "性能与散热");
+    const gpu = page.getByRole("region", { name: "GPU 频率", exact: true });
+    const core = gpu.getByRole("slider", { name: "核心频率偏移" });
+    await core.fill("45");
+    const preview = await previewConfiguration(page, "GPU 频率");
+    await submitConfiguration(preview);
+    await expect(gpu.getByRole("alert")).toContainText("NVAPI_INVALID_USER_PRIVILEGE (-137)");
+    await expect(gpu.getByRole("alert")).toContainText("回滚失败: NVAPI_ERROR (-1)");
+    if (readFails) {
+      await expect(gpu).toContainText("无法读取当前偏移 · 隔离回读失败");
+      await expect(core).toHaveCount(0);
+      await expect(preview).toHaveCount(0);
+      await gpu.getByRole("button", { name: "重试", exact: true }).click();
+    }
+    await expect(preview).toContainText("25 MHz → 45 MHz");
+    await expect(core).toHaveAttribute("aria-valuetext", "45 MHz");
+    await expect(gpu.getByRole("slider", { name: "显存频率偏移" })).toHaveAttribute("aria-valuetext", "80 MHz");
+    await expect(gpu.getByRole("alert")).toContainText("回滚失败");
+  });
+}
+
 test("性能调校可用键盘切换预设，概览只展示回读后的模式", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await openWorkspace(page, "性能与散热");

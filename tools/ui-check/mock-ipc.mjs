@@ -36,7 +36,7 @@ function fixtureData() {
     power: { pl1W: 65, pl2W: 100, plTimeS: 28, coreOffsetMv: 0, gtOffsetMv: 0, defaultPl1W: 65, defaultPl2W: 100,
       defaultCoreOffsetMv: 0, msrRuntimeAvailable: true, msrRuntimeError: null, canRestore: true, runtimeWarnings: [], warnings: ["隔离功耗诊断"],
       runtime: { pl1W: 65, pl2W: 100, coreOffsetMv: 0, gtOffsetMv: 0 } },
-    gpu: { available: true, unavailableReason: null, gpuName: "Isolated GPU", coreOffsetMhz: 0, memOffsetMhz: 0, coreEditable: true,
+    gpu: { available: true, unavailableReason: null, writeBlockedReason: null, gpuName: "Isolated GPU", coreOffsetMhz: 0, memOffsetMhz: 0, coreEditable: true,
       memEditable: true, coreMinMhz: -100, coreMaxMhz: 200, memMinMhz: -200, memMaxMhz: 1000, baseline: null, warnings: [] },
     keyboard: { available: true, unavailableReason: null, detectedType: 6, detectedFamily: "zoneRgb", detectionSource: "隔离夹具", baseline: null, warnings: [],
       current: { brightnessLevel: 3, enabled: true, rawMode: 0, effect: "zones", allColor: color, zones: [0, 1, 2].map(() => ({ enabled: true, color })) } },

@@ -175,7 +175,7 @@ pub fn run_transaction(
         }
         Err(failure) => TransactionOutcome {
             ok: false,
-            message: format!("{failure}；已尝试回滚到写入前状态"),
+            message: format!("{failure:#}；已尝试回滚到写入前状态"),
             confirmed_core_mhz: None,
             confirmed_mem_mhz: None,
             rollback_error: rollback_to(io, &pre),
@@ -256,9 +256,7 @@ fn rollback_to(io: &dyn PstatesIo, pre: &RawOffsets) -> Option<String> {
     })();
     match result {
         Ok(()) => None,
-        Err(err) => Some(format!(
-            "回滚失败：{err:#}——GPU 偏移可能停留在中间值，请在 NVIDIA 控制面板核对或重启驱动"
-        )),
+        Err(err) => Some(format!("回滚失败：{err:#}，当前 GPU 偏移需重新读取")),
     }
 }
 

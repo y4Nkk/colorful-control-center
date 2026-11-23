@@ -68,6 +68,8 @@ pub struct GpuProfile {
     pub available: bool,
     /// 不可用时的确切原因（阶段 + NVAPI 状态）
     pub unavailable_reason: Option<String>,
+    /// 单项调校 IPC 的写入权限受限原因，由命令层填充。
+    pub write_blocked_reason: Option<String>,
     pub gpu_name: Option<String>,
     pub core_offset_mhz: Option<i32>,
     pub mem_offset_mhz: Option<i32>,

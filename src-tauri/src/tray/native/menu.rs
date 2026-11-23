@@ -1,6 +1,10 @@
+use super::preset_bitmap::PresetBitmap;
 use super::{Action, Control, FanAction, State, wide};
 use anyhow::{Context, Result};
-use std::{io, ptr::null};
+use std::{
+    io,
+    ptr::{null, null_mut},
+};
 use windows_sys::Win32::{
     Foundation::{HWND, POINT},
     UI::WindowsAndMessaging::*,
@@ -14,7 +18,10 @@ const FAN_FULL_SPEED: usize = 5;
 const FIRST_PRESET: usize = 6;
 const FIRST_PROFILE: usize = FIRST_PRESET + 256;
 
-struct Popup(HMENU);
+struct Popup {
+    handle: HMENU,
+    bitmaps: Vec<PresetBitmap>,
+}
 
 impl Popup {
     fn new() -> Result<Self> {
@@ -22,18 +29,21 @@ impl Popup {
         if menu.is_null() {
             return Err(io::Error::last_os_error()).context("创建托盘菜单");
         }
-        Ok(Self(menu))
+        Ok(Self {
+            handle: menu,
+            bitmaps: Vec::new(),
+        })
     }
 
     fn item(&self, flags: MENU_ITEM_FLAGS, id: usize, label: &str) -> Result<()> {
         let label = wide(&label.replace('&', "&&"));
-        if unsafe { AppendMenuW(self.0, flags, id, label.as_ptr()) } == 0 {
+        if unsafe { AppendMenuW(self.handle, flags, id, label.as_ptr()) } == 0 {
             return Err(io::Error::last_os_error()).context("添加托盘菜单项");
         }
         Ok(())
     }
 
-    fn profiles(&self, profiles: Option<&[String]>) -> Result<()> {
+    fn profiles(&mut self, profiles: Option<&[String]>) -> Result<()> {
         let submenu = Self::new()?;
         match profiles {
             Some([]) => submenu.item(MF_GRAYED, 0, "暂无档案")?,
@@ -47,7 +57,7 @@ impl Popup {
         self.submenu(submenu, "配置档案")
     }
 
-    fn presets(&self, state: &State) -> Result<()> {
+    fn presets(&mut self, state: &State) -> Result<()> {
         self.item(MF_GRAYED, 0, "预设模式")?;
         let Some(controls) = &state.controls else {
             return self.item(MF_GRAYED, 0, "正在读取硬件状态…");
@@ -57,7 +67,11 @@ impl Popup {
                 for (mode, label) in &presets.choices {
                     let current = *mode == presets.current;
                     let flags = control_flags(current, state.busy || presets.blocked.is_some());
-                    self.item(flags, FIRST_PRESET + usize::from(*mode), label)?;
+                    let id = FIRST_PRESET + usize::from(*mode);
+                    self.item(flags, id, label)?;
+                    if let Err(error) = self.decorate_preset(id, *mode) {
+                        log::warn!("[tray] 预设 {mode} 图标：{error:#}");
+                    }
                 }
                 if let Some(reason) = &presets.blocked {
                     self.note(reason)?;
@@ -68,7 +82,24 @@ impl Popup {
         }
     }
 
-    fn fans(&self, state: &State) -> Result<()> {
+    fn decorate_preset(&mut self, id: usize, mode: u8) -> Result<()> {
+        let Some(bitmap) = PresetBitmap::load(mode)? else {
+            return Ok(());
+        };
+        let info = MENUITEMINFOW {
+            cbSize: size_of::<MENUITEMINFOW>() as u32,
+            fMask: MIIM_BITMAP,
+            hbmpItem: bitmap.0,
+            ..Default::default()
+        };
+        if unsafe { SetMenuItemInfoW(self.handle, id as u32, 0, &info) } == 0 {
+            return Err(io::Error::last_os_error()).context("设置预设菜单位图");
+        }
+        self.bitmaps.push(bitmap);
+        Ok(())
+    }
+
+    fn fans(&mut self, state: &State) -> Result<()> {
         let submenu = Self::new()?;
         match state.controls.as_ref().map(|controls| &controls.fans) {
             Some(Ok(fans)) => {
@@ -103,16 +134,19 @@ impl Popup {
         self.item(MF_GRAYED, 0, &label.replace(['\r', '\n', '\t'], " "))
     }
 
-    fn submenu(&self, submenu: Self, label: &str) -> Result<()> {
-        self.item(MF_POPUP, submenu.0 as usize, label)?;
-        std::mem::forget(submenu); // 由根菜单析构子菜单。
+    fn submenu(&mut self, mut submenu: Self, label: &str) -> Result<()> {
+        self.item(MF_POPUP, submenu.handle as usize, label)?;
+        submenu.handle = null_mut(); // 由根菜单析构子菜单。
+        self.bitmaps.append(&mut submenu.bitmaps);
         Ok(())
     }
 }
 
 impl Drop for Popup {
     fn drop(&mut self) {
-        unsafe { DestroyMenu(self.0) };
+        if !self.handle.is_null() {
+            unsafe { DestroyMenu(self.handle) };
+        }
     }
 }
 
@@ -123,7 +157,7 @@ fn control_flags(current: bool, disabled: bool) -> MENU_ITEM_FLAGS {
 }
 
 fn build(state: &State, closing: bool) -> Result<Popup> {
-    let menu = Popup::new()?;
+    let mut menu = Popup::new()?;
     if closing {
         menu.item(MF_GRAYED, QUIT, "正在退出…")?;
     } else {
@@ -151,7 +185,7 @@ pub(super) fn popup(
             TPM_RIGHTALIGN
         };
         let command = TrackPopupMenu(
-            menu.0,
+            menu.handle,
             TPM_NONOTIFY | TPM_RETURNCMD | TPM_RIGHTBUTTON | alignment,
             at.x,
             at.y,
@@ -189,6 +223,7 @@ fn action(selected: usize, state: &State) -> Option<Action> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use windows_sys::Win32::Graphics::Gdi::{DIBSECTION, GetObjectW};
 
     #[test]
     fn native_menu_keeps_quit_available_with_empty_or_unreadable_profiles() {
@@ -199,7 +234,7 @@ mod tests {
             };
             let menu = build(&view, false).unwrap();
             assert!(matches!(action(QUIT, &view), Some(Action::Quit)));
-            let state = unsafe { GetMenuState(menu.0, QUIT as u32, MF_BYCOMMAND) };
+            let state = unsafe { GetMenuState(menu.handle, QUIT as u32, MF_BYCOMMAND) };
             assert_eq!(state & MF_GRAYED, 0);
         }
     }
@@ -207,9 +242,9 @@ mod tests {
     #[test]
     fn native_menu_indicates_exit_in_progress() {
         let menu = build(&State::default(), true).unwrap();
-        assert_eq!(unsafe { GetMenuItemCount(menu.0) }, 1);
+        assert_eq!(unsafe { GetMenuItemCount(menu.handle) }, 1);
         assert_ne!(
-            unsafe { GetMenuState(menu.0, QUIT as u32, MF_BYCOMMAND) } & MF_GRAYED,
+            unsafe { GetMenuState(menu.handle, QUIT as u32, MF_BYCOMMAND) } & MF_GRAYED,
             0
         );
     }
@@ -238,13 +273,13 @@ mod tests {
             ..State::default()
         };
         let menu = build(&view, false).unwrap();
-        let item = |id| unsafe { GetMenuState(menu.0, id as u32, MF_BYCOMMAND) };
-        assert_eq!(unsafe { GetMenuItemCount(menu.0) }, 7);
+        let item = |id| unsafe { GetMenuState(menu.handle, id as u32, MF_BYCOMMAND) };
+        assert_eq!(unsafe { GetMenuItemCount(menu.handle) }, 7);
         assert_eq!(
-            unsafe { GetMenuItemID(menu.0, 2) } as usize,
+            unsafe { GetMenuItemID(menu.handle, 2) } as usize,
             FIRST_PRESET + 1
         );
-        let fans = unsafe { GetSubMenu(menu.0, 4) };
+        let fans = unsafe { GetSubMenu(menu.handle, 4) };
         assert_eq!(unsafe { GetMenuItemCount(fans) }, 4);
         assert_eq!(unsafe { GetMenuItemID(fans, 3) } as usize, COOLING);
         assert_eq!(item(FIRST_PRESET), u32::MAX);
@@ -272,12 +307,82 @@ mod tests {
         );
         let busy = build(&State { busy: true, ..view }, false).unwrap();
         assert_ne!(
-            unsafe { GetMenuState(busy.0, (FIRST_PRESET + 1) as u32, MF_BYCOMMAND) } & MF_GRAYED,
+            unsafe { GetMenuState(busy.handle, (FIRST_PRESET + 1) as u32, MF_BYCOMMAND) }
+                & MF_GRAYED,
             0
         );
         assert_eq!(
-            unsafe { GetMenuState(busy.0, COOLING as u32, MF_BYCOMMAND) } & MF_GRAYED,
+            unsafe { GetMenuState(busy.handle, COOLING as u32, MF_BYCOMMAND) } & MF_GRAYED,
             0
         );
+    }
+
+    fn preset_pixels(menu: &Popup, mode: usize) -> Option<Vec<u8>> {
+        let mut item = MENUITEMINFOW {
+            cbSize: size_of::<MENUITEMINFOW>() as u32,
+            fMask: MIIM_BITMAP,
+            ..Default::default()
+        };
+        assert_ne!(
+            unsafe { GetMenuItemInfoW(menu.handle, (FIRST_PRESET + mode) as u32, 0, &mut item) },
+            0
+        );
+        if item.hbmpItem.is_null() {
+            return None;
+        }
+        let mut bitmap = DIBSECTION::default();
+        let size = size_of::<DIBSECTION>() as i32;
+        assert_eq!(
+            unsafe { GetObjectW(item.hbmpItem, size, (&mut bitmap as *mut DIBSECTION).cast()) },
+            size
+        );
+        let info = bitmap.dsBm;
+        assert_eq!(info.bmBitsPixel, 32);
+        assert!(!info.bmBits.is_null());
+        let len = (info.bmWidthBytes * info.bmHeight) as usize;
+        Some(unsafe { std::slice::from_raw_parts(info.bmBits.cast(), len) }.to_vec())
+    }
+
+    #[test]
+    fn native_menu_keeps_checkmark_and_attaches_transparent_preset_artwork() {
+        use super::super::{Controls, Presets};
+        let view = State {
+            controls: Some(Controls {
+                presets: Ok(Presets {
+                    current: 2,
+                    label: "性能",
+                    choices: vec![
+                        (1, "省电"),
+                        (0, "安静"),
+                        (3, "娱乐"),
+                        (2, "性能"),
+                        (4, "静音增强"),
+                        (99, "未知"),
+                    ],
+                    blocked: None,
+                }),
+                fans: Err("未读取风扇状态".into()),
+            }),
+            ..State::default()
+        };
+        let menu = build(&view, false).unwrap();
+        let images = (0..=4)
+            .map(|mode| preset_pixels(&menu, mode).unwrap())
+            .collect::<Vec<_>>();
+        for image in &images {
+            assert!(image.chunks_exact(4).any(|pixel| pixel[3] == 0));
+            assert!(image.chunks_exact(4).any(|pixel| pixel[3] > 0));
+        }
+        assert_eq!(images[0], images[4]);
+        assert_eq!(
+            images
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+                .len(),
+            4
+        );
+        assert!(preset_pixels(&menu, 99).is_none());
+        let state = unsafe { GetMenuState(menu.handle, (FIRST_PRESET + 2) as u32, MF_BYCOMMAND) };
+        assert_eq!(state & (MF_CHECKED | MF_GRAYED), MF_CHECKED);
     }
 }

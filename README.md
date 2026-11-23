@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src-tauri/icons/128x128@2x.png" width="112" height="112" alt="Colorful Control Center 五叶风扇标识">
+  <img src="src-tauri/icons/128x128@2x.png" width="112" height="112" alt="Colorful Control Center 双翼气流标识">
 </p>
 
 <h1 align="center">Colorful Control Center</h1>
@@ -14,15 +14,17 @@
 
 ## 界面预览
 
-下图使用 1.0.0 前端，在断网 Docker 容器内由 Chromium 渲染。传感器读数和设备状态均为模拟数据。
+下图由当前源码构建，在断网容器中使用 Chromium 截取。传感器读数和设备状态均为模拟数据。
 
 ![系统概览，显示当前预设、五分钟温度趋势、CPU 和 GPU 读数](docs/screenshots/system-overview.png)
 
 | 性能与散热 · 风扇设置 | 键盘与灯光 |
 | --- | --- |
-| ![风扇设置的固件曲线编辑器](docs/screenshots/fan-control.png) | ![键盘与灯光页的三区 RGB 预览](docs/screenshots/keyboard-lighting.png) |
+| ![风扇设置的实时转速、固件曲线及整机设置](docs/screenshots/fan-control.png) | ![键盘与灯光页的三区 RGB 预览](docs/screenshots/keyboard-lighting.png) |
 
-![电源页的电池电量、充电保护和节能时段](docs/screenshots/power.png)
+![电源设置中的电池与充电、节能计划和档案应用](docs/screenshots/power.png)
+
+图中的「电池节能计划」使用声明支持该功能的模拟设备。实际使用时，固件未声明节能计划能力，电源页会隐藏这张卡片。
 
 ## 功能
 
@@ -39,7 +41,7 @@
 
 ## 安装与使用
 
-**当前版本为 1.0.3。** Windows x64 安装包名为 `ColorfulControlCenter_1.0.3_x64-setup.exe`，由 [GitHub Releases](https://github.com/y4Nkk/colorful-control-center/releases) 提供。源码构建方式见 [开发与构建指南](docs/development.md)。
+**当前版本为 1.1.0。** Windows x64 安装包名为 `ColorfulControlCenter_1.1.0_x64-setup.exe`，由 [GitHub Releases](https://github.com/y4Nkk/colorful-control-center/releases) 提供。源码构建方式见 [开发与构建指南](docs/development.md)。
 
 1. 运行安装包，按向导为当前用户安装。向导需要 .NET Framework 4.8.1，并会在需要时联网准备 WebView2。[.NET Framework 系统要求](https://learn.microsoft.com/dotnet/framework/get-started/system-requirements)
 2. 打开「概览」，确认可读的硬件状态。原厂硬件通道依赖机型已有的 InsydeDCHU 组件和驱动，部分 CPU 实时调校还需要 PawnIO。

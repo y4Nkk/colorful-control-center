@@ -1,5 +1,5 @@
 use super::*;
-use std::sync::Mutex;
+use std::{collections::VecDeque, sync::Mutex};
 #[derive(Default)]
 struct MockState {
     core_khz: i32,
@@ -8,7 +8,7 @@ struct MockState {
     mem_editable: bool,
     core_range_khz: (i32, i32),
     mem_range_khz: (i32, i32),
-    fail_writes: usize,
+    write_errors: VecDeque<&'static str>,
     silent_reject: bool,
     clamp_to_range: bool,
     writes: Vec<(Option<i32>, Option<i32>)>,
@@ -71,9 +71,8 @@ impl PstatesIo for MockIo {
     fn write(&self, core: Option<i32>, mem: Option<i32>) -> Result<()> {
         let mut io = self.0.lock().unwrap();
         io.writes.push((core, mem));
-        if io.fail_writes > 0 {
-            io.fail_writes -= 1;
-            return Err(anyhow!("NVAPI_ERROR (mock)"));
+        if let Some(error) = io.write_errors.pop_front() {
+            return Err(anyhow!(error));
         }
         if !io.silent_reject {
             io.apply_write(core, mem);
@@ -194,11 +193,19 @@ fn clamp_by_driver_rolls_back() {
 #[test]
 fn write_error_reports_rollback_failure_when_rollback_also_fails() {
     let io = MockIo::new();
+    let write_error = "NVAPI_INVALID_USER_PRIVILEGE (-137)";
+    let rollback_error = "NVAPI_ERROR (-1)";
     io.with(|m| {
         m.core_khz = 100_000;
-        m.fail_writes = 2;
+        m.write_errors.extend([write_error, rollback_error]);
     });
     let o = run(&io, Some(200), None);
-    assert!(!o.ok && o.message.contains("写入 GPU 频率偏移失败"));
-    assert!(o.rollback_error.unwrap().contains("回滚失败"));
+    assert!(!o.ok);
+    assert!(
+        o.message
+            .contains(&format!("写入 GPU 频率偏移失败: {write_error}"))
+    );
+    let rollback = o.rollback_error.unwrap();
+    assert!(rollback.contains("回滚失败") && rollback.contains(rollback_error));
+    assert!(!rollback.contains(write_error));
 }

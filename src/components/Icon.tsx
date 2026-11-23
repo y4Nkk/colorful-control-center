@@ -5,13 +5,18 @@ import {
   Upload, Plus, Trash2, Play, Pause, SquarePen, Search, ShieldCheck, LoaderCircle,
   Cpu, Gpu, Fan, HardDrive, Keyboard, MousePointer2, Mic, Monitor, Battery, BatteryCharging, Activity, MemoryStick,
   PlugZap, Usb, Network, Palette, Thermometer, Gauge, Zap, Power, Sparkles, Moon,
-  SunMoon, PanelsTopLeft, ScrollText, Volume2, VolumeX, Plane, ArrowRight, LayoutDashboard,
+  SunMoon, PanelsTopLeft, ScrollText, Volume2, VolumeX, Plane, ArrowRight,
   type LucideIcon,
 } from "lucide-react";
+import { SquaresFourIcon } from "@phosphor-icons/react/dist/csr/SquaresFour";
+import { GaugeIcon } from "@phosphor-icons/react/dist/csr/Gauge";
+import { KeyboardIcon } from "@phosphor-icons/react/dist/csr/Keyboard";
+import { LightningIcon } from "@phosphor-icons/react/dist/csr/Lightning";
+import { MonitorIcon } from "@phosphor-icons/react/dist/csr/Monitor";
+import { GearSixIcon } from "@phosphor-icons/react/dist/csr/GearSix";
 
 const ICONS = {
   airplane: Plane,
-  overview: LayoutDashboard,
   "arrow-right": ArrowRight,
   volume: Volume2, "volume-off": VolumeX,
   profiles: Layers, settings: Settings,
@@ -29,6 +34,22 @@ const ICONS = {
   effects: Sparkles, sleep: Moon,
   appearance: SunMoon, window: PanelsTopLeft, logs: ScrollText,
 } satisfies Record<string, LucideIcon>;
+
+const NAVIGATION_ICONS = {
+  overview: SquaresFourIcon,
+  performance: GaugeIcon,
+  keyboard: KeyboardIcon,
+  power: LightningIcon,
+  display: MonitorIcon,
+  settings: GearSixIcon,
+};
+
+export type NavigationIconName = keyof typeof NAVIGATION_ICONS;
+
+export function NavigationIcon({ name, weight }: { name: NavigationIconName; weight: "regular" | "fill" }) {
+  const Glyph = NAVIGATION_ICONS[name];
+  return <Glyph className="ccc-icon" data-size={24} data-weight={weight} weight={weight} aria-hidden="true" focusable="false" />;
+}
 
 export type IconName = keyof typeof ICONS;
 interface IconProps {

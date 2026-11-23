@@ -50,6 +50,7 @@ pub const STATUS_INVALID_HANDLE: i32 = -8;
 pub const STATUS_INCOMPATIBLE_STRUCT_VERSION: i32 = -9;
 pub const STATUS_HANDLE_INVALIDATED: i32 = -10;
 pub const STATUS_NOT_SUPPORTED: i32 = -104;
+pub const STATUS_INVALID_USER_PRIVILEGE: i32 = -137;
 
 /// 把状态码翻译为 NVAPI 符号名（错误信息直报，不伪造成功）。
 pub fn status_name(status: i32) -> &'static str {
@@ -66,6 +67,7 @@ pub fn status_name(status: i32) -> &'static str {
         STATUS_INCOMPATIBLE_STRUCT_VERSION => "NVAPI_INCOMPATIBLE_STRUCT_VERSION",
         STATUS_HANDLE_INVALIDATED => "NVAPI_HANDLE_INVALIDATED",
         STATUS_NOT_SUPPORTED => "NVAPI_NOT_SUPPORTED",
+        STATUS_INVALID_USER_PRIVILEGE => "NVAPI_INVALID_USER_PRIVILEGE",
         _ => "NVAPI_<unknown>",
     }
 }
@@ -256,6 +258,7 @@ mod tests {
     fn status_names_cover_used_codes() {
         assert_eq!(status_name(0), "NVAPI_OK");
         assert_eq!(status_name(-9), "NVAPI_INCOMPATIBLE_STRUCT_VERSION");
+        assert_eq!(status_name(-137), "NVAPI_INVALID_USER_PRIVILEGE");
         assert_eq!(status_name(-7777), "NVAPI_<unknown>");
     }
 }

@@ -73,7 +73,7 @@ export function inspectUiSource(path, content) {
   const fail = (node, message) => violations.push(`${path}:${tree.getLineAndCharacterOfPosition(node.getStart(tree)).line + 1}: ${message}`);
   function visit(node) {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)
-      && node.moduleSpecifier.text.startsWith("lucide-react") && path !== "src/components/Icon.tsx") {
+      && /^(lucide-react|@phosphor-icons\/react)(?:\/|$)/.test(node.moduleSpecifier.text) && path !== "src/components/Icon.tsx") {
       fail(node, "图标库只允许由全局 Icon 组件接入");
     }
     if (ts.isImportDeclaration(node) && node.moduleSpecifier.getText(tree).includes("/Combobox")) fail(node, "Combobox 旧入口已移除，统一使用 Select");

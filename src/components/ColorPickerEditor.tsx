@@ -41,7 +41,7 @@ export function ColorPickerEditor({ value, onChange }: { value: RgbColor; onChan
       <span className="ccc-color-picker-marker" />
     </div>
     <Slider appearance="hue" aria-label="色相" min={0} max={359} value={Math.round(hsv.h) % 360}
-      onChange={event => move({ ...hsv, h: event.currentTarget.valueAsNumber })} />
+      onChange={h => move({ ...hsv, h })} />
     <div className="ccc-color-picker-fields">
       {CHANNELS.map(channel => {
         const current = editing?.field === channel ? editing : null;

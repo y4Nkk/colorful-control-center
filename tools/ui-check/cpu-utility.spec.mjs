@@ -40,12 +40,7 @@ test("首次采样和读取失败显示未知，真实零值保留为零并可�
   await expect(missing(page).locator('svg[data-icon="performance"]')).toBeVisible();
   await publish(page, 0); await expect(usage(page)).toHaveAttribute("aria-valuenow", "0");
   await publish(page, null, 0, "CPU效用读取失败：隔离计数器不可用"); await expect(missing(page)).toBeVisible();
-  await page.getByRole("button", { name: "监控诊断", exact: true }).click();
-  const diagnostics = page.getByRole("dialog", { name: "监控诊断", exact: true });
-  await expect(diagnostics).toContainText("CPU效用读取失败：隔离计数器不可用");
-  await expect(diagnostics).toContainText("隔离系统资料诊断");
-  await expect(diagnostics.getByRole("button", { name: "重新读取", exact: true })).toBeEnabled();
-  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "监控诊断", exact: true })).toHaveCount(0);
   await publish(page, 76); await expect(usage(page)).toHaveAttribute("aria-valuenow", "76");
 });
 test("过期和未来时间戳不显示为当前利用率", async ({ page }) => {

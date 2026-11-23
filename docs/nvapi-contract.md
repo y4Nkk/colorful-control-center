@@ -92,7 +92,8 @@ freqDelta={value=目标kHz, min=0, max=0}}, numBaseVoltages=0
    驱动报告 0..0 仅允许零偏移，倒置区间不可写；越界/只读在写入前拒绝；
 3. 写最小 V1 包；4. 回读确认：请求域回读值 ≠ 请求值（精确 kHz 比较）即失败；
 5. 失败（含写入报错、回读失败）→ 按原始 kHz 回滚并再次回读；
-   回滚失败作为独立错误上报（硬件可能停在中间值），绝不吞掉；
+   保留首次错误的完整错误链。NVAPI 错误包含状态名、原始数值和可用的独立驱动描述。
+   回滚失败作为独立错误上报，GPU 卡重新读取当前偏移并保留草稿。
 6. 成功时返回回读确认的实际偏移（不是请求值）。
 
 **基准恢复**：首次成功写入或补偿失败时记录写前原始 kHz 及 PCI 设备身份；
@@ -106,7 +107,9 @@ freqDelta={value=目标kHz, min=0, max=0}}, numBaseVoltages=0
 | 无 nvapi64.dll / 驱动未装 | 加载失败 + 系统错误码（如 126 ERROR_MOD_NOT_FOUND）→ `available=false` + 原因 |
 | QueryInterface 返回 NULL | 指名函数与 ID 的错误（驱动过旧） |
 | 无 NVIDIA 物理 GPU | 枚举失败/空 → 原因「未枚举到 NVIDIA 物理 GPU」 |
-| GetPstates20 不支持（老驱动） | NVAPI 状态名 + 驱动文本 |
+| GetPstates20 不支持（老驱动） | NVAPI 状态名、数值和可用的驱动文本 |
+| 单项调校未提升或无法查询进程令牌 | 读取仍可用，`writeBlockedReason` 说明限制，应用及恢复在进入硬件事务前拒绝 |
+| NVAPI 返回 `NVAPI_INVALID_USER_PRIVILEGE`（-137） | 保留驱动状态及失败阶段 |
 | 时钟只读（bIsEditable=0） | 写入前拒绝：「驱动未开放…频率偏移调节（只读时钟）」 |
 | 非整数 MHz | serde 反序列化阶段拒绝（Option<i32>），前端亦拦截 |
 | 越界 | 写入前拒绝，错误含交集区间 |

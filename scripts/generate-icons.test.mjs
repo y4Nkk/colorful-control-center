@@ -52,14 +52,31 @@ function icns(records) {
   return Buffer.concat([header, ...chunks]);
 }
 
+const presetPalettes = ["quiet", "eco", "performance", "entertainment"];
+
+function preparePresetFixture(root) {
+  const presetSource = '<svg xmlns="http://www.w3.org/2000/svg" fill="var(--ccc-preset-mid)"/>';
+  for (const palette of presetPalettes)
+    writeFileSync(join(root, "src-tauri/icons/presets", `${palette}.svg`), presetSource);
+  const tokens = presetPalettes.map(palette =>
+    `[data-preset-palette="${palette}"] { --ccc-preset-mid: #127069; }`).join("\n");
+  writeFileSync(join(root, "src/styles/tokens.css"), tokens);
+  writeFileSync(join(root, "node_modules/postcss/package.json"), '{"main":"index.mjs"}');
+  writeFileSync(join(root, "node_modules/postcss/index.mjs"),
+    `export { default } from ${JSON.stringify(import.meta.resolve("postcss"))};`);
+}
+
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), "ccc icons test-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  for (const directory of ["scripts", "public", "src-tauri/icons", "node_modules/@tauri-apps/cli"])
+  for (const directory of ["scripts", "public", "src/styles", "src-tauri/icons/presets",
+    "node_modules/postcss", "node_modules/@tauri-apps/cli"])
     mkdirSync(join(root, directory), { recursive: true });
   copyFileSync(new URL("./generate-icons.mjs", import.meta.url), join(root, "scripts/generate-icons.mjs"));
   writeFileSync(join(root, "src-tauri/icons/icon.svg"), '<svg xmlns="http://www.w3.org/2000/svg"/>');
-  const paths = ["public/favicon.svg", ...desktopIcons.map(name => `src-tauri/icons/${name}`)];
+  preparePresetFixture(root);
+  const paths = ["public/favicon.svg", ...desktopIcons.map(name => `src-tauri/icons/${name}`),
+    ...presetPalettes.map(palette => `src-tauri/icons/presets/${palette}.png`)];
   for (const path of paths) writeFileSync(join(root, path), "old asset");
   // A local CLI double exercises the actual script without rendering the changing user source.
   writeFileSync(join(root, "node_modules/@tauri-apps/cli/package.json"), '{"name":"@tauri-apps/cli","type":"commonjs"}');
@@ -67,7 +84,7 @@ function fixture(t) {
     const assert = require("node:assert/strict");
     const fs = require("node:fs");
     const path = require("node:path");
-    const [command, input, option, output] = process.argv.slice(2);
+    const [command, input, option, output, ...options] = process.argv.slice(2);
     assert.equal(command, "icon"); assert.equal(option, "--output");
     assert.ok(!input.startsWith(process.cwd() + path.sep));
     assert.equal(path.dirname(input), path.dirname(output));
@@ -75,11 +92,19 @@ function fixture(t) {
     if (process.env.CCC_TEST_ICON_MODE === "fail") process.exit(23);
     const source = fs.readFileSync(input);
     fs.mkdirSync(output);
+    const image = Buffer.from(${JSON.stringify(png().toString("base64"))}, "base64");
+    if (options.length) {
+      assert.deepEqual(options, ["--png", "48"]);
+      assert.ok(source.includes('fill="#127069"'));
+      fs.writeFileSync(path.join(output, "48x48.png"), image);
+      process.exit(0);
+    }
     for (const name of ${JSON.stringify(desktopIcons)}) {
       if (process.env.CCC_TEST_ICON_MODE === "missing" && name === "StoreLogo.png") continue;
       let bytes = process.env.CCC_TEST_ICON_MODE === "empty" && name === "StoreLogo.png"
         ? Buffer.alloc(0) : Buffer.concat([source, Buffer.from(name)]);
       if (name === "icon.icns") bytes = (${icns.toString()})([["ic10", source], ["ic07", "small"]]);
+      if (name === "icon.png") bytes = image;
       fs.writeFileSync(path.join(output, name), bytes);
     }
     for (const directory of ["android", "ios"]) fs.mkdirSync(path.join(output, directory));
@@ -97,7 +122,7 @@ function fixture(t) {
   return { root, paths, run, snapshot, cleaned };
 }
 
-test("生成完整桌面清单与同源 favicon，检查成功且不复制移动端产物", t => {
+test("生成完整桌面清单、同源 favicon 和托盘图标，且不复制移动端产物", t => {
   const f = fixture(t);
   assert.equal(desktopIcons.length, 16);
   const generated = f.run();
@@ -106,10 +131,13 @@ test("生成完整桌面清单与同源 favicon，检查成功且不复制移动
   assert.deepEqual(readFileSync(join(f.root, "public/favicon.svg")), source);
   for (const name of desktopIcons) {
     const expected = name === "icon.icns"
-      ? icns([["ic07", "small"], ["ic10", source]]) : Buffer.concat([source, Buffer.from(name)]);
+      ? icns([["ic07", "small"], ["ic10", source]])
+      : name === "icon.png" ? png() : Buffer.concat([source, Buffer.from(name)]);
     assert.deepEqual(readFileSync(join(f.root, "src-tauri/icons", name)), expected);
   }
-  assert.deepEqual(readdirSync(join(f.root, "src-tauri/icons")).sort(), [...desktopIcons, "icon.svg"].sort());
+  assert.deepEqual(readdirSync(join(f.root, "src-tauri/icons")).sort(), [...desktopIcons, "icon.svg", "presets"].sort());
+  for (const palette of presetPalettes)
+    assertVisiblePng(readFileSync(join(f.root, "src-tauri/icons/presets", `${palette}.png`)));
   f.cleaned();
   const before = f.snapshot();
   const checked = f.run(["--check"]);
@@ -118,7 +146,8 @@ test("生成完整桌面清单与同源 favicon，检查成功且不复制移动
   f.cleaned();
 });
 
-for (const [path, missing] of [["src-tauri/icons/icon.png", true], ["src-tauri/icons/icon.ico", false], ["public/favicon.svg", false]]) {
+for (const [path, missing] of [["src-tauri/icons/icon.png", true], ["src-tauri/icons/icon.ico", false],
+  ["public/favicon.svg", false], ["src-tauri/icons/presets/eco.png", false]]) {
   test(`检查拒绝${missing ? "缺失" : "过期或不一致"}的 ${path}，不写资产`, t => {
     const f = fixture(t);
     assert.equal(f.run().status, 0);

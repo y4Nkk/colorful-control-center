@@ -89,7 +89,7 @@ function FirmwareSettings({ model, profile }: { model: FanModel; profile: FanPro
         {profile.software && !disabled && <p className="ccc-control-caption">选择固件模式可交还风扇控制。</p>}
       </div>
       <div className="ccc-fan-setting">
-        <ScaleSlider label="加速偏移" unit="%" min={0} max={100} current={profile.offsetPct} draft={offset.value}
+        <ScaleSlider label="加速偏移" unit="%" min={0} max={100} magnetInterval={10} current={profile.offsetPct} draft={offset.value}
           disabled={disabled || profile.offsetBlockedReason !== null} onChange={value => offset.update(() => value)}
           onCommit={value => offset.commit(() => value)} onCancel={offset.cancel} />
         {profile.offsetBlockedReason && profile.offsetBlockedReason !== profile.blockedReason &&

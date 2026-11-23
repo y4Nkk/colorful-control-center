@@ -40,7 +40,6 @@ export function MetricReadout({ label, value, unit, maximum, colorVar, icon }: M
       <span className="ccc-meter-label">{label}</span>
     </div>
     {text}
-    {isCapacity && <span className="ccc-meter-total">{total == null ? "总容量未知" : `共 ${total}`}</span>}
   </div>;
   return <div className={`ccc-meter${isRatio ? " is-ratio" : ""}`}>
     {isRatio ? <div className="ccc-meter-ring" style={{ color: colorVar }} {...meter}>
@@ -52,6 +51,5 @@ export function MetricReadout({ label, value, unit, maximum, colorVar, icon }: M
       {text}
     </div> : text}
     <span className="ccc-meter-label">{label}</span>
-    {isCapacity && <span className="ccc-meter-total">{total == null ? "总容量未知" : `共 ${total}`}</span>}
   </div>;
 }

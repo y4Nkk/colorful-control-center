@@ -1,7 +1,6 @@
 import { Icon } from "../components/Icon";
 import { Button } from "../components/Button";
 import { Surface } from "../components/Surface";
-import { DetailsDialog } from "../components/DetailsDialog";
 import { OEM_POWER_MODES, type HardwareSnapshot } from "../api/client";
 import type { HardwareWorkspaceProps } from "./useControlModel";
 import { HardwareReadings } from "../components/control/HardwareReadings";
@@ -9,52 +8,35 @@ import { PresetArtwork, presetPalette } from "../components/control/PresetArtwor
 import { useSystemOverview } from "./useSystemOverview";
 
 function ControlStatus({
-  live, error, stale, onRetry, system,
+  live, error, stale, onRetry,
 }: {
   live: HardwareSnapshot | null;
   error: string | null;
   stale: boolean;
   onRetry: () => void;
-  system: ReturnType<typeof useSystemOverview>;
 }) {
   const state = stale ? "读数停滞" : live ? null : error ? "监控不可用" : "连接中…";
   const tone = stale ? "ccc-control-caption is-warn" : error && !live ? "ccc-control-error" : "ccc-control-caption";
-  const samplingIssues = error || (live?.warnings.length ?? 0) > 0;
-  const systemIssues = system.error || (system.overview?.warnings.length ?? 0) > 0;
   const fanOffline = live && !live.dchuAvailable;
   const gpuPaused = live?.nvidiaSuspended;
-  if (!state && !samplingIssues && !systemIssues && !fanOffline && !gpuPaused) return null;
+  if (!state && !error && !fanOffline && !gpuPaused) return null;
   return (
     <div className="ccc-control-status">
       {state && <span className={tone}>{state}</span>}
       {error && <Button icon="refresh" variant="ghost" size="compact" type="button" onClick={onRetry}>重试</Button>}
       {fanOffline && <span className="ccc-control-caption is-warn">风扇通道离线</span>}
       {gpuPaused && <span className="ccc-control-caption">独显监控暂停</span>}
-      {(samplingIssues || systemIssues) && <DetailsDialog title="监控诊断" icon={null}>
-        {samplingIssues && <section><h3>硬件采样</h3>
-          {error && <p className="ccc-control-error">{error}</p>}
-          {live?.warnings.map(warning => <p key={warning}>{warning}</p>)}
-          {live?.cpuRemoteRaw != null && <p>CPU 原始温度 {live.cpuRemoteRaw}</p>}
-        </section>}
-        {systemIssues && <section><h3>系统资料读取</h3>
-          {system.error && <p className="ccc-control-error">{system.error}</p>}
-          {system.overview?.warnings.map(warning => <p key={warning}>{warning}</p>)}
-          <Button variant="ghost" size="compact" disabled={system.reading} aria-busy={system.reading} onClick={system.retry}>
-            {system.reading ? "读取中…" : "重新读取"}
-          </Button>
-        </section>}
-      </DetailsDialog>}
     </div>
   );
 }
 
 export function ControlWorkspace({ active, model }: HardwareWorkspaceProps) {
   const { live, samples, error, stale, retry } = model.history;
-  const system = useSystemOverview(active);
+  const { overview, memoryHistory } = useSystemOverview(active);
   return <div className="ccc-control" role="region" aria-label="概览">
     <CurrentMode mode={stale ? null : live?.oemPowerMode ?? null} reading={!live && !error} active={active} />
-    <ControlStatus live={live} error={error} stale={stale} onRetry={retry} system={system} />
-    <HardwareReadings live={live} samples={samples} overview={system.overview} memoryHistory={system.memoryHistory} />
+    <ControlStatus live={live} error={error} stale={stale} onRetry={retry} />
+    <HardwareReadings live={live} samples={samples} overview={overview} memoryHistory={memoryHistory} />
   </div>;
 }
 

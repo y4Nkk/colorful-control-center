@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { inflateSync } from "node:zlib";
+import postcss from "postcss";
 
 export function assertVisiblePng(bytes) {
   const invalid = () => { throw new Error("Invalid or unsupported RGBA8 noninterlaced icon.png."); };
@@ -90,6 +91,40 @@ export function normalizeIcns(bytes) {
   return Buffer.concat([bytes.subarray(0, 8), ...chunks.sort(Buffer.compare)]);
 }
 
+function rasterize(cli, root, input, output, options = []) {
+  const result = spawnSync(process.execPath, [cli, "icon", input, "--output", output, ...options], {
+    cwd: root, stdio: "inherit",
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0)
+    throw new Error(`Tauri icon failed (${result.signal ?? result.status}).`);
+}
+
+function presetIcons(cli, root, temporary) {
+  const directory = "src-tauri/icons/presets";
+  const tokens = postcss.parse(readFileSync(join(root, "src/styles/tokens.css"), "utf8"));
+  return ["quiet", "eco", "performance", "entertainment"].map(palette => {
+    const colors = new Map();
+    tokens.walkRules(`[data-preset-palette="${palette}"]`, rule => {
+      rule.walkDecls(/^--ccc-preset-/, value => { colors.set(value.prop, value.value); });
+    });
+    const source = readFileSync(join(root, directory, `${palette}.svg`), "utf8");
+    const svg = source.replace(/var\((--ccc-preset-[\w-]+)\)/g, (_, token) => {
+      const color = colors.get(token);
+      if (!color || !/^#[a-f\d]{6}$/i.test(color))
+        throw new Error(`Invalid SVG color token ${token} for ${palette}.`);
+      return color;
+    });
+    const input = join(temporary, `${palette}.svg`);
+    const output = join(temporary, palette);
+    writeFileSync(input, svg);
+    rasterize(cli, root, input, output, ["--png", "48"]);
+    const png = readFileSync(join(output, "48x48.png"));
+    assertVisiblePng(png);
+    return [`${directory}/${palette}.png`, png];
+  });
+}
+
 function main() {
   const args = process.argv.slice(2);
   if (args.length > 1 || (args.length === 1 && args[0] !== "--check"))
@@ -103,12 +138,7 @@ function main() {
     const input = join(temporary, "icon.svg");
     const output = join(temporary, "icons");
     writeFileSync(input, source);
-    const result = spawnSync(process.execPath, [cli, "icon", input, "--output", output], {
-      cwd: root, stdio: "inherit",
-    });
-    if (result.error) throw result.error;
-    if (result.status !== 0)
-      throw new Error(`Tauri icon failed (${result.signal ?? result.status}).`);
+    rasterize(cli, root, input, output);
 
     // Read and validate the entire desktop set before touching any destination.
     const expected = [
@@ -119,6 +149,7 @@ function main() {
         if (name === "icon.png") assertVisiblePng(bytes);
         return [`src-tauri/icons/${name}`, name === "icon.icns" ? normalizeIcns(bytes) : bytes];
       }),
+      ...presetIcons(cli, root, temporary),
     ];
     if (check) {
       const issues = [];

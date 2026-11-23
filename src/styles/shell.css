@@ -8,7 +8,7 @@
   background: var(--ccc-chrome-bg);
   -webkit-backdrop-filter: blur(var(--ccc-chrome-blur)) saturate(var(--ccc-chrome-saturation));
   backdrop-filter: blur(var(--ccc-chrome-blur)) saturate(var(--ccc-chrome-saturation));
-  transition: grid-template-columns var(--ccc-motion) var(--ccc-easing);
+  transition: grid-template-columns var(--ccc-motion-rail) var(--ccc-easing);
 }
 
 .ccc-shell.is-collapsed {
@@ -30,15 +30,15 @@
   align-items: center;
   flex: none;
   height: var(--ccc-topbar-height);
-  padding-inline: var(--ccc-space-3);
+  padding-inline: var(--ccc-space-2);
 }
 
 .ccc-sidebar-toggle > .ccc-icon {
-  transition: transform var(--ccc-motion-fast) var(--ccc-easing);
+  transition: rotate var(--ccc-motion-rail) var(--ccc-easing);
 }
 
 .ccc-sidebar-toggle[aria-expanded="false"] > .ccc-icon {
-  transform: rotate(180deg);
+  rotate: 180deg;
 }
 
 .ccc-nav {
@@ -46,44 +46,58 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  padding: var(--ccc-space-1) var(--ccc-space-3) var(--ccc-space-3);
-  gap: var(--ccc-space-4);
+  padding: var(--ccc-space-1) 0 var(--ccc-space-3);
+  gap: var(--ccc-space-3);
 }
 
-.ccc-nav-group,
-.ccc-nav-footer {
+.ccc-nav-pages { flex: 1; min-height: 0; }
+
+.ccc-nav-list {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--ccc-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.ccc-nav-footer {
-  margin-top: auto;
-}
-.ccc-nav-pages { flex: 1; min-height: 0; }
-
-.ccc-nav .ccc-nav-item {
-  display: flex;
-  align-items: center;
-  flex: none;
+.ccc-nav-footer { padding-block-start: var(--ccc-space-3); }
+.ccc-nav-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   padding-inline: var(--ccc-space-2);
-  gap: var(--ccc-space-3);
-  overflow: hidden;
 }
 
 .ccc-nav-label {
-  min-width: 0;
+  flex: none;
+  width: calc(var(--ccc-sidebar-width) - var(--ccc-sidebar-collapsed-width) - var(--ccc-space-3));
   overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  transition: opacity var(--ccc-motion) var(--ccc-easing);
+  transition: opacity var(--ccc-motion-rail) var(--ccc-easing);
 }
 
-.ccc-shell.is-collapsed .ccc-nav .ccc-nav-item {
-  gap: 0;
+.ccc-shell.is-collapsed .ccc-nav-label { opacity: 0; }
+
+.ccc-nav-indicator {
+  position: absolute;
+  z-index: 1;
+  inset-inline-start: var(--ccc-space-2);
+  width: var(--ccc-rail-indicator-width);
+  border-radius: var(--ccc-radius-full);
+  background: var(--ccc-rail-selected-icon);
+  pointer-events: none;
 }
 
-.ccc-shell.is-collapsed .ccc-nav-label {
-  opacity: 0;
+.ccc-nav-tooltip {
+  z-index: 60;
+  padding: var(--ccc-space-1) var(--ccc-space-2);
+  border-radius: var(--ccc-radius-control);
+  background: var(--ccc-rail-tooltip-bg);
+  color: var(--ccc-text-on-action);
+  font: var(--ccc-fact-label-font);
+  box-shadow: var(--ccc-overlay-shadow);
 }
 
 /* 未标记为拖动区的按钮、通知等交互元素保留自己的点击行为。 */

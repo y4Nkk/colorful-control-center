@@ -1,25 +1,19 @@
 <!--
   Colorful Control Center 品牌标识唯一绘图源。
   npm run generate:icons 生成 favicon 与桌面图标；npm run check:icons 检查一致性。
-  透明底五叶转子：参考 agent-switchboard 的独立标识与 spiralcoder 的液态玻璃材质。
-  不绘制底盘、外环或底座；仅扇叶与实心轮毂承载蓝→紫→粉→琥珀光谱及内部流彩。
+  双翼气流：折射、高光和缓慢流彩都裁切在翼面内，中间通道与外围保持透明。
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
   <style>
-    .ccc-logo-flow { animation: ccc-logo-flow 7s ease-in-out infinite; }
-    .ccc-logo-sheen { animation: ccc-logo-sheen 9s ease-in-out infinite; }
+    .ccc-logo-flow { animation: ccc-logo-flow 7.6s ease-in-out infinite; }
+    .ccc-logo-flow-warm { animation-delay: -2.2s; }
     @keyframes ccc-logo-flow {
       0%, 100% { transform: translate(0, 0); }
-      50% { transform: translate(-56px, 40px); }
+      50% { transform: translate(28px, -7px); }
     }
-    @keyframes ccc-logo-sheen {
-      0%, 100% { transform: translate(0, 0); }
-      50% { transform: translate(40px, 28px); }
-    }
-    :root[data-motion="reduce"] .ccc-logo-flow,
-    :root[data-motion="reduce"] .ccc-logo-sheen { animation: none; }
+    :root[data-motion="reduce"] .ccc-logo-flow { animation: none; }
     @media (prefers-reduced-motion: reduce) {
-      .ccc-logo-flow, .ccc-logo-sheen { animation: none; }
+      .ccc-logo-flow { animation: none; }
     }
     @media (forced-colors: active) {
       .ccc-logo-material { display: none; }
@@ -27,71 +21,69 @@
     }
   </style>
   <defs>
-    <path id="ccc-blade" d="M335.2 234.8A170 170 0 0 1 386.9 94.4A208 208 0 0 1 454.9 195.2A240 240 0 0 0 335.2 277.2A82 82 0 0 0 335.2 234.8Z" />
-    <path id="ccc-rotor" d="M335.2 234.8A170 170 0 0 1 386.9 94.4A208 208 0 0 1 454.9 195.2A240 240 0 0 0 335.2 277.2A82 82 0 0 0 335.2 234.8ZM300.7 324.8A170 170 0 0 1 450.2 330.5A208 208 0 0 1 375.3 426.4A240 240 0 0 0 260.3 337.9A82 82 0 0 0 300.7 324.8ZM204.4 319.7A170 170 0 0 1 245.1 463.7A208 208 0 0 1 130.8 422.1A240 240 0 0 0 179.4 285.4A82 82 0 0 0 204.4 319.7ZM179.4 226.6A170 170 0 0 1 55.1 309.8A208 208 0 0 1 59.3 188.3A240 240 0 0 0 204.4 192.3A82 82 0 0 0 179.4 226.6ZM260.3 174.1A170 170 0 0 1 142.7 81.6A208 208 0 0 1 259.6 48A240 240 0 0 0 300.7 187.2A82 82 0 0 0 260.3 174.1ZM305 256A49 49 0 1 1 207 256A49 49 0 1 1 305 256Z" />
-    <clipPath id="ccc-clip"><use href="#ccc-rotor" /></clipPath>
-    <linearGradient id="ccc-body" x1="112" y1="400" x2="400" y2="112" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0A6CF5" stop-opacity=".96" />
-      <stop offset=".38" stop-color="#8055ED" stop-opacity=".86" />
-      <stop offset=".68" stop-color="#ED68AB" stop-opacity=".84" />
-      <stop offset="1" stop-color="#FFB36B" stop-opacity=".96" />
+    <path id="ccc-wing" d="M12.2 68.7C22.9 41.3 48.8 23 79 22.2L107.9 21.3C112.2 21.2 114.5 25.6 111.9 29.2C99 46.9 78.9 57.2 51.2 56.2C37.4 55.7 25.7 62.8 19 72.5C15.6 77.6 10.2 74.3 12.2 68.7Z" />
+    <clipPath id="ccc-wing-clip">
+      <use href="#ccc-wing" />
+    </clipPath>
+    <linearGradient id="ccc-cool" x1="0%" y1="84%" x2="100%" y2="16%">
+      <stop stop-color="#1748EF" />
+      <stop offset=".43" stop-color="#6539ED" />
+      <stop offset=".72" stop-color="#A937EF" />
+      <stop offset="1" stop-color="#ED31A0" />
     </linearGradient>
-    <radialGradient id="ccc-flow-color" cx=".33" cy=".68" r=".65">
-      <stop stop-color="#A4E0FF" stop-opacity=".62" />
-      <stop offset=".45" stop-color="#A8A1FF" stop-opacity=".3" />
-      <stop offset="1" stop-color="#C2A4FF" stop-opacity="0" />
+    <linearGradient id="ccc-warm" x1="96%" y1="15%" x2="0%" y2="90%">
+      <stop stop-color="#BE25B8" />
+      <stop offset=".51" stop-color="#F42E62" />
+      <stop offset="1" stop-color="#FF951C" />
+    </linearGradient>
+    <radialGradient id="ccc-cool-flow" cx=".39" cy=".36" r=".62">
+      <stop stop-color="#74E3FF" stop-opacity=".52" />
+      <stop offset=".54" stop-color="#B5A5FF" stop-opacity=".23" />
+      <stop offset="1" stop-color="#C995FF" stop-opacity="0" />
     </radialGradient>
-    <radialGradient id="ccc-sheen" cx=".66" cy=".24" r=".65">
-      <stop stop-color="#FFF0DE" stop-opacity=".56" />
-      <stop offset=".45" stop-color="#FFD3EC" stop-opacity=".17" />
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0" />
+    <radialGradient id="ccc-warm-flow" cx=".43" cy=".33" r=".64">
+      <stop stop-color="#FFDB93" stop-opacity=".5" />
+      <stop offset=".52" stop-color="#FF91BB" stop-opacity=".23" />
+      <stop offset="1" stop-color="#FF95D1" stop-opacity="0" />
     </radialGradient>
-    <linearGradient id="ccc-relief" x1="0" y1="0" x2=".8" y2="1">
-      <stop stop-color="#FFFFFF" stop-opacity=".68" />
-      <stop offset=".3" stop-color="#FFFFFF" stop-opacity=".18" />
-      <stop offset=".63" stop-color="#FFFFFF" stop-opacity="0" />
-      <stop offset="1" stop-color="#251C68" stop-opacity=".32" />
+    <linearGradient id="ccc-edge-depth" x1="0%" y1="0%" x2="35%" y2="100%">
+      <stop offset=".2" stop-color="#240C59" stop-opacity="0" />
+      <stop offset=".64" stop-color="#240C59" stop-opacity=".16" />
+      <stop offset="1" stop-color="#23093B" stop-opacity=".62" />
     </linearGradient>
-    <linearGradient id="ccc-rim" x1="100" y1="64" x2="412" y2="448" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FFFFFF" stop-opacity=".95" />
-      <stop offset=".3" stop-color="#FFFFFF" stop-opacity=".65" />
-      <stop offset=".55" stop-color="#DAD3FF" stop-opacity=".2" />
-      <stop offset=".8" stop-color="#BDE7FF" stop-opacity=".65" />
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".88" />
+    <linearGradient id="ccc-chamfer" x1="0%" y1="100%" x2="95%" y2="0%">
+      <stop stop-color="#CFF5FF" stop-opacity=".07" />
+      <stop offset=".33" stop-color="#F8F0FF" stop-opacity=".48" />
+      <stop offset=".72" stop-color="#FFE5FB" stop-opacity=".24" />
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".1" />
     </linearGradient>
-    <linearGradient id="ccc-reflection" x1="0" y1="0" x2="1" y2="1">
-      <stop stop-color="#FFFFFF" stop-opacity=".72" />
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0" />
+    <linearGradient id="ccc-rim" x1="19%" y1="0%" x2="70%" y2="90%">
+      <stop stop-color="#FFFFFF" stop-opacity=".88" />
+      <stop offset=".35" stop-color="#E0E6FF" stop-opacity=".43" />
+      <stop offset=".7" stop-color="#E6B9FF" stop-opacity=".14" />
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".6" />
     </linearGradient>
-    <path id="ccc-highlight" d="M385 105A197 197 0 0 1 442 185C421 168 403 143 385 105Z" />
-    <radialGradient id="ccc-hub-light" cx=".28" cy=".2" r=".85">
-      <stop stop-color="#FFFFFF" stop-opacity=".62" />
-      <stop offset=".45" stop-color="#E9DFFF" stop-opacity=".15" />
-      <stop offset="1" stop-color="#342571" stop-opacity=".16" />
-    </radialGradient>
+    <g id="ccc-glass">
+      <path d="M11 76C29 54 52 43 80 40C96 38 108 30 117 23L117 76Z" fill="url(#ccc-edge-depth)" opacity=".58" />
+      <path d="M12 68.6C26 40.5 49.8 26.1 80 25.4C92 25 105 23.5 113 22C105 27.3 92.6 30 80.7 30.9C51.7 33 26.5 46.8 12 68.6Z" fill="url(#ccc-chamfer)" />
+      <use href="#ccc-wing" fill="none" stroke="url(#ccc-edge-depth)" stroke-width="6" />
+      <use href="#ccc-wing" fill="none" stroke="url(#ccc-rim)" stroke-width="2.5" />
+    </g>
   </defs>
   <g class="ccc-logo-material">
-    <g clip-path="url(#ccc-clip)">
-      <use href="#ccc-rotor" fill="url(#ccc-body)" />
-      <rect class="ccc-logo-flow" x="-80" y="-80" width="672" height="672" fill="url(#ccc-flow-color)" />
-      <rect class="ccc-logo-sheen" x="-80" y="-80" width="672" height="672" fill="url(#ccc-sheen)" />
-      <use href="#ccc-blade" fill="url(#ccc-relief)" />
-      <use href="#ccc-blade" transform="rotate(72 256 256)" fill="url(#ccc-relief)" />
-      <use href="#ccc-blade" transform="rotate(144 256 256)" fill="url(#ccc-relief)" />
-      <use href="#ccc-blade" transform="rotate(216 256 256)" fill="url(#ccc-relief)" />
-      <use href="#ccc-blade" transform="rotate(288 256 256)" fill="url(#ccc-relief)" />
-      <g fill="url(#ccc-reflection)">
-        <use href="#ccc-highlight" />
-        <use href="#ccc-highlight" transform="rotate(72 256 256)" opacity=".64" />
-        <use href="#ccc-highlight" transform="rotate(144 256 256)" opacity=".38" />
-        <use href="#ccc-highlight" transform="rotate(216 256 256)" opacity=".5" />
-        <use href="#ccc-highlight" transform="rotate(288 256 256)" opacity=".8" />
-      </g>
-      <circle cx="256" cy="256" r="49" fill="url(#ccc-hub-light)" />
-      <use href="#ccc-rotor" fill="none" stroke="url(#ccc-rim)" stroke-width="4" stroke-linejoin="round" />
+    <g clip-path="url(#ccc-wing-clip)">
+      <use href="#ccc-wing" fill="url(#ccc-cool)" />
+      <ellipse class="ccc-logo-flow" cx="34" cy="47" rx="50" ry="32" fill="url(#ccc-cool-flow)" />
+      <use href="#ccc-glass" />
+    </g>
+    <g transform="rotate(180 64 64)" clip-path="url(#ccc-wing-clip)">
+      <use href="#ccc-wing" fill="url(#ccc-warm)" />
+      <ellipse class="ccc-logo-flow ccc-logo-flow-warm" cx="20" cy="49" rx="47" ry="31" fill="url(#ccc-warm-flow)" />
+      <use href="#ccc-glass" />
     </g>
   </g>
   <g class="ccc-logo-contrast" display="none" fill="CanvasText">
-    <use href="#ccc-rotor" />
+    <use href="#ccc-wing" />
+    <use href="#ccc-wing" transform="rotate(180 64 64)" />
   </g>
 </svg>

@@ -116,12 +116,15 @@ test("概览插画嵌入大卡正中，回读后入场且短窗保留温度趋�
   await publishMode(page, 3);
   await expect(card.getByRole("status")).toHaveText("娱乐");
   await expect(art).toHaveAttribute("data-preset-palette", "entertainment");
-  await expect(art.locator(".ccc-preset-drawing")).not.toHaveCSS("opacity", "1");
+  const incoming = art.locator(".ccc-preset-layer:not([data-outgoing])");
+  await expect(incoming.locator(".ccc-preset-drawing")).not.toHaveCSS("opacity", "1");
   await expectCenteredArtwork(card);
   expect((await art.boundingBox()).height).toBeGreaterThan(150);
   await card.screenshot({ path: test.info().outputPath("overview-preset-reveal.png") });
   await art.evaluate(svg => { for (const animation of svg.getAnimations({ subtree: true })) animation.play(); });
   await expect(art).not.toHaveAttribute("data-switching", "true");
+  expect(await incoming.locator(".ccc-preset-orbit-front").evaluate(path => path.getAnimations()[0].animationName))
+    .toBe("ccc-preset-orbit");
 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await publishMode(page, 1);
@@ -140,13 +143,12 @@ test("概览插画嵌入大卡正中，回读后入场且短窗保留温度趋�
   await card.screenshot({ path: test.info().outputPath("overview-chip-dark-360.png") });
 });
 
-test("温度趋势与图标读数分区，规格和诊断使用可键盘操作的文字入口", async ({ page }) => {
+test("温度趋势与图标读数分区，规格与详情使用可键盘操作的文字入口", async ({ page }) => {
   await setup(page);
   const cpu = sensor(page, "CPU");
   const gpu = sensor(page, "GPU");
   const panels = [[cpu, "CPU 规格", "CPU 硬件参数"], [gpu, "GPU 规格", "GPU 硬件参数"],
-    [memory(page), "内存详情", "内存详细信息"], [storage(page), "存储详情", "存储详细信息"],
-    [overview(page), "监控诊断", "监控诊断"]];
+    [memory(page), "内存详情", "内存详细信息"], [storage(page), "存储详情", "存储详细信息"]];
   await expect(cpu.getByRole("meter", { name: "CPU 利用率" })).toBeVisible();
   const sampleLayout = () => page.evaluate(async () => {
     const sample = await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot");
@@ -154,8 +156,10 @@ test("温度趋势与图标读数分区，规格和诊断使用可键盘操作�
       nvidia: { ...sample.nvidia, memUsedMb: 2171, memTotalMb: 8192 } });
   });
   await sampleLayout();
-  await expect(gpu.getByRole("meter", { name: "显存占用", exact: true })).toHaveAttribute("aria-valuetext", "2.12 GB / 8 GB");
-  await expect(gpu.getByRole("meter", { name: "显存占用", exact: true }).getByText("共 8 GB", { exact: true })).toBeVisible();
+  const vram = gpu.getByRole("meter", { name: "显存占用", exact: true });
+  await expect(vram).toHaveAttribute("aria-valuetext", "2.12 GB / 8 GB");
+  await expect(vram.locator("output")).toHaveText("2.12 GB");
+  await expect(vram.getByText("共 8 GB", { exact: true })).toHaveCount(0);
   await expect(overview(page).getByText(/^采样 \d{2}:\d{2}:\d{2}$/)).toHaveCount(0);
   for (const [panel, label, title] of panels) {
     const info = panel.getByRole("button", { name: label, exact: true });
@@ -190,11 +194,16 @@ test("温度趋势与图标读数分区，规格和诊断使用可键盘操作�
       const chart = await panel.locator(".ccc-trend-panel").boundingBox();
       const grid = await panel.locator(".ccc-sensor-metrics").boundingBox();
       const cells = await panel.locator(".ccc-meter-compact").evaluateAll(items => items.map(item => ({
-        y: item.getBoundingClientRect().top, fits: item.scrollWidth <= item.clientWidth + 1,
+        y: item.getBoundingClientRect().top, bottom: item.querySelector("output").getBoundingClientRect().bottom,
+        fits: item.scrollWidth <= item.clientWidth + 1,
       })));
       expect(grid.y).toBeGreaterThan(chart.y + chart.height);
       expect(cells.every(cell => cell.fits)).toBe(true);
-      expect(new Set(cells.map(cell => cell.y)).size).toBe(width === 1440 ? 1 : 2);
+      const rows = new Map(cells.map(({ y, bottom }) => [y, bottom]));
+      expect(rows.size).toBe(width === 1440 ? 1 : 2);
+      expect(cells.every(({ y, bottom }) => Math.abs(rows.get(y) - bottom) < 1)).toBe(true);
+      const card = await panel.boundingBox();
+      expect(card.y + card.height - Math.max(...cells.map(cell => cell.bottom))).toBeCloseTo(13, 0);
     }
     if (width === 1440) {
       for (const selector of [".ccc-trend-plot", ".ccc-sensor-metrics"]) {

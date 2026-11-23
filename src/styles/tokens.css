@@ -147,7 +147,11 @@
   --ccc-button-gap: 6px;
   --ccc-button-min-width: 72px;
   --ccc-sidebar-width: 224px;
-  --ccc-sidebar-collapsed-width: 64px;
+  --ccc-sidebar-collapsed-width: 56px;
+  --ccc-rail-tooltip-bg: #14161b;
+  --ccc-rail-indicator-width: 3px;
+  --ccc-rail-indicator-height: 16px;
+  --ccc-rail-glyph-pop: 1.1;
   --ccc-topbar-height: 64px;
   --ccc-icon-size-small: 16px;
   --ccc-icon-size-xs: 14px;
@@ -178,8 +182,11 @@
   --ccc-motion-fast: 180ms;
   --ccc-motion-range: 220ms;
   --ccc-motion: 240ms;
+  --ccc-motion-rail: 250ms;
+  --ccc-motion-rail-indicator: 320ms;
   --ccc-motion-slow: 400ms;
   --ccc-motion-preset: 520ms;
+  --ccc-motion-preset-idle: 5.6s;
   --ccc-scrollbar-idle-delay: 900ms;
   --ccc-easing: cubic-bezier(0.4, 0, 0.2, 1);
   --ccc-easing-press: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -205,6 +212,7 @@
   --ccc-preset-mid: #b279df;
   --ccc-preset-low: #8350be;
   --ccc-preset-deep: #503177;
+  --ccc-preset-entry: rotate(-7deg) scale(.94);
 }
 
 [data-preset-palette="performance"] {
@@ -212,6 +220,7 @@
   --ccc-preset-mid: #f1ac65;
   --ccc-preset-low: #bd633b;
   --ccc-preset-deep: #78391f;
+  --ccc-preset-entry: translate(-14px, 7px) scale(.98);
 }
 
 :root[data-theme="dark"],
@@ -244,6 +253,8 @@
 [data-preview-theme] {
   --ccc-workspace-bg: var(--ccc-content);
   --ccc-row-hover: color-mix(in srgb, var(--ccc-text) 3%, var(--ccc-content));
+  --ccc-rail-hover: color-mix(in srgb, var(--ccc-text) 5%, transparent);
+  --ccc-rail-press: color-mix(in srgb, var(--ccc-text) 10%, transparent);
   --ccc-action-hover: color-mix(in srgb, var(--ccc-action) 88%, var(--ccc-text));
   --ccc-border: var(--ccc-border-width) solid var(--ccc-hairline);
   --ccc-border-strong: var(--ccc-border-width) solid var(--ccc-hairline-strong);
@@ -256,6 +267,8 @@
     --ccc-motion-fast: 0ms;
     --ccc-motion-range: 0ms;
     --ccc-motion: 0ms;
+    --ccc-motion-rail: 0ms;
+    --ccc-motion-rail-indicator: 0ms;
     --ccc-motion-slow: 0ms;
     --ccc-motion-preset: 0ms;
   }
@@ -266,6 +279,8 @@
   --ccc-motion-fast: 0ms;
   --ccc-motion-range: 0ms;
   --ccc-motion: 0ms;
+  --ccc-motion-rail: 0ms;
+  --ccc-motion-rail-indicator: 0ms;
   --ccc-motion-slow: 0ms;
   --ccc-motion-preset: 0ms;
 }

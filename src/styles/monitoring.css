@@ -2,7 +2,7 @@
 .ccc-parameter-descriptions { display: grid; gap: var(--ccc-space-3); margin: var(--ccc-space-3) 0 0; padding: 0; list-style: none; }
 .ccc-parameter-descriptions strong { color: var(--ccc-text); font-weight: 500; }
 .ccc-parameter-descriptions p { margin: var(--ccc-space-1) 0 0; line-height: 1.7; color: var(--ccc-text-muted); }
-.ccc-sensor-group { display: grid; grid-template-rows: subgrid; gap: var(--ccc-space-4); min-width: 0; padding: var(--ccc-space-4); }
+.ccc-sensor-group { display: grid; grid-template-rows: subgrid; gap: var(--ccc-space-4); min-width: 0; padding: var(--ccc-space-4); padding-block-end: var(--ccc-space-3); }
 .ccc-hardware-identity { display: grid; grid-template-columns: clamp(76px, 21%, 112px) minmax(0, 1fr); align-items: center; gap: var(--ccc-space-3); }
 .ccc-hardware-illustrations { display: grid; justify-items: center; gap: var(--ccc-space-1); }
 .ccc-hardware-description { display: grid; justify-items: start; gap: var(--ccc-space-1); min-width: 0; }
@@ -35,7 +35,6 @@
 .ccc-meter-ring-fill { stroke: currentColor; stroke-linecap: round; }
 .ccc-meter-ring .ccc-meter-value { position: relative; display: grid; justify-items: center; gap: var(--ccc-space-1); font-size: calc(var(--ccc-ring-diameter) * .28); font-variant-numeric: lining-nums tabular-nums; line-height: 1; }
 .ccc-meter-ring .ccc-meter-unit { min-height: 1em; }
-.ccc-meter-total { font-size: var(--ccc-text-xs); color: var(--ccc-text-muted); }
 .ccc-meter-compact { gap: var(--ccc-space-1); }
 .ccc-meter-compact .ccc-meter-value { font-size: var(--ccc-text-title); flex-wrap: wrap; }
 .ccc-meter-heading { display: flex; align-items: center; gap: var(--ccc-space-2); color: var(--ccc-text-muted); }

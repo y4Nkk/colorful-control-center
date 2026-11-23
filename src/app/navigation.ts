@@ -1,7 +1,7 @@
 /** 一级工作区的唯一页面、标题与语义图标清单。 */
-import type { IconName } from "../components/Icon";
+import type { NavigationIconName } from "../components/Icon";
 export type PageId = "dashboard" | "performance" | "graphics" | "keyboard" | "power" | "settings";
-export interface PageDefinition { id: PageId; title: string; icon: IconName; workspace?: string }
+export interface PageDefinition { id: PageId; title: string; icon: NavigationIconName; workspace?: string }
 export const PAGES: readonly PageDefinition[] = [
   { id: "dashboard", workspace: "ControlWorkspace", title: "概览", icon: "overview" },
   { id: "performance", title: "性能与散热", icon: "performance" },
