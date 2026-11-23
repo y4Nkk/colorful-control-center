@@ -40,6 +40,12 @@ npm run build:installer
 
 可在 GitHub Actions 手动运行 **Windows installer** 下载验证用安装包。手动构建产物在运行详情的 Artifacts 中。标签构建在发布作业中重新核对摘要，已有同名 Release 由维护者管理。
 
+### 应用内更新发布
+
+- 仓库变量 `TAURI_UPDATER_PUBLIC_KEY` 将项目公钥嵌入 Windows 主程序。标签构建用仓库密钥 `TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 为最终 WPF 安装包签名。私钥及解锁信息由维护者保管。
+- 发布同时上传安装包、`.sig`、`SHA256SUMS.txt` 和 `latest.json`。应用使用 `releases/latest/download/latest.json`。清单中的更新说明取对应版本的 CHANGELOG，签名绑定版本和安装包内容。
+- 未配置公钥的本地构建可通过应用内的 GitHub 发布页入口手动更新。验收覆盖升级时，先安装支持更新的旧版，再从「设置 → 关于」检查、取消、重新下载并确认升级，核对退出恢复、安装路径、启动后的版本以及已有偏好。
+
 ## 隔离验证
 
 | 命令 | 验证范围 |

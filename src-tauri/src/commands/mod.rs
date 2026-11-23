@@ -3,6 +3,7 @@
 //!
 //! 子模块契约：
 //! - `app`：应用自身信息（版本、名称）
+//! - `app_update`：查找版本、下载与取消，交接 Windows 安装向导
 //! - `window`：自定义标题栏窗口操作与最大化状态
 //! - `hardware`：硬件监控快照与只读 CPU/内存/磁盘卷概览（薄委托 → hal）
 //! - `devices`：刷新率试用、原厂独显电源、MUX模式及选择记录与恢复
@@ -31,6 +32,7 @@
 
 pub(crate) mod airplane;
 pub(crate) mod app;
+pub(crate) mod app_update;
 pub(crate) mod battery;
 pub(crate) mod calibration;
 pub(crate) mod devices;

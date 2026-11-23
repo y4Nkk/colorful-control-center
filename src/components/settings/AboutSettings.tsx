@@ -6,6 +6,7 @@ import { DetailsDialog } from "../DetailsDialog";
 import { useEffect, useId, useState } from "react";
 import { getBackendInfo, toCommandError, type BackendInfo } from "../../api/client";
 import { ChangelogHistory } from "./ChangelogHistory";
+import { ApplicationUpdate } from "./ApplicationUpdate";
 
 export function AboutSettings({ active }: { active: boolean }) {
   const id = useId();
@@ -33,6 +34,7 @@ export function AboutSettings({ active }: { active: boolean }) {
         <div className="ccc-about-copy"><h3>Colorful Control Center</h3></div>
         <div className="ccc-about-version">
           <span className="ccc-settings-status ccc-mono" role="status">{loading ? "读取版本…" : error ? "版本未知" : info ? `v${info.version}` : "版本未知"}</span>
+          <ApplicationUpdate currentVersion={info?.version} />
           <DetailsDialog title="更新日志" icon="logs">
             <ChangelogHistory appVersion={info?.version} />
           </DetailsDialog>

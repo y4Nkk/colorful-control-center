@@ -2,6 +2,7 @@
 //! 平台/窗口生命周期与命令注册分离，命令清单见 command_registry.rs。
 
 mod airplane;
+mod app_update;
 mod assembly;
 mod battery;
 mod command_registry;
@@ -66,6 +67,7 @@ pub fn run() {
         .plugin(preferences::shortcut_plugin())
         .plugin(control_plugin(restart_lease))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(startup::LaunchReport::default())
         .invoke_handler(command_registry::handler!())
         .setup(move |app| {

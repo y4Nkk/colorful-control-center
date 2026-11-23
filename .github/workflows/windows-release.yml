@@ -26,9 +26,12 @@ jobs:
 
       - name: Verify source version
         shell: pwsh
+        env:
+          TAURI_UPDATER_PUBLIC_KEY: ${{ vars.TAURI_UPDATER_PUBLIC_KEY }}
         run: |
           $tag = if ($env:GITHUB_EVENT_NAME -eq 'push') { $env:GITHUB_REF_NAME } else { '' }
           ./scripts/stage-windows-release.ps1 -Tag $tag -CheckVersionOnly
+          if ($tag -and -not $env:TAURI_UPDATER_PUBLIC_KEY) { throw 'Missing repository variable TAURI_UPDATER_PUBLIC_KEY.' }
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -49,12 +52,22 @@ jobs:
 
       - name: Build and verify installer
         shell: pwsh
+        env:
+          TAURI_UPDATER_PUBLIC_KEY: ${{ vars.TAURI_UPDATER_PUBLIC_KEY }}
         run: |
           npm ci
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run build:installer
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ./scripts/stage-windows-release.ps1
+
+      - name: Stage release files
+        shell: pwsh
+        env:
+          TAURI_UPDATER_PUBLIC_KEY: ${{ vars.TAURI_UPDATER_PUBLIC_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          ./scripts/stage-windows-release.ps1 -SignUpdate:($env:GITHUB_EVENT_NAME -eq 'push')
 
       - name: Upload installer candidate
         id: upload
@@ -63,7 +76,9 @@ jobs:
           name: windows-x64-installer-${{ github.run_attempt }}
           path: |
             target/github-release/ColorfulControlCenter_*_x64-setup.exe
+            target/github-release/ColorfulControlCenter_*_x64-setup.exe.sig
             target/github-release/SHA256SUMS.txt
+            target/github-release/latest.json
             target/github-release/release-notes.md
           if-no-files-found: error
 
@@ -90,6 +105,6 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           installer="ColorfulControlCenter_${version}_x64-setup.exe"
           sha256sum --check SHA256SUMS.txt
-          gh release create "$GITHUB_REF_NAME" "$installer" SHA256SUMS.txt \
+          gh release create "$GITHUB_REF_NAME" "$installer" "$installer.sig" SHA256SUMS.txt latest.json \
             --repo "$GITHUB_REPOSITORY" --verify-tag --notes-file release-notes.md \
             --title "Colorful Control Center $version"

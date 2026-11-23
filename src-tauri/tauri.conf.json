@@ -31,6 +31,13 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "requireSignedVersion": true,
+      "endpoints": ["https://github.com/y4Nkk/colorful-control-center/releases/latest/download/latest.json"]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": ["nsis"],

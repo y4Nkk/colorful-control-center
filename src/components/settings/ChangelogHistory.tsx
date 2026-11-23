@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import changelogUrl from "../../../CHANGELOG.md?url";
-import { openExternalUrl, toCommandError } from "../../api/client";
 import { Button } from "../Button";
 import { Select } from "../Select";
-import { toast } from "../use-toast";
 
 const UNRELEASED = "未发布";
 
@@ -14,7 +12,7 @@ interface Entry {
 }
 
 type History = { status: "loading" } | { status: "failed" }
-  | { status: "ready"; entries: Entry[]; Markdown: typeof import("react-markdown")["default"] };
+  | { status: "ready"; entries: Entry[]; Notes: typeof import("./ChangelogNotes")["default"] };
 
 function readEntries(source: string): Entry[] {
   const [, ...sections] = source.split(/^## /m);
@@ -45,8 +43,8 @@ export function ChangelogHistory({ appVersion }: { appVersion?: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    void Promise.all([loadEntries(controller.signal), import("react-markdown")]).then(([entries, { default: Markdown }]) => {
-      if (!controller.signal.aborted) setHistory({ status: "ready", entries, Markdown });
+    void Promise.all([loadEntries(controller.signal), import("./ChangelogNotes")]).then(([entries, { default: Notes }]) => {
+      if (!controller.signal.aborted) setHistory({ status: "ready", entries, Notes });
     }).catch(() => {
       if (!controller.signal.aborted) setHistory({ status: "failed" });
     });
@@ -67,7 +65,7 @@ export function ChangelogHistory({ appVersion }: { appVersion?: string }) {
     ?? history.entries.find(item => item.version !== UNRELEASED)
     ?? history.entries[0];
   if (!entry) return <p>暂无更新记录。</p>;
-  const { Markdown } = history;
+  const { Notes } = history;
 
   return <>
     <div className="ccc-changelog-version">
@@ -75,16 +73,6 @@ export function ChangelogHistory({ appVersion }: { appVersion?: string }) {
         options={history.entries.map(item => ({ value: item.version, label: versionLabel(item.version, appVersion) }))} />
       {entry.date && <time className="ccc-settings-detail" dateTime={entry.date}>{entry.date}</time>}
     </div>
-    <article className="ccc-changelog-notes" aria-label={versionLabel(entry.version, appVersion)}>
-      <Markdown skipHtml components={{
-        a: ({ href, children }) => /^https?:\/\//i.test(href ?? "") && href
-          ? <a href={href} onClick={event => {
-            event.preventDefault();
-            void openExternalUrl(href).catch(error => toast({ kind: "error", title: "无法打开链接", description: toCommandError(error).message }));
-          }}>{children}</a>
-          : <span>{children}</span>,
-        img: ({ alt }) => alt ? <span>{alt}</span> : null,
-      }}>{entry.notes}</Markdown>
-    </article>
+    <Notes label={versionLabel(entry.version, appVersion)} notes={entry.notes} />
   </>;
 }

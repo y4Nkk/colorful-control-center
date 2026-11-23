@@ -27,6 +27,7 @@ pub(super) fn setup(app: &tauri::AppHandle) -> Result<()> {
         log::warn!("[gpu-power] 初始状态：{error:#}");
     }
     app.manage(hal);
+    app.manage(crate::app_update::Controller::default());
     app.manage(clocks);
     app.manage(power);
     app.manage(display::Controller::new(display::native::Native));

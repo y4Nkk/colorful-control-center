@@ -1,5 +1,6 @@
 fn main() {
     println!("cargo:rustc-check-cfg=cfg(control_sim)");
+    println!("cargo:rerun-if-env-changed=TAURI_UPDATER_PUBLIC_KEY");
     // 默认资源只链接 bin；清单单独链接所有目标，lib 测试同样依赖 comctl32 v6。
     let windows = tauri_build::WindowsAttributes::new_without_app_manifest();
     tauri_build::try_build(tauri_build::Attributes::new().windows_attributes(windows))

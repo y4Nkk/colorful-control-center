@@ -28,6 +28,9 @@
 .ccc-about-copy { display: grid; flex: 1; min-width: 0; gap: var(--ccc-space-1); }
 .ccc-about-copy > h3 { margin: 0; font-size: var(--ccc-text-lg); font-weight: 600; overflow-wrap: anywhere; }
 .ccc-about-version, .ccc-changelog-version { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-2); }
+.ccc-update-content { display: grid; gap: var(--ccc-space-3); }
+.ccc-update-content > p { margin: 0; }
+.ccc-update-progress { width: 100%; accent-color: var(--ccc-action); }
 .ccc-changelog-notes { line-height: 1.65; overflow-wrap: anywhere; }
 .ccc-changelog-notes h3 { font-size: var(--ccc-text-lg); margin: var(--ccc-space-5) 0 var(--ccc-space-2); }
 .ccc-changelog-notes p, .ccc-changelog-notes ul { margin: var(--ccc-space-2) 0; }

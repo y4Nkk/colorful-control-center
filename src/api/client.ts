@@ -26,6 +26,7 @@ export function listenEvent<T>(event: string, handler: (payload: T) => void): Pr
 /* 领域模块拥有类型化命令族；本边界聚合其公开面。 */
 export * from "./shared";
 export * from "./app";
+export * from "./app-update";
 export * from "./window";
 export * from "./hardware";
 export * from "./fans";

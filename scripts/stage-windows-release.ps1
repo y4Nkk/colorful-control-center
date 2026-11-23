@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
   [string]$Tag,
-  [switch]$CheckVersionOnly
+  [switch]$CheckVersionOnly,
+  [switch]$SignUpdate
 )
 
 $ErrorActionPreference = 'Stop'
@@ -23,6 +24,10 @@ if (-not $section.Success -or -not $section.Groups['notes'].Value.Trim()) {
   throw "CHANGELOG.md has no release notes for $version."
 }
 if ($CheckVersionOnly) { return }
+if ($SignUpdate -and (-not $env:GITHUB_SERVER_URL -or -not $env:GITHUB_REPOSITORY -or
+    -not $env:TAURI_UPDATER_PUBLIC_KEY -or -not $env:TAURI_SIGNING_PRIVATE_KEY)) {
+  throw 'GitHub repository context and the updater signing key pair are required.'
+}
 
 $buildRoot = if ($env:CARGO_TARGET_DIR) { [IO.Path]::GetFullPath($env:CARGO_TARGET_DIR) } else { Join-Path $PWD 'target' }
 $installerDirectory = Join-Path $buildRoot 'release/bundle/installer'
@@ -46,14 +51,36 @@ if ($digest -ine $report.sha256) {
 }
 
 $notes = $section.Groups['notes'].Value.Trim()
+$releaseNotes = $notes
 if ($env:GITHUB_SERVER_URL -and $env:GITHUB_REPOSITORY -and $env:GITHUB_SHA) {
   $source = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/blob/$env:GITHUB_SHA"
   $notes = $notes -replace '\]\((?![/#]|[a-z][a-z0-9+.-]*:)([^)\s]+)\)', ("]($source/" + '$1')
   $template = Get-Content -LiteralPath '.github/release_template.md' -Raw -Encoding utf8
   $downloadTable = $template -replace 'REPOSITORY', $env:GITHUB_REPOSITORY -replace 'VERSION', $version -replace 'PRODUCTNAME', $config.productName
-  $notes = "$downloadTable`n`n$notes"
+  $releaseNotes = "$downloadTable`n`n$notes"
 }
 $integrity = 'Windows x64 安装包的 SHA-256 为 `{0}`。' -f $digest
 [IO.File]::WriteAllText((Join-Path $staging 'SHA256SUMS.txt'), "$digest  $fileName`n")
-[IO.File]::WriteAllText((Join-Path $staging 'release-notes.md'), "$notes`n`n$integrity`n")
+[IO.File]::WriteAllText((Join-Path $staging 'release-notes.md'), "$releaseNotes`n`n$integrity`n")
+
+if ($SignUpdate) {
+  $signaturePath = "$stagedInstaller.sig"
+  # Tauri refuses to replace a signature left by a previous run.
+  [IO.File]::Delete($signaturePath)
+  & node node_modules/@tauri-apps/cli/tauri.js signer sign --app-version $version $stagedInstaller
+  if ($LASTEXITCODE -ne 0) { throw 'Windows updater signing failed.' }
+  & cargo run --locked --quiet -p colorful-control-center --example verify_update_package -- $stagedInstaller $signaturePath $version
+  if ($LASTEXITCODE -ne 0) { throw 'Windows updater signature verification failed.' }
+  $manifest = [ordered]@{
+    version = $version
+    notes = $notes
+    platforms = @{
+      'windows-x86_64' = [ordered]@{
+        url = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/releases/download/v$version/$fileName"
+        signature = [IO.File]::ReadAllText($signaturePath).Trim()
+      }
+    }
+  }
+  [IO.File]::WriteAllText((Join-Path $staging 'latest.json'), ($manifest | ConvertTo-Json -Depth 4))
+}
 Write-Output "Staged $fileName with SHA-256 $digest"
