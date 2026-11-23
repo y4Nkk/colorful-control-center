@@ -5,6 +5,37 @@ use std::sync::{
 };
 use tauri::Manager;
 
+#[derive(Clone, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub(crate) enum OemStartupNotice {
+    Closed,
+    Failed { detail: String },
+}
+
+pub(crate) fn close_oem_at_launch(app: &tauri::AppHandle) {
+    let enabled = app
+        .state::<crate::preferences::Controller>()
+        .snapshot()
+        .is_ok_and(|snapshot| snapshot.settings.close_oem_on_startup);
+    let notice = if enabled {
+        match crate::hal::oem_owner::close_at_startup() {
+            Ok(false) => None,
+            Ok(true) => {
+                log::info!("[startup] 已结束原厂 FnKey");
+                Some(OemStartupNotice::Closed)
+            }
+            Err(error) => {
+                let detail = format!("{error:#}");
+                log::warn!("[startup] {detail}");
+                Some(OemStartupNotice::Failed { detail })
+            }
+        }
+    } else {
+        None
+    };
+    app.manage(notice);
+}
+
 #[derive(Default)]
 pub struct LaunchReport {
     error: Mutex<Option<String>>,

@@ -60,7 +60,7 @@
   --ccc-brand-surface: #ffffff;
   --ccc-brand-dark-surface: #20242b;
 
-  /* 模式小图标与性能调校的芯片材质。 */
+  /* 模式小图标与预设插画配色。 */
   --ccc-mode-art-ink: color-mix(in srgb, var(--ccc-text) 79%, var(--ccc-content));
   --ccc-mode-art-eco: #2e816a;
   --ccc-mode-art-quiet: #5874be;
@@ -68,20 +68,12 @@
   --ccc-mode-art-performance: #b56d3b;
   --ccc-mode-art-tint: color-mix(in srgb, currentColor 24%, transparent);
   --ccc-mode-art-mark: color-mix(in srgb, currentColor 64%, var(--ccc-text));
-  --ccc-preset-grid: light-dark(#9ca6b94d, #a6bad450);
-  --ccc-preset-shadow: light-dark(#3a4565, #05080c);
-  --ccc-preset-steel-high: light-dark(#d6e1ec, #a4b5cb);
-  --ccc-preset-steel-mid: light-dark(#8091a5, #5f728a);
-  --ccc-preset-steel-low: light-dark(#38485c, #354459);
-  --ccc-preset-steel-deep: light-dark(#202b3a, #192332);
-  --ccc-preset-glint: light-dark(#ffffff, #e4efff);
-  --ccc-preset-light: var(--ccc-preset-steel-high);
-  --ccc-preset-mid: var(--ccc-preset-steel-mid);
-  --ccc-preset-low: var(--ccc-preset-steel-low);
-  --ccc-preset-deep: var(--ccc-preset-steel-deep);
-  --ccc-preset-chip-width: 480px;
-  --ccc-preset-chip-height: 204px;
-  --ccc-preset-chip-compact-height: 148px;
+  --ccc-preset-light: light-dark(#bfc9d5, #a4b5cb);
+  --ccc-preset-mid: light-dark(#8a99ab, #7286a0);
+  --ccc-preset-low: light-dark(#59697d, #435672);
+  --ccc-preset-artwork-width: 480px;
+  --ccc-preset-artwork-height: 204px;
+  --ccc-preset-artwork-compact-height: 148px;
 
   /* 键盘示意的实体材质与选色色谱。实际灯光颜色由灯效草稿提供。 */
   --ccc-lighting-deck: #171b23;

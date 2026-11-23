@@ -80,29 +80,22 @@ pub fn checkpoint(hal: &Hal, include_curve: bool) -> Result<FanCheckpoint> {
         .unwrap_or_default();
     layout.push(Patch::new(5, [0]));
     layout.push(Patch::new(7, [0]));
-    let (fields, mode) = hal.with_dchu(|d| {
+    let fields = hal.with_dchu(|d| {
         layout.extend(super::saved::capture_slots(d)?);
-        let fields = layout
+        layout
             .iter()
             .map(|p| {
                 d.read_settings(4, p.offset as i32, p.data.len())
                     .map(|bytes| Patch::new(p.offset, bytes))
             })
-            .collect::<Result<Vec<_>>>()?;
-        let mode = saved::effective_mode(
-            d,
-            current.current_mode,
-            current.available_modes.contains(&FAN_MODE_NOISELESS)
-                && !crate::powerctl::mode::boost::turbo_enabled(d)?,
-        )?;
-        Ok((fields, mode))
+            .collect::<Result<Vec<_>>>()
     })?;
     Ok(FanCheckpoint {
         software: current.software,
         rpm_pairs,
         package: inputs.as_ref().map(build_curve_package),
         fields,
-        mode,
+        mode: current.current_mode,
         offset: current.offset_pct,
     })
 }
@@ -115,7 +108,7 @@ pub fn restore_checkpoint(hal: &Hal, checkpoint: &FanCheckpoint) -> Result<()> {
             "固件未声明支持恢复娱乐模式的{NOISELESS_FAN_LABEL}"
         );
     }
-    if checkpoint.mode == super::FAN_MODE_NOISELESS {
+    if checkpoint.mode == FAN_MODE_NOISELESS {
         crate::powerctl::mode::boost::ensure_noiseless_allowed(hal)?;
     }
     super::software::stop_safely(hal)?;

@@ -45,7 +45,7 @@ function Fixture() {
       <Switch label="测试开关" checked={checked} disabled={disabled} onChange={setChecked} />
       <Slider aria-label="测试滑杆" min={0} max={100} value={range} disabled={disabled} onChange={event => setRange(Number(event.target.value))} />
       <output aria-label="滑杆数值">{range}</output>
-      <ConfirmButton label="执行隔离操作" confirmLabel="确认执行隔离操作？" disabled={disabled} onConfirm={() => setWrites(value => value + 1)} />
+      <ConfirmButton label="执行隔离操作" confirmLabel="确认执行隔离操作？" busy={disabled} onConfirm={() => setWrites(value => value + 1)} />
       <output aria-label="执行次数">{writes}</output>
       <div id="color-anchor"><ColorPicker label="测试颜色" value={color} onChange={setColor} disabled={disabled} swatchOnly /></div>
     </Surface>

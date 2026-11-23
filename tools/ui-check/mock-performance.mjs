@@ -1,5 +1,22 @@
 import { appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, rememberMode, applyModeGpu } from "./mock-mode-state.mjs";
 
+export function fanProfile(data) {
+  const powerMode = data.performanceOptions.currentMode;
+  const fan = data.fan;
+  const quiet = powerMode === 3 && fan.currentMode === 0 && fan.availableModes.includes(8)
+    && data.entertainmentQuiet && !(entertainmentCommand(data) & 64);
+  const currentMode = quiet ? 8 : fan.currentMode;
+  const offsetSlot = data.fanRemembersOffset ? (powerMode === 4 ? 0 : powerMode) : null;
+  const running = data.dust?.running ? "固件正在除尘，请等待结束后再调整风扇或电源模式" : null;
+  const offsetBlockedReason = fan.offsetBlockedReason ?? running ?? (fan.software ? "软件接管期间无法调节加速偏移。"
+    : [0, 8].includes(currentMode) && fan.availableModes.includes(currentMode) ? null : "仅自动或寂静模式可调节加速偏移。");
+  const profile = { ...fan, currentMode, offsetSlot, blockedReason: running, offsetBlockedReason };
+  if (data.fanKind !== "rpmTable") return profile;
+  return { ...profile, curveKind: "rpmTable", offsetBlockedReason: "此机型不支持风扇加速偏移。", fans: [],
+    rpmFans: fan.rpmFans.length ? fan.rpmFans : [{ id: "cpu", maximumRpm: 5000,
+      points: Array.from({ length: 10 }, (_, i) => ({ tempC: 40 + i * 5, rpmPct: i === 9 ? 100 : 20 + i * 8 })) }] };
+}
+
 export function applyPerformanceOptions(data, { values, quietFan, replaceCustomFan }, quiet) {
   const p = data.performanceOptions;
   const performance = p.currentMode === 2;

@@ -18,8 +18,8 @@ use windows_sys::{
             RemoteDesktop::ProcessIdToSessionId,
             Threading::{
                 GetProcessTimes, OpenProcess, PROCESS_NAME_WIN32,
-                PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, QueryFullProcessImageNameW,
-                WaitForSingleObject,
+                PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
+                QueryFullProcessImageNameW, TerminateProcess, WaitForSingleObject,
             },
         },
         UI::WindowsAndMessaging::{
@@ -68,22 +68,7 @@ impl FnKeyProcess {
     }
 
     fn open(pid: u32) -> Result<Self> {
-        let handle = unsafe {
-            OpenProcess(
-                PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
-                0,
-                pid,
-            )
-        };
-        if handle.is_null() {
-            return Err(std::io::Error::last_os_error().into());
-        }
-        let handle = unsafe { OwnedHandle::from_raw_handle(handle) };
-        ensure!(
-            session_id(pid)? == session_id(std::process::id())?,
-            "FnKey 位于其他 Windows 会话"
-        );
-        verify_image(handle.as_raw_handle())?;
+        let handle = open_verified(pid, 0)?;
         let identity = FnKeyIdentity {
             pid,
             creation_time: creation_time(handle.as_raw_handle())?,
@@ -104,7 +89,7 @@ impl FnKeyProcess {
             approved == self.identity,
             "原厂 FnKey 已重新启动，请重新核对后确认"
         );
-        if self.wait_for_exit(0)? {
+        if wait_for_exit(&self.handle, 0)? {
             return Ok(());
         }
         ensure!(
@@ -119,18 +104,53 @@ impl FnKeyProcess {
             return Err(std::io::Error::last_os_error()).context("未能请求原厂 FnKey 退出");
         }
         ensure!(
-            self.wait_for_exit(8000)?,
+            wait_for_exit(&self.handle, 8000)?,
             "等待原厂 FnKey 退出超时，请从任务管理器退出后重试"
         );
         Ok(())
     }
+}
 
-    fn wait_for_exit(&self, milliseconds: u32) -> Result<bool> {
-        match unsafe { WaitForSingleObject(self.handle.as_raw_handle(), milliseconds) } {
-            WAIT_OBJECT_0 => Ok(true),
-            WAIT_TIMEOUT => Ok(false),
-            _ => Err(std::io::Error::last_os_error()).context("未能确认原厂 FnKey 已退出"),
+pub(super) fn terminate_verified(pid: u32) -> Result<()> {
+    let handle = open_verified(pid, PROCESS_TERMINATE)?;
+    if wait_for_exit(&handle, 0)? {
+        return Ok(());
+    }
+    if unsafe { TerminateProcess(handle.as_raw_handle(), 1) } == 0 {
+        let error = std::io::Error::last_os_error();
+        if !wait_for_exit(&handle, 0)? {
+            return Err(error).context("未能结束原厂 FnKey");
         }
+    }
+    ensure!(wait_for_exit(&handle, 2000)?, "等待原厂 FnKey 退出超时");
+    Ok(())
+}
+
+fn open_verified(pid: u32, extra_access: u32) -> Result<OwnedHandle> {
+    let handle = unsafe {
+        OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE | extra_access,
+            0,
+            pid,
+        )
+    };
+    if handle.is_null() {
+        return Err(std::io::Error::last_os_error()).context("无法打开原厂 FnKey 进程");
+    }
+    let handle = unsafe { OwnedHandle::from_raw_handle(handle) };
+    ensure!(
+        session_id(pid)? == session_id(std::process::id())?,
+        "FnKey 位于其他 Windows 会话"
+    );
+    verify_image(handle.as_raw_handle())?;
+    Ok(handle)
+}
+
+fn wait_for_exit(handle: &OwnedHandle, milliseconds: u32) -> Result<bool> {
+    match unsafe { WaitForSingleObject(handle.as_raw_handle(), milliseconds) } {
+        WAIT_OBJECT_0 => Ok(true),
+        WAIT_TIMEOUT => Ok(false),
+        _ => Err(std::io::Error::last_os_error()).context("未能确认原厂 FnKey 已退出"),
     }
 }
 

@@ -8,7 +8,7 @@ import { CPU_SPEC_HELP, GPU_SPEC_HELP } from "./parameterDescriptions";
 export function CpuParameters({ overview, live }: { overview: SystemOverview | null; live: HardwareSnapshot | null }) {
   const cpu = overview?.cpu;
   const ghz = (mhz: number | null | undefined) => formatParameter(mhz == null ? null : mhz / 1000, "GHz", 2);
-  return <DetailsDialog title="CPU 硬件参数" label="CPU 详细信息">
+  return <DetailsDialog title="CPU 硬件参数" label="CPU 规格" icon={null}>
     <FactList compact facts={[
       { label: "物理核心数", value: formatParameter(cpu?.physicalCores, "核") },
       { label: "逻辑处理器数", value: formatParameter(cpu?.logicalProcessors, "个") },
@@ -22,7 +22,7 @@ export function CpuParameters({ overview, live }: { overview: SystemOverview | n
 
 export function GpuParameters({ live }: { live: HardwareSnapshot | null }) {
   const gpu = live?.nvidia;
-  return <DetailsDialog title="GPU 硬件参数" label="GPU 详细信息">
+  return <DetailsDialog title="GPU 硬件参数" label="GPU 规格" icon={null}>
     <FactList compact facts={[
       { label: "计算核心数", value: formatParameter(gpu?.cudaCores, "个") },
       { label: "显存位宽", value: formatParameter(gpu?.memoryBusWidthBits, "位") },

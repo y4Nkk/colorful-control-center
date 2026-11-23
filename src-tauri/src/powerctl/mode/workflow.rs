@@ -270,7 +270,7 @@ impl Plan {
         permit()?;
         fanctl::apply_mode_policy(hal, self.target.fan_saved_mode, self.target.fan_mode)?;
         permit()?;
-        fanctl::set_offset(hal, u32::from(self.target.fan_offset_pct))
+        fanctl::set_mode_offset(hal, u32::from(self.target.fan_offset_pct))
     }
     pub fn restore(&self, hal: &Hal) -> Result<()> {
         recover_snapshot(hal, &self.before)

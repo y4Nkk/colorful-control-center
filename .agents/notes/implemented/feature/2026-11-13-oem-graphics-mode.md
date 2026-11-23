@@ -13,6 +13,7 @@ Status: implemented
 - 预览修订绑定当前报告、能力、操作记录与启动标识。只有系统启动标识已变化且固件报告匹配，才标记重启后确认；同次启动即使报告碰巧匹配，也不冒充已重启。
 - Windows启动标识使用动态链接NtQuerySystemInformation的SystemBootEnvironmentInformation，只读系统元数据，校验结果及结构；不以墙上时钟推算重启。ABI参考[System Informer phnt](https://github.com/winsiderss/phnt/blob/master/ntexapi.h)，动态链接约束参考[Microsoft文档](https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntquerysysteminformation)。接口不可用时明确报错，不猜启动状态。
 - UI以固件支持的模式按钮直接发送选择，卡内显示当前报告与待重启目标。恢复选择在卡内确认，重启单独确认。重启仅使用固定 Windows 系统工具，保留正常关机流程。测试使用假传输、假启动标识和隔离记录。
+- 2026-11-23 显卡模式选项在标签上方展示无底色的集显、独显与屏幕通路示意。单显模式突出一条通路，混合模式显示两条，动态切换显示虚线分支。图形只表达选项含义，所选样式取自原有固件报告或待重启目标。
 
 ## 影响与验证
 

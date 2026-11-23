@@ -213,6 +213,7 @@ fn control_plugin(
                     .ok_or("已有主程序或独立恢复任务仍在运行，请等待恢复结束后重试")?,
             };
             app.manage(lease);
+            startup::close_oem_at_launch(app);
             assembly::setup(app)?;
             Ok(())
         })

@@ -35,7 +35,7 @@ export function ConfigurationAction({ label, applyLabel = "应用更改", revisi
   </div>;
   return <section className="ccc-module-action ccc-review-section" aria-label={`${label} · ${applyLabel}`} data-module-action={label} aria-busy={busy}>
     {children}
-    <div className="ccc-actions"><Button icon={busy ? "loading" : "check"} data-configuration-apply=""
+    <div className="ccc-actions"><Button icon={busy ? "loading" : "check"} data-configuration-apply="" aria-busy={busy || undefined}
       disabled={busy || disabled} onClick={() => void submit()}>{applyLabel}</Button></div>
   </section>;
 }

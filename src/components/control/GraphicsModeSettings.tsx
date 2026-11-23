@@ -3,9 +3,15 @@ import { Button } from "../Button";
 import { ConfirmButton } from "../ConfirmButton";
 import { Icon } from "../Icon";
 import { Surface } from "../Surface";
+import { GraphicsModeArtwork } from "./GraphicsModeArtwork";
 import { useDeviceSettings } from "./useDeviceSettings";
 
-const MODES = [{ value: 1, label: "仅集显" }, { value: 2, label: "仅独显" }, { value: 3, label: "混合显卡" }, { value: 4, label: "动态切换" }];
+const MODES = [
+  { value: 1, label: "仅集显", route: "integrated" },
+  { value: 2, label: "仅独显", route: "discrete" },
+  { value: 3, label: "混合显卡", route: "hybrid" },
+  { value: 4, label: "动态切换", route: "dynamic" },
+] as const;
 const modeName = (mode: number) => MODES.find(item => item.value === mode)?.label ?? "未知";
 const supports = (mask: number, mode: number) => (mask & (1 << (mode - 1))) !== 0;
 
@@ -32,8 +38,11 @@ export function GraphicsModeSettings({ active, revision }: { active: boolean; re
         <span className="ccc-control-caption">固件报告</span><strong>{modeName(current.mode)}</strong>
       </div>}
       {choices.length > 0 && <div className="ccc-graphics-choices" role="group" aria-label="切换显卡模式">
-        {choices.map(({ value, label }) => <Button key={value} size="compact" variant="selection" disabled={busy}
-          aria-pressed={selected === value} onClick={() => choose(value)}>{label}</Button>)}
+        {choices.map(({ value, label, route }) => <Button key={value} size="compact" variant="selection" disabled={busy}
+          aria-pressed={selected === value} onClick={() => choose(value)}>
+          <GraphicsModeArtwork route={route} />
+          <span>{label}</span>
+        </Button>)}
       </div>}
       {pending && <div className="ccc-restart-notice">
         <span className="ccc-control-caption" role="status"><strong>{modeName(last.target)}</strong> · 重启 Windows 后生效</span>

@@ -21,7 +21,7 @@
 .ccc-button:is([data-variant="primary"], [data-variant="secondary"]):not([data-size^="icon"]) { min-width: min(var(--ccc-button-min-width), 100%); }
 .ccc-button[data-variant="primary"] { border: 0; background: var(--ccc-action); color: var(--ccc-text-on-action); font-weight: 600; }
 .ccc-button[data-variant="primary"]:hover:enabled:not([aria-disabled="true"]) { background: var(--ccc-action-hover); }
-.ccc-button:is(:disabled, [aria-disabled="true"]) { opacity: 0.45; cursor: default; }
+.ccc-button:is(:disabled, [aria-disabled="true"]) { opacity: 0.45; cursor: not-allowed; }
 .ccc-button[data-size="compact"] { min-height: var(--ccc-control-height-compact); }
 .ccc-button:is([data-size="icon"], [data-size="icon-compact"]) {
   width: var(--ccc-control-height);
@@ -102,7 +102,6 @@
   border-radius: var(--ccc-radius-full);
   background: transparent;
   touch-action: none;
-  cursor: grab;
 }
 .ccc-button[data-variant="handle"]::before {
   content: "";
@@ -117,4 +116,5 @@
   width: var(--ccc-handle-dot-active);
   height: var(--ccc-handle-dot-active);
 }
-.ccc-button[data-variant="handle"].is-dragging { cursor: grabbing; }
+.ccc-button[data-variant="handle"]:enabled:not([aria-disabled="true"], [aria-busy="true"]) { cursor: grab; }
+.ccc-button[data-variant="handle"].is-dragging:enabled:not([aria-disabled="true"], [aria-busy="true"]) { cursor: grabbing; }

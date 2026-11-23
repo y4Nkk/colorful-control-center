@@ -1,48 +1,51 @@
-import { useId } from "react";
 import { MEMORY_HISTORY_MS, MEMORY_MAX_GAP_MS } from "../../app/useSystemOverview";
 import { fmtClock, fmtInt } from "./format";
 import { timeTrace, type ScaleDomain, type TimePoint } from "./plot";
 
 const MEMORY_DOMAIN: ScaleDomain = { min: 0, max: 100 };
+const MEMORY_TICKS = [MEMORY_DOMAIN.max, 75, 50, 25, MEMORY_DOMAIN.min];
 
 export function MemoryTrend({ points }: { points: readonly TimePoint[] }) {
-  const fillId = useId();
-  const end = points[points.length - 1]?.atMs;
-  const start = (end ?? 0) - MEMORY_HISTORY_MS;
-  const { segments, markers } = timeTrace(points, MEMORY_DOMAIN, start, MEMORY_HISTORY_MS, MEMORY_MAX_GAP_MS);
-  const area = segments.filter(segment => segment.lastX > segment.firstX)
-    .map(({ path, firstX, lastX }) => `${path} L${lastX.toFixed(3)} 100 L${firstX.toFixed(3)} 100 Z`).join(" ");
-  const line = segments.map(segment => segment.path).join(" ");
+  const latest = points[points.length - 1];
+  const current = latest?.value ?? null;
+  const start = (latest?.atMs ?? 0) - MEMORY_HISTORY_MS;
+  const { line, area, markers } = timeTrace(points, MEMORY_DOMAIN, start, MEMORY_HISTORY_MS, MEMORY_MAX_GAP_MS);
+  const peak = points.reduce<number | null>((highest, { value }) => value == null ? highest : Math.max(highest ?? value, value), null);
   const missing = points.length ? "暂无采样" : "等待采样";
+  const minutes = MEMORY_HISTORY_MS / 60_000;
 
-  return <div className="ccc-memory-trend" role="img"
-    aria-label={`最近 5 分钟内存使用率面积图${line ? "" : `，${missing}`}`}>
-    <div className="ccc-memory-trend-heading">
-      <span>使用率 · 最近 5 分钟</span>
-      {end != null && <span className="ccc-mono">采样 {fmtClock(end)}</span>}
+  return <div className="ccc-trend-panel">
+    <div className="ccc-trend-head">
+      <div>
+        <span>当前使用率</span>
+        <output className="ccc-trend-value ccc-mono" aria-label="当前内存使用率">
+          {current == null ? "—" : <>{fmtInt(current)}<em>%</em></>}
+        </output>
+      </div>
+      <div className="ccc-trend-peak">
+        <span>{minutes} 分钟最高</span>
+        <strong className="ccc-mono">{peak == null ? "—" : `${fmtInt(peak)}%`}</strong>
+      </div>
     </div>
-    <div className="ccc-memory-chart">
-      <div className="ccc-trend-plot ccc-memory-plot">
+    <div className="ccc-trend-chart ccc-memory-chart" role="img"
+      aria-label={`最近 ${minutes} 分钟内存使用率面积图${line ? "" : `，${missing}`}`}>
+      <div className="ccc-trend-plot">
         <svg className="ccc-trend-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            <linearGradient id={fillId} gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="0" y2="100">
-              <stop offset="0" stopColor="var(--ccc-action)" stopOpacity="0.28" />
-              <stop offset="1" stopColor="var(--ccc-action)" stopOpacity="0.04" />
-            </linearGradient>
-          </defs>
-          <path className="ccc-memory-midline" d="M0 50H100" vectorEffect="non-scaling-stroke" />
-          {area && <path className="ccc-memory-area" d={area} fill={`url(#${fillId})`} />}
-          {line && <path className="ccc-trend-line" d={line} stroke="var(--ccc-action)"
+          <path className="ccc-trend-grid" d="M20 0V100 M40 0V100 M60 0V100 M80 0V100" vectorEffect="non-scaling-stroke" />
+          {MEMORY_TICKS.map(tick => <path key={tick} className="ccc-trend-grid" d={`M0 ${100 - tick}H100`} vectorEffect="non-scaling-stroke" />)}
+          {area && <path className="ccc-trend-area" d={area} />}
+          {line && <path className="ccc-trend-line" d={line}
             vectorEffect="non-scaling-stroke" data-series="内存" />}
         </svg>
         {markers.map(marker => <span key={marker.atMs} className="ccc-trend-marker"
           title={`${fmtClock(marker.atMs)} · ${fmtInt(marker.value)}%`}
-          style={{ left: `${marker.x}%`, top: `${marker.y}%`, color: "var(--ccc-action)" }} aria-hidden="true" />)}
+          style={{ left: `${marker.x}%`, top: `${marker.y}%` }} aria-hidden="true" />)}
         {!line && <span className="ccc-trend-empty">{missing}</span>}
-        {[100, 50, 0].map(tick => <span key={tick} className="ccc-memory-tick ccc-mono" style={{ top: `${100 - tick}%` }}>
+        {MEMORY_TICKS.map(tick => <span key={tick} className="ccc-trend-tick ccc-mono" style={{ top: `${100 - tick}%` }} aria-hidden="true">
           {tick}%
         </span>)}
       </div>
+      <div className="ccc-trend-time" aria-hidden="true"><span>{minutes} 分钟前</span><span>现在</span></div>
     </div>
   </div>;
 }

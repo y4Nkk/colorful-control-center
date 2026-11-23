@@ -51,9 +51,9 @@
 .ccc-switch > input:focus-visible + .ccc-switch-track {
   box-shadow: 0 0 0 3px var(--ccc-focus-ring);
 }
-.ccc-switch > input[aria-disabled="true"] {
-  cursor: wait;
+.ccc-switch > input:is(:disabled, [aria-disabled="true"]) {
+  cursor: not-allowed;
 }
-.ccc-switch > input[aria-disabled="true"] + .ccc-switch-track {
+.ccc-switch > input:is(:disabled, [aria-disabled="true"]) + .ccc-switch-track {
   opacity: 0.5;
 }

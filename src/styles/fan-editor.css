@@ -1,48 +1,32 @@
-.ccc-fan-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "settings" "curve" "fields" "recovery";
-  align-items: start;
-}
+.ccc-fan-panel-head { display: grid; justify-items: start; }
+.ccc-fan-panel-help { padding-inline-start: calc(20px + var(--ccc-space-2)); }
 
-.ccc-fan-curve {
-  grid-area: curve;
+.ccc-fan-layout, .ccc-fan-details {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--ccc-space-4);
-  margin-block: var(--ccc-space-5);
 }
 
-.ccc-fan-curve-toolbar, .ccc-fan-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--ccc-space-2);
-}
-
-.ccc-fan-settings, .ccc-fan-fields, .ccc-fan-recovery {
-  min-width: 0;
+.ccc-fan-current, .ccc-fan-curve, .ccc-fan-settings, .ccc-fan-fields {
   display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--ccc-space-3);
   padding: var(--ccc-space-4);
-  border-radius: var(--ccc-radius-card);
-  background: var(--ccc-content-muted);
 }
 
-.ccc-fan-settings { grid-area: settings; gap: var(--ccc-space-4); }
-.ccc-fan-fields { grid-area: fields; }
-.ccc-fan-fields:has(+ .ccc-fan-recovery) { border-end-start-radius: 0; border-end-end-radius: 0; }
-.ccc-fan-recovery { grid-area: recovery; }
-.ccc-fan-fields + .ccc-fan-recovery { border-start-start-radius: 0; border-start-end-radius: 0; }
-.ccc-fan-layout h3 { margin: 0; font-size: var(--ccc-text-sm); font-weight: 600; }
+.ccc-fan-curve { border-radius: var(--ccc-radius-card); background: var(--ccc-content-muted); }
+.ccc-fan-curve-body, .ccc-fan-setting-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-4); align-items: start; }
+.ccc-fan-fields { padding: 0; }
+.ccc-fan-layout h3, .ccc-fan-fields h4 { margin: 0; font-size: var(--ccc-text-md); font-weight: 600; }
 .ccc-fan-layout p { margin: 0; }
 
-.ccc-fan-current, .ccc-fan-parameters { display: grid; gap: var(--ccc-space-2); }
+.ccc-fan-current-head, .ccc-fan-setting { display: grid; gap: var(--ccc-space-2); min-width: 0; }
+.ccc-fan-current-head { justify-items: start; }
+.ccc-fan-setting > [role="radiogroup"] { justify-self: start; }
+.ccc-fan-curve-head { display: grid; gap: var(--ccc-space-1); }
 .ccc-fan-control-state {
-  background: var(--ccc-content);
-  border-radius: var(--ccc-radius-full);
-  padding: var(--ccc-space-1) var(--ccc-space-2);
+  color: var(--ccc-text-muted);
   font-size: var(--ccc-text-xs);
 }
 
@@ -63,8 +47,8 @@
   font: 500 var(--ccc-text-reading)/1.25 var(--ccc-font-mono);
 }
 
-.ccc-fan-readings dd > span { font-size: var(--ccc-text-sm); white-space: nowrap; }
-.ccc-fan-modes { justify-self: start; }
+.ccc-fan-readings dd > span { color: var(--ccc-text-muted); font: var(--ccc-text-xs) var(--ccc-font-sans); white-space: nowrap; }
+.ccc-plot-area { fill: var(--ccc-action); opacity: .12; }
 
 .ccc-curve-values, .ccc-curve-number { display: grid; gap: var(--ccc-space-1); min-width: 0; }
 .ccc-curve-point, .ccc-curve-columns {
@@ -83,26 +67,16 @@
 .ccc-fan-recovery-actions { display: grid; gap: var(--ccc-space-1); padding-block-start: var(--ccc-space-2); }
 .ccc-fan-recovery-actions[hidden] { display: none; }
 
+@container ccc-control (min-width: 44rem) {
+  .ccc-fan-current { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); align-items: center; }
+  .ccc-fan-setting-controls { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+}
+
 @container ccc-control (min-width: 54rem) {
-  .ccc-fan-layout {
-    grid-template-columns: minmax(0, 1fr) clamp(19rem, 30cqi, 22rem);
-    grid-template-rows: auto auto auto minmax(0, 1fr);
-    grid-template-areas: "curve settings" "curve fields" "curve recovery" "curve .";
-    column-gap: var(--ccc-space-5);
-  }
-  .ccc-fan-layout::before {
-    content: "";
-    grid-column: 2;
-    grid-row: 1 / 4;
-    align-self: stretch;
-    border-radius: var(--ccc-radius-card);
-    background: var(--ccc-content-muted);
-  }
-  .ccc-fan-settings, .ccc-fan-fields, .ccc-fan-recovery { z-index: 0; background: transparent; }
-  .ccc-fan-curve { margin: 0; }
-  .ccc-fan-layout .ccc-plot { height: clamp(216px, 36dvh, 360px); }
+  .ccc-fan-curve-body { grid-template-columns: minmax(0, 1fr) minmax(15rem, 29%); }
+  .ccc-fan-layout .ccc-plot { height: clamp(216px, 27dvh, 300px); }
 }
 
 @container ccc-control (max-width: 21rem) {
-  .ccc-fan-settings, .ccc-fan-fields, .ccc-fan-recovery { padding-inline: var(--ccc-space-3); }
+  .ccc-fan-current, .ccc-fan-curve, .ccc-fan-settings { padding-inline: var(--ccc-space-3); }
 }

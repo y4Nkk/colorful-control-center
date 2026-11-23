@@ -79,6 +79,9 @@ export function inspectUiSource(path, content) {
     if (ts.isImportDeclaration(node) && node.moduleSpecifier.getText(tree).includes("/Combobox")) fail(node, "Combobox 旧入口已移除，统一使用 Select");
     if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
       const tag = node.tagName.getText(tree), name = names.get(tag) ?? tag;
+      const role = literalAttribute(node, "role");
+      const roleOwner = UI_CONTRACT.find(owner => owner.roles?.includes(role));
+      if (roleOwner && componentPath(roleOwner.name) !== path) fail(node, `role="${role}" 必须由全局 ${roleOwner.name} 组件提供`);
       if ((tag === "input" || name === "Input") && literalAttribute(node, "type") === "color") {
         fail(node, "颜色编辑必须使用全局 ColorPicker");
       } else if (forbiddenNative.has(tag) && !UI_CONTRACT.some(owner => [owner.name, ...owner.files ?? []].some(file => componentPath(file) === path) && owner.native.includes(tag))) {

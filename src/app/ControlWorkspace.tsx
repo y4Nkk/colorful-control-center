@@ -5,8 +5,7 @@ import { DetailsDialog } from "../components/DetailsDialog";
 import { OEM_POWER_MODES, type HardwareSnapshot } from "../api/client";
 import type { HardwareWorkspaceProps } from "./useControlModel";
 import { HardwareReadings } from "../components/control/HardwareReadings";
-import { PresetChipArtwork } from "../components/control/PresetChipArtwork";
-import { fmtClock } from "../components/control/format";
+import { PresetArtwork, presetPalette } from "../components/control/PresetArtwork";
 import { useSystemOverview } from "./useSystemOverview";
 
 function ControlStatus({
@@ -18,17 +17,20 @@ function ControlStatus({
   onRetry: () => void;
   system: ReturnType<typeof useSystemOverview>;
 }) {
-  const state = stale ? "读数停滞" : live ? `采样 ${fmtClock(live.sampledAtMs)}` : error ? "监控不可用" : "连接中…";
+  const state = stale ? "读数停滞" : live ? null : error ? "监控不可用" : "连接中…";
   const tone = stale ? "ccc-control-caption is-warn" : error && !live ? "ccc-control-error" : "ccc-control-caption";
   const samplingIssues = error || (live?.warnings.length ?? 0) > 0;
   const systemIssues = system.error || (system.overview?.warnings.length ?? 0) > 0;
+  const fanOffline = live && !live.dchuAvailable;
+  const gpuPaused = live?.nvidiaSuspended;
+  if (!state && !samplingIssues && !systemIssues && !fanOffline && !gpuPaused) return null;
   return (
     <div className="ccc-control-status">
-      <span className={tone}>{state}</span>
+      {state && <span className={tone}>{state}</span>}
       {error && <Button icon="refresh" variant="ghost" size="compact" type="button" onClick={onRetry}>重试</Button>}
-      {live && !live.dchuAvailable && <span className="ccc-control-caption is-warn">风扇通道离线</span>}
-      {live?.nvidiaSuspended && <span className="ccc-control-caption">独显监控暂停</span>}
-      {(samplingIssues || systemIssues) && <DetailsDialog title="监控诊断">
+      {fanOffline && <span className="ccc-control-caption is-warn">风扇通道离线</span>}
+      {gpuPaused && <span className="ccc-control-caption">独显监控暂停</span>}
+      {(samplingIssues || systemIssues) && <DetailsDialog title="监控诊断" icon={null}>
         {samplingIssues && <section><h3>硬件采样</h3>
           {error && <p className="ccc-control-error">{error}</p>}
           {live?.warnings.map(warning => <p key={warning}>{warning}</p>)}
@@ -60,7 +62,7 @@ function CurrentMode({ mode, reading, active }: { mode: number | null; reading: 
   const name = mode == null ? undefined : OEM_POWER_MODES[mode];
   return <Surface as="section" variant="group" className="ccc-panel ccc-current-mode" aria-label="当前模式">
     <h2 className="ccc-panel-title"><Icon name="performance" />当前模式</h2>
-    <PresetChipArtwork mode={mode ?? undefined} active={active} />
-    <output>{name ?? (reading ? "读取中…" : "未知")}</output>
+    <PresetArtwork mode={mode ?? undefined} active={active} />
+    <output className="ccc-preset-label" data-preset-palette={presetPalette(mode)}>{name ?? (reading ? "读取中…" : "未知")}</output>
   </Surface>;
 }

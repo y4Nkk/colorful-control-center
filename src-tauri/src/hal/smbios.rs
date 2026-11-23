@@ -88,7 +88,7 @@ pub(crate) fn manufacturer(raw: &[u8]) -> Result<String> {
     bail!("SMBIOS结构数量超过支持范围")
 }
 
-/// 已安装内存条（Type 17）的最高配置速率；DDR4/DDR5 的 SMBIOS 数值即有效传输速率（MT/s）。
+/// 概览只显示各已安装内存设备共同的配置速率（MT/s）。
 pub(crate) fn memory_speed(raw: &[u8]) -> Result<u32> {
     let table = structure_table(raw)?;
     let mut speed = None;
@@ -98,7 +98,12 @@ pub(crate) fn memory_speed(raw: &[u8]) -> Result<u32> {
             break;
         };
         if structure.kind == 17 {
-            speed = speed.max(device_speed(structure.formatted));
+            if let Some(configured) = configured_speed(structure.formatted)? {
+                if speed.is_some_and(|previous| previous != configured) {
+                    bail!("SMBIOS内存设备的配置速率不一致");
+                }
+                speed = Some(configured);
+            }
         }
         if structure.kind == 127 {
             break;
@@ -108,20 +113,26 @@ pub(crate) fn memory_speed(raw: &[u8]) -> Result<u32> {
     speed.context("SMBIOS缺少已安装内存条")
 }
 
-/// 已占用插槽取配置速率（0x20，需结构长度 ≥ 0x22），未报告时回退最大速率（0x14）；空槽（0x0C）不参与。
-fn device_speed(formatted: &[u8]) -> Option<u32> {
+fn configured_speed(formatted: &[u8]) -> Result<Option<u32>> {
     let word = |offset: usize| {
         formatted
             .get(offset..offset + 2)
             .map(|bytes| u16::from_le_bytes(bytes.try_into().unwrap()))
     };
-    let size = word(0x0c)?;
-    if size == 0 || size == 0xffff {
-        return None;
+    match word(0x0c) {
+        Some(0) => return Ok(None),
+        None | Some(0xffff) => bail!("SMBIOS内存设备容量未知"),
+        _ => {}
     }
-    let configured = word(0x20).filter(|value| *value != 0);
-    let maximum = word(0x14).filter(|value| *value != 0);
-    configured.or(maximum).map(u32::from)
+    let speed = match word(0x20) {
+        Some(0xffff) => formatted
+            .get(0x58..0x5c)
+            .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+            .filter(|value| (0xffff..=0x7fff_ffff).contains(value)),
+        Some(value) if value != 0 => Some(u32::from(value)),
+        _ => None,
+    };
+    Ok(Some(speed.context("SMBIOS未报告有效的内存配置速率")?))
 }
 
 fn firmware_table() -> Result<Vec<u8>> {
@@ -211,20 +222,35 @@ mod tests {
     #[test]
     fn populated_devices_report_configured_speed_and_empty_slots_are_skipped() {
         let table = [
-            memory_device(0xc000, 5600, Some(5600)), // 16GB（粒度位+MB），取配置速率
-            memory_device(0, 0, Some(0)),            // 空槽：Size 与速率均不参与
-            memory_device(0xc000, 5600, Some(5200)), // 混插时按最高报告值
+            memory_device(16384, 5600, Some(5200)),
+            memory_device(0, 6400, None),
+            memory_device(16384, 6400, Some(5200)),
             vec![127, 4, 0, 0, 0, 0],
         ]
         .concat();
-        assert_eq!(memory_speed(&raw(&table)).unwrap(), 5600);
+        assert_eq!(memory_speed(&raw(&table)).unwrap(), 5200);
     }
     #[test]
-    fn missing_configured_speed_falls_back_to_maximum_speed() {
-        let table = [memory_device(0xc000, 4800, None), vec![127, 4, 0, 0, 0, 0]].concat();
-        assert_eq!(memory_speed(&raw(&table)).unwrap(), 4800);
-        let unreported = [memory_device(0xc000, 0, Some(0)), vec![127, 4, 0, 0, 0, 0]].concat();
-        assert!(memory_speed(&raw(&unreported)).is_err());
+    fn missing_and_mixed_configured_speeds_do_not_report_a_single_speed() {
+        let known = memory_device(16384, 5600, Some(5200));
+        for configured in [None, Some(0), Some(5600), Some(0xffff)] {
+            let other = memory_device(16384, 6400, configured);
+            assert!(memory_speed(&raw(&[known.as_slice(), other.as_slice()].concat())).is_err());
+        }
+    }
+    #[test]
+    fn extension_is_used_only_for_the_configured_speed_sentinel() {
+        let mut structure = memory_device(16384, 5600, Some(0xffff));
+        structure.resize(0x5c + 2, 0);
+        structure[1] = 0x5c;
+        for speed in [0u32, 6400, 0x8000_0000] {
+            structure[0x58..0x5c].copy_from_slice(&speed.to_le_bytes());
+            assert!(memory_speed(&raw(&structure)).is_err());
+        }
+        structure[0x58..0x5c].copy_from_slice(&70_000u32.to_le_bytes());
+        assert_eq!(memory_speed(&raw(&structure)).unwrap(), 70_000);
+        structure[0x20..0x22].copy_from_slice(&5200u16.to_le_bytes());
+        assert_eq!(memory_speed(&raw(&structure)).unwrap(), 5200);
     }
     #[test]
     fn absent_or_unknown_memory_devices_do_not_report_a_speed() {

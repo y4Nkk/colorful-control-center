@@ -14,10 +14,36 @@ test("所有工作区共用品牌顶栏，浏览不写硬件", async ({ page }) 
     await expect(banner.getByText(name, { exact: true })).toHaveCount(0);
   }
   await navigate(page, "概览");
-  await expect(page.getByRole("region", { name: "温度趋势", exact: true })).toBeVisible();
+  await expect(page.getByRole("img", { name: /最近 5 分钟温度趋势/ })).toHaveCount(2);
   await expect(page.locator("[data-configuration-apply]")).toHaveCount(0);
   const writes = await page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_|set_|enable_|restore_)/.test(call.command) && call.command !== "set_shortcut_recording"));
   expect(writes).toEqual([]);
+});
+
+test("电源页签用键盘移动焦点、激活面板并恢复选中项", async ({ page }) => {
+  await openPowerArea(page, "电源设置");
+  const tabs = page.getByRole("tablist", { name: "电源区域" });
+  const settings = tabs.getByRole("tab", { name: "电源设置" });
+  const profiles = tabs.getByRole("tab", { name: "配置档案" });
+  const panel = page.getByRole("tabpanel", { name: "电源设置" });
+  await expect(settings).toHaveAttribute("aria-controls", await panel.getAttribute("id"));
+  await expect(panel).toHaveAttribute("aria-labelledby", await settings.getAttribute("id"));
+  await settings.press("ArrowLeft");
+  await expect(profiles).toBeFocused();
+  await expect(panel).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(panel).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(settings).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(profiles).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("tabpanel", { name: "配置档案" })).toBeVisible();
+  await expect(panel).toBeHidden();
+  await page.keyboard.press("Home");
+  await expect(settings).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(panel).toBeVisible();
 });
 
 test("概览与性能散热独立，电源下的档案预览在切页后保留", async ({ page }) => {
@@ -27,10 +53,13 @@ test("概览与性能散热独立，电源下的档案预览在切页后保留",
     await expect(nav.getByRole("button", { name, exact: true })).toHaveCount(0);
   await navigate(page, "概览");
   const overview = page.getByRole("region", { name: "概览", exact: true });
-  await expect(overview.getByRole("region", { name: "温度趋势", exact: true }).getByRole("heading", { name: "温度趋势", exact: true })).toBeVisible();
+  for (const [part, clock] of [["CPU", "2900 MHz"], ["GPU", "1800 MHz"]]) {
+    const card = overview.getByRole("region", { name: `${part} 运行读数`, exact: true });
+    await expect(card.getByLabel("当前频率", { exact: true })).toHaveText(clock);
+    await expect(card.getByRole("img", { name: new RegExp(`^${part} 最近 5 分钟温度趋势`) })).toBeVisible();
+  }
   await expect(page.getByRole("region", { name: "当前模式", exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "预设模式", exact: true })).toHaveCount(0);
-  await expect(page.locator(".ccc-sensor-summary output")).toHaveText(["1800 RPM", "1500 RPM"]);
   await navigate(page, "性能与散热");
   await expect(page.getByRole("main", { name: "性能与散热", exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "概览", exact: true })).toBeHidden();
@@ -42,7 +71,7 @@ test("概览与性能散热独立，电源下的档案预览在切页后保留",
   await expect.poll(() => page.evaluate(() => window.__uiFixture.fan.offsetPct)).toBe(38);
   await expect(offset).toBeEnabled();
   await openPowerArea(page, "配置档案");
-  await expect(page.getByRole("region", { name: "配置档案", exact: true })).toBeVisible();
+  await expect(page.getByRole("tabpanel", { name: "配置档案", exact: true })).toBeVisible();
   const profileApply = page.getByRole("region", { name: "档案预览", exact: true }).getByRole("button", { name: "应用档案", exact: true });
   const selected = page.getByRole("region", { name: "档案列表", exact: true }).getByRole("button", { name: /隔离档案/ });
   await expect(selected).toHaveAttribute("aria-pressed", "true");
@@ -57,14 +86,14 @@ test("概览与性能散热独立，电源下的档案预览在切页后保留",
   await expect(selected).toHaveAttribute("aria-pressed", "true");
   await expect(profileApply).toBeEnabled();
   expect(await page.evaluate(() => window.__uiFixture.calls.filter(call => /^(set_fan|apply_fan|apply_profile)/.test(call.command))))
-    .toEqual([{ command: "set_fan_offset", args: { pct: 38 } }]);
+    .toEqual([{ command: "set_fan_offset", args: { expected: { mode: 0, slot: null }, pct: 38 } }]);
 });
 
 test("托盘请求打开电源下的配置档案并预览指定档案", async ({ page }) => {
   await navigate(page, "设备配置");
   await page.evaluate(() => window.__uiEmit("tray-navigation-request", { kind: "profile", name: "隔离档案" }));
   const power = page.getByRole("main", { name: "电源与档案", exact: true });
-  await expect(power.getByRole("radio", { name: "配置档案", exact: true })).toBeChecked();
+  await expect(power.getByRole("tab", { name: "配置档案", exact: true })).toHaveAttribute("aria-selected", "true");
   const preview = power.getByRole("region", { name: "档案预览", exact: true });
   await expect(preview.getByRole("heading", { name: "隔离档案", exact: true })).toBeVisible();
   await expect(preview.getByRole("button", { name: "应用档案", exact: true })).toBeEnabled();
@@ -100,7 +129,7 @@ for (const legacy of ["profiles", "dashboard:profiles"]) test(`旧档案访问�
   for (let attempt = 0; attempt < 2; attempt++) {
     await page.reload();
     const power = page.getByRole("main", { name: "电源与档案", exact: true });
-    await expect(power.getByRole("radio", { name: "配置档案", exact: true })).toBeChecked();
+    await expect(power.getByRole("tab", { name: "配置档案", exact: true })).toHaveAttribute("aria-selected", "true");
     await expect(power.getByRole("button", { name: "保存当前配置", exact: true })).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem("ccc-last-page"))).toBe("power:profiles");
   }
@@ -199,11 +228,11 @@ for (const theme of ["light", "dark"]) {
         const main = page.getByRole("main", { name, exact: true });
         const bounds = await main.boundingBox();
         expect(bounds.x + bounds.width).toBeLessThanOrEqual(width + 1);
-        const powerTabs = main.getByRole("radiogroup", { name: "电源区域", exact: true });
+        const powerTabs = main.getByRole("tablist", { name: "电源区域", exact: true });
         if (area === "电源设置") powerTabsX = (await powerTabs.boundingBox()).x;
         if (area === "配置档案") {
           expect((await powerTabs.boundingBox()).x).toBe(powerTabsX);
-          const tabs = powerTabs.getByRole("radio");
+          const tabs = powerTabs.getByRole("tab");
           const tops = await tabs.evaluateAll(options => options.map(option => option.getBoundingClientRect().top));
           const rows = [...new Set(tops)].map(top => tops.filter(value => value === top).length);
           expect(rows).toEqual([2]);

@@ -53,7 +53,7 @@ test("空库只展示真实入口，保存性能组不受其他设备失败影�
   await details.click();
   const cpuValue = profilePanel(page).getByLabel("保存设置 · CPU 持续功耗上限", { exact: true });
   await expect(cpuValue).toHaveText("65 W");
-  await profilePanel(page).getByRole("radio", { name: "应用前已读取" }).check();
+  await profilePanel(page).getByRole("tab", { name: "应用前已读取" }).click();
   await expect(cpuValue).toHaveText("45 W");
   await details.click();
   await page.setViewportSize({ width: 360, height: 720 });

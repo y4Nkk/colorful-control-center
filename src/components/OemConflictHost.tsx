@@ -100,7 +100,7 @@ function OemConflictDialog({ prompt, inspection, busy, onClose, onConfirm }: {
   const actionLabel = mode ? "关闭并切换" : "关闭 FnKey";
   return <Dialog title={fnKey ? "关闭原厂 FnKey" : "原厂软件冲突"} width="narrow" open={prompt !== null} busy={busy} onClose={onClose}
     actions={<><Button variant="secondary" disabled={busy} onClick={onClose}>{ready || inspection.checking ? "取消" : "知道了"}</Button>
-      {ready && <Button icon={busy ? "loading" : undefined} disabled={busy} onClick={() => void onConfirm()}>
+      {ready && <Button icon={busy ? "loading" : undefined} disabled={busy} aria-busy={busy || undefined} onClick={() => void onConfirm()}>
         {busy ? `正在${actionLabel}…` : actionLabel}
       </Button>}</>}>
     {mode && <p>关闭原厂 FnKey 后，控制台会切换到「{mode}」。</p>}

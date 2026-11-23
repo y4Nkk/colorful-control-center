@@ -196,15 +196,14 @@ fn quiet_fan(io: &impl ModeIo, power_mode: u8, fan: u8, turbo: bool) -> Result<O
 
 pub(crate) fn ensure_noiseless_allowed(hal: &Hal) -> Result<()> {
     hal.with_dchu(|io| {
-        if turbo_enabled(io)? {
+        if turbo_enabled(io, current_mode(io)?)? {
             bail!("请关闭 Turbo 风扇，再启用{NOISELESS_FAN_LABEL}");
         }
         Ok(())
     })
 }
 
-pub(crate) fn turbo_enabled(io: &impl ModeIo) -> Result<bool> {
-    let mode = current_mode(io)?;
+pub(crate) fn turbo_enabled(io: &impl ModeIo, mode: u8) -> Result<bool> {
     if mode == 3 {
         return Ok(runtime_options(io, mode)?[0]
             && io

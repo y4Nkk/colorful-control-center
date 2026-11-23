@@ -57,6 +57,18 @@
 
 .ccc-panel-title { min-width: 0; margin: 0; font-size: var(--ccc-text-xl); font-weight: 600; overflow-wrap: anywhere; }
 
+.ccc-tuning-head, .ccc-tuning-meta { display: grid; justify-items: start; }
+.ccc-tuning-meta { padding-inline-start: calc(var(--ccc-icon-size) + var(--ccc-space-2)); }
+.ccc-tuning-scope { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-2) var(--ccc-space-3); }
+.ccc-cpu-tab-content { display: grid; gap: var(--ccc-space-3); }
+.ccc-tuning-columns, .ccc-tuning-group { display: grid; grid-template-columns: minmax(0, 1fr); }
+.ccc-tuning-columns { gap: var(--ccc-space-4); }
+.ccc-tuning-group { gap: var(--ccc-space-3); padding: var(--ccc-space-4); border-radius: var(--ccc-radius-card); background: var(--ccc-content-muted); }
+.ccc-tuning-group h3 { margin: 0; font-size: var(--ccc-text-md); font-weight: 600; }
+@container ccc-control (min-width: 40rem) {
+  .ccc-tuning-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 /* ---- 状态与说明 ---- */
 
 .ccc-control-caption {

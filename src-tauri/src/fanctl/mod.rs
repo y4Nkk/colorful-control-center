@@ -5,7 +5,7 @@ mod profile;
 pub mod rpm;
 pub(crate) mod saved;
 pub mod software;
-use crate::{hal::Hal, watchdog};
+use crate::{hal::Hal, powerctl::mode as power, watchdog};
 use anyhow::{Result, anyhow, bail};
 use ccc_core::{
     fan::{OemCurvePoints, build_curve_package, oem_duty_byte},
@@ -13,8 +13,8 @@ use ccc_core::{
 };
 pub(crate) use checkpoint::StoredCheckpoint;
 pub use checkpoint::{FanCheckpoint, checkpoint, restore_checkpoint};
-pub(crate) use profile::supports_noiseless;
 pub use profile::{CurveKind, FanProfile};
+pub(crate) use profile::{OffsetSource, supports_noiseless};
 
 pub const FAN_MODE_AUTO: u8 = 0;
 pub(crate) const FAN_MODE_FULL_SPEED: u8 = 1;
@@ -25,16 +25,30 @@ pub(crate) const NOISELESS_FAN_LABEL: &str = "寂静模式";
 pub(crate) fn read_firmware_profile(hal: &Hal) -> Result<FanProfile> {
     hal.with_dchu(|d| {
         let capabilities = d.read_bios_capabilities(0, 256)?;
-        let mut profile =
-            profile::decode(&d.read_package(13)?, &d.read_settings(4, 0, 256)?, &capabilities)?;
-        // WMI96 bit10=1 时原厂禁用偏移（PSF 1.0 读能力字、旧页头活读）；能力位只叠加
-        // 禁用，不推翻 RPM 布局的不支持结论。读取失败不判死，保留布局默认并提示诊断。
-        match crate::powerctl::mode::feature_flags(d, &capabilities[..18], 96) {
-            Ok(flags) => profile.offset_supported &= flags & (1 << 10) == 0,
-            Err(error) => profile
-                .warnings
-                .push(format!("风扇偏移能力未知：{error:#}")),
+        let mut profile = profile::decode(
+            &d.read_package(13)?,
+            &d.read_settings(4, 0, 256)?,
+            &capabilities,
+        )?;
+        let quiet = supports_noiseless(&capabilities);
+        let remembers = saved::keeps_mode(&capabilities);
+        if quiet || remembers {
+            let power_mode = power::current_mode(d)?;
+            profile.current_mode = saved::effective_mode(d, power_mode, profile.saved_mode, quiet)?;
+            profile.offset_slot = remembers
+                .then(|| saved::mode_slot(power_mode))
+                .transpose()?;
         }
+        let allows_offset = if profile.curve_kind == CurveKind::RpmTable {
+            Ok(false)
+        } else {
+            power::feature_flags(d, &capabilities[..18], 96).map(|flags| flags & (1 << 10) == 0)
+        };
+        profile.offset_blocked_reason = match allows_offset {
+            Ok(true) => None,
+            Ok(false) => Some("此机型不支持风扇加速偏移。".into()),
+            Err(error) => Some(format!("风扇偏移能力未知：{error:#}")),
+        };
         Ok(profile)
     })
 }
@@ -56,6 +70,19 @@ pub fn read_profile(hal: &Hal) -> Result<FanProfile> {
     profile.blocked_reason = dust::ensure_manual_allowed(hal)
         .err()
         .map(|e| format!("{e:#}"));
+    if profile.offset_blocked_reason.is_none() {
+        profile.offset_blocked_reason = if let Some(reason) = &profile.blocked_reason {
+            Some(reason.clone())
+        } else if profile.software.is_some() {
+            Some("软件接管期间无法调节加速偏移。".into())
+        } else if !matches!(profile.current_mode, FAN_MODE_AUTO | FAN_MODE_NOISELESS)
+            || !profile.available_modes.contains(&profile.current_mode)
+        {
+            Some("仅自动或寂静模式可调节加速偏移。".into())
+        } else {
+            None
+        };
+    }
     Ok(profile)
 }
 
@@ -76,27 +103,21 @@ fn capture_baseline(hal: &Hal, current: &FanProfile, patches: &[Patch]) -> Resul
     } else {
         None
     };
-    let (before, mode) = hal.with_dchu(|d| {
-        let fields = patches
+    let before = hal.with_dchu(|d| {
+        patches
             .iter()
             .map(|p| {
                 d.read_settings(4, p.offset as i32, p.data.len())
                     .map(|bytes| Patch::new(p.offset, bytes))
             })
-            .collect::<Result<Vec<_>>>()?;
-        let mode = saved::effective_mode(
-            d,
-            current.current_mode,
-            current.available_modes.contains(&FAN_MODE_NOISELESS),
-        )?;
-        Ok((fields, mode))
+            .collect::<Result<Vec<_>>>()
     })?;
     let mut state = hal.recovery()?;
     if state.rpm_fan_pairs.is_none() {
         state.rpm_fan_pairs = rpm_pairs;
     }
     if state.fan_mode.is_none() {
-        state.fan_mode = Some(mode);
+        state.fan_mode = Some(current.current_mode);
     }
     if state.fan_package.is_none() {
         state.fan_package = profile::prepare(current, [None; 3])
@@ -167,8 +188,10 @@ pub fn apply_curve(
 pub(crate) fn automatic_mode(hal: &Hal) -> Result<u8> {
     hal.with_dchu(|d| {
         let caps = d.read_bios_capabilities(0, 22)?;
-        let quiet = supports_noiseless(&caps) && !crate::powerctl::mode::boost::turbo_enabled(d)?;
-        saved::effective_mode(d, FAN_MODE_AUTO, quiet)
+        if !supports_noiseless(&caps) {
+            return Ok(FAN_MODE_AUTO);
+        }
+        saved::effective_mode(d, power::current_mode(d)?, FAN_MODE_AUTO, true)
     })
 }
 
@@ -218,20 +241,50 @@ pub fn apply_mode_policy(hal: &Hal, saved_mode: u8, mode: u8) -> Result<()> {
     fail_safe(hal, result)
 }
 
-pub fn set_offset(hal: &Hal, pct: u32) -> Result<()> {
+pub(crate) fn set_manual_offset(hal: &Hal, expected: OffsetSource, pct: u32) -> Result<()> {
+    let current = read_profile(hal)?;
+    if let Some(reason) = &current.offset_blocked_reason {
+        bail!("{reason}");
+    }
+    if current.current_mode != expected.mode {
+        bail!("风扇档位已变化，请重新调整");
+    }
+    if current.offset_slot != expected.slot {
+        bail!("风扇偏移记忆槽已变化，请重新调整");
+    }
+    write_offset(hal, &current, pct)
+}
+
+pub(crate) fn set_mode_offset(hal: &Hal, pct: u32) -> Result<()> {
     dust::ensure_manual_allowed(hal)?;
+    write_offset(hal, &read_profile(hal)?, pct)
+}
+
+fn write_offset(hal: &Hal, current: &FanProfile, pct: u32) -> Result<()> {
     if pct > 100 {
         bail!("风扇偏移范围 0–100%");
     }
-    let current = read_profile(hal)?;
-    let patches = hal.with_dchu(|io| saved::offset(io, pct as u8))?;
-    capture_baseline(hal, &current, &patches)?;
+    let patches = saved::offset(current.offset_slot, pct as u8);
+    let mut baseline = patches.clone();
+    // 自动回退会改写保存档位，初始恢复需要保留它。
+    baseline.push(Patch::new(5, [current.saved_mode]));
+    capture_baseline(hal, current, &baseline)?;
     software::stop_safely(hal)?;
     fail_safe(
         hal,
         hal.with_dchu(|d| {
             d.set_data_sub(121, 14, oem_duty_byte(pct as f64) as u32)?;
-            settings::apply(d, 4, &patches, None).map_err(|e| anyhow!(e))?;
+            if let Err(error) = settings::apply(d, 4, &patches, None) {
+                let restore = if current.offset_pct <= 100 {
+                    d.set_data_sub(121, 14, oem_duty_byte(f64::from(current.offset_pct)) as u32)
+                } else {
+                    Err(anyhow!("写入前的保存偏移超出范围"))
+                };
+                return Err(anyhow!(match restore {
+                    Ok(()) => format!("{error}；已重新下发写入前的风扇偏移"),
+                    Err(restore) => format!("{error}；风扇偏移补偿失败：{restore:#}"),
+                }));
+            }
             Ok(())
         }),
     )

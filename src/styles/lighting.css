@@ -15,8 +15,8 @@
 }
 .ccc-lighting-mode { justify-items: start; }
 .ccc-lighting-mode > span:first-child, .ccc-lighting-brightness-head { align-self: end; font-weight: 600; }
-.ccc-lighting-zone-controls { display: flex; flex-wrap: wrap; align-items: center; align-self: start; gap: var(--ccc-space-2); }
-.ccc-lighting-zones { display: flex; flex-wrap: wrap; gap: var(--ccc-space-1); }
+.ccc-lighting-zone-editor { display: grid; gap: var(--ccc-space-3); }
+.ccc-lighting-zone-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--ccc-space-4); }
 .ccc-lighting-brightness-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--ccc-space-2); }
 .ccc-lighting-brightness-levels {
   display: grid;

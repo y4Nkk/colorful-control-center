@@ -4,6 +4,33 @@ test.beforeEach(async ({ page }) => { await page.goto("/tools/ui-check/index.htm
 const mode = page => page.getByRole("combobox", { name: "选择模式", exact: true });
 const options = page => page.getByRole("listbox", { name: "选择模式", exact: true });
 
+test("禁用菜单项仍命中禁止光标，其余禁用控件也显示禁止光标", async ({ page }) => {
+  const field = mode(page);
+  await field.click();
+  const unavailable = options(page).getByRole("option", { name: "Bravo", exact: true });
+  await expect(unavailable).toBeDisabled();
+  await unavailable.hover();
+  expect(await unavailable.evaluate(option => {
+    const { x, y, width, height } = option.getBoundingClientRect();
+    const hit = document.elementFromPoint(x + width / 2, y + height / 2);
+    return hit && option.contains(hit) ? getComputedStyle(hit).cursor : null;
+  })).toBe("not-allowed");
+  await page.mouse.down(); await page.mouse.up();
+  await expect(options(page)).toBeVisible();
+  await expect(page.getByLabel("已选模式")).toHaveText("a");
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: "切换禁用" }).click();
+  for (const control of [
+    field, page.getByRole("slider", { name: "测试滑杆" }), page.getByRole("checkbox", { name: "测试复选" }),
+    page.getByRole("switch", { name: "测试开关" }), page.getByRole("radio", { name: "不可选项" }),
+    page.getByRole("button", { name: "执行隔离操作", exact: true }),
+  ]) {
+    await expect(control).toBeDisabled();
+    await expect(control).toHaveCSS("cursor", "not-allowed");
+  }
+});
+
 test("普通/搜索菜单同源，普通选择完整键盘与焦点行为", async ({ page }) => {
   const field = mode(page);
   await field.press("ArrowDown");

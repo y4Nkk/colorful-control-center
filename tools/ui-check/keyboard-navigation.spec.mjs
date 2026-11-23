@@ -84,7 +84,12 @@ test("确认失败保留请求，重新进入键盘与灯光后可以重试", as
   await openPowerArea(page, "配置档案");
   await page.evaluate(() => { window.__uiFixture.navigationAckFault = "导航确认失败"; });
   await request(page, 15);
-  await expect(page.getByText("导航确认失败", { exact: true }).first()).toBeVisible();
+  const notice = page.getByRole("button", { name: "通知（1 条）", exact: true });
+  await expect(notice.getByRole("alert")).toHaveText("热键导航状态未确认");
+  await notice.click();
+  const details = page.getByRole("dialog", { name: "通知", exact: true });
+  await expect(details.getByText("导航确认失败", { exact: true })).toBeVisible();
+  await details.getByRole("button", { name: "收起通知", exact: true }).click();
   expect(await page.evaluate(() => window.__uiFixture.hotkeys.status.navigationRequest.id)).toBe(15);
   await openPowerArea(page, "配置档案");
   await nav(page).getByRole("button", { name: "键盘与灯光", exact: true }).click();

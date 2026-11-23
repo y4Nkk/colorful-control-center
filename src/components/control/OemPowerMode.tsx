@@ -5,7 +5,7 @@ import { DetailsDialog } from "../DetailsDialog";
 import { OemConflictAction } from "../OemConflictAction";
 import { OEM_POWER_MODES } from "../../api/client";
 import { Icon } from "../Icon";
-import { PresetChipArtwork } from "./PresetChipArtwork";
+import { PresetArtwork, presetPalette } from "./PresetArtwork";
 import { useOemPowerMode } from "./useOemPowerMode";
 import { ParameterDescriptions } from "./ParameterHelp";
 import { MODE_HELP } from "./parameterDescriptions";
@@ -31,7 +31,9 @@ export function OemPowerMode({ active, revision, onSettled }: { active: boolean;
   const presets = PRESETS.filter(mode => mode !== 4 || profile?.availableModes.includes(mode));
   const unsupported = hasModes ? presets.filter(mode => !profile?.availableModes.includes(mode)) : [];
   const options = presets.map(mode => ({
-    value: String(mode), label: modeLabel(mode), disabled: !profile?.availableModes.includes(mode),
+    value: String(mode),
+    label: <span className="ccc-preset-label" data-preset-palette={presetPalette(mode)}>{modeLabel(mode)}</span>,
+    disabled: !profile?.availableModes.includes(mode),
     title: unsupported.includes(mode) ? "固件不支持" : undefined,
   }));
   const status = targetMode !== undefined ? `正在切换到${modeLabel(targetMode)}…`
@@ -49,8 +51,10 @@ export function OemPowerMode({ active, revision, onSettled }: { active: boolean;
         <ParameterDescriptions items={MODE_HELP} />
       </DetailsDialog></div>
     </div>
-    <PresetChipArtwork mode={currentMode} active={active} />
-    <p className="ccc-preset-current" aria-live="polite">{currentModeLabel(currentMode, reading)}</p>
+    <PresetArtwork mode={currentMode} active={active} />
+    <p className="ccc-preset-current ccc-preset-label" data-preset-palette={presetPalette(currentMode)} aria-live="polite">
+      {currentModeLabel(currentMode, reading)}
+    </p>
     <SegmentedControl className="ccc-preset-switcher" label="预设模式选择" value={currentMode === undefined ? "" : String(currentMode)}
       options={options} disabled={blocked} busy={disabled} pendingValue={targetMode === undefined ? undefined : String(targetMode)}
       onChange={selectMode} onReselect={selectMode} />

@@ -3,13 +3,13 @@ import { useRef, useState } from "react";
 import type { RpmPoint } from "../../api/client";
 import { PointNumber } from "./CurvePointInputs";
 import { FanCurveLegend, FanCurvePlot } from "./FanCurvePlot";
-import { FanEditorLayout, type FanEditorSections } from "./FanEditorLayout";
+import { FanCurveSection } from "./FanCurveSection";
 import { FirmwareCurveHandle } from "./FirmwareCurveHandle";
 import { useFanEdit } from "./useFanEdit";
 import { moveRpmPoint, rpmLimits, rpmStepPath, sameRpmCurve } from "./rpmCurve";
 
 interface Props {
-  sections: FanEditorSections;
+  status?: string;
   fanName: string;
   source: object;
   current: RpmPoint[];
@@ -18,7 +18,7 @@ interface Props {
   onCommit: (points: RpmPoint[]) => void;
 }
 
-export function RpmCurveEditor({ sections, fanName, source, current, maximumRpm, editable, onCommit }: Props) {
+export function RpmCurveEditor({ status, fanName, source, current, maximumRpm, editable, onCommit }: Props) {
   const plot = useRef<HTMLDivElement>(null);
   const [selected, select] = useState(0);
   const edit = useFanEdit(source, current, onCommit);
@@ -28,7 +28,7 @@ export function RpmCurveEditor({ sections, fanName, source, current, maximumRpm,
   const changeRpm = (value: number) => (before: RpmPoint[]) => moveRpmPoint(before, selected, before[selected].tempC, value);
   const differs = !sameRpmCurve(current, draft);
   const chart = <div className="ccc-plot-wrap">
-    <FanCurvePlot label="十级温度与目标转速曲线" measure="目标转速" minTemp={0} maxTemp={100}
+    <FanCurvePlot label="十级温度与目标转速曲线" measure="目标转速" minTemp={0} maxTemp={100} startTemp={0}
       plotRef={plot} draftPath={rpmStepPath(draft)} currentPath={differs ? rpmStepPath(current) : undefined}>
       {draft.map((p, index) => {
         const bounds = rpmLimits(draft, index).temp;
@@ -46,8 +46,8 @@ export function RpmCurveEditor({ sections, fanName, source, current, maximumRpm,
       <span className="ccc-plot-hint">十级阈值 · 新目标 ≥20%</span>
     </FanCurveLegend>
   </div>;
-  return <FanEditorLayout {...sections} plot={chart} fields={<>
-    <h3>{fanName} 曲线点</h3>
+  return <FanCurveSection status={status} plot={chart} fields={<>
+    <h4>{fanName} 曲线点</h4>
     <div className="ccc-curve-point ccc-rpm-inputs" role="group" aria-label="RPM 曲线数值">
       <label className="ccc-curve-number">级别<Select size="compact" value={String(selected)} label="选择 RPM 级别"
         disabled={!editable}

@@ -197,7 +197,7 @@ fn apply_inner(hal: &Hal, curves: &Curves, manual: bool) -> Result<()> {
     let current = super::read_profile(hal)?;
     prepare(&current, curves)?;
     let mut session = Session::new(curves.clone(), &hal.snapshot())?;
-    super::capture_baseline(hal, &current, &[Patch::new(5, [current.current_mode])])?;
+    super::capture_baseline(hal, &current, &[Patch::new(5, [current.saved_mode])])?;
     hal.arm_fan_guard()?;
     let result = (|| {
         stop(hal)?;

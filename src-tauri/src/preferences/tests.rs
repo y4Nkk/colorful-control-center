@@ -25,6 +25,16 @@ fn complete_contract_round_trips_and_rejects_missing_unknown_and_invalid_values(
 }
 
 #[test]
+fn existing_preferences_enable_oem_close_and_keep_the_saved_window_choice() {
+    let mut value = serde_json::to_value(Preferences::default()).unwrap();
+    value["startMinimized"] = true.into();
+    value.as_object_mut().unwrap().remove("closeOemOnStartup");
+    let settings = serde_json::from_value::<Preferences>(value).unwrap();
+    assert!(settings.close_oem_on_startup);
+    assert!(settings.start_minimized);
+}
+
+#[test]
 fn only_absent_files_receive_defaults_and_damaged_files_are_preserved() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("preferences.json");
@@ -56,6 +66,7 @@ fn saved_preferences_are_complete_persistent_and_restart_state_tracks_startup() 
         close_behavior: CloseBehavior::Exit,
         always_on_top: true,
         start_minimized: true,
+        close_oem_on_startup: false,
         startup_page: StartupPage::LastVisited,
         global_shortcut: "shift+control+KeyK".into(),
         hardware_acceleration: false,

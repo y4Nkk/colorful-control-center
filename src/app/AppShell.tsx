@@ -52,8 +52,8 @@ export function AppShell({ location, onPageChange, globalInfo, preferences, chil
           <BrandLogo className="ccc-brand-icon" data-tauri-drag-region />
           <span className="ccc-brand-name" data-tauri-drag-region>Colorful Control Center</span>
         </h1>
-        <div className="ccc-topbar-spacer" data-tauri-drag-region />
         <div className="ccc-global-info">{globalInfo}</div>
+        <div className="ccc-topbar-spacer" data-tauri-drag-region />
         {isDesktopWindow() && <WindowControls preferences={preferences} />}
       </header>
       <ScrollArea as="main" surface="workspace" className="ccc-workspace" aria-label={pageTitle(page)} viewportRef={viewport}

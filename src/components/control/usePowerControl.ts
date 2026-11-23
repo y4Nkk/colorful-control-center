@@ -7,16 +7,24 @@ import { toast } from "../use-toast";
 import type { DiffItem } from "./DiffPreview";
 
 export type PowerTarget = "runtime" | "saved";
-export interface PowerDraft { pl1: number; pl2: number; coreMv: number; gtMv: number }
+export const CPU_PL_MIN = 35;
+export const CPU_PL_MAX = 157;
+interface PowerLimits { pl1: number; pl2: number }
+interface PowerDraft { limits: PowerLimits | null; coreMv: number; gtMv: number }
 const valuesOf = (profile: PowerProfile, target: PowerTarget): PowerValues => target === "runtime" ? profile.runtime : profile;
-// PL 保存值未上报（固件未声明 CPUOC、page6 从未写入的机型）时草稿锚定出厂默认，
-// 首次调节整组提交 PL1+PL2；即时值在 MSR 可用时总是成对上报，不可用时整组滑杆已禁用。
+const sameLimits = (a: PowerLimits | null, b: PowerLimits | null) => a?.pl1 === b?.pl1 && a?.pl2 === b?.pl2;
+const editableLimit = (value: number | null) => {
+  if (value == null) return null;
+  const rounded = Math.round(value);
+  return rounded >= CPU_PL_MIN && rounded <= CPU_PL_MAX ? rounded : null;
+};
+
 const draftOf = (profile: PowerProfile, target: PowerTarget): PowerDraft => {
   const values = valuesOf(profile, target);
-  const pl1 = values.pl1W ?? (target === "saved" ? profile.defaultPl1W : null);
-  const pl2 = values.pl2W ?? (target === "saved" ? profile.defaultPl2W : null);
+  const pl1 = editableLimit(values.pl1W ?? (target === "saved" ? profile.defaultPl1W : null));
+  const pl2 = editableLimit(values.pl2W ?? (target === "saved" ? profile.defaultPl2W : null));
   return {
-    pl1: Math.round(pl1 ?? 35), pl2: Math.round(pl2 ?? 157),
+    limits: pl1 != null && pl2 != null && pl1 <= pl2 ? { pl1, pl2 } : null,
     coreMv: Math.round(values.coreOffsetMv ?? 0), gtMv: Math.round(values.gtOffsetMv ?? 0),
   };
 };
@@ -27,21 +35,21 @@ function powerChanges(profile: PowerProfile, target: PowerTarget, draft: PowerDr
   const current = draftOf(profile, target);
   const coreReady = values.coreOffsetMv != null;
   const gtReady = values.gtOffsetMv != null;
-  const pl = current.pl1 !== draft.pl1 || current.pl2 !== draft.pl2;
+  const limits = current.limits && !sameLimits(current.limits, draft.limits) ? draft.limits : null;
   const core = coreReady && current.coreMv !== draft.coreMv;
   const gt = gtReady && current.gtMv !== draft.gtMv;
   const items: DiffItem[] = [];
-  if (pl) items.push({ label: "持续功耗上限", from: plFrom(values.pl1W), to: `${draft.pl1} W` },
-    { label: "短时功耗上限", from: plFrom(values.pl2W), to: `${draft.pl2} W` });
+  if (limits) items.push({ label: "持续功耗上限", from: plFrom(values.pl1W), to: `${limits.pl1} W` },
+    { label: "短时功耗上限", from: plFrom(values.pl2W), to: `${limits.pl2} W` });
   if (core) items.push({ label: "核心电压偏移", from: `${current.coreMv} mV`, to: `${draft.coreMv} mV` });
   if (gt) items.push({ label: "核显电压偏移", from: `${current.gtMv} mV`, to: `${draft.gtMv} mV` });
-  return { current, coreReady, gtReady, pl, core, gt, items };
+  return { current, coreReady, gtReady, limits, core, gt, items };
 }
 
 async function applyDraft(profile: PowerProfile, target: PowerTarget, draft: PowerDraft) {
   const dirty = powerChanges(profile, target, draft);
   const result = await (target === "runtime" ? applyRuntimeCpu : applySavedCpu)({
-    pl1W: dirty.pl ? draft.pl1 : null, pl2W: dirty.pl ? draft.pl2 : null,
+    pl1W: dirty.limits?.pl1 ?? null, pl2W: dirty.limits?.pl2 ?? null,
     coreOffsetMv: dirty.core ? draft.coreMv : null, gtOffsetMv: dirty.gt ? draft.gtMv : null,
   });
   if (!result.ok) throw new Error(result.message);
@@ -65,8 +73,14 @@ export function usePowerControl(active: boolean, revision: number, onSettled: ()
     const before = previous.current;
     setDrafts((current) => Object.fromEntries((["runtime", "saved"] as const).map((key) => {
       const draft = current[key];
-      const dirty = before && draft && powerChanges(before, key, draft).items.length > 0;
-      return [key, reset !== "all" && reset !== key && dirty ? draft : draftOf(next, key)];
+      const fresh = draftOf(next, key);
+      if (!before || !draft || reset === "all" || reset === key) return [key, fresh];
+      const changes = powerChanges(before, key, draft);
+      return [key, {
+        limits: changes.limits && sameLimits(changes.current.limits, fresh.limits) ? draft.limits : fresh.limits,
+        coreMv: changes.core ? draft.coreMv : fresh.coreMv,
+        gtMv: changes.gt ? draft.gtMv : fresh.gtMv,
+      }];
     })) as Record<PowerTarget, PowerDraft>);
     if (!before && !next.msrRuntimeAvailable) setTarget("saved");
     previous.current = next; setProfile(next); setError(null);
@@ -89,13 +103,14 @@ export function usePowerControl(active: boolean, revision: number, onSettled: ()
   };
   const draft = drafts[target];
   const dirty = profile && draft ? powerChanges(profile, target, draft) : null;
-  const change = (patch: Partial<PowerDraft>) => setDrafts((current) => {
+  const change = (patch: Partial<PowerLimits & Omit<PowerDraft, "limits">>) => setDrafts((current) => {
     const value = current[target];
     if (!value || running.current) return current;
-    const next = { ...value, ...patch };
-    if (patch.pl1 != null) next.pl2 = Math.max(next.pl1, next.pl2);
-    if (patch.pl2 != null) next.pl1 = Math.min(next.pl1, next.pl2);
-    return { ...current, [target]: next };
+    const { pl1, pl2, ...voltage } = patch;
+    let limits = value.limits;
+    if (limits && pl1 != null) limits = { pl1, pl2: Math.max(pl1, limits.pl2) };
+    if (limits && pl2 != null) limits = { pl1: Math.min(pl2, limits.pl1), pl2 };
+    return { ...current, [target]: { ...value, ...voltage, limits } };
   });
   const reviews = profile ? (["runtime", "saved"] as const).flatMap(scope => {
     const next = drafts[scope];

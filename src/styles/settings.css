@@ -37,6 +37,7 @@
 @container ccc-settings (max-width: 640px) { .ccc-setting-row:has(.ccc-select, .ccc-shortcut-setting) { grid-template-columns: minmax(0, 1fr); } }
 @container ccc-settings (max-width: 480px) {
   .ccc-settings-group { padding: var(--ccc-space-4); }
+  .ccc-setting-row:has(.ccc-startup-display) { grid-template-columns: minmax(0, 1fr); }
   .ccc-preference-options, .ccc-preference-options.is-four, .ccc-preference-options:has(> :nth-child(2):last-child) { grid-template-columns: minmax(0, 1fr); }
   .ccc-preference-card-body { grid-template-columns: calc(var(--ccc-space-6) * 3) minmax(0, 1fr); align-items: center; }
   .ccc-preference-art { height: 100%; min-height: calc(var(--ccc-space-6) * 2); }

@@ -14,7 +14,7 @@
 }
 .ccc-control { container: ccc-control / inline-size; }
 .ccc-module-grid:empty { display: none; }
-.ccc-module-grid:is([data-module-layout="adaptive"], [data-module-layout="tuning"]) {
+.ccc-module-grid[data-module-layout="adaptive"] {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
 }
 .ccc-module-grid[data-module-layout="devices"] {
@@ -33,9 +33,6 @@
   .ccc-module-grid[data-module-layout="featured"]:has(> :nth-child(2)) {
     grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
   }
-}
-@container ccc-control (min-width: 66rem) {
-  .ccc-module-grid[data-module-layout="tuning"] { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
 }
 @container ccc-control (max-width: 692px) {
   .ccc-module-grid[data-module-layout="readings"] { grid-template-columns: minmax(0, 1fr); }

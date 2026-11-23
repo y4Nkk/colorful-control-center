@@ -2,12 +2,13 @@ import { Icon } from "../Icon";
 import { Surface } from "../Surface";
 import { Button } from "../Button";
 import { SegmentedControl } from "../SegmentedControl";
+import { Tabs } from "../Tabs";
 import { useId, useState, type ReactNode } from "react";
-import { CUSTOM_FAN_MODE, FAN_LABELS, FAN_MODES, fanModeLabel, offsetModeAvailable, type FanId, type FanProfile, type HardwareSnapshot } from "../../api/client";
+import { CUSTOM_FAN_MODE, FAN_LABELS, FAN_MODES, fanModeLabel, type FanId, type FanProfile, type HardwareSnapshot } from "../../api/client";
 import { ConfigurationAction } from "../ConfigurationAction";
 import { DetailsDialog } from "../DetailsDialog";
 import { FanCurveEditor } from "./FanCurveEditor";
-import { FanEditorLayout } from "./FanEditorLayout";
+import { FanCurveSection } from "./FanCurveSection";
 import { FanLiveReadings, fanTemperature } from "./FanLiveReadings";
 import { ScaleSlider } from "./ScaleSlider";
 import { normalizeDraft } from "./curve";
@@ -19,13 +20,13 @@ import { useFanEdit } from "./useFanEdit";
 
 export function FanPanel({ active, revision, onSettled, live }: { active: boolean; revision: number; onSettled: () => void; live: HardwareSnapshot | null }) {
   const model = useFanControl(active, revision, onSettled);
-  const [tab, setTab] = useState<FanId>("cpu");
+  const [fanId, setFanId] = useState<FanId>("cpu");
   const { profile } = model;
   const recovery = profile && model.readValid && !profile.blockedReason && <FanRecovery profile={profile} model={model} />;
   return (
     <Surface as="section" variant="group" className="ccc-panel" aria-label="风扇设置">
-      <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="fan" />风扇设置</h2>
-        <div className="ccc-module-tools"><DetailsDialog title="风扇说明与诊断" label="详情">
+      <div className="ccc-fan-panel-head"><h2 className="ccc-panel-title"><Icon name="fan" />风扇设置</h2>
+        <div className="ccc-fan-panel-help"><DetailsDialog title="风扇说明与诊断" label="说明与诊断" icon={null}>
           <section><h3>参数说明</h3><ParameterDescriptions items={FAN_HELP} /></section>
           {profile && <section><h3>安全诊断</h3><p className="ccc-control-caption">{profile.safetyStatus}</p>
             {profile.warnings.map(warning => <p key={warning} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{warning}</p>)}
@@ -34,7 +35,7 @@ export function FanPanel({ active, revision, onSettled, live }: { active: boolea
       </div>
       {model.error && <div role="alert" className="ccc-control-error">{model.error}
         <Button icon="refresh" variant="ghost" size="compact" type="button" disabled={model.busy} onClick={model.retry}>重试</Button></div>}
-      {profile ? <FanSettings model={model} profile={profile} live={live} tab={tab} onTabChange={setTab} recovery={recovery} />
+      {profile ? <FanSettings model={model} profile={profile} live={live} fanId={fanId} onFanChange={setFanId} recovery={recovery} />
         : !model.error && <span className="ccc-control-caption" role="status">读取中…</span>}
     </Surface>
   );
@@ -42,58 +43,61 @@ export function FanPanel({ active, revision, onSettled, live }: { active: boolea
 
 type FanModel = ReturnType<typeof useFanControl>;
 
-function FanSettings({ model, profile, live, tab, onTabChange, recovery }: {
+function FanSettings({ model, profile, live, fanId, onFanChange, recovery }: {
   model: FanModel; profile: FanProfile; live: HardwareSnapshot | null;
-  tab: FanId; onTabChange: (tab: FanId) => void; recovery?: ReactNode;
+  fanId: FanId; onFanChange: (id: FanId) => void; recovery?: ReactNode;
 }) {
   const fans = [...profile.fans.filter(fan => fan.present), ...profile.rpmFans];
-  const selected = fans.find(item => item.id === tab) ?? fans[0];
-  const fan = profile.fans.find(item => item.present && item.id === selected?.id);
-  const rpmFan = profile.rpmFans.find(item => item.id === selected?.id);
+  const selected = fans.find(item => item.id === fanId) ?? fans[0];
   const editable = profile.customSupported && model.readValid && !model.busy && !profile.blockedReason && !profile.software;
-  const inactiveCurve = profile.software || profile.currentMode !== CUSTOM_FAN_MODE;
-  const sections = {
-    settings: <FirmwareSettings model={model} profile={profile} live={live} id={selected?.id} />,
-    toolbar: selected ? <>
-      <SegmentedControl className="ccc-fan-selector" label="选择风扇" value={selected.id} onChange={value => onTabChange(value as FanId)}
-        options={fans.map(item => ({ value: item.id, label: FAN_LABELS[item.id] }))} />
-      {inactiveCurve && <span className="ccc-control-caption">自定义曲线未启用</span>}
-    </> : <span className="ccc-control-caption">未读取到风扇曲线</span>,
-    recovery,
-  };
-  if (fan) return <FanCurveEditor sections={sections} fanName={FAN_LABELS[fan.id]} anchors={fan} source={fan}
-    current={normalizeDraft(fan, fan)} editable={editable}
-    liveTempC={fanTemperature(live, fan.id)} onCommit={next => model.changeCurve(fan.id, next)} />;
-  if (rpmFan) return <RpmCurveEditor sections={sections} fanName={FAN_LABELS[rpmFan.id]} source={rpmFan}
-    current={rpmFan.points} maximumRpm={rpmFan.maximumRpm} editable={editable} onCommit={next => model.changeRpm(rpmFan.id, next)} />;
-  return <FanEditorLayout {...sections} />;
+  const curveStatus = profile.software || profile.currentMode !== CUSTOM_FAN_MODE ? "自定义曲线未启用" : undefined;
+  const control = !model.readValid ? "状态未读取" : profile.software ? "软件接管" : `固件 · ${fanModeLabel(profile.currentMode)}`;
+  return <div className="ccc-fan-layout">
+    {selected ? <Tabs label="选择风扇" value={selected.id} onChange={onFanChange} tabs={fans.map(fan => ({
+      value: fan.id, label: FAN_LABELS[fan.id], content: <div className="ccc-fan-details">
+        <FanLiveReadings live={live} id={fan.id} control={control} />
+        {"points" in fan ? <RpmCurveEditor status={curveStatus} fanName={FAN_LABELS[fan.id]} source={fan}
+          current={fan.points} maximumRpm={fan.maximumRpm} editable={editable} onCommit={next => model.changeRpm(fan.id, next)} />
+          : <FanCurveEditor status={curveStatus} fanName={FAN_LABELS[fan.id]} anchors={fan} source={fan}
+            current={normalizeDraft(fan, fan)} editable={editable}
+            liveTempC={fanTemperature(live, fan.id)} onCommit={next => model.changeCurve(fan.id, next)} />}
+      </div>,
+    }))} /> : <>
+      <FanLiveReadings live={live} control={control} />
+      <FanCurveSection status="未读取到风扇曲线" />
+    </>}
+    <section className="ccc-fan-settings">
+      <h3>整机设置</h3>
+      <FirmwareSettings model={model} profile={profile} />
+      {recovery}
+    </section>
+  </div>;
 }
 
-function FirmwareSettings({ model, profile, live, id }: { model: FanModel; profile: FanProfile; live: HardwareSnapshot | null; id?: FanId }) {
-  const control = !model.readValid ? "状态未读取" : profile.software ? "软件接管" : `固件 · ${fanModeLabel(profile.currentMode)}`;
+function FirmwareSettings({ model, profile }: { model: FanModel; profile: FanProfile }) {
   const disabled = model.busy || !model.readValid || !!profile.blockedReason;
-  const offsetLocked = !offsetModeAvailable(profile.currentMode);
   const offset = useFanEdit(profile, profile.offsetPct, model.setOffset);
   return <>
-    <FanLiveReadings live={live} id={id} control={control} />
-    <div className="ccc-fan-parameters">
-      <h3>整机设置</h3>
-      <SegmentedControl className="ccc-fan-modes" label="风扇模式" value={profile.software ? "" : String(profile.currentMode)}
-        disabled={disabled} onChange={value => model.setMode(Number(value))}
-        options={FAN_MODES.filter(mode => profile.availableModes.includes(mode.id)).map(mode => ({
-          value: String(mode.id), label: mode.label, disabled: mode.id === CUSTOM_FAN_MODE && !profile.customSupported,
-        }))} />
-      <ScaleSlider label="加速偏移" unit="%" min={0} max={100} current={profile.offsetPct} draft={offset.value}
-        disabled={disabled || !!profile.software || offsetLocked || !profile.offsetSupported} onChange={value => offset.update(() => value)}
-        onCommit={value => offset.commit(() => value)} onCancel={offset.cancel} />
-      {profile.offsetSupported
-        ? offsetLocked && !profile.software && !profile.blockedReason &&
-          <p className="ccc-control-caption">仅自动或寂静模式可调节加速偏移。</p>
-        : <p className="ccc-control-caption">此机型不支持风扇加速偏移。</p>}
-      {profile.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
-      {model.busy && <p className="ccc-control-caption" role="status">应用中…</p>}
-      {profile.software && !disabled && <p className="ccc-control-caption">选择固件模式可交还风扇控制。</p>}
+    <div className="ccc-fan-setting-controls">
+      <div className="ccc-fan-setting">
+        <span className="ccc-control-caption">风扇模式</span>
+        <SegmentedControl label="风扇模式" value={profile.software ? "" : String(profile.currentMode)}
+          disabled={disabled} onChange={value => model.setMode(Number(value))}
+          options={FAN_MODES.filter(mode => profile.availableModes.includes(mode.id)).map(mode => ({
+            value: String(mode.id), label: mode.label, disabled: mode.id === CUSTOM_FAN_MODE && !profile.customSupported,
+          }))} />
+        {profile.software && !disabled && <p className="ccc-control-caption">选择固件模式可交还风扇控制。</p>}
+      </div>
+      <div className="ccc-fan-setting">
+        <ScaleSlider label="加速偏移" unit="%" min={0} max={100} current={profile.offsetPct} draft={offset.value}
+          disabled={disabled || profile.offsetBlockedReason !== null} onChange={value => offset.update(() => value)}
+          onCommit={value => offset.commit(() => value)} onCancel={offset.cancel} />
+        {profile.offsetBlockedReason && profile.offsetBlockedReason !== profile.blockedReason &&
+          <p className="ccc-control-caption">{profile.offsetBlockedReason}</p>}
+      </div>
     </div>
+    {profile.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
+    {model.busy && <p className="ccc-control-caption" role="status">应用中…</p>}
   </>;
 }
 

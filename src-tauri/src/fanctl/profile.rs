@@ -6,7 +6,7 @@ use ccc_core::{
     },
     settings::Patch,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,14 +32,25 @@ pub struct FanProfile {
     pub available_modes: Vec<u8>,
     pub fan_count: u8,
     pub custom_supported: bool,
+    #[serde(skip)]
+    pub(crate) saved_mode: u8,
     pub current_mode: u8,
     pub offset_pct: u8,
-    pub offset_supported: bool,
+    pub offset_slot: Option<usize>,
+    pub offset_blocked_reason: Option<String>,
     pub can_restore: bool,
     pub fans: Vec<FanPointSet>,
     pub warnings: Vec<String>,
     pub safety_status: String,
     pub blocked_reason: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct OffsetSource {
+    pub mode: u8,
+    #[serde(deserialize_with = "Option::deserialize")]
+    pub slot: Option<usize>,
 }
 
 #[derive(Clone, Copy, PartialEq, Serialize)]
@@ -88,9 +99,11 @@ pub fn decode(package: &[u8; 256], page: &[u8], capabilities: &[u8]) -> Result<F
         available_modes: available_modes(package, capabilities, supported),
         fan_count: count,
         custom_supported: supported,
+        saved_mode: page[5],
         current_mode: page[5],
         offset_pct: page[7],
-        offset_supported: !rpm_layout,
+        offset_slot: None,
+        offset_blocked_reason: None,
         can_restore: false,
         fans,
         warnings: if supported {

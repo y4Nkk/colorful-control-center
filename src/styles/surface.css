@@ -8,8 +8,8 @@
 .ccc-surface[hidden] { display: none; }
 
 label.ccc-surface { position: relative; cursor: pointer; transition: border-color var(--ccc-motion-fast) var(--ccc-easing), background var(--ccc-motion-fast) var(--ccc-easing); }
-label.ccc-surface:hover:has(input:enabled):not(:has(input:checked)) { border-color: var(--ccc-text-muted); }
+label.ccc-surface:hover:has(input:enabled:not([aria-disabled="true"])):not(:has(input:checked)) { border-color: var(--ccc-text-muted); }
 label.ccc-surface:has(input:checked) { border-color: var(--ccc-action); background: var(--ccc-nav-selected); }
 label.ccc-surface:has(input:focus-visible) { box-shadow: var(--ccc-focus-shadow); }
-label.ccc-surface:has(input:disabled) { cursor: not-allowed; }
-label.ccc-surface:has(input:disabled):not(:has(input:checked)) { opacity: 0.5; }
+label.ccc-surface:has(input:is(:disabled, [aria-disabled="true"])) { cursor: not-allowed; }
+label.ccc-surface:has(input:is(:disabled, [aria-disabled="true"])):not(:has(input:checked)) { opacity: 0.5; }

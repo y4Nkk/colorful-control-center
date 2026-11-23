@@ -30,8 +30,8 @@ export function ConfirmButton({ label, confirmLabel, onConfirm, disabled = false
   };
   const close = () => setOpen(false);
   return <>
-    <Button variant={variant} size={size} icon={busy || pending ? "loading" : icon} disabled={disabled || busy || pending} aria-haspopup="dialog"
-      aria-busy={busy || pending || undefined} onClick={() => setOpen(true)}>{label}</Button>
+    <Button variant={variant} size={size} icon={pending ? "loading" : icon} disabled={disabled || busy || pending} aria-haspopup="dialog"
+      aria-busy={pending || undefined} onClick={() => setOpen(true)}>{label}</Button>
     <Dialog title={label} width="narrow" open={open} onClose={close}
       actions={<><Button variant="secondary" onClick={close}>取消</Button>
         <Button icon={icon} disabled={disabled || busy} onClick={() => void confirm()}>{confirmLabel}</Button></>}>

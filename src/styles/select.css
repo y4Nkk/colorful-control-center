@@ -63,7 +63,6 @@
 .ccc-select-option > span { min-width: 0; overflow-wrap: anywhere; }
 .ccc-select-option > small { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); overflow-wrap: anywhere; }
 .ccc-select-option[data-active="true"] { background: var(--ccc-nav-selected); }
-.ccc-select-option:disabled { pointer-events: none; }
 .ccc-select-check {
   position: absolute;
   inset-inline-end: var(--ccc-space-2);

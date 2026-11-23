@@ -38,8 +38,8 @@ export interface FanProfile {
   customSupported: boolean;
   currentMode: number;
   offsetPct: number;
-  /** 固件 WMI96 bit10 未置位且 RPM 布局允许加速偏移 */
-  offsetSupported: boolean;
+  offsetSlot: number | null;
+  offsetBlockedReason: string | null;
   fans: FanPointSet[];
   canRestore: boolean;
   warnings: string[];
@@ -56,8 +56,7 @@ export interface CurvePointsDto {
 
 
 export const NOISELESS_FAN_LABEL = "寂静模式";
-export const FAN_MODE_AUTO = 0;
-export const FAN_MODE_NOISELESS = 8;
+const FAN_MODE_NOISELESS = 8;
 export const CUSTOM_FAN_MODE = 6;
 export const FAN_MODES: ReadonlyArray<{ id: number; label: string }> = [
   { id: 0, label: "自动" },
@@ -71,11 +70,6 @@ export function fanModeLabel(id: number) {
   return FAN_MODES.find(mode => mode.id === id)?.label ?? "模式未知";
 }
 
-/** 原厂在自动档及其寂静覆盖档接受加速偏移；其余固件模式不提供该参数。 */
-export function offsetModeAvailable(mode: number) {
-  return mode === FAN_MODE_AUTO || mode === FAN_MODE_NOISELESS;
-}
-
 export const readFanProfile = (): Promise<FanProfile> => invoke("read_fan_profile");
 export const applyRpmFanCurves = (curves: Partial<Record<FanId, RpmPoint[]>>): Promise<OpResult> =>
   invoke("apply_rpm_fan_curves", { curves });
@@ -85,7 +79,8 @@ export const applyFanCurve = (
   gpu2: CurvePointsDto | null,
 ): Promise<OpResult> => invoke("apply_fan_curve", { cpu, gpu1, gpu2 });
 export const setFanMode = (mode: number): Promise<OpResult> => invoke("set_fan_mode", { mode });
-export const setFanOffset = (pct: number): Promise<OpResult> => invoke("set_fan_offset", { pct });
+export const setFanOffset = (expected: { mode: number; slot: number | null }, pct: number): Promise<OpResult> =>
+  invoke("set_fan_offset", { expected, pct });
 export const restoreFanDefault = (): Promise<OpResult> => invoke("restore_fan_default");
 export const restoreFanProfile = (): Promise<OpResult> => invoke("restore_fan_profile");
 

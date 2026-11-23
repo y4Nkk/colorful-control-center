@@ -11,6 +11,8 @@ import { toast } from "../use-toast";
 import { ParameterDescriptions } from "../control/ParameterHelp";
 import { GPU_TUNING_HELP } from "../control/parameterDescriptions";
 
+const TITLE = "GPU 频率";
+
 export function GpuTuning({ active, revision, onSettled }: { active: boolean; revision: number; onSettled: () => void }) {
   const [profile, setProfile] = useState<GpuProfile | null>(null);
   const [core, setCore] = useState(0);
@@ -44,18 +46,26 @@ export function GpuTuning({ active, revision, onSettled }: { active: boolean; re
     } catch (error) { setError(String(error)); }
     finally { running.current = false; setBusy(false); onSettled(); }
   };
-  if (!profile || !profile.available) return (
-    <Surface as="section" variant="group" className="ccc-panel" aria-label="GPU 频率">
-      <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="gpu" />GPU 频率</h2><span className="ccc-control-caption">{error || profile ? "不可用" : "读取中…"}</span></div>
-      <DetailsDialog title="GPU 参数与诊断" label="详情">{error
-        ? <p className="ccc-control-error" role="alert"><Icon name="error" size={16} />{error}</p>
-        : <p className="ccc-control-caption">{profile?.unavailableReason ?? "等待驱动读数"}</p>}
-        <ParameterDescriptions items={GPU_TUNING_HELP} /></DetailsDialog>
-      <Button icon="refresh" variant="ghost" size="compact" onClick={() => { void load(false).catch((e) => setError(String(e))); }}>重试</Button>
-    </Surface>
-  );
-  return <GpuControls profile={profile} core={core} mem={mem} busy={busy} error={error}
-    setCore={setCore} setMem={setMem} run={run} />;
+  return <Surface as="section" variant="group" className="ccc-panel" aria-label={TITLE}>
+    <div className="ccc-tuning-head">
+      <h2 className="ccc-panel-title"><Icon name="gpu" />{TITLE}</h2>
+      <div className="ccc-tuning-meta">
+        {profile?.gpuName && <p className="ccc-control-caption">{profile.gpuName}</p>}
+        <DetailsDialog title="GPU 参数与诊断" label="说明与诊断" icon={null}>
+          {error && <p className="ccc-control-error" role="alert"><Icon name="error" size={16} />{error}</p>}
+          {!error && !profile?.available && <p className="ccc-control-caption">{profile?.unavailableReason ?? "等待驱动读数"}</p>}
+          <ParameterDescriptions items={GPU_TUNING_HELP} />
+          {profile?.warnings.map(w => <p key={w} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{w}</p>)}
+        </DetailsDialog>
+      </div>
+    </div>
+    {profile?.available ? <GpuControls profile={profile} core={core} mem={mem} busy={busy} error={error}
+      setCore={setCore} setMem={setMem} run={run} /> : <>
+      <p className="ccc-control-caption">{error || profile ? "不可用" : "读取中…"}{profile?.unavailableReason && ` · ${profile.unavailableReason}`}</p>
+      <div className="ccc-tuning-scope"><Button icon="refresh" variant="ghost" size="compact"
+        onClick={() => { void load(false).catch((e) => setError(String(e))); }}>重试</Button></div>
+    </>}
+  </Surface>;
 }
 
 function GpuControls({ profile: p, core, mem, busy, error, setCore, setMem, run }: {
@@ -69,20 +79,15 @@ function GpuControls({ profile: p, core, mem, busy, error, setCore, setMem, run 
     ...(coreDirty ? [{ label: "核心频率偏移", from: `${p.coreOffsetMhz} MHz`, to: `${core} MHz` }] : []),
     ...(memDirty ? [{ label: "显存频率偏移", from: `${p.memOffsetMhz} MHz`, to: `${mem} MHz` }] : []),
   ];
-  return (
-    <Surface as="section" variant="group" className="ccc-panel" aria-label="GPU 频率">
-      <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="gpu" />GPU 频率</h2>
-        <div className="ccc-module-tools"><DetailsDialog title="GPU 参数与诊断" label="详情">
-          <p className="ccc-control-caption">{p.gpuName}</p><ParameterDescriptions items={GPU_TUNING_HELP} />
-          {p.warnings.map(w => <p key={w} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{w}</p>)}
-        </DetailsDialog></div>
-      </div>
+  return <>
+    <div className="ccc-tuning-group ccc-tuning-columns">
       <ScaleSlider label="核心频率偏移" unit="MHz" min={p.coreMinMhz} max={Math.max(p.coreMinMhz, p.coreMaxMhz)}
         current={p.coreOffsetMhz ?? 0} draft={core} disabled={busy || !p.coreEditable}
         unavailable={p.coreOffsetMhz == null} onChange={setCore} />
       <ScaleSlider label="显存频率偏移" unit="MHz" min={p.memMinMhz} max={Math.max(p.memMinMhz, p.memMaxMhz)}
         current={p.memOffsetMhz ?? 0} draft={mem} disabled={busy || !p.memEditable}
         unavailable={p.memOffsetMhz == null} onChange={setMem} />
+    </div>
       {error && <p className="ccc-control-error" role="alert">{error}</p>}
       <ConfigurationAction label="GPU 频率" revision={JSON.stringify([p, changes])} disabled={busy || changes.length === 0}
         onConfirm={() => run(() => applyGpuClockOffsets(coreDirty ? core : null, memDirty ? mem : null))}>
@@ -92,6 +97,5 @@ function GpuControls({ profile: p, core, mem, busy, error, setCore, setMem, run 
         onConfirm={() => run(restoreGpuBaseline)}>
         <p>恢复 GPU 初始频率偏移{p.baseline ? ` · 核心 ${p.baseline.coreOffsetMhz ?? "—"} MHz，显存 ${p.baseline.memOffsetMhz ?? "—"} MHz` : ""}。</p>
       </ConfigurationAction>
-    </Surface>
-  );
+  </>;
 }

@@ -85,8 +85,12 @@ test("关闭并切换绑定原进程和目标，等待退出时锁定重复点�
     };
   });
   await dialog.getByRole("button", { name: "关闭并切换", exact: true }).click();
-  await expect(dialog.getByRole("button", { name: "正在关闭并切换…", exact: true })).toBeDisabled();
-  await expect(dialog.getByRole("button", { name: "取消", exact: true })).toBeDisabled();
+  const proceeding = dialog.getByRole("button", { name: "正在关闭并切换…", exact: true });
+  const cancel = dialog.getByRole("button", { name: "取消", exact: true });
+  await expect(proceeding).toBeDisabled();
+  await expect(proceeding).toHaveCSS("cursor", "progress");
+  await expect(cancel).toBeDisabled();
+  await expect(cancel).toHaveCSS("cursor", "not-allowed");
   await expect(dialog.getByRole("button", { name: "关闭弹窗", exact: true })).toBeDisabled();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeVisible();
@@ -146,7 +150,7 @@ test("离开预设模式区域后丢弃迟到的 FnKey 确认", async ({ page })
   expect((await calls(page, "apply_oem_power_mode")).map(call => call.args.confirmedFnKey)).toEqual([null]);
 });
 
-test("等待写入和回读时保留当前芯片配色，并阻止重复提交", async ({ page }) => {
+test("等待写入和回读时保留当前插画配色，并阻止重复提交", async ({ page }) => {
   await setup(page);
   await page.evaluate(() => {
     const fixture = window.__uiFixture;
@@ -168,23 +172,27 @@ test("等待写入和回读时保留当前芯片配色，并阻止重复提交",
   });
   const panel = modes(page);
   const quiet = panel.getByRole("radio", { name: "安静", exact: true });
-  const artwork = panel.locator(".ccc-preset-chip");
+  const artwork = panel.locator(".ccc-preset-artwork");
   await quiet.click();
   await expect(panel.getByRole("status")).toHaveText("正在切换到安静…");
   await expect(quiet.locator("..")).toHaveAttribute("data-pending", "true");
+  await expect(quiet).toHaveCSS("cursor", "progress");
   await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
   await expect(panel.locator(".ccc-preset-current")).toHaveText("性能模式");
   await expect(panel.getByRole("radio", { name: "性能", exact: true })).toBeChecked();
   const other = panel.getByRole("radio", { name: "娱乐", exact: true });
   await expect(other).toBeDisabled();
+  await expect(other).toHaveCSS("cursor", "not-allowed");
   await other.evaluate(input => input.click());
   await page.evaluate(() => window.__uiFixture.finishModeApply());
   await expect.poll(() => page.evaluate(() => typeof window.__uiFixture.finishModeRead)).toBe("function");
   await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
   await expect(quiet).not.toBeChecked();
+  await expect(quiet).toHaveCSS("cursor", "progress");
   await page.evaluate(() => window.__uiFixture.finishModeRead());
   await expect(quiet).toBeChecked();
   await expect(quiet.locator("..")).not.toHaveAttribute("data-pending", "true");
+  await expect(quiet).toHaveCSS("cursor", "pointer");
   await expect(artwork).toHaveAttribute("data-preset-palette", "quiet");
   expect(await calls(page, "apply_oem_power_mode")).toHaveLength(1);
 });
@@ -203,7 +211,7 @@ test("写入返回成功后，显示设备实际回读的模式", async ({ page 
   await panel.getByRole("radio", { name: "安静", exact: true }).click();
   await expect(panel.getByRole("alert")).toContainText("设备回读的模式与所选模式不同");
   await expect(panel.getByRole("radio", { name: "性能", exact: true })).toBeChecked();
-  await expect(panel.locator(".ccc-preset-chip")).toHaveAttribute("data-preset-palette", "performance");
+  await expect(panel.locator(".ccc-preset-artwork")).toHaveAttribute("data-preset-palette", "performance");
   await panel.getByRole("button", { name: "重新读取", exact: true }).click();
   await expect(panel.getByRole("alert")).toHaveCount(0);
   expect(await calls(page, "apply_oem_power_mode")).toHaveLength(1);
@@ -221,7 +229,7 @@ test("共享模式读取失败显示原因并清空模式状态", async ({ page 
   await openWorkspace(page, "概览");
   await openWorkspace(page, "性能与散热");
   await expect(modes(page).getByRole("alert")).toContainText("隔离读取失败");
-  await expect(modes(page).locator(".ccc-preset-chip")).toHaveAttribute("data-preset-palette", "neutral");
+  await expect(modes(page).locator(".ccc-preset-artwork")).toHaveAttribute("data-preset-palette", "neutral");
   await expect(modes(page).getByText("当前模式未知", { exact: true })).toBeVisible();
   await expect(modes(page).getByRole("radio", { checked: true })).toHaveCount(0);
 });

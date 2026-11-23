@@ -78,7 +78,7 @@
   cursor: pointer;
 }
 .ccc-range-input:focus-visible { box-shadow: none; }
-.ccc-range-input:disabled { cursor: default; }
+.ccc-range-input:is(:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
 .ccc-range-input::-webkit-slider-runnable-track {
   height: var(--ccc-range-track);
   background: transparent;

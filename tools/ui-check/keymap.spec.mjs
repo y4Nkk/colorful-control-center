@@ -64,7 +64,7 @@ test("改键宏在模块内预览并应用，恢复保留原厂来源", async ({
 
 test("鼠标映射及文本前后动作延时均进入草稿，未平衡按键不能应用", async ({ page }) => {
   const panel = await openEditor(page);
-  await panel.getByRole("radio", { name: "鼠标", exact: true }).check();
+  await panel.getByRole("tab", { name: "鼠标", exact: true }).click();
   await panel.getByRole("button", { name: "添加映射", exact: true }).click();
   await choose(page, "执行动作", "发送文本");
   await expect(availableAction(page, "按键映射与宏")).toHaveCount(0);

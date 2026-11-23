@@ -7,6 +7,33 @@ test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_I
 const calls = (page, command) => page.evaluate(command => window.__uiFixture.calls.filter(c => c.command === command).length, command);
 const mode = (panel, label) => panel.getByRole("button", { name: label, exact: true });
 
+test("四种显卡模式以不同的 SVG 通路示意，宽窄窗保留标签和选中态", async ({ page }) => {
+  const panel = page.getByRole("region", { name: "显卡模式", exact: true });
+  for (const [label, count] of [["仅集显", 1], ["仅独显", 1], ["混合显卡", 2], ["动态切换", 2]]) {
+    const art = mode(panel, label).locator(".ccc-graphics-choice-art");
+    await expect(art).toHaveAttribute("aria-hidden", "true");
+    await expect(art).toHaveAttribute("fill", "none");
+    const routes = art.locator(":scope > g").last();
+    await expect(routes.locator("path")).toHaveCount(count);
+    if (label === "动态切换") await expect(routes).toHaveAttribute("stroke-dasharray", "3 4");
+  }
+  for (const [width, theme] of [[1440, "light"], [360, "dark"]]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+    const choices = panel.getByRole("group", { name: "切换显卡模式" });
+    const layout = await choices.getByRole("button").evaluateAll(buttons => buttons.map(button => {
+      const box = button.getBoundingClientRect();
+      const art = button.querySelector("svg").getBoundingClientRect();
+      const text = button.querySelector("span").getBoundingClientRect();
+      return box.left >= 0 && box.right <= innerWidth && art.width > 0 && art.bottom < text.top;
+    }));
+    expect(layout).toEqual([true, true, true, true]);
+    await expect(mode(panel, "混合显卡")).toHaveAttribute("aria-pressed", "true");
+    await panel.screenshot({ path: `target/ui-check/graphics-mode-art-${theme}-${width}.png` });
+  }
+  expect(await calls(page, "apply_graphics_mode")).toBe(0);
+});
+
 test("显卡按钮直接发送选择，固件旧报告与待重启目标分开显示", async ({ page }) => {
   const panel = page.getByRole("region", { name: "显卡模式", exact: true });
   await expect(mode(panel, "混合显卡")).toHaveAttribute("aria-pressed", "true");

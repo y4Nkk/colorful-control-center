@@ -7,11 +7,13 @@ export function fanTemperature(live: HardwareSnapshot | null, id: FanId | undefi
   return null;
 }
 
-export function FanLiveReadings({ live, id, control }: { live: HardwareSnapshot | null; id?: FanId; control: string }) {
+export function FanLiveReadings({ live, id, control }: {
+  live: HardwareSnapshot | null; id?: FanId; control: string;
+}) {
   const rpm = id === "cpu" ? live?.fan.cpuRpm : id === "gpu1" ? live?.fan.gpuRpm : null;
   const temp = fanTemperature(live, id);
   return <div className="ccc-fan-current">
-    <div className="ccc-fan-section-head">
+    <div className="ccc-fan-current-head">
       <h3>{id ? `${FAN_LABELS[id]} 实况` : "风扇实况"}</h3>
       <span className="ccc-fan-control-state" role="status" aria-label="当前控制">{control}</span>
     </div>

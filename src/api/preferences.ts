@@ -14,6 +14,7 @@ export interface AppPreferences {
   closeBehavior: CloseBehavior;
   alwaysOnTop: boolean;
   startMinimized: boolean;
+  closeOemOnStartup: boolean;
   startupPage: StartupPage;
   globalShortcut: string;
   runtimeLogLevel: RuntimeLogLevel;

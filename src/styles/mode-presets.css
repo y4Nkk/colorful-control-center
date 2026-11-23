@@ -1,19 +1,38 @@
-.ccc-preset-chip {
+.ccc-preset-artwork {
   display: block;
   align-self: center;
-  inline-size: min(100%, var(--ccc-preset-chip-width));
+  inline-size: min(100%, var(--ccc-preset-artwork-width));
   block-size: auto;
-  max-block-size: var(--ccc-preset-chip-height);
+  max-block-size: var(--ccc-preset-artwork-height);
   pointer-events: none;
 }
 
 .ccc-preset-current {
+  align-self: center;
+  max-inline-size: 100%;
   margin: 0;
   font-size: var(--ccc-text-reading);
   font-weight: 600;
   line-height: 1.25;
   text-align: center;
   overflow-wrap: anywhere;
+}
+
+@media (forced-colors: none) {
+  @supports (background-clip: text) {
+    .ccc-preset-label:not([data-preset-palette="neutral"]) {
+      background-image: linear-gradient(105deg,
+        light-dark(var(--ccc-preset-deep), var(--ccc-preset-light)),
+        light-dark(color-mix(in srgb, var(--ccc-preset-low) 70%, var(--ccc-preset-deep)), var(--ccc-preset-mid)));
+      background-clip: text;
+      color: transparent;
+    }
+
+    .ccc-preset-switcher .ccc-segmented-option:has(.ccc-radio:disabled) .ccc-preset-label {
+      background-image: none;
+      color: inherit;
+    }
+  }
 }
 
 .ccc-preset-switcher {
@@ -29,30 +48,19 @@
 }
 
 @media (max-height: 680px) {
-  .ccc-preset-chip { max-block-size: var(--ccc-preset-chip-compact-height); }
+  .ccc-preset-artwork { max-block-size: var(--ccc-preset-artwork-compact-height); }
 }
 
-.ccc-preset-chip-sweep, .ccc-preset-chip-trace { opacity: 0; }
-.ccc-preset-chip[data-switching] .ccc-preset-chip-paint { transition: stop-color var(--ccc-motion-slow) var(--ccc-easing); }
-.ccc-preset-chip[data-switching] .ccc-preset-chip-die { animation: ccc-preset-chip-lift var(--ccc-motion-preset) var(--ccc-easing); }
-.ccc-preset-chip[data-switching] .ccc-preset-chip-sweep { animation: ccc-preset-chip-scan var(--ccc-motion-preset) var(--ccc-easing); }
-.ccc-preset-chip[data-switching] .ccc-preset-chip-trace { animation: ccc-preset-chip-edge var(--ccc-motion-preset) var(--ccc-easing); }
-
-@keyframes ccc-preset-chip-lift {
-  0%, 100% { transform: translateY(0); }
-  30% { transform: translateY(-8px); }
-  76% { transform: translateY(1px); }
+.ccc-preset-artwork[data-switching] stop {
+  transition: stop-color var(--ccc-motion-slow) var(--ccc-easing);
+}
+.ccc-preset-artwork[data-switching] .ccc-preset-drawing {
+  animation: ccc-preset-reveal var(--ccc-motion-preset) var(--ccc-easing);
 }
 
-@keyframes ccc-preset-chip-scan {
-  0%, 10% { opacity: 0; transform: translateX(-120px); }
-  29%, 64% { opacity: 1; }
-  92%, 100% { opacity: 0; transform: translateX(120px); }
-}
-
-@keyframes ccc-preset-chip-edge {
-  0%, 18%, 100% { opacity: 0; }
-  56% { opacity: .85; }
+@keyframes ccc-preset-reveal {
+  from { opacity: .38; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .ccc-mode-art { display: block; width: 100%; height: auto; aspect-ratio: 1; pointer-events: none; }
@@ -63,6 +71,8 @@
 
 .ccc-panel.ccc-current-mode { gap: var(--ccc-space-1); }
 .ccc-current-mode > output {
+  align-self: center;
+  max-inline-size: 100%;
   color: var(--ccc-text);
   font-size: var(--ccc-text-mode);
   line-height: 1.15;

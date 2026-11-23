@@ -12,13 +12,14 @@ interface PlotProps {
   measure: "占空比" | "目标转速";
   minTemp: number;
   maxTemp: number;
+  startTemp: number;
   draftPath: string;
   currentPath?: string;
   plotRef: Ref<HTMLDivElement>;
   children: ReactNode;
 }
 
-export function FanCurvePlot({ label, measure, minTemp, maxTemp, draftPath, currentPath, plotRef, children }: PlotProps) {
+export function FanCurvePlot({ label, measure, minTemp, maxTemp, startTemp, draftPath, currentPath, plotRef, children }: PlotProps) {
   const temperatures = [minTemp, ...TEMPERATURE_TICKS.filter(temp => temp > minTemp && temp < maxTemp), maxTemp];
   return <div className="ccc-plot-frame">
     <span className="ccc-plot-measure" aria-hidden="true">{measure}</span>
@@ -27,6 +28,7 @@ export function FanCurvePlot({ label, measure, minTemp, maxTemp, draftPath, curr
     </div>
     <div className="ccc-plot" ref={plotRef} role="group" aria-label={label}>
       <svg className="ccc-plot-svg" viewBox={`${minTemp} 0 ${maxTemp - minTemp} 100`} preserveAspectRatio="none" aria-hidden="true">
+        {draftPath && <path className="ccc-plot-area" d={`${draftPath} L${maxTemp},100 H${startTemp} Z`} />}
         <g className="ccc-plot-grid">
           {temperatures.map(temp => <line key={temp} x1={temp} x2={temp} y1={0} y2={100} vectorEffect="non-scaling-stroke" />)}
           {PERCENT_TICKS.map(value => <line key={value} x1={minTemp} x2={maxTemp} y1={100 - value} y2={100 - value} vectorEffect="non-scaling-stroke" />)}

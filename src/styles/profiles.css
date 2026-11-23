@@ -15,7 +15,7 @@
 .ccc-profile-detail .ccc-review-section { margin: 0; }
 .ccc-profile-more { position: relative; flex: none; }
 .ccc-profile-disclosure > div:not([hidden]) { margin-top: var(--ccc-space-3); }
-.ccc-profile-parameter-sources { margin-bottom: var(--ccc-space-3); }
+.ccc-profile-parameter-views { display: grid; gap: var(--ccc-space-3); }
 .ccc-profile-menu:not([hidden]) {
   position: absolute; right: 0; z-index: 2; display: grid; gap: var(--ccc-space-1); min-width: max-content;
   padding: var(--ccc-space-2);

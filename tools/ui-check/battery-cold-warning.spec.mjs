@@ -4,7 +4,6 @@ import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
 const panel = page => page.getByRole("region", { name: "原厂热键与屏显", exact: true });
-const scope = page => panel(page).getByRole("checkbox", { name: "原厂电池低温提醒", exact: true });
 const warning = page => page.getByRole("alert").filter({ hasText: "电池温度较低" });
 const calls = (page, command) => page.evaluate(command => window.__uiFixture.calls.filter(call => call.command === command), command);
 async function setWarning(page, id = 1) {
@@ -18,10 +17,13 @@ async function setWarning(page, id = 1) {
 
 test("低温提醒单独授权，展示原厂触发条件", async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与灯光");
-  await expect(panel(page)).toContainText("低于 11°C 且电量低于 81%");
-  await panel(page).getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
-  await scope(page).check();
-  await previewConfiguration(page, "原厂热键与屏显");
+  await panel(page).getByRole("button", { name: "配置热键", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: "配置热键与屏显", exact: true });
+  await editor.getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
+  await editor.getByRole("checkbox", { name: "原厂电池低温提醒", exact: true }).check();
+  await editor.getByRole("button", { name: "完成编辑", exact: true }).click();
+  const review = await previewConfiguration(page, "原厂热键与屏显");
+  await expect(review).toContainText("低于 11°C 且电量低于 81%");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
   await configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true }).click();
   expect((await calls(page, "apply_hotkeys"))[0].args.request.settings.actions).toEqual(["batteryColdWarning"]);
@@ -44,7 +46,9 @@ test("确认失败保留提醒，新提醒和插电关闭以最新状态为准",
   await expect(panel(page)).toBeVisible(); await setWarning(page, 5);
   await page.evaluate(() => { window.__uiFixture.coldWarningDismissFault = "关闭提醒失败"; });
   await warning(page).getByRole("button", { name: "知道了", exact: true }).click();
-  await expect(page.getByText("关闭提醒失败", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: /^通知（/ }).click();
+  await expect(page.getByRole("dialog", { name: "通知", exact: true })).toContainText("关闭提醒失败");
+  await page.getByRole("button", { name: "收起通知", exact: true }).click();
   await expect(warning(page)).toBeVisible();
   await setWarning(page, 6);
   await page.evaluate(() => {

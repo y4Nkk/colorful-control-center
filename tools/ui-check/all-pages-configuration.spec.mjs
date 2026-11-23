@@ -221,7 +221,7 @@ test("全键盘预览配色，开关、灯效和亮度按钮直接回读", async
   await expect(board.locator(".ccc-lighting-board-key")).toHaveCount(102);
   await expect(board).toContainText("Num");
   await expect(panel.locator("[data-keyboard-zone]")).toHaveCount(3);
-  await panel.getByRole("button", { name: "编辑右区", exact: true }).click();
+  await panel.getByRole("tab", { name: "右区", exact: true }).click();
   await setPickerColor(panel, "右区颜色", "#123456");
   const right = panel.locator('[data-keyboard-zone="2"]');
   await expect(right).toHaveAttribute("data-selected", "true");
@@ -296,11 +296,11 @@ test("色块是唯一的精确选色入口，色环与灯区草稿同步", async
 
   await mode.click();
   await page.getByRole("option", { name: "呼吸", exact: true }).click();
-  await panel.getByRole("button", { name: "编辑右区", exact: true }).click();
+  await panel.getByRole("tab", { name: "右区", exact: true }).click();
   await setPickerColor(panel, "右区颜色", "#ff64ff");
   await expect(panel.locator('[data-keyboard-zone="2"]')).toHaveAttribute("data-zone-color", "#ff64ff");
   await expect(panel.locator('[data-zone-color="#0064ff"]')).toHaveCount(2);
-  await panel.getByRole("button", { name: "编辑左区", exact: true }).click();
+  await panel.getByRole("tab", { name: "左区", exact: true }).click();
   await expect(colorButton(panel, "左区颜色")).toHaveAccessibleDescription("#0064FF");
   await mode.click();
   await page.getByRole("option", { name: "分区", exact: true }).click();

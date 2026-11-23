@@ -6,7 +6,7 @@
  */
 import { useRef, useState } from "react";
 import { CurvePointInputs } from "./CurvePointInputs";
-import { FanEditorLayout, type FanEditorSections } from "./FanEditorLayout";
+import { FanCurveSection } from "./FanCurveSection";
 import { FanCurveLegend, FanCurvePlot, fanTemperaturePercent } from "./FanCurvePlot";
 import { FirmwareCurveHandle } from "./FirmwareCurveHandle";
 import { useFanEdit } from "./useFanEdit";
@@ -25,7 +25,7 @@ const DEFAULT_PLOT_MIN_TEMP = 30;
 const yPct = (duty: number) => 100 - duty;
 
 interface FanCurveEditorProps {
-  sections: FanEditorSections;
+  status?: string;
   fanName: string;
   source: object;
   anchors: CurveAnchors;
@@ -38,7 +38,7 @@ interface FanCurveEditorProps {
 }
 
 export function FanCurveEditor(props: FanCurveEditorProps) {
-  const { sections, fanName, source, anchors, current, editable, liveTempC, onCommit } = props;
+  const { status, fanName, source, anchors, current, editable, liveTempC, onCommit } = props;
   const plotRef = useRef<HTMLDivElement | null>(null);
   const [selected, setSelected] = useState<"p2" | "p3" | null>(null);
   const edit = useFanEdit(source, current, onCommit);
@@ -51,7 +51,7 @@ export function FanCurveEditor(props: FanCurveEditorProps) {
   const projectedDuty = liveTempC == null ? null : dutyAtTemp(liveTempC, anchors, draft);
 
   const plot = <div className="ccc-plot-wrap">
-      <FanCurvePlot label={`${fanName} 温度与占空比曲线`} measure="占空比" minTemp={plotMinTemp} maxTemp={CURVE_TEMP_MAX}
+      <FanCurvePlot label={`${fanName} 温度与占空比曲线`} measure="占空比" minTemp={plotMinTemp} maxTemp={CURVE_TEMP_MAX} startTemp={anchors.t1}
         plotRef={plotRef} draftPath={linePath(draft)} currentPath={differs ? linePath(current) : undefined}>
         <PlotDot x={xPct(anchors.t1)} y={yPct(anchors.d1Pct)} />
         <PlotDot x={100} y={0} />
@@ -78,8 +78,8 @@ export function FanCurveEditor(props: FanCurveEditorProps) {
         <span className="ccc-plot-hint">{editable ? "拖动圆点 · 方向键微调" : "曲线只读"}</span>
       </FanCurveLegend>
     </div>;
-  return <FanEditorLayout {...sections} plot={plot} fields={<>
-    <h3>{fanName} 曲线点</h3>
+  return <FanCurveSection status={status} plot={plot} fields={<>
+    <h4>{fanName} 曲线点</h4>
     <CurvePointInputs anchors={anchors} draft={draft} disabled={!editable} selected={selected} onSelect={setSelected}
       onChange={edit.update} onCommit={edit.commit} onCancel={edit.cancel} />
   </>} />;

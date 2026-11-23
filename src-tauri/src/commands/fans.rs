@@ -82,9 +82,13 @@ pub(crate) fn set_fan_mode(hal: State<'_, Hal>, mode: u8) -> Result<OpResult, St
 }
 
 #[tauri::command]
-pub(crate) fn set_fan_offset(hal: State<'_, Hal>, pct: u32) -> Result<OpResult, String> {
+pub(crate) fn set_fan_offset(
+    hal: State<'_, Hal>,
+    expected: fanctl::OffsetSource,
+    pct: u32,
+) -> Result<OpResult, String> {
     let _write = hal.begin_write().map_err(|e| e.to_string())?;
-    to_result(fanctl::set_offset(&hal, pct))
+    to_result(fanctl::set_manual_offset(&hal, expected, pct))
 }
 
 #[tauri::command]

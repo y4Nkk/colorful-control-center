@@ -178,6 +178,10 @@ fn entertainment_noiseless_remembers_its_own_preference_across_mode_changes() {
         assert_eq!((state.pages[4][72], state.pages[4][73]), (8, 0));
         assert_eq!(state.fan_command, Some(FAN_MODE_NOISELESS));
     }
+    let quiet = fanctl::read_profile(&f.hal).unwrap();
+    assert_eq!(quiet.current_mode, FAN_MODE_NOISELESS);
+    assert_eq!(quiet.saved_mode, FAN_MODE_AUTO);
+    assert_eq!(quiet.offset_slot, Some(3));
     super::super::checkpoint(&f.hal, 2)
         .unwrap()
         .execute(&f.hal)

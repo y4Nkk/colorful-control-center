@@ -12,7 +12,7 @@ fn software_process_switch_to_firmware_releases_guard_and_allows_hot_firmware_ch
     assert_eq!(DEVICE.lock().unwrap().pages[4][5], 1);
     DEVICE.lock().unwrap().cpu = 99;
     fanctl::set_mode(hal, 6).unwrap();
-    fanctl::set_offset(hal, 30).unwrap();
+    fanctl::set_mode_offset(hal, 30).unwrap();
     assert_eq!(&DEVICE.lock().unwrap().pages[4][5..8], &[6, 0, 30]);
     assert!(!hal.fan_guard_armed().unwrap());
 
@@ -42,7 +42,7 @@ fn software_process_hot_firmware_curves_and_restore_need_no_guard() {
     DEVICE.lock().unwrap().pages[4][5] = 1;
     DEVICE.lock().unwrap().cpu = 99;
     let checkpoint = fanctl::checkpoint(hal, false).unwrap();
-    fanctl::set_offset(hal, 20).unwrap();
+    fanctl::set_mode_offset(hal, 20).unwrap();
     fanctl::apply_curve(hal, None, None, None).unwrap();
     assert_eq!(DEVICE.lock().unwrap().pages[4][5], 6);
     fanctl::restore_checkpoint(hal, &checkpoint).unwrap();

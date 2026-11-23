@@ -7,7 +7,7 @@ export async function openWorkspace(page, title) {
 
 export async function openPowerArea(page, area) {
   await openWorkspace(page, "电源与档案");
-  const option = page.getByRole("radiogroup", { name: "电源区域", exact: true }).getByRole("radio", { name: area, exact: true });
-  await option.check();
-  await expect(option).toBeChecked();
+  const tab = page.getByRole("tablist", { name: "电源区域", exact: true }).getByRole("tab", { name: area, exact: true });
+  await tab.click();
+  await expect(tab).toHaveAttribute("aria-selected", "true");
 }

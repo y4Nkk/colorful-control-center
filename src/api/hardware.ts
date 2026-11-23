@@ -69,7 +69,7 @@ export interface SystemOverview {
     physicalCores: number | null; logicalProcessors: number | null;
     baseClockMhz: number | null; maxClockMhz: number | null };
   memory: HardwareCapacity | null;
-  /** SMBIOS Type 17 已安装内存条的最高配置速率（DDR 有效传输速率，MT/s）。 */
+  /** SMBIOS Type 17 已安装内存条共同报告的配置速率（MT/s）。 */
   memorySpeedMts: number | null;
   volumes: { mount: string; label: string | null; fileSystem: string | null; capacity: HardwareCapacity | null }[];
   warnings: string[];

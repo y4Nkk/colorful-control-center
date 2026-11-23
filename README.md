@@ -33,13 +33,13 @@
 | **键盘与灯光** | 按设备能力设置分区或逐键 RGB、外围灯区和闲置关灯。管理按键映射、宏，以及授权接管的原厂热键与屏显。 |
 | **电源与档案** | 管理电池、节能、供电和 USB 选择性暂停。按组保存、预览、导入或导出配置档案，并设置启动、插电、电池和唤醒规则。 |
 | **设备配置** | 设置刷新率、主屏方向和显卡模式，管理独显电源、触摸板、麦克风及飞行模式。显卡切换可在重启后核对结果。 |
-| **设置与托盘** | 调整主题、字体、缩放、窗口和启动偏好，选择普通或管理员登录自启。通过托盘切换受支持的模式、控制风扇、打开档案预览或退出。 |
+| **设置与托盘** | 选择普通或管理员登录自启，以及启动时显示主界面或最小化到托盘。启动时默认结束已核验的原厂 FnKey，可在设置中关闭。通过托盘切换受支持的模式、控制风扇、打开档案预览或退出。 |
 
 在固件支持的设备上，「性能与散热」的娱乐档和性能档都可分别开关 **Turbo 风扇**、**动态调校 DTT** 和**寂静模式**。DTT 需要对应的驱动就绪，单独调整时保留当前风扇曲线。从自定义固件曲线开启娱乐档 Turbo 时，界面会先确认切换到自动风扇，原曲线可恢复。
 
 ## 安装与使用
 
-**当前版本为 1.0.2。** Windows x64 安装包名为 `ColorfulControlCenter_1.0.2_x64-setup.exe`，由 [GitHub Releases](https://github.com/y4Nkk/colorful-control-center/releases) 提供。源码构建方式见 [开发与构建指南](docs/development.md)。
+**当前版本为 1.0.3。** Windows x64 安装包名为 `ColorfulControlCenter_1.0.3_x64-setup.exe`，由 [GitHub Releases](https://github.com/y4Nkk/colorful-control-center/releases) 提供。源码构建方式见 [开发与构建指南](docs/development.md)。
 
 1. 运行安装包，按向导为当前用户安装。向导需要 .NET Framework 4.8.1，并会在需要时联网准备 WebView2。[.NET Framework 系统要求](https://learn.microsoft.com/dotnet/framework/get-started/system-requirements)
 2. 打开「概览」，确认可读的硬件状态。原厂硬件通道依赖机型已有的 InsydeDCHU 组件和驱动，部分 CPU 实时调校还需要 PawnIO。

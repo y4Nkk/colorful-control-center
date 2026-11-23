@@ -1,10 +1,10 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { Radio } from "./Radio";
 
 interface SegmentedControlProps {
   label: string;
   value: string;
-  options: readonly { value: string; label: string; disabled?: boolean; title?: string }[];
+  options: readonly { value: string; label: ReactNode; disabled?: boolean; title?: string }[];
   disabled?: boolean;
   busy?: boolean;
   pendingValue?: string;

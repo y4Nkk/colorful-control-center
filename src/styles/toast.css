@@ -1,42 +1,77 @@
-/*
- * Toaster 全局通知语法（唯一所有者：components/Toaster.tsx）。
- * 通知队列挂 app 层右下角；模块只调 toast()，不自建浮层。
- */
-
-.ccc-toaster {
-  position: fixed;
-  right: var(--ccc-space-5);
-  bottom: var(--ccc-space-5);
-  z-index: 100;
-  display: flex;
-  flex-direction: column;
+.ccc-notification-trigger {
+  max-inline-size: min(18rem, 32vw);
+  min-inline-size: max-content;
   gap: var(--ccc-space-2);
-  width: 320px;
 }
+
+.ccc-notification-summary {
+  max-inline-size: clamp(0px, calc(45vw - 140px), 13rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ccc-notification-count {
+  padding-inline: var(--ccc-space-1);
+  border-radius: var(--ccc-radius-full);
+  background: color-mix(in srgb, var(--ccc-text) 8%, transparent);
+  color: var(--ccc-text-muted);
+  font-size: var(--ccc-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.ccc-notification-panel {
+  position: fixed;
+  inset: var(--ccc-topbar-height) var(--ccc-space-3) auto auto;
+  margin: 0;
+  width: min(26rem, calc(100vw - 2 * var(--ccc-space-3)));
+  max-height: calc(100vh - var(--ccc-topbar-height) - var(--ccc-space-3));
+  padding: var(--ccc-space-3);
+  color: var(--ccc-text);
+}
+
+.ccc-notification-panel:popover-open {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--ccc-space-2);
+}
+
+.ccc-notification-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--ccc-space-2);
+}
+
+.ccc-notification-heading h2 {
+  margin: 0 auto 0 0;
+  padding-inline-start: var(--ccc-space-2);
+  font-size: var(--ccc-text-md);
+}
+
+.ccc-notification-list { overflow: auto; }
 
 .ccc-toast {
   display: flex;
   align-items: flex-start;
   gap: var(--ccc-space-2);
-  padding: var(--ccc-space-3) var(--ccc-space-4);
+  padding: var(--ccc-space-3) var(--ccc-space-2);
 }
 
-.ccc-toast[data-kind="info"] .ccc-toast-status { color: var(--ccc-action); }
-.ccc-toast[data-kind="success"] .ccc-toast-status { color: var(--ccc-safe); }
-.ccc-toast[data-kind="warning"] .ccc-toast-status { color: var(--ccc-warning); }
-.ccc-toast[data-kind="error"] .ccc-toast-status { color: var(--ccc-danger); }
-
-.ccc-toast-body {
-  flex: 1;
-  min-width: 0;
+.ccc-cold-warning {
+  position: fixed;
+  inset: auto var(--ccc-space-5) var(--ccc-space-5) auto;
+  z-index: 100;
+  width: min(23rem, calc(100vw - 2 * var(--ccc-space-5)));
+  padding-inline: var(--ccc-space-4);
+  user-select: text;
 }
 
-.ccc-toast-title {
-  font-weight: 600;
-}
+.ccc-toast-status { flex: none; }
+[data-kind="info"] > .ccc-toast-status { color: var(--ccc-action); }
+[data-kind="success"] > .ccc-toast-status { color: var(--ccc-safe); }
+[data-kind="warning"] > .ccc-toast-status { color: var(--ccc-warning); }
+[data-kind="error"] > .ccc-toast-status { color: var(--ccc-danger); }
 
-.ccc-toast-description {
-  color: var(--ccc-text-muted);
-  font-size: var(--ccc-text-sm);
-  overflow-wrap: anywhere;
-}
+.ccc-toast-body { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ccc-toast-title { font-weight: 600; }
+.ccc-toast-description { color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); }

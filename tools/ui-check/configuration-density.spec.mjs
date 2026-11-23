@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { openWorkspace } from "./workspace.mjs";
+import { previewConfiguration, submitConfiguration } from "./configuration-review.mjs";
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
@@ -38,17 +39,18 @@ test("配置主位保留控件与状态，详情弹窗且浏览不写硬件", as
   const modes = page.getByRole("region", { name: "预设模式", exact: true });
   await expect(modes.getByRole("radio")).toHaveCount(4);
   await expect(modes.getByText("续航优先", { exact: true })).toHaveCount(0);
-  const artwork = modes.locator("svg.ccc-preset-chip");
+  const artwork = modes.locator("svg.ccc-preset-artwork");
   await expect(artwork).toHaveCount(1);
   await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
   await expect(artwork).toHaveAttribute("aria-hidden", "true");
   await expect(artwork).toHaveAttribute("focusable", "false");
-  await expect(artwork).toHaveAttribute("viewBox", "40 0 520 250");
+  await expect(artwork).toHaveAttribute("viewBox", "0 0 480 204");
   await expect(artwork).toHaveCSS("pointer-events", "none");
   await expect(modes.locator(".ccc-preset-current")).toHaveText("性能模式");
   const fan = page.getByRole("region", { name: "风扇设置", exact: true });
-  const fanInfo = fan.locator('button:has(> svg[data-icon="info"])');
-  await expect(fanInfo).toHaveCount(1);
+  const fanInfo = fan.getByRole("button", { name: "说明与诊断", exact: true });
+  await expect(fanInfo).toHaveText("说明与诊断");
+  await expect(fanInfo.locator("svg")).toHaveCount(0);
   await fanInfo.press("Enter");
   const fanDetails = page.getByRole("dialog", { name: "风扇说明与诊断", exact: true });
   await expect(fanDetails.getByRole("heading", { name: "参数说明", exact: true })).toBeVisible();
@@ -58,14 +60,13 @@ test("配置主位保留控件与状态，详情弹窗且浏览不写硬件", as
   const cpu = page.getByRole("region", { name: "CPU 功耗与电压", exact: true });
   const gpu = page.getByRole("region", { name: "GPU 频率", exact: true });
   await expect(cpu.getByRole("slider", { name: "持续功耗上限", exact: true })).toBeVisible();
-  const left = await cpu.boundingBox(), right = await gpu.boundingBox();
-  expect(Math.abs(left.y - right.y)).toBeLessThan(2);
-  expect(right.x).toBeGreaterThan(left.x + left.width);
+  const cpuBox = await cpu.boundingBox(), gpuBox = await gpu.boundingBox();
+  expect(cpuBox.x).toBeCloseTo(gpuBox.x, 0);
+  expect(cpuBox.width).toBeCloseTo(gpuBox.width, 0);
+  expect(gpuBox.y).toBeGreaterThan(cpuBox.y + cpuBox.height);
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  const info = cpu.getByRole("button", { name: "详情", exact: true });
-  await expect(info).toBeEmpty();
-  await expect(info.locator('[data-icon="info"]')).toHaveCount(1);
-  await expect(info).toHaveAttribute("title", "CPU 参数与诊断");
+  const info = cpu.getByRole("button", { name: "说明与诊断", exact: true });
+  await expect(info.locator("svg")).toHaveCount(0);
   await info.press("Enter");
   await expect(page.getByRole("dialog", { name: "CPU 参数与诊断", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
@@ -77,6 +78,63 @@ test("配置主位保留控件与状态，详情弹窗且浏览不写硬件", as
   const writes = await page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_|set_|enable_|restore_)/.test(call.command) && call.command !== "set_shortcut_recording"));
   expect(writes).toEqual([]);
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
+});
+
+test("调校分组随窗口回流，GPU 草稿经预览提交并可恢复", async ({ page }) => {
+  await page.evaluate(() => {
+    const ipc = window.__TAURI_INTERNALS__;
+    const invoke = ipc.invoke;
+    const { gpu, calls } = window.__uiFixture;
+    ipc.invoke = async (command, args) => {
+      if (command !== "apply_gpu_clock_offsets" && command !== "restore_gpu_baseline") return invoke(command, args);
+      calls.push({ command, args });
+      if (command === "apply_gpu_clock_offsets") {
+        gpu.baseline ??= { coreOffsetMhz: gpu.coreOffsetMhz, memOffsetMhz: gpu.memOffsetMhz };
+        gpu.coreOffsetMhz = args.coreMhz ?? gpu.coreOffsetMhz;
+        gpu.memOffsetMhz = args.memMhz ?? gpu.memOffsetMhz;
+      } else {
+        Object.assign(gpu, gpu.baseline);
+      }
+      return { ok: true, coreOffsetMhz: gpu.coreOffsetMhz, memOffsetMhz: gpu.memOffsetMhz, rollbackError: null };
+    };
+  });
+  await openWorkspace(page, "性能与散热");
+  const cpu = page.getByRole("region", { name: "CPU 功耗与电压", exact: true });
+  const gpu = page.getByRole("region", { name: "GPU 频率", exact: true });
+  const core = gpu.getByRole("slider", { name: "核心频率偏移", exact: true });
+  await expect(core).toBeEnabled();
+  await expect(cpu.getByRole("region", { name: "功耗上限", exact: true }).getByRole("slider")).toHaveCount(2);
+  await expect(cpu.getByRole("region", { name: "电压偏移", exact: true }).getByRole("slider")).toHaveCount(2);
+  for (const [width, theme] of [[1440, "light"], [360, "dark"]]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+    for (const panel of [cpu, gpu]) {
+      const items = await panel.locator(".ccc-tuning-columns > *").evaluateAll(nodes => nodes.map(node => {
+        const box = node.getBoundingClientRect();
+        return { top: box.top, left: box.left, right: box.right };
+      }));
+      expect(items).toHaveLength(2);
+      expect(items.every(item => item.left >= 0 && item.right <= width)).toBe(true);
+      expect(new Set(items.map(item => item.top)).size).toBe(width === 1440 ? 1 : 2);
+      await expect(panel.locator(".ccc-range-track").first()).toHaveCSS("height", "24px");
+      await expect(panel.locator(".ccc-range-thumb").first()).toHaveCSS("width", "28px");
+    }
+    await expect(core).toHaveCSS("height", "32px");
+    await cpu.locator("..").screenshot({ path: `target/ui-check/processor-tuning-${theme}-${width}.png` });
+  }
+  await core.press("ArrowRight");
+  await expect(core).toHaveAttribute("aria-valuetext", "1 MHz");
+  await core.fill("45");
+  const writes = () => page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_gpu_clock_offsets|restore_gpu_baseline)$/.test(call.command)));
+  const preview = await previewConfiguration(page, "GPU 频率");
+  await expect(preview.getByText("45 MHz", { exact: true })).toBeVisible();
+  expect(await writes()).toEqual([]);
+  await submitConfiguration(preview);
+  await expect(core).toHaveAttribute("aria-valuetext", "45 MHz");
+  expect(await writes()).toEqual([{ command: "apply_gpu_clock_offsets", args: { coreMhz: 45, memMhz: null } }]);
+  await submitConfiguration(await previewConfiguration(page, "GPU 频率", true), "确认恢复");
+  await expect(core).toHaveAttribute("aria-valuetext", "0 MHz");
+  expect((await writes()).map(({ command }) => command)).toEqual(["apply_gpu_clock_offsets", "restore_gpu_baseline"]);
 });
 
 test("性能调校可用键盘切换预设，概览只展示回读后的模式", async ({ page }) => {
@@ -91,7 +149,7 @@ test("性能调校可用键盘切换预设，概览只展示回读后的模式",
   await expect(entertainment).toBeFocused();
   await expect(entertainment).toBeChecked();
   await expect(modes.getByText("当前使用", { exact: true })).toHaveCount(0);
-  await expect(modes.locator(".ccc-preset-chip")).toHaveAttribute("data-preset-palette", "entertainment");
+  await expect(modes.locator(".ccc-preset-artwork")).toHaveAttribute("data-preset-palette", "entertainment");
   await expect(entertainment.locator("..")).not.toHaveCSS("box-shadow", "none");
   await expect(page.getByRole("region", { name: "待应用更改", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "应用更改", exact: true })).toHaveCount(0);
@@ -103,7 +161,7 @@ test("性能调校可用键盘切换预设，概览只展示回读后的模式",
   await openWorkspace(page, "概览");
   const currentMode = page.getByRole("region", { name: "当前模式", exact: true });
   await expect(currentMode.getByRole("status")).toHaveText("娱乐");
-  await expect(currentMode.locator("svg.ccc-preset-chip")).toHaveAttribute("data-preset-palette", "entertainment");
+  await expect(currentMode.locator("svg.ccc-preset-artwork")).toHaveAttribute("data-preset-palette", "entertainment");
   await expect(modes).toHaveCount(0);
   await expect(page.getByRole("region", { name: "页面操作", exact: true })).toHaveCount(0);
   expect(await writes()).toHaveLength(1);
@@ -146,7 +204,7 @@ async function expectPresetLayout(panel) {
     const block = selector => region.querySelector(selector).getBoundingClientRect();
     const center = ({ left, width }) => left + width / 2;
     const stage = region.getBoundingClientRect();
-    const artwork = block(":scope > .ccc-preset-chip");
+    const artwork = block(":scope > .ccc-preset-artwork");
     const caption = block(".ccc-preset-current");
     const controls = block(".ccc-preset-switcher");
     const inputs = [...region.querySelectorAll(".ccc-segmented-option")];

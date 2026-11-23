@@ -2,7 +2,7 @@ import { invokeDisplay } from "./mock-display.mjs";
 import { invokeAirplane } from "./mock-airplane.mjs";
 import { invokeAutoRefresh } from "./mock-auto-refresh.mjs";
 import { invokeSupplyMode } from "./mock-supply-mode.mjs";
-import { applyPerformanceOptions, invokePerformance } from "./mock-performance.mjs";
+import { applyPerformanceOptions, fanProfile, invokePerformance } from "./mock-performance.mjs";
 import { modeGpuReview, appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, rememberMode, applyModeGpu } from "./mock-mode-state.mjs";
 import { initPowerPolicy, savePowerPolicy, invokePowerPolicy } from "./mock-profile-policy.mjs";
 import { invokeLightingOptions, applyProfileLightingOptions } from "./mock-lighting-options.mjs";
@@ -28,10 +28,10 @@ function fixtureData() {
   const color = { r: 0, g: 100, b: 255 };
   window.__uiFixture = { calls: [], faults: [], fanKind: "twoPoint", family: "zoneRgb", delay: 0, acMode: 2, modeInitial: null, modeEnergy: { hardwarePState: false, energyStar: 2 },
     preferences: { theme: "light", interfaceFont: "system", interfaceScale: 100, motion: "reduce", closeBehavior: "hideToTray",
-      alwaysOnTop: false, startMinimized: false, startupPage: "dashboard", globalShortcut: "", runtimeLogLevel: "info", hardwareAcceleration: true },
+      alwaysOnTop: false, startMinimized: false, closeOemOnStartup: true, startupPage: "dashboard", globalShortcut: "", runtimeLogLevel: "info", hardwareAcceleration: true },
     profile: { version: 1, name: "隔离档案", savedAtMs: 1, settings }, otherProfiles: [],
     fan: { software: null, curveKind: "twoPoint", rpmFans: [], availableModes: [0, 1, 6], fanCount: 1,
-      customSupported: true, currentMode: 0, offsetPct: 0, offsetSupported: true, canRestore: true, warnings: ["隔离风扇诊断"], safetyStatus: "已读取", blockedReason: null,
+      customSupported: true, currentMode: 0, offsetPct: 0, offsetBlockedReason: null, canRestore: true, warnings: ["隔离风扇诊断"], safetyStatus: "已读取", blockedReason: null,
       fans: [{ id: "cpu", present: true, t1: 30, d1Pct: 20, t2: 60, d2Pct: 50, t3: 90, d3Pct: 99 }] },
     power: { pl1W: 65, pl2W: 100, plTimeS: 28, coreOffsetMv: 0, gtOffsetMv: 0, defaultPl1W: 65, defaultPl2W: 100,
       defaultCoreOffsetMv: 0, msrRuntimeAvailable: true, msrRuntimeError: null, canRestore: true, runtimeWarnings: [], warnings: ["隔离功耗诊断"],
@@ -114,7 +114,8 @@ function installIpc() {
         case "read_power_profile_policy": case "save_power_profile_policy": case "set_power_profile_policy_enabled": case "pause_power_profile_policy":
         case "restore_power_profile_policy": case "reload_power_profile_policy": case "reset_power_profile_policy": case "read_automatic_profile_application": return invokePowerPolicy(data, command, args);
         case "read_hardware_snapshot": return hardwareSnapshot(data);
-        case "read_system_overview": return { cpu: { vendor: "intel", name: "Isolated CPU" }, memory: { totalBytes: 17179869184, availableBytes: 8589934592 }, volumes: [], warnings: [] };
+        case "read_system_overview": return { cpu: { vendor: "intel", name: "Isolated CPU" }, memory: { totalBytes: 17179869184, availableBytes: 8589934592 },
+          memorySpeedMts: data.memorySpeedMts === undefined ? 5200 : data.memorySpeedMts, volumes: [], warnings: [] };
         case "read_fan_profile": return structuredClone(fanProfile(data));
         case "apply_fan_curve": {
           if (data.fanWriteFault === command || data.dust?.running) return { ok: false, message: "隔离风扇写入失败" };
@@ -136,7 +137,11 @@ function installIpc() {
           return { ok: true, message: "风扇模式已写入" };
         }
         case "set_fan_offset": {
-          if (data.fanWriteFault === command || data.dust?.running) return { ok: false, message: "隔离风扇写入失败" };
+          const fan = fanProfile(data);
+          if (fan.offsetBlockedReason) return { ok: false, message: fan.offsetBlockedReason };
+          if (fan.currentMode !== args.expected.mode) return { ok: false, message: "风扇档位已变化，请重新调整" };
+          if (fan.offsetSlot !== args.expected.slot) return { ok: false, message: "风扇偏移记忆槽已变化，请重新调整" };
+          if (data.fanWriteFault === command) return { ok: false, message: "隔离风扇写入失败" };
           data.fan.offsetPct = args.pct;
           return { ok: true, message: "风扇偏移已写入" };
         }
@@ -184,7 +189,7 @@ function installIpc() {
           return invokeGraphics(data, command, args);
         case "read_gpu_power": case "apply_gpu_power": case "restore_gpu_power":
           return invokeGpuPower(data, command, args, emitSnapshot);
-        case "get_startup_profile": case "set_startup_profile": case "get_autostart": case "set_autostart":
+        case "get_startup_profile": case "set_startup_profile": case "get_autostart": case "set_autostart": case "get_oem_startup_notice":
         case "get_backend_info": case "list_profiles": case "load_profile": case "preview_profile_import": case "preview_profile_application": case "preview_profile_authorization":
         case "capture_profile_settings": case "save_profile": case "apply_profile": case "export_profile": case "delete_profile":
         case "preview_profile_display": case "preview_profile_graphics_mode": case "preview_profile_gpu_power": case "read_profile_application": case "keep_profile_display": case "cancel_profile_application":
@@ -384,6 +389,7 @@ async function invokeGpuPower(data, command, args, emitSnapshot) {
 async function invokeSoftware(data, command, args) {
   switch (command) {
     case "get_startup_profile": case "set_startup_profile": return invokeStartup(data, command, args);
+    case "get_oem_startup_notice": return data.oemStartupNotice ?? null;
     case "get_autostart": return structuredClone(data.autostart ?? { revision: "login-0", level: "disabled", elevated: false, canRestore: false, legacy: false });
     case "set_autostart": {
       const before = data.autostart ?? { revision: "login-0", level: "disabled", elevated: false, canRestore: false, legacy: false };
@@ -435,18 +441,11 @@ function hardwareSnapshot(data) {
   const sampledAtMs = Date.now();
   return { dchuAvailable: true, oemPowerMode: data.performanceOptions.currentMode,
     cpuTempC: 50, cpuRemoteRaw: 50, sampledAtMs, warnings: ["隔离监控诊断"],
-    cpuUtility: data.cpuUtility === undefined ? { valuePct: 42, sampledAtMs } : structuredClone(data.cpuUtility),
+    cpuUtility: data.cpuUtility === undefined ? { valuePct: 42, clockMhz: 2900, sampledAtMs } : structuredClone(data.cpuUtility),
     oemMemory: data.oemMemory === undefined ? { reportedClockMhz: 2400, referenceClockMhz: 3200 } : structuredClone(data.oemMemory),
     fan: { cpuRpm: 1800, gpuRpm: 1500, cpuDutyPct: 30, gpuDutyPct: 25 },
     nvidiaSuspended: !data.gpuPower.devices[0].enabled,
-    nvidia: data.gpuPower.devices[0].enabled ? { name: "Isolated GPU", tempC: 45, fanPct: 25, utilizationPct: 30, memUsedMb: 1000, memTotalMb: 8000 } : null };
-}
-function fanProfile(data) {
-  const running = data.dust?.running ? "固件正在除尘，请等待结束后再调整风扇或电源模式" : null;
-  const fan = { ...data.fan, blockedReason: running };
-  if (data.fanKind !== "rpmTable") return fan;
-  return { ...fan, curveKind: "rpmTable", offsetSupported: false, fans: [], rpmFans: fan.rpmFans.length ? fan.rpmFans : [{ id: "cpu", maximumRpm: 5000,
-    points: Array.from({ length: 10 }, (_, i) => ({ tempC: 40 + i * 5, rpmPct: i === 9 ? 100 : 20 + i * 8 })) }] };
+    nvidia: data.gpuPower.devices[0].enabled ? { name: "Isolated GPU", tempC: 45, fanPct: 25, utilizationPct: 30, graphicsClockMhz: 1800, memUsedMb: 1000, memTotalMb: 8000 } : null };
 }
 function dustProfile(data) {
   const dust = data.dust;

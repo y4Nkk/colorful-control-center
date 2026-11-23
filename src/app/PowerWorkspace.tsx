@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
 import { WorkspaceActivity } from "../components/Dialog";
-import { SegmentedControl } from "../components/SegmentedControl";
+import { Tabs } from "../components/Tabs";
 import { BatterySettings } from "../components/control/BatterySettings";
 import { StartupProfilePicker } from "../components/control/StartupProfilePicker";
 import { PowerProfilePolicy } from "../components/control/PowerProfilePolicy";
@@ -17,20 +16,14 @@ import { POWER_AREAS, type PowerArea } from "./navigation";
 export function PowerWorkspace({ active, model, area, requestedProfile, onAreaChange }: HardwareWorkspaceProps & {
   area: PowerArea; requestedProfile: { name: string } | null; onAreaChange: (area: PowerArea) => void;
 }) {
-  const [opened, setOpened] = useState<ReadonlySet<PowerArea>>(() => new Set([area]));
-  useEffect(() => { setOpened(previous => previous.has(area) ? previous : new Set([...previous, area])); }, [area]);
   return <div className="ccc-control">
-    <SegmentedControl className="ccc-power-areas" label="电源区域" value={area} options={POWER_AREAS}
-      onChange={value => onAreaChange(value as PowerArea)} />
-    {POWER_AREAS.filter(option => option.value === area || opened.has(option.value)).map(({ value, label }) => {
-      const visible = value === area;
-      return <WorkspaceActivity.Provider key={value} value={active && visible}>
-        <div hidden={!visible} role="region" aria-label={label}>
-          {value === "settings" ? <PowerSettings active={active && visible} model={model} />
-            : <ProfilesWorkspace active={active && visible} requestedProfile={requestedProfile} onOpenRules={() => onAreaChange("settings")} />}
-        </div>
-      </WorkspaceActivity.Provider>;
-    })}
+    <Tabs label="电源区域" value={area} onChange={onAreaChange} keepAlive tabs={POWER_AREAS.map(option => {
+      const panelActive = active && option.value === area;
+      return { ...option, content: <WorkspaceActivity.Provider value={panelActive}>
+        {option.value === "settings" ? <PowerSettings active={panelActive} model={model} />
+          : <ProfilesWorkspace active={panelActive} requestedProfile={requestedProfile} onOpenRules={() => onAreaChange("settings")} />}
+      </WorkspaceActivity.Provider> };
+    })} />
   </div>;
 }
 

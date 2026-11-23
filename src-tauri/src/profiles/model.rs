@@ -1,9 +1,9 @@
 //! 档案数据与校验的唯一契约；运行时执行与磁盘入口复用。
 #[path = "groups.rs"]
 mod groups;
-pub use groups::ProfileGroup;
 use crate::{fanctl, powerctl};
 use anyhow::{Result, anyhow, bail};
+pub use groups::ProfileGroup;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -274,7 +274,7 @@ pub fn capture_fan(fan: &fanctl::FanProfile, settings: &mut ProfileSettings) -> 
         return Ok(());
     }
     settings.fan_software_curves = None;
-    settings.fan_mode = Some(fan.current_mode);
+    settings.fan_mode = Some(fan.saved_mode);
     if !fan.custom_supported {
         return Ok(());
     }
@@ -325,12 +325,14 @@ mod tests {
             software: None,
             curve_kind: fanctl::CurveKind::TwoPoint,
             rpm_fans: vec![],
-            available_modes: vec![0, 1, 6],
+            available_modes: vec![0, 1, 6, 8],
             fan_count: 2,
             custom_supported: true,
-            current_mode: 0,
+            saved_mode: 0,
+            current_mode: 8,
             offset_pct: 0,
-            offset_supported: true,
+            offset_slot: None,
+            offset_blocked_reason: None,
             can_restore: false,
             fans: vec![],
             warnings: vec![],
@@ -351,8 +353,10 @@ mod tests {
             3.0,
             10.0,
         );
-        fan.software = Some(BTreeMap::from([("cpu".into(), curve)]));
         let mut s = ProfileSettings::default();
+        capture_fan(&fan, &mut s).unwrap();
+        assert_eq!(s.fan_mode, Some(0));
+        fan.software = Some(BTreeMap::from([("cpu".into(), curve)]));
         capture_fan(&fan, &mut s).unwrap();
         assert_eq!(s.fan_software_curves, fan.software);
         assert!(s.fan_mode.is_none() && s.fan_curves.is_none() && s.fan_rpm_curves.is_none());
@@ -411,9 +415,11 @@ mod tests {
             }],
             available_modes: vec![0, 1, 6],
             fan_count: 1,
+            saved_mode: 0,
             current_mode: 0,
             offset_pct: 0,
-            offset_supported: false,
+            offset_slot: None,
+            offset_blocked_reason: Some("此机型不支持风扇加速偏移。".into()),
             can_restore: false,
             fans: vec![],
             warnings: vec![],
@@ -426,6 +432,7 @@ mod tests {
         assert_eq!(s.fan_mode, Some(0));
         assert!(s.fan_rpm_curves.is_none());
         assert!(validate(&s).is_ok());
+        f.saved_mode = 6;
         f.current_mode = 6;
         assert!(capture_fan(&f, &mut ProfileSettings::default()).is_err());
         f.rpm_fans[0].points[0].rpm_pct = 20;

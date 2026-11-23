@@ -10,7 +10,7 @@ Status: implemented
 
 2026-11-20 内存频率改由本机 SMBIOS 提供，不再依赖 OEM 通道：
 
-- `hal/smbios.rs` 从「只解析系统厂商」扩展为共享结构遍历 + Type 17（内存条）解析：已占用插槽（Size ∉ {0, 0xFFFF}）取配置速率（offset 0x20，需结构长度 ≥ 0x22），未报告时回退最大速率（offset 0x14）；多插槽取最高值。厂商解析行为不变（原有测试全保留）。
+- SMBIOS Type 17 只解析配置速率字段及其扩展编码。空槽不参与；已安装内存条必须共同报告同一有效值。配置速率缺失或不一致时保留未知与诊断。
 - SMBIOS 速率语义为 DDR 有效传输速率，字段名与显示单位用 MT/s，不与 OEM 行的 MHz 混用。
 - `hal/overview.rs`（非 OEM 概览契约）的 `SystemOverview` 新增 `memory_speed_mts`，读取失败进 `warnings`、值为空，与容量读取同一模式。
 
@@ -25,6 +25,10 @@ Status: implemented
 - `cargo check`、`npm run build`、`npm run verify-notes` 通过；SMBIOS 解析逻辑经独立编译夹具验证 8 项（占用/空槽/回退/缺省/截断/真实布局全通过）。`cargo test smbios` 当前被并行在途重构（powerctl/fanctl/profiles 测试文件）阻断，待其修复后随套件回归。
 - 顺手修复在途 `hal/overview/cpu.rs` 中 `nominal_base_clock_mhz` 缺 `__cpuid` 导入导致的 lib 编译阻断（不修则任何改动的 `cargo check` 基线无法通过）。
 - 真机显示效果待目检；本改动只读固件表，无硬件写入风险。
+
+### 2026-11-23 审查修正
+
+概览只有一个配置速率字段。仅在已安装内存条报告同一有效配置速率时展示，未报告或不一致时保留未知与诊断。Type 17 仅解析配置速率及该字段的扩展编码，移除额定最大速率回退。补齐缺失、混合与扩展字段的隔离检查。
 
 ## 备选方案
 

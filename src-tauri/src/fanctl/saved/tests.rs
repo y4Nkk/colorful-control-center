@@ -31,7 +31,7 @@ fn mode_and_offset_share_oem_slots_and_full_speed_is_not_remembered() {
             [Patch::new(5, [6]), Patch::new(mode_at, [6])]
         );
         assert_eq!(
-            offset(&io, 35).unwrap(),
+            offset(slot(&io).unwrap(), 35),
             [Patch::new(7, [35]), Patch::new(offset_at, [35])]
         );
     }
@@ -44,7 +44,7 @@ fn no_capability_changes_no_slots_and_unknown_mode_never_selects_a_slot() {
     io.0.borrow_mut()[7][0] = 1;
     io.0.borrow_mut()[7][20] = 0x10;
     io.0.borrow_mut()[1][1] = 255;
-    assert!(offset(&io, 0).is_err());
+    assert!(slot(&io).is_err());
 }
 #[test]
 fn fields_and_memory_slot_roll_back_together_on_partial_write_failure() {

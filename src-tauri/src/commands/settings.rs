@@ -1,5 +1,12 @@
 //! 设置命令薄层：自启和启动档案由 startup 拥有，档案契约由 profiles 拥有。
-use tauri::AppHandle;
+use tauri::{AppHandle, State};
+
+#[tauri::command]
+pub(crate) fn get_oem_startup_notice(
+    notice: State<'_, Option<crate::startup::OemStartupNotice>>,
+) -> Option<crate::startup::OemStartupNotice> {
+    notice.inner().clone()
+}
 
 #[tauri::command]
 pub(crate) async fn get_autostart(

@@ -3,7 +3,7 @@
  * 全局通知 Host。页面状态在根持有（持久化于 Phase 4 设置接入）。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { onTrayNavigationRequest } from "./api/client";
+import { getOemStartupNotice, onTrayNavigationRequest, toCommandError } from "./api/client";
 import { toast } from "./components/use-toast";
 import { AppShell } from "./app/AppShell";
 import { AppWorkspace } from "./app/AppWorkspace";
@@ -17,8 +17,24 @@ import { useAppPreferences } from "./app/useAppPreferences";
 import { useHotkeyState } from "./app/useHotkeyState";
 import { rememberPage, startupPage } from "./lib/startup-page";
 
+function useOemStartupNotice() {
+  useEffect(() => {
+    let disposed = false;
+    void getOemStartupNotice().then(notice => {
+      if (disposed || !notice) return;
+      toast(notice.kind === "closed"
+        ? { kind: "success", title: "已结束原厂 FnKey", durationMs: 0 }
+        : { kind: "warning", title: "启动时未完全退出原厂软件", description: notice.detail, durationMs: 0 });
+    }).catch(error => {
+      if (!disposed) toast({ kind: "error", title: "无法读取原厂软件启动处理结果", description: toCommandError(error).message });
+    });
+    return () => { disposed = true; };
+  }, []);
+}
+
 export default function App() {
   useScrollActivityMarker();
+  useOemStartupNotice();
   const preferences = useAppPreferences();
   const hotkeys = useHotkeyState();
   const [chosenLocation, setLocation] = useState<WorkspaceLocation | null>(null);
@@ -70,14 +86,13 @@ export default function App() {
   return (
     <OemConflictHost workspace={workspaceLocationKey(location)}>
       <AppShell location={location} onPageChange={page => navigate({ ...location, page })}
-        preferences={preferences}>
+        preferences={preferences} globalInfo={<Toaster coldWarning={hotkeys.warning} dismissColdWarning={hotkeys.dismiss} />}>
         <ProfileApplicationHost />
         <AppWorkspace location={location} onNavigate={navigate}
           requestedProfile={requestedProfile} fanRequest={fanRequest} preferences={preferences}
           navigationRequest={navigationRequest} onNavigated={hotkeys.acknowledgeNavigation} />
       </AppShell>
       <AutomaticDisplayTrialHost />
-      <Toaster coldWarning={hotkeys.warning} dismissColdWarning={hotkeys.dismiss} />
     </OemConflictHost>
   );
 }

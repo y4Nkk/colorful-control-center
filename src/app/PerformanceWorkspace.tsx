@@ -42,7 +42,7 @@ export function PerformanceWorkspace({ active, model, fanRequest }: HardwareWork
   return <div className="ccc-control" ref={workspace}>
     <OemPowerMode active={active} revision={revisions.mode} onSettled={() => model.refreshOthers("mode")} />
     <OemPerformanceOptions active={active} revision={revisions.options} onSettled={() => model.refreshOthers("options")} />
-    <div className="ccc-module-grid" data-module-layout="tuning">
+    <div className="ccc-module-grid">
       <PowerPanel active={active} revision={revisions.power} onSettled={() => model.refreshOthers("power")} />
       <GpuTuning active={active} revision={revisions.gpu} onSettled={() => model.refreshOthers("gpu")} />
     </div>

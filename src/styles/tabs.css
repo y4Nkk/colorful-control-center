@@ -1,0 +1,48 @@
+.ccc-tabs-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--ccc-space-1);
+  min-width: 0;
+  border-block-end: 1px solid var(--ccc-hairline);
+}
+
+.ccc-tabs-tab {
+  position: relative;
+  min-height: var(--ccc-control-height);
+  max-width: 100%;
+  padding: var(--ccc-space-2) var(--ccc-space-3);
+  border-start-start-radius: var(--ccc-radius-control);
+  border-start-end-radius: var(--ccc-radius-control);
+  color: var(--ccc-text-muted);
+  font-size: var(--ccc-text-md);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.ccc-tabs-tab:hover:not(:disabled, [aria-disabled="true"], [aria-selected="true"]) {
+  background: var(--ccc-row-hover);
+  color: var(--ccc-text);
+}
+
+.ccc-tabs-tab[aria-selected="true"], .ccc-tabs-tab:active:not(:disabled, [aria-disabled="true"]) {
+  background: var(--ccc-nav-selected);
+  color: var(--ccc-text);
+}
+
+.ccc-tabs-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset-inline: var(--ccc-space-2);
+  inset-block-end: 0;
+  border-block-end: 2px solid var(--ccc-action);
+}
+
+.ccc-tabs-tab:focus-visible, .ccc-tabs-panel:focus-visible {
+  outline: 2px solid var(--ccc-action);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+
+.ccc-tabs-tab:is(:disabled, [aria-disabled="true"]) { cursor: not-allowed; opacity: 0.55; }
+.ccc-tabs-panel { min-width: 0; }

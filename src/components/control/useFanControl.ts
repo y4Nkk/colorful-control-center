@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { applyFanCurve, applyRpmFanCurves, CUSTOM_FAN_MODE, offsetModeAvailable, readFanProfile, restoreFanDefault, restoreFanProfile, setFanMode, setFanOffset,
+import { applyFanCurve, applyRpmFanCurves, CUSTOM_FAN_MODE, readFanProfile, restoreFanDefault, restoreFanProfile, setFanMode, setFanOffset,
   type FanId, type FanProfile, type RpmPoint } from "../../api/client";
 import { toast } from "../use-toast";
 import { normalizeDraft, sameDraft, type CurveDraft } from "./curve";
@@ -76,8 +76,8 @@ export function useFanControl(active: boolean, revision: number, onSettled: () =
     void run(() => applyRpmFanCurves({ [id]: points }));
   };
   const setOffset = (offset: number) => {
-    if (profile && !profile.software && profile.offsetSupported && offsetModeAvailable(profile.currentMode)
-      && offset !== profile.offsetPct) void run(() => setFanOffset(offset));
+    if (profile?.offsetBlockedReason === null && offset !== profile.offsetPct)
+      void run(() => setFanOffset({ mode: profile.currentMode, slot: profile.offsetSlot }, offset));
   };
   return { profile, error, busy, readValid, setMode, changeCurve, changeRpm, setOffset,
     restore: () => run(restoreFanProfile, true), restoreDefault: () => run(restoreFanDefault, true),

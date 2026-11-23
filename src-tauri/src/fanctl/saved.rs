@@ -1,5 +1,6 @@
 //! FnKey FAN 的分模式记忆槽；全速只在当前生效，记忆为自动。
 use super::{FAN_MODE_AUTO, FAN_MODE_FULL_SPEED, FAN_MODE_NOISELESS, NOISELESS_FAN_LABEL};
+use crate::powerctl::mode::{self as power, ModeIo};
 use anyhow::{Result, anyhow, bail};
 use ccc_core::settings::{Patch, SettingsAccess};
 #[cfg(test)]
@@ -19,13 +20,15 @@ pub(crate) fn entertainment_quiet(io: &impl SettingsAccess) -> Result<bool> {
 }
 
 pub(super) fn effective_mode(
-    io: &impl SettingsAccess,
+    io: &impl ModeIo,
+    power_mode: u8,
     mode: u8,
     supports_quiet: bool,
 ) -> Result<u8> {
     if mode == FAN_MODE_AUTO
+        && power_mode == 3
         && supports_quiet
-        && io.read(1, 1, 1).map_err(|e| anyhow!(e))? == [3]
+        && !power::boost::turbo_enabled(io, power_mode)?
         && entertainment_quiet(io)?
     {
         return Ok(FAN_MODE_NOISELESS);
@@ -40,11 +43,9 @@ fn slot(io: &impl SettingsAccess) -> Result<Option<usize>> {
     if !keeps_mode(&io.read(7, 0, 22).map_err(|e| anyhow!(e))?) {
         return Ok(None);
     }
-    let data = io.read(1, 1, 1).map_err(|e| anyhow!(e))?;
-    let mode = *data.first().ok_or_else(|| anyhow!("当前电源模式为空"))?;
-    Ok(Some(mode_slot(mode)?))
+    mode_slot(power::current_mode(io)?).map(Some)
 }
-fn mode_slot(mode: u8) -> Result<usize> {
+pub(super) fn mode_slot(mode: u8) -> Result<usize> {
     match mode {
         0 | 4 => Ok(0),
         1..=3 => Ok(mode as usize),
@@ -69,17 +70,21 @@ pub(crate) fn remembered_mode(
 pub(crate) fn mode(io: &impl SettingsAccess, mode: u8) -> Result<Vec<Patch>> {
     let mut fields = vec![Patch::new(5, [mode])];
     if let Some(slot) = slot(io)? {
-        let remembered = if mode == FAN_MODE_FULL_SPEED { FAN_MODE_AUTO } else { mode };
+        let remembered = if mode == FAN_MODE_FULL_SPEED {
+            FAN_MODE_AUTO
+        } else {
+            mode
+        };
         fields.push(Patch::new(70 + slot, [remembered]));
     }
     Ok(fields)
 }
-pub(crate) fn offset(io: &impl SettingsAccess, offset: u8) -> Result<Vec<Patch>> {
+pub(super) fn offset(slot: Option<usize>, offset: u8) -> Vec<Patch> {
     let mut fields = vec![Patch::new(7, [offset])];
-    if let Some(slot) = slot(io)? {
+    if let Some(slot) = slot {
         fields.push(Patch::new(74 + slot, [offset]));
     }
-    Ok(fields)
+    fields
 }
 pub(crate) fn capture_slots(io: &impl SettingsAccess) -> Result<Vec<Patch>> {
     if !keeps_mode(&io.read(7, 0, 22).map_err(|e| anyhow!(e))?) {

@@ -6,6 +6,8 @@ struct Wire {
     running: u8,
     packets: Vec<Vec<u8>>,
     writes: Vec<(i32, Vec<u8>)>,
+    offset_save_failure: Option<i32>,
+    offset_command_failure: Option<u8>,
 }
 impl Default for Wire {
     fn default() -> Self {
@@ -17,6 +19,8 @@ impl Default for Wire {
             running: 0,
             packets: vec![],
             writes: vec![],
+            offset_save_failure: None,
+            offset_command_failure: None,
         }
     }
 }
@@ -32,6 +36,7 @@ unsafe extern "system" fn buffer(command: i32, output: *mut u8) -> i32 {
         unsafe {
             *output.add(1) = 1;
             *output.add(16) = 127;
+            *output.add(18) = 50;
             *output.add(19) = 127;
         }
     }
@@ -53,20 +58,28 @@ unsafe extern "system" fn settings(page: i32, offset: i32, length: i32, output: 
     4096
 }
 unsafe extern "system" fn send(command: i32, input: *const u8, length: i32) -> i32 {
+    let payload = unsafe { std::slice::from_raw_parts(input, length as usize) };
     wire(|w| {
-        w.writes.push((
-            command,
-            unsafe { std::slice::from_raw_parts(input, length as usize) }.to_vec(),
-        ))
-    });
-    command
+        w.writes.push((command, payload.to_vec()));
+        if let (121, [value, 0, 0, 14]) = (command, payload)
+            && w.offset_command_failure == Some(*value)
+        {
+            w.offset_command_failure = None;
+            return 0;
+        }
+        command
+    })
 }
 unsafe extern "system" fn save(page: i32, offset: i32, length: i32, input: *const u8) -> i32 {
     wire(|w| {
         w.pages[page as usize][offset as usize..offset as usize + length as usize]
-            .copy_from_slice(unsafe { std::slice::from_raw_parts(input, length as usize) })
-    });
-    1
+            .copy_from_slice(unsafe { std::slice::from_raw_parts(input, length as usize) });
+        if page == 4 && w.offset_save_failure == Some(offset) {
+            w.offset_save_failure = None;
+            return 0;
+        }
+        1
+    })
 }
 unsafe extern "system" fn exchange(
     command: i32,
@@ -122,48 +135,8 @@ fn production_transport_uses_original_status_packet_and_start_command_without_ca
     assert!(super::super::ensure_manual_allowed(&hal).is_err());
     wire(|w| assert!(w.writes.is_empty()));
 }
-#[test]
-fn fan_offset_capability_respects_both_layout_and_wmi96() {
-    let hal = hal();
-    for (layout, flags, expected) in [(0, 0, true), (0, 4, false), (0x10, 0, false)] {
-        wire(|w| {
-            w.pages[7][11] = flags;
-            w.pages[7][20] = layout;
-        });
-        let profile = crate::fanctl::read_firmware_profile(&hal).unwrap();
-        assert_eq!(profile.offset_supported, expected);
-    }
-    wire(|w| assert!(w.writes.is_empty()));
-}
-
-#[test]
-fn noiseless_fan_offset_only_updates_the_offset_and_its_slot() {
-    use crate::fanctl::{self, FAN_MODE_NOISELESS};
-
-    let hal = hal();
-    let mut expected = wire(|w| {
-        w.pages[7][20] = 1;
-        w.pages[7][21] = 1;
-        w.pages[1][1] = 3;
-        w.pages[4][5] = FAN_MODE_NOISELESS;
-        w.pages[4][7] = 20;
-        w.pages[4][9] = 1;
-        w.pages[4][73] = FAN_MODE_NOISELESS;
-        w.pages[4][77] = 20;
-        w.pages[4]
-    });
-    expected[7] = 50;
-    expected[77] = 50;
-
-    let _gate = hal.begin_write().unwrap();
-    fanctl::set_offset(&hal, 50).unwrap();
-    let profile = fanctl::read_profile(&hal).unwrap();
-    assert_eq!((profile.current_mode, profile.offset_pct), (FAN_MODE_NOISELESS, 50));
-    wire(|w| {
-        assert_eq!(w.writes, [(121, vec![128, 0, 0, 14])]);
-        assert_eq!(w.pages[4], expected);
-    });
-}
+#[path = "native_tests/offset.rs"]
+mod offset;
 
 #[test]
 fn production_entrypoints_refuse_running_firmware_before_every_fan_or_mode_write() {
@@ -173,7 +146,14 @@ fn production_entrypoints_refuse_running_firmware_before_every_fan_or_mode_write
     assert!(profile.blocked_reason.unwrap().contains("除尘"));
     for result in [
         crate::fanctl::set_mode(&hal, 0).map(|_| ()),
-        crate::fanctl::set_offset(&hal, 0),
+        crate::fanctl::set_manual_offset(
+            &hal,
+            crate::fanctl::OffsetSource {
+                mode: 0,
+                slot: None,
+            },
+            0,
+        ),
         crate::fanctl::apply_curve(&hal, None, None, None),
         crate::fanctl::restore_initial(&hal),
         crate::fanctl::restore_default(&hal),

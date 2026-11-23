@@ -158,6 +158,7 @@ macro_rules! handler {
             crate::commands::profiles::keep_profile_display,
             crate::commands::profiles::cancel_profile_application,
             crate::commands::settings::get_autostart,
+            crate::commands::settings::get_oem_startup_notice,
             crate::commands::settings::set_autostart,
             crate::commands::settings::get_startup_profile,
             crate::commands::settings::set_startup_profile,
@@ -207,6 +208,7 @@ mod tests {
             "restore_oem_supply_mode",
             "read_fn_key_close_target",
             "close_fn_key",
+            "get_oem_startup_notice",
         ] {
             assert!(!super::allowed("osd", command));
             assert!(super::allowed("main", command));

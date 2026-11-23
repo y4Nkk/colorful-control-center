@@ -25,8 +25,14 @@ test("接受全局原语自己的原生结构", () => {
 });
 test("注释和字符串不是 JSX 原生入口", () => assert.deepEqual(source('const text = "<select>"; /* <button /> */').violations, []));
 test("拒绝旧 Combobox 导入", () => assert.equal(source('import { Combobox } from "../Combobox"').violations.length, 1));
+test("页签角色与按钮由全局 Tabs 提供", () => {
+  for (const role of ["tablist", "tab", "tabpanel"]) {
+    assert.equal(source(`<div role="${role}" />`).violations.length, 1);
+  }
+  assert.deepEqual(inspectUiSource("src/components/Tabs.tsx", '<button role="tab" />').violations, []);
+});
 test("拒绝全局私有类和子部件在业务中直接拼装", () => {
-  for (const name of ["ccc-surface", "ccc-select-option", "ccc-checkbox-box", "ccc-field", "ccc-color-picker-panel", "ccc-color-swatch"]) {
+  for (const name of ["ccc-surface", "ccc-select-option", "ccc-checkbox-box", "ccc-field", "ccc-color-picker-panel", "ccc-color-swatch", "ccc-tabs-tab"]) {
     assert.equal(source(`<div className="${name}"/>`).violations.length, 1);
     assert.equal(styles(`.${name} { border-radius: 0; }`).length, 1);
   }

@@ -6,6 +6,7 @@ export const UI_CONTRACT = [
   { name: "Checkbox", style: "choice", prefixes: ["checkbox"], native: ["input"] },
   { name: "Radio", style: "choice", prefixes: ["radio"], native: ["input"] },
   { name: "SegmentedControl", style: "choice", prefixes: ["segmented"], native: [] },
+  { name: "Tabs", style: "tabs", prefixes: ["tabs"], native: ["button"], roles: ["tablist", "tab", "tabpanel"] },
   { name: "Slider", style: "slider", prefixes: ["range"], native: ["input"] },
   { name: "Surface", style: "surface", prefixes: ["surface"], native: [] },
   { name: "Switch", style: "switch", prefixes: ["switch"], native: ["input"] },

@@ -2,7 +2,7 @@ mod fn_key;
 
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow, ensure};
 use windows_sys::Win32::{
     Foundation::{ERROR_NO_MORE_FILES, HANDLE, INVALID_HANDLE_VALUE},
     System::Diagnostics::ToolHelp::{
@@ -46,6 +46,24 @@ pub(crate) fn is_blocked_reason(reason: &str) -> bool {
 
 pub(crate) fn ensure_owner_absent() -> Result<()> {
     ensure_absent(&EXECUTABLES)
+}
+
+pub(crate) fn close_at_startup() -> Result<bool> {
+    let active = owners(&EXECUTABLES)?;
+    let mut fn_keys = active.iter().filter(|owner| owner.executable == FN_KEY);
+    if let Some(owner) = fn_keys.next() {
+        ensure!(
+            fn_keys.next().is_none(),
+            "检测到多个 FnKey.exe，请手动退出原厂软件后重试"
+        );
+        fn_key::terminate_verified(owner.pid).context("结束原厂 FnKey 失败")?;
+        ensure_owner_absent().context("已结束原厂 FnKey，复查原厂控制进程失败")?;
+        return Ok(true);
+    }
+    if let Some(owner) = active.first() {
+        return Err(owner.blocked());
+    }
+    Ok(false)
 }
 
 pub(crate) fn blocked_reason() -> Option<String> {

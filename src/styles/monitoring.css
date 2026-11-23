@@ -1,26 +1,30 @@
-/* 监控语义：温度折线内嵌传感器卡片，频率与转速是读数，比例是容量。 */
+/* 监控语义：温度使用绝对标尺，频率使用带单位的数值，比例使用真实分母。 */
 .ccc-parameter-descriptions { display: grid; gap: var(--ccc-space-3); margin: var(--ccc-space-3) 0 0; padding: 0; list-style: none; }
 .ccc-parameter-descriptions strong { color: var(--ccc-text); font-weight: 500; }
 .ccc-parameter-descriptions p { margin: var(--ccc-space-1) 0 0; line-height: 1.7; color: var(--ccc-text-muted); }
-.ccc-sensor-group { display: grid; grid-template-rows: subgrid; gap: var(--ccc-space-3); min-width: 0; padding: var(--ccc-space-4); }
-.ccc-sensor-identity { display: grid; grid-template-columns: minmax(0, 1fr) minmax(80px, 40%); align-items: center; gap: var(--ccc-space-2); min-height: 115px; }
-.ccc-hardware-description { min-width: 0; }
-.ccc-sensor-group h3 { margin: var(--ccc-space-1) 0; font-size: var(--ccc-text-xl); font-weight: 600; }
-.ccc-sensor-group h3 span { margin-left: var(--ccc-space-1); font-size: var(--ccc-text-xs); font-weight: 400; color: var(--ccc-text-muted); }
+.ccc-sensor-group { display: grid; grid-template-rows: subgrid; gap: var(--ccc-space-4); min-width: 0; padding: var(--ccc-space-4); }
+.ccc-hardware-identity { display: grid; grid-template-columns: clamp(76px, 21%, 112px) minmax(0, 1fr); align-items: center; gap: var(--ccc-space-3); }
+.ccc-hardware-illustrations { display: grid; justify-items: center; gap: var(--ccc-space-1); }
+.ccc-hardware-description { display: grid; justify-items: start; gap: var(--ccc-space-1); min-width: 0; }
+.ccc-hardware-description h3 { margin: 0; font-size: var(--ccc-text-xl); font-weight: 600; }
 .ccc-hardware-description p { margin: 0; color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); overflow-wrap: anywhere; }
+.ccc-hardware-description .ccc-hardware-subtitle { font-size: var(--ccc-text-xs); }
 .ccc-hardware-brand { display: inline-flex; align-items: center; justify-content: center; width: 68px; height: 27px; padding: var(--ccc-space-1) var(--ccc-space-2); border-radius: var(--ccc-radius-control); background: var(--ccc-brand-surface); }
 .ccc-hardware-brand img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .ccc-hardware-brand.is-amd { background: var(--ccc-brand-dark-surface); }
 .ccc-hardware-brand.is-nvidia img { object-fit: cover; }
 .ccc-hardware-art { display: block; width: 100%; height: auto; overflow: visible; }
 .ccc-art-etching { font-family: var(--ccc-font-sans); }
-.ccc-sensor-visual { display: flex; align-items: center; justify-content: flex-end; gap: var(--ccc-space-1); min-width: 0; }
-.ccc-sensor-visual > .ccc-hardware-art { flex: 1 1 auto; min-width: 0; max-width: 220px; }
-.ccc-sensor-metrics { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--ccc-space-3); align-items: center; min-height: 128px; }
-.ccc-sensor-summary { min-width: 0; }
-.ccc-sensor-ratios { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--ccc-space-3); align-items: start; align-self: start; min-width: 0; }
+.ccc-sensor-metrics { container: ccc-metrics / inline-size; }
+.ccc-sensor-metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-3); }
+.ccc-sensor-metric-grid:not(:has(> :nth-child(4))) > :first-child { grid-column: 1 / -1; }
+@container ccc-metrics (min-width: 400px) {
+  .ccc-sensor-metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ccc-sensor-metric-grid:has(> :nth-child(4)) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ccc-sensor-metric-grid:not(:has(> :nth-child(4))) > :first-child { grid-column: auto; }
+}
 .ccc-meter { display: flex; flex-direction: column; gap: var(--ccc-space-2); min-width: 0; }
-.ccc-meter:not(.is-ratio) .ccc-meter-label { order: -1; }
+.ccc-meter:not(.is-ratio) > .ccc-meter-label { order: -1; }
 .ccc-meter.is-ratio { align-items: center; }
 .ccc-meter-label { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); white-space: nowrap; }
 .ccc-meter-value { display: flex; align-items: baseline; gap: var(--ccc-space-1); color: var(--ccc-text); font-size: var(--ccc-text-reading); line-height: 1.2; white-space: nowrap; }
@@ -32,8 +36,13 @@
 .ccc-meter-ring .ccc-meter-value { position: relative; display: grid; justify-items: center; gap: var(--ccc-space-1); font-size: calc(var(--ccc-ring-diameter) * .28); font-variant-numeric: lining-nums tabular-nums; line-height: 1; }
 .ccc-meter-ring .ccc-meter-unit { min-height: 1em; }
 .ccc-meter-total { font-size: var(--ccc-text-xs); color: var(--ccc-text-muted); }
+.ccc-meter-compact { gap: var(--ccc-space-1); }
+.ccc-meter-compact .ccc-meter-value { font-size: var(--ccc-text-title); flex-wrap: wrap; }
+.ccc-meter-heading { display: flex; align-items: center; gap: var(--ccc-space-2); color: var(--ccc-text-muted); }
+.ccc-meter-compact .ccc-meter-label { white-space: normal; }
 
 .ccc-capacity-card { min-width: 0; padding: var(--ccc-space-4); }
+.ccc-capacity-card > .ccc-hardware-identity { margin-block-end: var(--ccc-space-3); }
 .ccc-capacity-head { display: grid; grid-template-columns: minmax(0, 1fr) 112px; align-items: center; gap: var(--ccc-space-2); margin-bottom: var(--ccc-space-2); }
 .ccc-capacity-heading { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-2); min-width: 0; }
 .ccc-capacity-heading h3 { margin: 0; font-size: var(--ccc-text-xl); font-weight: 600; }
@@ -43,51 +52,50 @@
 .ccc-capacity-fill { fill: var(--ccc-action); }
 .ccc-capacity-empty, .ccc-capacity-available { font-size: var(--ccc-text-xs); color: var(--ccc-text-muted); }
 .ccc-capacity-empty { margin: var(--ccc-space-2) 0 0; }
-.ccc-memory-usage { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(0, 3fr); align-items: center; gap: var(--ccc-space-5); }
+.ccc-memory-usage { display: grid; gap: var(--ccc-space-4); }
 .ccc-memory-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-3); margin: 0; }
 .ccc-memory-stats dt { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
-.ccc-memory-stats dd { margin: var(--ccc-space-1) 0 0; font-family: var(--ccc-font-mono); font-size: var(--ccc-text-md); font-weight: 600; }
-.ccc-memory-primary { grid-column: 1 / -1; }
-.ccc-memory-primary dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ccc-space-2); font-size: var(--ccc-text-temperature); line-height: 1.15; }
-.ccc-memory-percent { padding: var(--ccc-space-1) var(--ccc-space-2); border-radius: var(--ccc-radius-full); color: var(--ccc-action); background: var(--ccc-nav-selected); font-size: var(--ccc-text-xs); }
-.ccc-memory-trend { min-width: 0; padding: var(--ccc-space-3); border-radius: var(--ccc-radius-control); background: var(--ccc-content-muted); }
-.ccc-memory-trend-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ccc-space-2); margin-bottom: var(--ccc-space-3); font-size: var(--ccc-text-xs); color: var(--ccc-text-muted); }
-.ccc-memory-trend-heading > :first-child { font-weight: 600; color: var(--ccc-text); }
-.ccc-memory-chart { padding-inline-end: calc(var(--ccc-space-6) + var(--ccc-space-2)); }
-.ccc-trend-plot.ccc-memory-plot { height: 88px; }
-.ccc-memory-midline { stroke: var(--ccc-hairline); }
-.ccc-memory-tick { position: absolute; left: calc(100% + var(--ccc-space-2)); transform: translateY(-50%); color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
+.ccc-memory-stats dd { margin: var(--ccc-space-1) 0 0; font-family: var(--ccc-font-mono); font-size: var(--ccc-text-title); line-height: 1.2; }
 .ccc-storage-volumes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); gap: var(--ccc-space-3) var(--ccc-space-5); list-style: none; margin: 0; padding: 0; }
 .ccc-storage-volume { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--ccc-space-3); align-items: center; padding-block: var(--ccc-space-2); }
-.ccc-storage-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--ccc-radius-control); background: var(--ccc-content-muted); color: var(--ccc-text-muted); }
+.ccc-storage-icon { color: var(--ccc-text-muted); }
 .ccc-storage-info { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-1); min-width: 0; }
 .ccc-storage-info h4 { display: flex; gap: var(--ccc-space-1); margin: 0; white-space: nowrap; font-size: var(--ccc-text-sm); font-weight: 600; }
 .ccc-storage-info h4 > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ccc-storage-info h4 > :last-child { flex: none; }
 
-.ccc-temperature-value { color: var(--ccc-text); font-size: var(--ccc-text-temperature); line-height: 1.15; white-space: nowrap; }
-.ccc-temperature-value em { margin-inline-start: var(--ccc-space-1); color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); font-style: normal; }
-.ccc-temperature-value.is-hot { color: var(--ccc-danger); }
-.ccc-sensor-temperature { display: grid; gap: var(--ccc-space-2); min-width: 0; }
-.ccc-sensor-temperature-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ccc-space-3); }
-.ccc-sensor-temperature-head > span { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); white-space: nowrap; }
-.ccc-sensor-temperature-plot { height: 64px; }
-.ccc-temperature-limit { stroke: color-mix(in srgb, var(--ccc-danger) 32%, transparent); }
-.ccc-trend-plot { position: relative; min-width: 0; }
-.ccc-trend-lines { display: block; width: 100%; height: 100%; box-shadow: 0 1px var(--ccc-hairline); }
-.ccc-trend-line { fill: none; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }
+.ccc-trend-value { color: var(--ccc-text); font-size: var(--ccc-text-temperature); line-height: 1.15; white-space: nowrap; }
+.ccc-trend-value em { margin-inline-start: var(--ccc-space-1); color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); font-style: normal; }
+.ccc-trend-panel { display: grid; gap: var(--ccc-space-4); min-width: 0; padding: var(--ccc-space-3); border-radius: var(--ccc-radius-card); background: var(--ccc-content-muted); }
+.ccc-trend-head { display: flex; align-items: end; justify-content: space-between; gap: var(--ccc-space-2); }
+.ccc-trend-head > div { display: grid; gap: var(--ccc-space-1); }
+.ccc-trend-head span, .ccc-trend-time, .ccc-trend-tick { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
+.ccc-trend-peak { text-align: end; }
+.ccc-trend-peak strong { font-size: var(--ccc-text-md); font-weight: 600; }
+.ccc-trend-panel .is-hot { color: var(--ccc-danger); }
+.ccc-trend-chart { padding-inline-end: var(--ccc-space-6); }
+.ccc-memory-chart { padding-inline-end: calc(var(--ccc-space-6) + var(--ccc-space-2)); color: var(--ccc-action); }
+.ccc-trend-grid { stroke: var(--ccc-hairline); }
+.ccc-temperature-zone { fill: var(--ccc-danger-tint); }
+.ccc-temperature-limit { stroke: var(--ccc-danger); stroke-dasharray: 3 3; opacity: .55; }
+.ccc-trend-area { fill: currentColor; opacity: .16; }
+.ccc-trend-tick { position: absolute; left: calc(100% + var(--ccc-space-2)); transform: translateY(-50%); line-height: 1; }
+.ccc-trend-tick[data-limit] { color: var(--ccc-danger); }
+.ccc-trend-time { display: flex; justify-content: space-between; margin-block-start: var(--ccc-space-2); }
+.ccc-trend-plot { position: relative; min-width: 0; height: 104px; }
+.ccc-trend-lines { display: block; width: 100%; height: 100%; }
+.ccc-trend-line { fill: none; stroke: currentColor; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }
 .ccc-trend-marker { position: absolute; width: 8px; height: 8px; border: 1.5px solid var(--ccc-content); border-radius: var(--ccc-radius-full); background: currentColor; transform: translate(-50%, -50%); }
+.ccc-trend-marker[data-hot] { color: var(--ccc-danger); }
+.ccc-trend-marker[data-hot]:not([data-latest]) { width: 5px; height: 5px; border: 0; }
 .ccc-trend-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
 @container ccc-control (max-width: 835px) { .ccc-meter-ring { --ccc-ring-diameter: var(--ccc-meter-ring-compact); } }
-@container ccc-control (max-width: 560px) {
-  .ccc-capacity-head { grid-template-columns: minmax(0, 1fr) 76px; }
-  .ccc-memory-usage { grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-3); }
+@container ccc-control (max-width: 560px) { .ccc-capacity-head { grid-template-columns: minmax(0, 1fr) 76px; } }
+@container ccc-control (min-width: 500px) {
+  .ccc-sensor-metrics, .ccc-memory-stats { padding-inline: var(--ccc-space-3); }
+  .ccc-memory-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (max-width: 560px) {
-  .ccc-sensor-group, .ccc-capacity-card { padding: var(--ccc-space-4); }
   .ccc-sensor-group { gap: var(--ccc-space-3); }
-  .ccc-sensor-identity { grid-template-columns: minmax(0, 1fr) minmax(72px, 40%); min-height: 110px; }
-  .ccc-sensor-metrics { grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-3); }
-  .ccc-sensor-ratios { gap: var(--ccc-space-2); }
   .ccc-meter-ring { --ccc-ring-diameter: var(--ccc-meter-ring-compact); }
 }

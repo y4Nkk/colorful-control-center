@@ -9,7 +9,6 @@ import { DetailsDialog } from "../DetailsDialog";
 import { ParameterDescriptions } from "./ParameterHelp";
 import { MEMORY_HELP, STORAGE_HELP } from "./parameterDescriptions";
 import { MemoryTrend } from "./MemoryTrend";
-import { fmtInt } from "./format";
 
 interface CapacityValues {
   total: number;
@@ -38,19 +37,13 @@ function CapacityBar({ values, label }: { values: CapacityValues; label: string 
 function MemoryUsage({ values, speedMts, history }: { values: CapacityValues | null; speedMts: number | null; history: readonly MemorySample[] }) {
   const points = history.map(({ atMs, capacity }) => ({ atMs, value: capacityValues(capacity)?.usedPercent ?? null }));
   return <div className="ccc-memory-usage">
-    {values ? <dl className="ccc-memory-stats">
-      <div className="ccc-memory-primary">
-        <dt>已用内存</dt>
-        <dd>
-          <span aria-label="内存已用容量">{formatCapacity(values.used)}</span>
-          <span className="ccc-memory-percent" aria-label="当前内存使用率">{fmtInt(values.usedPercent)}%</span>
-        </dd>
-      </div>
-      <div><dt>可用</dt><dd>{formatCapacity(values.available)}</dd></div>
-      <div><dt>总容量</dt><dd>{formatCapacity(values.total)}</dd></div>
-      <div><dt>频率</dt><dd aria-label="内存频率">{formatParameter(speedMts, "MT/s")}</dd></div>
-    </dl> : <p className="ccc-capacity-empty">容量未知</p>}
     <MemoryTrend points={points} />
+    <dl className="ccc-memory-stats">
+      <div><dt>已用内存</dt><dd aria-label="内存已用容量">{formatCapacity(values?.used)}</dd></div>
+      <div><dt>可用</dt><dd>{formatCapacity(values?.available)}</dd></div>
+      <div><dt>总容量</dt><dd>{formatCapacity(values?.total)}</dd></div>
+      <div><dt>频率</dt><dd aria-label="内存频率">{formatParameter(speedMts, "MT/s")}</dd></div>
+    </dl>
   </div>;
 }
 
@@ -76,9 +69,11 @@ export function CapacityOverview({ overview, oemMemory, memoryHistory }: {
   const volumes = overview?.volumes ?? [];
   return <div className="ccc-module-grid">
     <Surface as="section" variant="card" className="ccc-capacity-card" aria-label="系统内存概览">
-      <div className="ccc-capacity-head">
-        <div className="ccc-capacity-heading"><h3>系统内存</h3>
-          <DetailsDialog title="内存详细信息">
+      <div className="ccc-hardware-identity">
+        <HardwareArtwork kind="memory" />
+        <div className="ccc-hardware-description">
+          <h3>系统内存</h3>
+          <DetailsDialog title="内存详细信息" label="内存详情" icon={null}>
             <FactList compact facts={[
               { label: "总容量", value: formatCapacity(memory?.total) },
               { label: "已用容量", value: formatCapacity(memory?.used) },
@@ -90,14 +85,13 @@ export function CapacityOverview({ overview, oemMemory, memoryHistory }: {
             <ParameterDescriptions items={MEMORY_HELP} />
           </DetailsDialog>
         </div>
-        <HardwareArtwork kind="memory" />
       </div>
       <MemoryUsage values={memory} speedMts={overview?.memorySpeedMts ?? null} history={memoryHistory} />
     </Surface>
     <Surface as="section" variant="card" className="ccc-capacity-card" aria-label="本地存储概览">
       <div className="ccc-capacity-head">
         <div className="ccc-capacity-heading"><h3>本地存储</h3>
-          <DetailsDialog title="存储详细信息">
+          <DetailsDialog title="存储详细信息" label="存储详情" icon={null}>
             {volumes.map(volume => {
               const values = capacityValues(volume.capacity);
               return <section key={volume.mount} className="ccc-review-section">

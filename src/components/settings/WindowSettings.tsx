@@ -8,6 +8,7 @@ import { PreferenceCards, SettingRow } from "./PreferenceCards";
 import { ClosePreview } from "./SettingsPreviews";
 import { SegmentedControl } from "../SegmentedControl";
 import { ShortcutSetting } from "./ShortcutSetting";
+import { toast } from "../use-toast";
 
 export function WindowSettings({ model, active }: { model: PreferencesModel; active: boolean }) {
   const { snapshot, busy, patch } = model;
@@ -22,8 +23,17 @@ export function WindowSettings({ model, active }: { model: PreferencesModel; act
     <SettingRow label="窗口始终置顶"><Switch label="窗口始终置顶" checked={settings.alwaysOnTop} disabled={busy}
       onChange={alwaysOnTop => void patch({ alwaysOnTop })} /></SettingRow>
     <AutostartSetting active={active} busy={busy} />
-    <SettingRow label="启动时最小化到托盘"><Switch label="启动时最小化到托盘" checked={settings.startMinimized} disabled={busy}
-      onChange={startMinimized => void patch({ startMinimized })} /></SettingRow>
+    <SettingRow label="启动时显示" detail="适用于登录自启和手动启动。">
+      <SegmentedControl label="启动时显示" className="ccc-startup-display" value={settings.startMinimized ? "tray" : "window"} disabled={busy}
+        options={[{ value: "window", label: "显示主界面" }, { value: "tray", label: "最小化到托盘" }]}
+        onChange={async value => {
+          if (await patch({ startMinimized: value === "tray" })) toast({ kind: "success", title: "已保存启动显示方式" });
+        }} />
+    </SettingRow>
+    <SettingRow label="启动时关闭原厂软件" detail="结束已核验的 FnKey。原厂热键和屏显会随它退出。">
+      <Switch label="启动时关闭原厂软件" checked={settings.closeOemOnStartup} disabled={busy}
+        onChange={closeOemOnStartup => void patch({ closeOemOnStartup })} />
+    </SettingRow>
     <SettingRow label="启动页面"><SegmentedControl label="启动页面" value={settings.startupPage} disabled={busy}
       options={[{ value: "dashboard", label: pageTitle("dashboard") },
         { value: "lastVisited", label: "上次访问页面" }]}

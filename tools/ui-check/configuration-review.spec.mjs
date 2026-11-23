@@ -21,7 +21,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("规格按需打开，弹窗可用 Escape 关闭并归还焦点", async ({ page }) => {
-  const entry = page.getByRole("button", { name: "CPU 详细信息" });
+  const entry = page.getByRole("button", { name: "CPU 规格" });
   await expect(page.getByText("物理核心数", { exact: true })).toHaveCount(0);
   await entry.focus();
   await page.keyboard.press("Enter");

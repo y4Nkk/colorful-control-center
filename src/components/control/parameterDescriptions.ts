@@ -16,7 +16,7 @@ export const GPU_SPEC_HELP: readonly ParameterDescription[] = [
 export const MEMORY_HELP: readonly ParameterDescription[] = [
   { name: "总容量、已用与可用", description: "展示系统报告的物理内存容量、已用量和可用量，后台程序与系统缓存会影响读数。" },
   { name: "容量单位", description: "以 Windows 口径显示容量。1 KB 为 1024 字节，1 MB 为 1024 KB，1 GB 为 1024 MB。" },
-  { name: "内存频率", description: "读取主板固件 SMBIOS 中已安装内存条的配置速率，以 MT/s（每秒百万次传输）表示 DDR 有效传输速率，与任务管理器同源；固件未报告时显示未知。" },
+  { name: "内存频率", description: "显示主板固件 SMBIOS 中各内存条共同报告的配置速率，以 MT/s（每秒百万次传输）表示 DDR 有效传输速率。缺少报告或速率不一致时显示未知。" },
   { name: "原厂报告频率与原厂参考频率", description: "沿用原厂共享报告中的 MHz 数值，可能有更新延迟，未报告时显示未知。参考频率不是硬上限，不据此计算占比；这两项不表示直接实测的时钟或换算后的 DDR 有效传输速率。" },
 ];
 export const STORAGE_HELP: readonly ParameterDescription[] = [

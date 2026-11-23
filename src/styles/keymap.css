@@ -2,7 +2,7 @@
 .ccc-keymap-columns { display: grid; grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.7fr); gap: var(--ccc-space-4); align-items: start; }
 .ccc-keymap-columns:not(:has(> :nth-child(2))) { grid-template-columns: minmax(0, 1fr); }
 .ccc-keymap-section { display: grid; gap: var(--ccc-space-3); padding: var(--ccc-space-4); min-width: 0; }
-.ccc-keymap-bindings, .ccc-keymap-list, .ccc-keymap-editor, .ccc-keymap-files,
+.ccc-keymap-workspace, .ccc-keymap-bindings, .ccc-keymap-list, .ccc-keymap-editor, .ccc-keymap-files,
 .ccc-keymap-text, .ccc-keymap-clicks, .ccc-keymap-steps, .ccc-keymap-recorder, .ccc-keymap-program-status { display: grid; gap: var(--ccc-space-3); min-width: 0; }
 .ccc-keymap-binding { display: flex; align-items: center; justify-content: space-between; gap: var(--ccc-space-2); padding: var(--ccc-space-3); text-align: left; min-width: 0; }
 .ccc-keymap-binding span { color: var(--ccc-text-muted); overflow-wrap: anywhere; font-size: var(--ccc-text-sm); }

@@ -7,7 +7,7 @@ mod registry;
 use crate::profiles::authorization::Binding;
 use anyhow::{Context, Result, anyhow};
 pub use launch::{LaunchReport, on_launch, on_second_launch};
-pub(crate) use launch::{preparing, profile_in_progress};
+pub(crate) use launch::{OemStartupNotice, close_oem_at_launch, preparing, profile_in_progress};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::Manager;

@@ -22,7 +22,9 @@ function hasReading(point: TimePoint | undefined): point is TimePoint & { value:
   return point?.value != null && Number.isFinite(point.value);
 }
 
-export function timeTrace(points: readonly TimePoint[], domain: ScaleDomain, start: number, span: number, maxGapMs: number) {
+export function timeTrace(points: readonly TimePoint[], domain: ScaleDomain, start: number, span: number, maxGapMs: number,
+  highlight?: (value: number) => boolean,
+) {
   const y = valuePct(domain);
   const segments: { path: string; firstX: number; lastX: number }[] = [];
   const markers: { x: number; y: number; atMs: number; value: number }[] = [];
@@ -41,9 +43,12 @@ export function timeTrace(points: readonly TimePoint[], domain: ScaleDomain, sta
     }
     path.push(`${joinsPrevious ? "L" : "M"}${x.toFixed(3)} ${height.toFixed(3)}`);
     if (!joinsNext) segments.push({ path: path.join(" "), firstX, lastX: x });
-    if ((!joinsPrevious && !joinsNext) || index === points.length - 1) {
+    if ((!joinsPrevious && !joinsNext) || index === points.length - 1 || highlight?.(point.value)) {
       markers.push({ x, y: height, atMs: point.atMs, value: point.value });
     }
   });
-  return { segments, markers };
+  const line = segments.map(segment => segment.path).join(" ");
+  const area = segments.filter(segment => segment.lastX > segment.firstX)
+    .map(({ path, firstX, lastX }) => `${path} L${lastX.toFixed(3)} 100 L${firstX.toFixed(3)} 100 Z`).join(" ");
+  return { line, area, markers };
 }

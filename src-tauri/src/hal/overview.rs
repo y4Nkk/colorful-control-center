@@ -40,7 +40,7 @@ pub struct Volume {
 pub struct SystemOverview {
     pub cpu: CpuIdentity,
     pub memory: Option<Capacity>,
-    /// SMBIOS Type 17 已安装内存条的最高配置速率（DDR 有效传输速率，MT/s）。
+    /// SMBIOS Type 17 已安装内存条共同报告的配置速率（MT/s）。
     pub memory_speed_mts: Option<u32>,
     pub volumes: Vec<Volume>,
     pub warnings: Vec<String>,
