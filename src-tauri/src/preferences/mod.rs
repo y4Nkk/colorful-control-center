@@ -1,7 +1,6 @@
 mod desktop;
 mod fonts;
 pub mod model;
-mod restart;
 mod shortcut;
 mod startup;
 #[cfg(test)]
@@ -10,7 +9,6 @@ mod tests;
 use anyhow::{Context, Result, anyhow};
 pub use fonts::list as list_fonts;
 use model::Preferences;
-pub use restart::{pending_lease, restart};
 use serde::Serialize;
 pub use startup::{create_window, prepare_windows};
 use std::{path::PathBuf, sync::Mutex};
@@ -25,7 +23,6 @@ pub struct Controller {
     gate: Mutex<()>,
     state: Mutex<State>,
     acceleration: bool,
-    restarting: std::sync::atomic::AtomicBool,
 }
 
 #[derive(Debug, Serialize)]
@@ -51,7 +48,6 @@ impl Controller {
             path,
             gate: Mutex::new(()),
             acceleration,
-            restarting: std::sync::atomic::AtomicBool::new(false),
             state: Mutex::new(State {
                 error: settings.as_ref().err().map(|e| format!("{e:#}")),
                 settings: settings.ok(),

@@ -36,7 +36,7 @@ function fixtureData() {
     power: { pl1W: 65, pl2W: 100, plTimeS: 28, coreOffsetMv: 0, gtOffsetMv: 0, defaultPl1W: 65, defaultPl2W: 100,
       defaultCoreOffsetMv: 0, msrRuntimeAvailable: true, msrRuntimeError: null, canRestore: true, runtimeWarnings: [], warnings: ["隔离功耗诊断"],
       runtime: { pl1W: 65, pl2W: 100, coreOffsetMv: 0, gtOffsetMv: 0 } },
-    gpu: { available: true, unavailableReason: null, writeBlockedReason: null, gpuName: "Isolated GPU", coreOffsetMhz: 0, memOffsetMhz: 0, coreEditable: true,
+    gpu: { available: true, unavailableReason: null, writeBlock: null, gpuName: "Isolated GPU", coreOffsetMhz: 0, memOffsetMhz: 0, coreEditable: true,
       memEditable: true, coreMinMhz: -100, coreMaxMhz: 200, memMinMhz: -200, memMaxMhz: 1000, baseline: null, warnings: [] },
     keyboard: { available: true, unavailableReason: null, detectedType: 6, detectedFamily: "zoneRgb", detectionSource: "隔离夹具", baseline: null, warnings: [],
       current: { brightnessLevel: 3, enabled: true, rawMode: 0, effect: "zones", allColor: color, zones: [0, 1, 2].map(() => ({ enabled: true, color })) } },
@@ -159,6 +159,7 @@ function installIpc() {
         }
         case "restore_power_profile": return { ok: true, message: "已恢复初始设置" };
         case "read_gpu_profile": return data.gpu;
+        case "restart_as_administrator": return null;
         case "read_touchpad": case "apply_touchpad": case "restore_touchpad": return invokeTouchpad(data, command, args);
         case "read_microphones": case "apply_microphones": case "restore_microphones": return invokeMicrophones(data, command, args);
         case "read_airplane": case "apply_airplane": case "restore_airplane": return invokeAirplane(data, command, args);

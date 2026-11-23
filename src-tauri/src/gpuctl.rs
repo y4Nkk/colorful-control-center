@@ -69,7 +69,7 @@ pub struct GpuProfile {
     /// 不可用时的确切原因（阶段 + NVAPI 状态）
     pub unavailable_reason: Option<String>,
     /// 单项调校 IPC 的写入权限受限原因，由命令层填充。
-    pub write_blocked_reason: Option<String>,
+    pub write_block: Option<GpuWriteBlock>,
     pub gpu_name: Option<String>,
     pub core_offset_mhz: Option<i32>,
     pub mem_offset_mhz: Option<i32>,
@@ -83,6 +83,13 @@ pub struct GpuProfile {
     /// 应用自有写入前的原始基准（存在即可恢复）
     pub baseline: Option<GpuClockSettings>,
     pub warnings: Vec<String>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct GpuWriteBlock {
+    pub reason: String,
+    pub can_request_elevation: bool,
 }
 
 /// 写侧事务结果（camelCase）。

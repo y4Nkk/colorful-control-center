@@ -1,8 +1,8 @@
 pub(crate) mod deadline;
 mod lifecycle;
 
-use crate::{battery, display, fanctl, hal::Hal, hotkeys, osd, profiles, tray};
-use anyhow::{Result, anyhow};
+use crate::{battery, display, fanctl, hal::Hal, hotkeys, osd, profiles, startup, tray};
+use anyhow::{Result, anyhow, ensure};
 use lifecycle::{Lifecycle, Operation};
 use std::{process::Command, sync::OnceLock, thread, time::Duration};
 use tauri::{AppHandle, Manager, RunEvent};
@@ -21,7 +21,20 @@ pub(crate) fn closing() -> bool {
 }
 
 pub(crate) fn request() {
-    LIFECYCLE.request(|| deadline::arm_or_terminate(DEADLINE.get(), BUDGET));
+    let _: Result<bool, std::convert::Infallible> = LIFECYCLE.request(|| {
+        deadline::arm_or_terminate(DEADLINE.get(), BUDGET);
+        Ok(())
+    });
+}
+
+pub(crate) fn request_restart(commit: impl FnOnce() -> Result<()>) -> Result<()> {
+    let requested = LIFECYCLE.request(|| {
+        commit()?;
+        deadline::arm_or_terminate(DEADLINE.get(), BUDGET);
+        Ok::<_, anyhow::Error>(())
+    })?;
+    ensure!(requested, CLOSING);
+    Ok(())
 }
 
 pub(crate) async fn blocking<F, T>(run: F) -> Result<T>
@@ -92,6 +105,7 @@ fn clean_up(app: &AppHandle) -> i32 {
             failed = true;
         }
     };
+    record("主窗口唤回", startup::stop_activation(app));
     #[cfg(not(test))]
     let supply = app.try_state::<crate::powerctl::mode::supply::Controller>();
     #[cfg(not(test))]

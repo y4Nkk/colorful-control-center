@@ -42,14 +42,24 @@ pub fn run() {
     if let Some(code) = worker_entry::run(&args) {
         std::process::exit(code as i32);
     }
+    let result =
+        startup::prepare_desktop(&args).and_then(|start| start.map(run_desktop).transpose());
+    if let Err(error) = result {
+        startup::report_start_failure(&error);
+        std::process::exit(1);
+    }
+}
+
+fn run_desktop(start: startup::DesktopStart) -> anyhow::Result<()> {
+    let startup::DesktopStart {
+        activation,
+        lease,
+        login,
+        reveal,
+    } = start;
     let mut context = tauri::generate_context!();
-    let restart_lease =
-        preferences::pending_lease().expect("等待原控制会话释放失败，未重新接管硬件");
-    let windows = preferences::prepare_windows(&mut context);
+    let windows = preferences::prepare_windows(&mut context, &activation.window_class);
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
-            startup::on_second_launch(app, &args);
-        }))
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Trace)
@@ -65,7 +75,7 @@ pub fn run() {
         .plugin(shutdown::plugin())
         .plugin(preferences::plugin())
         .plugin(preferences::shortcut_plugin())
-        .plugin(control_plugin(restart_lease))
+        .plugin(control_plugin(lease))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(startup::LaunchReport::default())
@@ -76,8 +86,14 @@ pub fn run() {
             };
             preferences::create_window(app.handle(), &windows)?;
             tray::bind_window(app.handle());
+            activation.listen(app.handle())?;
+            if reveal {
+                tray::show_main(app.handle());
+            }
             tray::refresh_profiles(app.handle());
-            startup::on_launch(app.handle());
+            if login {
+                startup::apply_login_profile(app.handle());
+            }
             start_workers(app.handle());
             Ok(())
         })
@@ -96,9 +112,9 @@ pub fn run() {
                 }
             }
         })
-        .build(context)
-        .expect("error while building tauri application")
+        .build(context)?
         .run(shutdown::on_event);
+    Ok(())
 }
 
 fn start_workers(app: &tauri::AppHandle) {
@@ -202,17 +218,12 @@ fn start_hardware_workers(app: &tauri::AppHandle) {
 }
 
 fn control_plugin(
-    restart_lease: Option<controller_lease::ControllerLease>,
+    lease: controller_lease::ControllerLease,
 ) -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri::plugin::Builder::new("controller")
         .setup(move |app, _| {
             let Some(_operation) = shutdown::enter() else {
                 return Ok(());
-            };
-            let lease = match restart_lease {
-                Some(lease) => lease,
-                None => controller_lease::ControllerLease::try_acquire(controller_lease::NAME)?
-                    .ok_or("已有主程序或独立恢复任务仍在运行，请等待恢复结束后重试")?,
             };
             app.manage(lease);
             startup::close_oem_at_launch(app);

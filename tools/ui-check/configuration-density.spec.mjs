@@ -137,10 +137,10 @@ test("调校分组随窗口回流，GPU 草稿经预览提交并可恢复", asyn
   expect((await writes()).map(({ command }) => command)).toEqual(["apply_gpu_clock_offsets", "restore_gpu_baseline"]);
 });
 
-test("GPU 调校缺少管理员权限时保留读数并禁止写入", async ({ page }) => {
+test("GPU 调校保留只读偏移，确认后请求管理员重启并可在取消后重试", async ({ page }) => {
   await page.evaluate(() => Object.assign(window.__uiFixture.gpu, {
     coreOffsetMhz: 35, baseline: { coreOffsetMhz: 0, memOffsetMhz: 0 },
-    writeBlockedReason: "调整或恢复 GPU 偏移需要管理员权限。",
+    writeBlock: { reason: "调整或恢复 GPU 偏移需要管理员权限。", canRequestElevation: true },
   }));
   await openWorkspace(page, "性能与散热");
   const gpu = page.getByRole("region", { name: "GPU 频率", exact: true });
@@ -150,6 +150,50 @@ test("GPU 调校缺少管理员权限时保留读数并禁止写入", async ({ p
   await expect(gpu.getByRole("slider", { name: "显存频率偏移" })).toBeDisabled();
   await expect(gpu).toContainText("需要管理员权限");
   await expect(gpu.getByRole("button", { name: /应用更改|恢复GPU 频率/ })).toHaveCount(0);
+  await page.evaluate(() => {
+    const ipc = window.__TAURI_INTERNALS__;
+    const invoke = ipc.invoke;
+    ipc.invoke = async (command, args) => {
+      const result = await invoke(command, args);
+      if (command === "restart_as_administrator") {
+        await new Promise((_, reject) => { window.__cancelElevation = reject; });
+      }
+      return result;
+    };
+  });
+  const restarts = () => page.evaluate(() => window.__uiFixture.calls.filter(call => call.command === "restart_as_administrator"));
+  const button = gpu.getByRole("button", { name: "以管理员身份重启", exact: true });
+  const dialog = page.getByRole("dialog", { name: "以管理员身份重启", exact: true });
+  await button.click();
+  await expect(dialog).toContainText("当前 Windows 帐户");
+  await dialog.getByRole("button", { name: "取消", exact: true }).click();
+  expect(await restarts()).toHaveLength(0);
+  await button.click();
+  await dialog.getByRole("button", { name: "请求 Windows 授权", exact: true }).click();
+  await expect(button).toBeDisabled();
+  expect(await restarts()).toHaveLength(1);
+  await page.evaluate(() => window.__cancelElevation("已取消 Windows 管理员授权"));
+  await expect(gpu.getByRole("alert")).toHaveText("已取消 Windows 管理员授权");
+  await expect(button).toBeEnabled();
+  await expect(core).toBeDisabled();
+  await expect(core).toHaveAttribute("aria-valuetext", "35 MHz");
+  await button.click();
+  await dialog.getByRole("button", { name: "请求 Windows 授权", exact: true }).click();
+  await expect.poll(async () => (await restarts()).length).toBe(2);
+});
+
+test("GPU 调校对无法提权的标准账户显示原因并保留只读偏移", async ({ page }) => {
+  await page.evaluate(() => Object.assign(window.__uiFixture.gpu, {
+    coreOffsetMhz: 35,
+    writeBlock: { reason: "当前 Windows 账户没有可用的管理员权限，请使用管理员账户登录 Windows 后打开应用。", canRequestElevation: false },
+  }));
+  await openWorkspace(page, "性能与散热");
+  const gpu = page.getByRole("region", { name: "GPU 频率", exact: true });
+  const core = gpu.getByRole("slider", { name: "核心频率偏移" });
+  await expect(core).toBeDisabled();
+  await expect(core).toHaveAttribute("aria-valuetext", "35 MHz");
+  await expect(gpu).toContainText("当前 Windows 账户没有可用的管理员权限");
+  await expect(gpu.getByRole("button", { name: "以管理员身份重启" })).toHaveCount(0);
 });
 
 for (const readFails of [false, true]) {

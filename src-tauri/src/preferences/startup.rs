@@ -2,7 +2,7 @@ use super::{Controller, desktop};
 use anyhow::Result;
 use tauri::{AppHandle, Manager, utils::config::WindowConfig};
 
-pub fn prepare_windows(context: &mut tauri::Context<tauri::Wry>) -> Vec<WindowConfig> {
+pub fn prepare_windows(context: &mut tauri::Context<tauri::Wry>, main_class: &str) -> Vec<WindowConfig> {
     context
         .config_mut()
         .app
@@ -12,7 +12,10 @@ pub fn prepare_windows(context: &mut tauri::Context<tauri::Wry>) -> Vec<WindowCo
             if !window.create {
                 return None;
             }
-            let config = window.clone();
+            let mut config = window.clone();
+            if config.label == "main" {
+                config.window_classname = Some(main_class.into());
+            }
             window.create = false;
             Some(config)
         })

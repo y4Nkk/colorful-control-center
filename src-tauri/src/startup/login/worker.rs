@@ -81,7 +81,7 @@ impl Invocation {
                 .file_name()
                 .and_then(|v| v.to_str())
                 .is_some_and(|v| v.starts_with(&format!(".login-{}-", self.binding.token)))
-            || operation.user != super::native::user()?
+            || operation.user != authorization::user()?
             || operation.executable_hash != hash()?
         {
             bail!("登录任务请求不属于当前程序、用户或会话");

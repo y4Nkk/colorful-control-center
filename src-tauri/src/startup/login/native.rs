@@ -8,11 +8,8 @@ use windows::{
     Win32::System::{Com::*, TaskScheduler::*, Variant::VARIANT},
     core::BSTR,
 };
-use windows_sys::Win32::{
-    Foundation::*,
-    Security::{self, *},
-    System::Threading::*,
-};
+use crate::hal::authorization;
+use windows_sys::Win32::Security;
 
 struct Apartment;
 impl Drop for Apartment {
@@ -27,53 +24,6 @@ pub struct Native {
     pub user_name: String,
     pub executable: String,
     pub path: PathBuf,
-}
-pub fn user() -> Result<String> {
-    let mut token = std::ptr::null_mut();
-    if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
-        return Err(std::io::Error::last_os_error().into());
-    }
-    let result = (|| {
-        let mut size = 0;
-        unsafe { GetTokenInformation(token, TokenUser, std::ptr::null_mut(), 0, &mut size) };
-        if size == 0 || size > 65536 {
-            bail!("当前用户令牌大小无效");
-        }
-        let mut buffer = vec![0usize; (size as usize).div_ceil(std::mem::size_of::<usize>())];
-        if unsafe {
-            GetTokenInformation(
-                token,
-                TokenUser,
-                buffer.as_mut_ptr().cast(),
-                size,
-                &mut size,
-            )
-        } == 0
-        {
-            return Err(std::io::Error::last_os_error().into());
-        }
-        let sid = unsafe { &*(buffer.as_ptr().cast::<TOKEN_USER>()) }.User.Sid;
-        let count = unsafe { GetSidSubAuthorityCount(sid) };
-        if count.is_null() {
-            bail!("当前用户SID无效");
-        }
-        let authority = unsafe { GetSidIdentifierAuthority(sid) };
-        if authority.is_null() {
-            bail!("当前用户SID无效");
-        }
-        let authority = unsafe { (*authority).Value }
-            .into_iter()
-            .fold(0u64, |v, b| (v << 8) | u64::from(b));
-        let mut text = format!("S-1-{authority}");
-        for index in 0..unsafe { *count } {
-            text.push_str(&format!("-{}", unsafe {
-                *GetSidSubAuthority(sid, u32::from(index))
-            }));
-        }
-        Ok(text)
-    })();
-        unsafe { CloseHandle(token) };
-    result
 }
 // 任务服务存储任务时会把 LogonTrigger 的 SID 规范化成 机器\用户，指纹需要第二形态。
 pub fn user_name() -> Result<String> {
@@ -105,7 +55,7 @@ impl Native {
         Ok(Self {
             folder: unsafe { service.GetFolder(&BSTR::from("\\"))? },
             _apartment: apartment,
-            user: user()?,
+            user: authorization::user()?,
             user_name: user_name()?,
             executable: std::env::current_exe()?
                 .to_str()

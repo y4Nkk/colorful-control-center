@@ -78,10 +78,7 @@ pub(crate) fn preparing(app: &tauri::AppHandle) -> bool {
         .preparing
         .load(Ordering::Acquire)
 }
-pub fn on_launch(app: &tauri::AppHandle) {
-    if !std::env::args().any(|arg| arg == "--autostart") {
-        return;
-    }
+pub fn apply_login_profile(app: &tauri::AppHandle) {
     let Some(operation) = crate::shutdown::enter() else {
         return;
     };
@@ -101,11 +98,6 @@ pub fn on_launch(app: &tauri::AppHandle) {
     if let Err(error) = result {
         app.state::<LaunchReport>()
             .record_error(format!("启动档案线程创建失败：{error:#}"));
-    }
-}
-pub fn on_second_launch(app: &tauri::AppHandle, args: &[String]) {
-    if !args.iter().any(|arg| arg == "--autostart") {
-        crate::tray::show_main(app);
     }
 }
 fn apply_selected(app: &tauri::AppHandle) -> Result<()> {

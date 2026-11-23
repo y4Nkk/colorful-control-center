@@ -36,13 +36,15 @@ impl Lifecycle {
         Some(Operation(self))
     }
 
-    pub(crate) fn request(&self, arm: impl FnOnce()) {
+    pub(crate) fn request<E>(&self, commit: impl FnOnce() -> Result<(), E>) -> Result<bool, E> {
         let mut state = self.lock();
-        if !state.requested {
-            arm();
-            state.requested = true;
-            self.changed.notify_all();
+        if state.requested {
+            return Ok(false);
         }
+        commit()?;
+        state.requested = true;
+        self.changed.notify_all();
+        Ok(true)
     }
 
     pub(crate) fn closing(&self) -> bool {
@@ -92,5 +94,26 @@ impl Drop for Operation<'_> {
         if state.operations == 0 {
             self.0.changed.notify_all();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn restart_commit_failure_leaves_admission_open_and_existing_exit_prevents_commit() {
+        let lifecycle = Lifecycle::new();
+        assert_eq!(
+            lifecycle.request(|| Err("child exited")),
+            Err("child exited")
+        );
+        assert!(lifecycle.enter().is_some());
+        assert_eq!(lifecycle.request(|| Ok::<(), &str>(())), Ok(true));
+        assert_eq!(
+            lifecycle.request::<&str>(|| panic!("exit already requested")),
+            Ok(false)
+        );
+        assert!(lifecycle.enter().is_none());
     }
 }

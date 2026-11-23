@@ -289,41 +289,6 @@ fn every_log_threshold_maps_to_the_actual_logger_filter() {
 use std::os::windows::fs::OpenOptionsExt;
 
 #[test]
-fn interface_restart_never_replays_autostart_arguments() {
-    let executable = std::path::Path::new(r"C:\isolated\control-center.exe");
-    let command = super::restart::command(executable);
-    assert_eq!(command.get_program(), executable);
-    assert_eq!(
-        command.get_args().collect::<Vec<_>>(),
-        [std::ffi::OsStr::new("--restart-interface")]
-    );
-}
-
-#[test]
-fn interface_restart_waits_for_old_control_and_retains_the_acquired_lease() {
-    use crate::controller_lease::ControllerLease;
-    use std::time::Duration;
-    let directory = tempfile::tempdir().unwrap();
-    let name = format!(
-        "Local\\CCC.preference-restart.{}.{}",
-        std::process::id(),
-        directory.path().file_name().unwrap().to_string_lossy()
-    );
-    let old = ControllerLease::try_acquire(&name).unwrap().unwrap();
-    let blocked = super::restart::wait_for_lease(&name, Duration::from_millis(20));
-    assert!(blocked.err().unwrap().to_string().contains("未接管硬件"));
-    let release = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(60));
-        drop(old);
-    });
-    let next = super::restart::wait_for_lease(&name, Duration::from_secs(2)).unwrap();
-    assert!(ControllerLease::try_acquire(&name).unwrap().is_none());
-    drop(next);
-    release.join().unwrap();
-    assert!(ControllerLease::try_acquire(&name).unwrap().is_some());
-}
-
-#[test]
 fn shortcut_conflicts_preserve_previous_binding_and_clear_unregisters_it() {
     let previous = shortcut::parse("control+KeyK").unwrap();
     let next = shortcut::parse("alt+KeyJ").unwrap();

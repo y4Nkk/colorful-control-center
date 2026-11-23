@@ -1,13 +1,19 @@
 //! 开机档案：显式 --autostart 启动时仅应用文件与模式授权仍匹配的已确认档案。
 use crate::profiles::application::describe_application;
 mod authorization;
+mod desktop;
+mod instance;
 mod launch;
 pub(crate) mod login;
 mod registry;
+mod restart;
 use crate::profiles::authorization::Binding;
 use anyhow::{Context, Result, anyhow};
-pub use launch::{LaunchReport, on_launch, on_second_launch};
+pub(crate) use desktop::{DesktopStart, prepare_desktop, report_start_failure};
+pub(crate) use instance::stop_activation;
+pub use launch::{LaunchReport, apply_login_profile};
 pub(crate) use launch::{OemStartupNotice, close_oem_at_launch, preparing, profile_in_progress};
+pub(crate) use restart::{RestartMode, request_restart};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::Manager;

@@ -1,3 +1,4 @@
+use crate::startup::desktop::LOGIN_ARGUMENT;
 use anyhow::{Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -56,7 +57,7 @@ pub fn xml(executable: &str, user: &str, level: Level) -> Option<String> {
 <Triggers><LogonTrigger><Enabled>true</Enabled><UserId>{user}</UserId></LogonTrigger></Triggers>
 <Principals><Principal id="Owner"><UserId>{user}</UserId><LogonType>InteractiveToken</LogonType><RunLevel>{level}</RunLevel></Principal></Principals>
 <Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><AllowHardTerminate>false</AllowHardTerminate><StartWhenAvailable>true</StartWhenAvailable><RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable><IdleSettings><StopOnIdleEnd>false</StopOnIdleEnd><RestartOnIdle>false</RestartOnIdle></IdleSettings><AllowStartOnDemand>true</AllowStartOnDemand><Enabled>true</Enabled><Hidden>false</Hidden><RunOnlyIfIdle>false</RunOnlyIfIdle><WakeToRun>false</WakeToRun><ExecutionTimeLimit>PT0S</ExecutionTimeLimit><Priority>7</Priority></Settings>
-<Actions Context="Owner"><Exec><Command>{executable}</Command><Arguments>--autostart</Arguments></Exec></Actions></Task>"#
+<Actions Context="Owner"><Exec><Command>{executable}</Command><Arguments>{LOGIN_ARGUMENT}</Arguments></Exec></Actions></Task>"#
     ))
 }
 fn escape(value: &str) -> String {
@@ -151,7 +152,7 @@ pub fn task_level(value: &str, executable: &str, user: &str, user_name: &str) ->
     if text(required(exec, "Command")?) != executable {
         bail!("同名登录任务的程序、用户或执行设置不属于当前软件，未覆盖");
     }
-    if text(required(exec, "Arguments")?) != "--autostart" {
+    if text(required(exec, "Arguments")?) != LOGIN_ARGUMENT {
         bail!("同名登录任务的程序、用户或执行设置不属于当前软件，未覆盖");
     }
     reject_other_children(exec, &["Command", "Arguments"])?;
@@ -221,7 +222,7 @@ pub fn validate(state: &State, executable: &str, user: &str, user_name: &str) ->
     if state
         .run
         .as_ref()
-        .is_some_and(|run| run != &format!("\"{executable}\" --autostart"))
+        .is_some_and(|run| run != &format!("\"{executable}\" {LOGIN_ARGUMENT}"))
     {
         bail!("同名旧自启项不属于当前程序，未覆盖");
     }

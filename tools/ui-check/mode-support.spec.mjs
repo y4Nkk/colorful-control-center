@@ -93,22 +93,71 @@ test("回读从娱乐换到性能时紫色轨迹淡出，风刃分层入场后�
   await panel(page).screenshot({ path: info.outputPath("preset-entertainment-to-performance.png") });
   await artwork.evaluate(svg => { for (const motion of svg.getAnimations({ subtree: true })) motion.play(); });
   await expect(outgoing).toHaveCount(0);
-  const glint = await incoming.locator(".ccc-preset-wind-light").evaluate(path => {
+  const glint = await incoming.locator('[data-wind="main"] .ccc-preset-wind-light').evaluate(path => {
     const [motion] = path.getAnimations();
+    const { delay, duration, iterations } = motion.effect.getTiming();
     motion.pause();
-    motion.currentTime = 2000;
+    motion.currentTime = delay + duration * .28;
     const first = getComputedStyle(path).strokeDashoffset;
-    motion.currentTime = 3100;
+    motion.currentTime = delay + duration * .56;
     const second = getComputedStyle(path).strokeDashoffset;
     const visible = Number(getComputedStyle(path).opacity) > 0;
     motion.play();
-    return { changing: first !== second, visible, iterations: motion.effect.getTiming().iterations };
+    return { changing: first !== second, visible, iterations };
   });
   expect(glint).toEqual({ changing: true, visible: true, iterations: Infinity });
   await expect(current).toHaveText("性能模式");
   await openWorkspace(page, "概览");
   const hiddenArtwork = page.locator('section[aria-label="预设模式"] .ccc-preset-artwork');
   expect(await hiddenArtwork.evaluate(svg => svg.getAnimations({ subtree: true }).length)).toBe(0);
+});
+
+test("四档循环的主体和装饰显著移动，且保留在画幅内", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.addInitScript(() => { window.__uiFixture.preferences.motion = "system"; });
+  await page.goto("/");
+  await openWorkspace(page, "性能与散热");
+  const artwork = artworkFor(page);
+  const durations = new Set();
+  for (const [name, palette, subject, ornament, property] of [
+    ["性能", "performance", '[data-wind="main"] .ccc-preset-wind-blade', ".ccc-preset-stream > path", "stroke-dashoffset"],
+    ["娱乐", "entertainment", ".ccc-preset-planet", ".ccc-preset-orbit-outer", "stroke-dashoffset"],
+    ["省电", "eco", ".ccc-preset-leaf:not([data-leaf])", ".ccc-preset-stream > path", "stroke-dashoffset"],
+    ["安静", "quiet", ".ccc-preset-moon", ".ccc-preset-ripples > path", "transform"],
+  ]) {
+    if (palette !== "performance") await preset(page, name).click();
+    await expect(artwork).toHaveAttribute("data-preset-palette", palette);
+    await expect(artwork).not.toHaveAttribute("data-switching", "true");
+    const sample = await artwork.evaluate((svg, { subject, ornament, property }) => {
+      const drawing = svg.querySelector(".ccc-preset-drawing");
+      const main = svg.querySelector(subject);
+      const accent = svg.querySelector(ornament);
+      const [primary] = main.getAnimations();
+      const { duration } = primary.effect.getTiming();
+      const animations = svg.getAnimations({ subtree: true });
+      const viewport = svg.getBoundingClientRect();
+      animations.forEach(animation => animation.pause());
+      const frames = [0, .15, .30, .45, .60, .75, .90].map(phase => {
+        animations.forEach(animation => { animation.currentTime = duration * phase; });
+        const { x, y, width, height } = main.getBoundingClientRect();
+        const bounds = drawing.getBoundingClientRect();
+        return { x: x + width / 2, y: y + height / 2, accent: getComputedStyle(accent).getPropertyValue(property),
+          fits: bounds.left >= viewport.left && bounds.right <= viewport.right &&
+            bounds.top >= viewport.top && bounds.bottom <= viewport.bottom };
+      });
+      animations.forEach(animation => animation.play());
+      const xs = frames.map(frame => frame.x);
+      const ys = frames.map(frame => frame.y);
+      return { duration, travel: Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)),
+        accentFrames: new Set(frames.map(frame => frame.accent)).size, fits: frames.every(frame => frame.fits) };
+    }, { subject, ornament, property });
+    expect(sample.travel, name).toBeGreaterThan(16);
+    expect(sample.accentFrames, name).toBeGreaterThan(2);
+    expect(sample.fits, name).toBe(true);
+    durations.add(sample.duration);
+  }
+  expect(durations.size).toBe(4);
 });
 
 test("各档位使用独立轮廓与档名渐变，并兼容强制色彩", async ({ page }, info) => {
@@ -158,8 +207,8 @@ for (const [name, systemMotion, appMotion] of [["系统", "reduce", "system"], [
     await expect(artwork.locator(".ccc-preset-drawing")).toHaveCSS("opacity", "1");
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.evaluate(() => { document.documentElement.dataset.motion = "system"; });
-    expect(await artwork.evaluate(svg => svg.getAnimations({ subtree: true }).map(motion => motion.animationName)))
-      .toEqual(["ccc-preset-orbit", "ccc-preset-orbit"]);
+    expect(await artwork.evaluate(svg => svg.getAnimations({ subtree: true }).map(motion => motion.animationName).sort()))
+      .toEqual(["ccc-preset-orbit", "ccc-preset-orbit", "ccc-preset-orbit", "ccc-preset-planet-drift"]);
     await expect(artwork).not.toHaveAttribute("data-switching", "true");
   });
 }

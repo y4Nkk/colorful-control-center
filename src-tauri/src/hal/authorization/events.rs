@@ -57,7 +57,7 @@ impl Binding {
 }
 pub(crate) struct Event(OwnedHandle);
 impl Event {
-    fn create(binding: &Binding, role: &str) -> Result<Self> {
+    pub(crate) fn create(binding: &Binding, role: &str) -> Result<Self> {
         let handle = unsafe { CreateEventW(std::ptr::null(), 1, 0, binding.name(role).as_ptr()) };
         let error = unsafe { GetLastError() };
         let event = Self::owned(handle)?;
@@ -66,7 +66,7 @@ impl Event {
         }
         Ok(event)
     }
-    fn open(binding: &Binding, role: &str) -> Result<Self> {
+    pub(crate) fn open(binding: &Binding, role: &str) -> Result<Self> {
         Self::owned(unsafe {
             OpenEventW(
                 EVENT_MODIFY_STATE | SYNCHRONIZATION_SYNCHRONIZE,
@@ -75,11 +75,14 @@ impl Event {
             )
         })
     }
-    fn owned(handle: HANDLE) -> Result<Self> {
+    pub(crate) fn owned(handle: HANDLE) -> Result<Self> {
         if handle.is_null() {
             return Err(std::io::Error::last_os_error().into());
         }
         Ok(Self(unsafe { OwnedHandle::from_raw_handle(handle) }))
+    }
+    pub(crate) fn anonymous() -> Result<Self> {
+        Self::owned(unsafe { CreateEventW(std::ptr::null(), 1, 0, std::ptr::null()) })
     }
     pub fn parent(id: u32) -> Result<Self> {
         Self::owned(unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, id) })

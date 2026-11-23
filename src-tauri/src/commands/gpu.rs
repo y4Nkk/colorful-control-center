@@ -5,16 +5,27 @@
 
 use tauri::State;
 
-use crate::gpuctl::{ApplyOutcome, GpuController, GpuProfile};
-use crate::hal::{Hal, authorization};
+use crate::gpuctl::{ApplyOutcome, GpuController, GpuProfile, GpuWriteBlock};
+use crate::hal::{
+    Hal,
+    authorization::{self, AdministrativeAccess},
+};
 
-fn check_write_privilege() -> Result<(), String> {
-    match authorization::elevated() {
-        Ok(true) => Ok(()),
-        Ok(false) => {
-            Err("调整或恢复 GPU 偏移需要管理员权限。请从托盘退出应用，再以管理员身份启动。".into())
-        }
-        Err(error) => Err(format!("无法确认 GPU 调校所需的管理员权限：{error:#}")),
+fn check_write_privilege() -> Result<(), GpuWriteBlock> {
+    match authorization::administrative_access() {
+        Ok(AdministrativeAccess::Elevated) => Ok(()),
+        Ok(AdministrativeAccess::CanElevate) => Err(GpuWriteBlock {
+            reason: "调整或恢复 GPU 偏移需要管理员权限。".into(),
+            can_request_elevation: true,
+        }),
+        Ok(AdministrativeAccess::Standard) => Err(GpuWriteBlock {
+            reason: authorization::SAME_USER_ADMIN_REQUIRED.into(),
+            can_request_elevation: false,
+        }),
+        Err(error) => Err(GpuWriteBlock {
+            reason: format!("无法确认 GPU 调校所需的管理员权限：{error:#}"),
+            can_request_elevation: false,
+        }),
     }
 }
 
@@ -26,7 +37,7 @@ pub(crate) fn read_gpu_profile(
 ) -> Result<GpuProfile, String> {
     let _write = hal.begin_write().map_err(|e| format!("{e:#}"))?;
     let mut profile = gpu.read_profile();
-    profile.write_blocked_reason = check_write_privilege().err();
+    profile.write_block = check_write_privilege().err();
     Ok(profile)
 }
 
@@ -38,7 +49,7 @@ pub(crate) fn apply_gpu_clock_offsets(
     core_mhz: Option<i32>,
     mem_mhz: Option<i32>,
 ) -> Result<ApplyOutcome, String> {
-    check_write_privilege()?;
+    check_write_privilege().map_err(|block| block.reason)?;
     let _write = hal.begin_write().map_err(|e| format!("{e:#}"))?;
     Ok(gpu.apply_offsets(core_mhz, mem_mhz))
 }
@@ -49,7 +60,7 @@ pub(crate) fn restore_gpu_baseline(
     hal: State<'_, Hal>,
     gpu: State<'_, GpuController>,
 ) -> Result<ApplyOutcome, String> {
-    check_write_privilege()?;
+    check_write_privilege().map_err(|block| block.reason)?;
     let _write = hal.begin_write().map_err(|e| format!("{e:#}"))?;
     Ok(gpu.restore_baseline())
 }
