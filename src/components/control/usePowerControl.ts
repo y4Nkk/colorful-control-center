@@ -55,11 +55,12 @@ async function applyDraft(profile: PowerProfile, target: PowerTarget, draft: Pow
   if (!result.ok) throw new Error(result.message);
 }
 
-export function usePowerControl(active: boolean, revision: number, onSettled: () => void) {
+export function usePowerControl(active: boolean, revision: number) {
   const [profile, setProfile] = useState<PowerProfile | null>(null);
   const [drafts, setDrafts] = useState<Record<PowerTarget, PowerDraft | null>>({ runtime: null, saved: null });
   const [target, setTarget] = useState<PowerTarget>("runtime");
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
   const previous = useRef<PowerProfile | null>(null);
@@ -68,8 +69,8 @@ export function usePowerControl(active: boolean, revision: number, onSettled: ()
     const id = ++loadId.current;
     let next: PowerProfile;
     try { next = await readPowerProfile(); }
-    catch (error) { if (id === loadId.current) setProfile(null); throw error; }
-    if (id !== loadId.current) return;
+    catch (error) { if (id === loadId.current) setReadError(String(error)); return false; }
+    if (id !== loadId.current) return false;
     const before = previous.current;
     setDrafts((current) => Object.fromEntries((["runtime", "saved"] as const).map((key) => {
       const draft = current[key];
@@ -83,23 +84,26 @@ export function usePowerControl(active: boolean, revision: number, onSettled: ()
       }];
     })) as Record<PowerTarget, PowerDraft>);
     if (!before && !next.msrRuntimeAvailable) setTarget("saved");
-    previous.current = next; setProfile(next); setError(null);
+    previous.current = next; setProfile(next); setReadError(null);
+    return true;
   }, []);
   useEffect(() => {
-    if (!active) return;
-    let disposed = false;
-    void load(null).catch((cause) => { if (!disposed) setError(String(cause)); });
-    return () => { disposed = true; ++loadId.current; };
+    if (!active || running.current) return;
+    void load(null);
+    return () => { if (!running.current) ++loadId.current; };
   }, [active, revision, load]);
   const run = async (action: () => Promise<void>, success: string, reset: PowerTarget | "all") => {
-    if (running.current) return;
-    running.current = true; setBusy(true); setError(null);
-    try { await action(); await load(reset); toast({ kind: "success", title: success }); }
-    catch (cause) {
-      const message = String(cause);
-      try { await load(null); setError(message); }
-      catch (refreshError) { setError(`${message}；回读失败：${String(refreshError)}`); }
-    } finally { running.current = false; setBusy(false); onSettled(); }
+    if (!active || running.current || readError !== null) return;
+    running.current = true; ++loadId.current; setBusy(true);
+    try {
+      await action();
+      const refreshed = await load(reset);
+      setActionError(null);
+      if (refreshed) toast({ kind: "success", title: success });
+    } catch (cause) {
+      await load(null);
+      setActionError(String(cause));
+    } finally { running.current = false; setBusy(false); }
   };
   const draft = drafts[target];
   const dirty = profile && draft ? powerChanges(profile, target, draft) : null;
@@ -124,6 +128,7 @@ export function usePowerControl(active: boolean, revision: number, onSettled: ()
     const result = await restorePowerProfile();
     if (!result.ok) throw new Error(result.message);
   }, "功耗与电压已恢复", "all");
-  return { profile, draft, target, setTarget, error, busy, dirty, change, reviews, restore,
-    retry: () => { void load(null).catch((cause) => setError(String(cause))); } };
+  const error = [actionError, readError].filter(Boolean).join("；") || null;
+  return { profile, draft, target, setTarget, error, readError, busy, dirty, change, reviews, restore,
+    retry: () => { if (active && !running.current) void load(null).then(next => { if (next) setActionError(null); }); } };
 }

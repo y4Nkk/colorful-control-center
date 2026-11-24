@@ -7,7 +7,10 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 #[path = "boost/options.rs"]
 mod options;
-pub(crate) use options::{Change, FanTarget, Plan, validate_fan, validate_profile};
+pub(crate) use options::{
+    Change, FanTarget, Plan, ensure_fan_allowed, ensure_fan_allowed_on, validate_fan,
+    validate_profile,
+};
 mod driver;
 #[cfg(test)]
 mod tests;
@@ -146,8 +149,7 @@ fn preview(io: &impl ModeIo, driver: Option<bool>) -> Result<Preview> {
     let caps = capabilities(io)?;
     let core = capture(io, false)?;
     let runtime_options = runtime_options(io, core.mode)?;
-    let fan = byte(io, 4, 5)?;
-    fanctl::validate_mode(fan)?;
+    let fan = ccc_core::fan::decode_oem_fan_mode(io.fan_info()?[14]).map_err(anyhow::Error::msg)?;
     let quiet_fan = quiet_fan(io, core.mode, fan, core.command & 0x40 != 0)?;
     let revision = format!(
         "{:x}",
@@ -182,7 +184,7 @@ fn quiet_fan(io: &impl ModeIo, power_mode: u8, fan: u8, turbo: bool) -> Result<O
         let enabled = fanctl::saved::entertainment_quiet(io)?;
         return Ok(Some(QuietFan {
             enabled,
-            active: !turbo && (fan == FAN_MODE_NOISELESS || fan == FAN_MODE_AUTO && enabled),
+            active: !turbo && fan == FAN_MODE_NOISELESS,
             remembered: true,
         }));
     }
@@ -192,15 +194,6 @@ fn quiet_fan(io: &impl ModeIo, power_mode: u8, fan: u8, turbo: bool) -> Result<O
         active: fan == FAN_MODE_NOISELESS,
         remembered: remembered.is_some(),
     }))
-}
-
-pub(crate) fn ensure_noiseless_allowed(hal: &Hal) -> Result<()> {
-    hal.with_dchu(|io| {
-        if turbo_enabled(io, current_mode(io)?)? {
-            bail!("请关闭 Turbo 风扇，再启用{NOISELESS_FAN_LABEL}");
-        }
-        Ok(())
-    })
 }
 
 pub(crate) fn turbo_enabled(io: &impl ModeIo, mode: u8) -> Result<bool> {
@@ -222,9 +215,10 @@ pub(super) fn prepare_recovery(hal: &Hal, target: CoreSnapshot) -> Result<()> {
     }
     if target.command & 0x40 != 0
         && hal.with_dchu(|io| {
-            let fan = byte(io, 4, 5)?;
+            let fan = ccc_core::fan::decode_oem_fan_mode(io.fan_info()?[14])
+                .map_err(anyhow::Error::msg)?;
             Ok(current_mode(io)? == target.mode
-                && (fan == FAN_MODE_NOISELESS || target.mode == 3 && fan == FAN_MODE_CUSTOM))
+                && matches!(fan, FAN_MODE_NOISELESS | FAN_MODE_CUSTOM))
         })?
     {
         fanctl::apply_mode_policy(hal, FAN_MODE_AUTO, FAN_MODE_AUTO)?;
@@ -425,13 +419,13 @@ pub fn read(hal: &Hal) -> Result<Profile> {
         entertainment_options_pending: p.core.mode == 3
             && p.core.command != option_command(p.core.mode, p.core.preferences, p.runtime_options),
         custom_fan: p.fan == FAN_MODE_CUSTOM,
-        software_active: crate::fanctl::software::read(hal)?.is_some(),
+        software_active: fanctl::software::active(hal)?,
         dtt_driver_available: driver,
         revision: p.revision,
         warnings,
         blocked_reason: support_issue.or_else(|| {
             hal.ensure_mode_change_allowed()
-                .and_then(|_| crate::fanctl::dust::ensure_manual_allowed(hal))
+                .and_then(|_| fanctl::ensure_manual_allowed(hal))
                 .err()
                 .map(|e| format!("{e:#}"))
         }),
@@ -442,9 +436,7 @@ pub fn apply(hal: &Hal, request: &Request) -> Result<()> {
     let (driver, _) = driver_status(hal)?;
     let current = hal.with_dchu(|io| preview(io, driver))?;
     let (next, fan) = current.target(request)?;
-    if (current.runtime_options != [false; 2] || fan.is_some())
-        && fanctl::software::read(hal)?.is_some()
-    {
+    if (current.runtime_options != [false; 2] || fan.is_some()) && fanctl::software::active(hal)? {
         bail!("请先退出软件风扇曲线，再应用性能选项");
     }
     let plan = Plan::from_preview(hal, current, &request.values, next.preferences, fan)?;

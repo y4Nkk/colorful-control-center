@@ -15,7 +15,7 @@ mod store;
 #[path = "graphics_mode/transaction.rs"]
 mod transaction;
 pub(crate) use model::Verification;
-use model::{Identity, LastRequest, Observed, Phase, Record, RECORD_VERSION};
+use model::{Identity, LastRequest, Observed, Phase, RECORD_VERSION, Record};
 pub use model::{Profile, Request};
 pub(crate) use scope::Scope;
 use store::{FileStore, Loaded, Store};
@@ -141,12 +141,7 @@ fn send(io: &(impl Io + ?Sized), p: &Preview, target: u8) -> Result<()> {
     }
     Ok(())
 }
-fn commit(
-    io: &(impl Io + ?Sized),
-    store: &impl Store,
-    p: &Preview,
-    target: u8,
-) -> Result<()> {
+fn commit(io: &(impl Io + ?Sized), store: &impl Store, p: &Preview, target: u8) -> Result<()> {
     let mut plan = transaction::Plan::new(p.clone(), target)?;
     if let Err(error) = plan.execute(io, store) {
         if !plan.dirty() {
@@ -233,8 +228,8 @@ fn allowed(hal: &crate::hal::Hal, display: &crate::display::Controller) -> Resul
     if display.trial_pending()? {
         bail!("请先保留或恢复刷新率试用，再修改显卡模式");
     }
-    if crate::fanctl::software::read(hal)?.is_some() {
-        bail!("请先退出软件风扇曲线，再修改显卡模式");
+    if crate::fanctl::software::active(hal)? {
+        bail!("请先确认软件风扇已归还，再修改显卡模式");
     }
     Ok(())
 }

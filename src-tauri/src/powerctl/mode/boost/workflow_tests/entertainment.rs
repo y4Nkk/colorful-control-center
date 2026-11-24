@@ -51,6 +51,7 @@ fn turbo_displaces_entertainment_noiseless_fan() {
         let mut state = f.device.0.lock().unwrap();
         state.bios[20] |= 1;
         state.pages[4][9] = 1;
+        state.fan_mode = FAN_MODE_NOISELESS;
     }
     let _gate = f.hal.begin_write().unwrap();
     assert!(read(&f.hal).unwrap().quiet_fan.unwrap().active);
@@ -142,7 +143,7 @@ fn local_firmware_packet_opens_both_controls_in_both_modes() {
 fn entertainment_requires_confirmed_custom_to_auto_turbo_handoff() {
     let f = setup();
     reviewed_entertainment(&f);
-    f.device.0.lock().unwrap().pages[4][5] = FAN_MODE_CUSTOM;
+    f.device.0.lock().unwrap().fan_mode = FAN_MODE_CUSTOM;
     let _gate = f.hal.begin_write().unwrap();
     let mut turbo = request(&f, true, false);
     assert!(apply(&f.hal, &turbo).is_err());

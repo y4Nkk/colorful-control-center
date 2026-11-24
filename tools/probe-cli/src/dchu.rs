@@ -1,16 +1,19 @@
-//! 探测只读外观；DLL ABI 唯一实现复用桌面 HAL，不公开写入方法。
+//! 探测复用桌面 HAL。写入仅开放带即时回读的风扇档位和偏移，不改 AppSettings。
+#[allow(dead_code)]
+#[path = "../../../src-tauri/src/hal/firmware.rs"]
+mod firmware;
 #[allow(dead_code)]
 #[path = "../../../src-tauri/src/hal/oem_dchu.rs"]
-mod transport;
-use anyhow::{Result, bail};
+mod oem_dchu;
+use anyhow::Result;
 
-pub struct Dchu(transport::Dchu);
+pub struct Dchu(oem_dchu::Dchu);
 impl Dchu {
     pub fn bios_capabilities(&self) -> Result<[u8; 256]> {
         self.0.bios_capabilities()
     }
     pub fn load() -> Result<Self> {
-        transport::Dchu::load().map(Self)
+        oem_dchu::Dchu::load().map(Self)
     }
     pub fn read_int(&self, command: i32) -> (bool, i32) {
         self.0.read_int(command)
@@ -21,12 +24,18 @@ impl Dchu {
     pub fn read_settings(&self, page: i32, offset: i32, length: usize) -> Result<Vec<u8>> {
         self.0.read_settings(page, offset, length)
     }
-    /// 仅放行风扇运行时命令（121/1 档位、121/14 偏移）；不写 AppSettings。
-    pub fn set_fan_runtime(&self, sub: u8, value: u32) -> Result<()> {
-        if !matches!(sub, 1 | 14) || value > 0xFF {
-            bail!("探测只允许风扇档位与偏移命令");
-        }
-        self.0.set_data_sub(121, sub, value)
+    pub fn dust_running(&self) -> Result<Option<bool>> {
+        self.0.dust_running()
+    }
+    pub fn fan_offset_raw(&self) -> Result<u8> {
+        self.0.read_fan_offset(firmware::reviewed_dsdt())
+    }
+    pub fn set_fan_mode(&self, mode: u8) -> Result<()> {
+        self.0.set_fan_mode_verified(mode)
+    }
+    pub fn set_fan_offset(&self, raw: u8) -> Result<()> {
+        self.0
+            .set_fan_offset_verified(firmware::reviewed_dsdt(), raw)
     }
 }
 

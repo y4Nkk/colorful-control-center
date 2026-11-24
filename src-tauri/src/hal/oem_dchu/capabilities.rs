@@ -12,10 +12,47 @@ impl Dchu {
         let mut request = [0; 256];
         request[0] = 8;
         let packet = self.exchange_package(4, &request)?;
+        if packet.iter().all(|byte| *byte == 0) {
+            return Err(anyhow!("固件返回空的 BIOS 能力包"));
+        }
         if !matches!(&packet[..2], [0, 0] | [1, 0]) {
             return Err(anyhow!("未知BIOS能力版本{}.{}", packet[0], packet[1]));
         }
         Ok(packet)
+    }
+
+    /// None 表示已确认不支持除尘。包或整数无效时，能力和运行态均未知。
+    pub fn dust_running(&self) -> Result<Option<bool>> {
+        use anyhow::Context;
+
+        let caps = self.bios_capabilities().context("无法确认固件除尘能力")?;
+        let flags = if caps[0] == 1 {
+            i32::from(u16::from_le_bytes([caps[10], caps[11]]))
+        } else {
+            let (valid, flags) = self.read_int(96);
+            if !valid || flags == -1 {
+                return Err(anyhow!("原厂 WMI96 除尘能力不可读"));
+            }
+            flags
+        };
+        if flags & 0x80 == 0 {
+            return Ok(None);
+        }
+
+        const COMMAND: u8 = 0xB8;
+        let mut packet = [0; 256];
+        packet[..7].copy_from_slice(&[1, 0xA3, 0, 0, 0, 0, COMMAND]);
+        let reply = self
+            .exchange_package(4, &packet)
+            .context("无法读取固件除尘状态")?;
+        // PK04 原样返回 FCMD 和 FDAT。单独的全零响应无法证明 EC 空闲。
+        match (reply[0], reply[1]) {
+            (COMMAND, 0) => Ok(Some(false)),
+            (COMMAND | 0, 1) => Ok(Some(true)),
+            (command, state) => Err(anyhow!(
+                "固件除尘状态未确认：FCMD={command:#04x}，FDAT={state:#04x}"
+            )),
+        }
     }
 }
 
@@ -57,6 +94,10 @@ mod tests {
     unsafe extern "system" fn empty(_: i32, _: *const u8, _: i32, _: *mut u8) -> i32 {
         4
     }
+    unsafe extern "system" fn zeroed(_: i32, _: *const u8, _: i32, out: *mut u8) -> i32 {
+        unsafe { std::ptr::write_bytes(out, 0, 257) };
+        4
+    }
     unsafe extern "system" fn unknown(cmd: i32, input: *const u8, len: i32, out: *mut u8) -> i32 {
         let status = unsafe { firmware(cmd, input, len, out) };
         unsafe {
@@ -82,6 +123,13 @@ mod tests {
     fn unavailable_or_empty_response_never_falls_back_to_saved_capabilities() {
         assert!(io(failed).read_bios_capabilities(0, 24).is_err());
         assert!(io(empty).read_bios_capabilities(0, 24).is_err());
+        assert!(
+            io(zeroed)
+                .bios_capabilities()
+                .unwrap_err()
+                .to_string()
+                .contains("空")
+        );
         assert!(io(firmware).read_bios_capabilities(255, 2).is_err());
         assert!(io(firmware).read_bios_capabilities(usize::MAX, 1).is_err());
         assert!(io(unknown).bios_capabilities().is_err());

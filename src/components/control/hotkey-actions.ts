@@ -30,7 +30,7 @@ export const ACTIONS: { scope: HotkeyScope; icon: IconName; title: string; rule:
   { scope: "systemRecovery", icon: "undo", title: "Windows 恢复入口", rule: "原厂按键打开 Windows 恢复选项，不自动执行还原或重置；恢复热键策略不关闭或撤销 Windows 操作。" },
   { scope: "systemShutdown", icon: "shutdown", title: "原厂关机请求", rule: "原厂事件请求系统关机；可先停止接管，策略恢复不撤销已发送的关机请求。" },
   { scope: "lidAction", icon: "sleep", title: "原厂合盖动作", rule: "按 Windows 当前计划的插电和电池设置执行，现代待机的睡眠目标改为关闭屏幕；恢复只还原接管策略。" },
-  { scope: "airplaneMode", icon: "airplane", title: "飞行模式按键", rule: "切换系统飞行模式并同步原厂固件；首次状态可在飞行模式卡片中单独确认恢复。" },
+  { scope: "airplaneMode", icon: "airplane", title: "飞行模式按键", rule: "切换系统飞行模式并同步原厂固件。" },
   { scope: "panelEvent", icon: "display", title: "原厂面板维护", rule: "接管启动时修复适用的 NVSR 面板，原厂事件按面板身份发送 NVSR 修复或 OLED 唤醒。恢复只还原软件策略，不撤销一次性修复。" },
 ];
 export const summary = (settings: HotkeySettingsValue) => settings.actions.length

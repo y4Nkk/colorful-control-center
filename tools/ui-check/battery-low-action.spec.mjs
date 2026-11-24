@@ -1,27 +1,42 @@
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { editHotkeys, finishHotkeyEdit, openHotkeyDetails, openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
-const panel = page => page.getByRole("region", { name: "原厂热键与屏显", exact: true });
 const facts = page => page.getByRole("region", { name: "原厂低电量系统动作事实与预览", exact: true });
-const scope = page => panel(page).getByRole("checkbox", { name: "原厂低电量系统动作", exact: true });
+const scope = editor => editor.getByRole("checkbox", { name: "原厂低电量系统动作", exact: true });
 const calls = (page, command) => page.evaluate(command => window.__uiFixture.calls.filter(call => call.command === command), command);
+const close = dialog => dialog.getByRole("button", { name: "关闭弹窗", exact: true }).click();
 test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与灯光"); });
 
+async function openActionDetails(page) {
+  const editor = await editHotkeys(page);
+  await scope(editor).check();
+  await finishHotkeyEdit(editor);
+  return openHotkeyDetails(page);
+}
+
+async function openExplanation(page) {
+  await facts(page).getByRole("button", { name: "事件与恢复说明", exact: true }).click();
+  return page.getByRole("dialog", { name: "事件与恢复说明", exact: true });
+}
+
 test("预览两类计划动作和一次性效果，不虚构比例", async ({ page }) => {
-  await scope(page).check();
+  await openActionDetails(page);
   await expect(facts(page)).toContainText("低电量：睡眠");
   await expect(facts(page)).toContainText("严重电量：休眠");
-  await expect(facts(page)).toContainText("睡眠和休眠不会自动撤销");
+  const explanation = await openExplanation(page);
+  await expect(explanation).toContainText("本软件不会自动把它唤醒");
+  await close(explanation);
   await expect(facts(page).getByRole("meter")).toHaveCount(0);
-  await scope(page).check();
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
 });
 
 test("独立确认后启用，软件规则可以单独恢复", async ({ page }) => {
-  await panel(page).getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
-  await scope(page).check();
+  const editor = await editHotkeys(page);
+  await editor.getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
+  await scope(editor).check();
+  await finishHotkeyEdit(editor);
   await previewConfiguration(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
   await configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true }).click();
@@ -33,7 +48,7 @@ test("独立确认后启用，软件规则可以单独恢复", async ({ page }) 
 });
 
 test("计划关机值说明原厂不另行请求，未知来源不允许新增授权", async ({ page }) => {
-  await scope(page).check();
+  const details = await openActionDetails(page);
   await expect(facts(page)).toBeVisible();
   await page.evaluate(() => {
     const h = window.__uiFixture.hotkeys, low = h.facts.batteryLowAction;
@@ -41,16 +56,20 @@ test("计划关机值说明原厂不另行请求，未知来源不允许新增�
     const cap = h.facts.capabilities.find(value => value.scope === "batteryLowAction"); cap.identity = null; cap.reason = low.error;
     h.revision = "action-changed"; window.__uiEmit("hardware-controls-changed", null);
   });
-  await expect(facts(page)).toContainText("计划设置关机，原厂事件不另行请求");
-  await expect(facts(page)).toContainText("Windows 电源计划仍可能独立执行其设置");
-  await expect(scope(page)).toBeEnabled();
-  await scope(page).uncheck();
-  await expect(scope(page)).toBeDisabled();
+  await expect(facts(page)).toContainText("按电源计划关机");
+  const explanation = await openExplanation(page);
+  await expect(explanation).toContainText("Windows 自己的电源计划也可能单独让电脑睡眠或休眠");
+  await close(explanation);
+  await close(details);
+  const editor = await editHotkeys(page);
+  await expect(scope(editor)).toBeEnabled();
+  await scope(editor).click();
+  await expect(scope(editor)).toHaveCount(0);
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
 });
 
 test("深浅宽窄布局保留模块边框与间隔", async ({ page }) => {
-  await scope(page).check();
+  await openActionDetails(page);
   await expect(facts(page)).toBeVisible();
   for (const theme of ["light", "dark"]) {
     await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);

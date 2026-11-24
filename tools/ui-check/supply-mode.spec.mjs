@@ -50,7 +50,7 @@ test("唤醒跳过读数与初始恢复目标分开，仍能明确暂停监听",
   await expect(toggle(page)).toBeEnabled();
   const recovery = await previewConfiguration(page, "原厂供电模式", true);
   const current = recovery.getByRole("heading", { name: "当前观察", exact: true }).locator("..");
-  await expect(current).toContainText("唤醒时按原厂规则跳过频率调校");
+  await expect(current).toContainText("从睡眠唤醒时，按原厂规则不调整频率");
   await expect(current).toContainText("不沿用此前读数");
   await expect(current).not.toContainText("MHz");
   const initial = recovery.getByRole("heading", { name: "初始目标", exact: true }).locator("..");
@@ -168,10 +168,10 @@ test("恢复完整预览展示稀疏风扇模式、计划、独显与原始精�
   await setup(page, view);
   const review = await previewConfiguration(page, "原厂供电模式", true);
   const recovery = review.getByLabel("原厂模式初始恢复预览", { exact: true });
-  for (const text of ["性能 → 娱乐", "自动 → 寂静模式", "5% → 0%", "高性能计划", "平衡计划", "节能计划", "固件节能值 0 → 固件节能值 2", "自动关断允许", "开启独显后取得", "-12.5 MHz", "987.654 MHz"]) {
+  for (const text of ["性能 → 娱乐", "自动 → 寂静模式", "5% → 0%", "高性能计划", "平衡计划", "节能计划", "电脑节能等级 0 → 电脑节能等级 2", "自动关断允许", "开启独显后取得", "-12.5 MHz", "987.654 MHz"]) {
     await expect(recovery).toContainText(text);
   }
-  await expect(recovery).toContainText("当前频率未知，未补用保存值");
+  await expect(recovery).toContainText("读取不到当前频率，也没有用保存值代替");
   await recovery.getByRole("button", { name: "查看完整风扇恢复参数", exact: true }).click();
   const raw = recovery.locator("pre").last();
   await expect(raw).toContainText('"query": 40');

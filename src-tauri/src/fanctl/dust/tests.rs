@@ -4,13 +4,16 @@ mod native_tests;
 
 struct Memory {
     pages: RefCell<[[u8; 256]; 8]>,
-    running: Cell<bool>,
+    running: Cell<Option<bool>>,
+    mode: Cell<u8>,
     duties: Cell<[f64; 2]>,
     commands: RefCell<Vec<(u8, u32)>>,
     reads: Cell<usize>,
     fail_command: Cell<Option<u8>>,
     fail_all: Cell<bool>,
     fail_clock: Cell<bool>,
+    fail_status: Cell<bool>,
+    start_after_clock: Cell<bool>,
     ignore_save: Cell<bool>,
     fail_save: Cell<bool>,
     clocks: Cell<usize>,
@@ -18,20 +21,21 @@ struct Memory {
 impl Memory {
     fn new() -> Self {
         let mut pages = [[0; 256]; 8];
-        pages[7][0] = 1;
-        pages[7][10] = 128;
         pages[4][80] = 9;
         pages[4][85] = 73;
         pages[4][86] = 64;
         Self {
             pages: RefCell::new(pages),
-            running: Cell::new(false),
+            running: Cell::new(Some(false)),
+            mode: Cell::new(0),
             duties: Cell::new([30.0, 40.0]),
             commands: Default::default(),
             reads: Cell::new(0),
             fail_command: Cell::new(None),
             fail_all: Cell::new(false),
             fail_clock: Cell::new(false),
+            fail_status: Cell::new(false),
+            start_after_clock: Cell::new(false),
             ignore_save: Cell::new(false),
             fail_save: Cell::new(false),
             clocks: Cell::new(0),
@@ -67,8 +71,14 @@ impl SettingsAccess for Memory {
     }
 }
 impl Io for Memory {
-    fn running(&self) -> Result<bool> {
+    fn running(&self) -> Result<Option<bool>> {
+        if self.fail_status.get() {
+            bail!("隔离除尘状态不可读");
+        }
         Ok(self.running.get())
+    }
+    fn fan_mode(&self) -> Result<u8> {
+        Ok(self.mode.get())
     }
     fn duties(&self) -> Result<[f64; 2]> {
         Ok(self.duties.get())
@@ -77,6 +87,9 @@ impl Io for Memory {
         self.clocks.set(self.clocks.get() + 1);
         if self.fail_clock.get() {
             bail!("隔离时钟失败");
+        }
+        if self.start_after_clock.get() {
+            self.running.set(Some(true));
         }
         Ok(())
     }
@@ -131,16 +144,14 @@ fn schedule_and_clock_follow_the_original_exact_encoding() {
     );
 }
 #[test]
-fn unsupported_and_unknown_capabilities_do_not_probe_or_initialize_a_schedule() {
+fn unsupported_or_unknown_status_does_not_read_or_initialize_a_schedule() {
     let io = Memory::new();
     let mut state = State::default();
-    io.pages.borrow_mut()[7][10] = 0;
+    io.running.set(None);
     assert!(read(&io, &mut state, false, None).unwrap().is_none());
-    assert_eq!(io.reads.get(), 1);
-    io.pages.borrow_mut()[7][0] = 0;
-    assert!(read(&io, &mut state, false, None).unwrap().is_none());
-    io.pages.borrow_mut()[7][0] = 2;
+    io.fail_status.set(true);
     assert!(read(&io, &mut state, false, None).is_err());
+    assert_eq!(io.reads.get(), 0);
     assert!(io.commands.borrow().is_empty());
     assert_eq!(io.clocks.get(), 0);
 }
@@ -200,10 +211,10 @@ fn start_rechecks_full_speed_software_and_every_duty_boundary() {
         assert!(start(&io, &mut state, false, &revision).is_err());
     }
     io.duties.set([50.0, 50.0]);
-    io.pages.borrow_mut()[4][5] = 1;
+    io.mode.set(1);
     let revision = io.profile(&mut state, false).revision;
     assert!(start(&io, &mut state, false, &revision).is_err());
-    io.pages.borrow_mut()[4][5] = 0;
+    io.mode.set(0);
     let revision = io.profile(&mut state, true).revision;
     assert!(start(&io, &mut state, true, &revision).is_err());
     assert!(io.commands.borrow().is_empty());
@@ -227,12 +238,12 @@ fn start_is_consumed_even_on_transport_error_and_never_sends_a_fictitious_stop()
         io.profile(&mut state, false).last_start,
         Some(StartOutcome::Sent)
     );
-    io.running.set(true);
+    io.running.set(Some(true));
     assert_eq!(
         io.profile(&mut state, false).last_start,
         Some(StartOutcome::Running)
     );
-    io.running.set(false);
+    io.running.set(Some(false));
     assert_eq!(
         io.profile(&mut state, false).last_start,
         Some(StartOutcome::Completed)
@@ -252,13 +263,32 @@ fn running_firmware_blocks_both_actions_and_schedule_restoration() {
     let request = io.request(&mut state, false, schedule());
     apply(&io, &mut state, false, &request).unwrap();
     io.commands.borrow_mut().clear();
-    io.running.set(true);
+    io.running.set(Some(true));
     let request = io.request(&mut state, false, disabled());
     assert!(start(&io, &mut state, false, &request.expected_revision).is_err());
     assert!(apply(&io, &mut state, false, &request).is_err());
     assert!(restore(&io, &mut state, false, &request.expected_revision).is_err());
     assert!(ensure_idle(&io).is_err());
     assert!(io.commands.borrow().is_empty());
+}
+#[test]
+fn starting_during_clock_sync_blocks_plan_write_and_recovery() {
+    let io = Memory::new();
+    let mut state = State::default();
+    let before = io.saved();
+    let request = io.request(&mut state, false, schedule());
+    io.start_after_clock.set(true);
+    assert!(apply(&io, &mut state, false, &request).is_err());
+    assert!(io.commands.borrow().is_empty());
+    assert!(state.baseline.is_none());
+    assert_eq!(io.saved(), before);
+
+    io.running.set(Some(false));
+    assert!(transaction::recover(&io, &schedule().saved()).is_err());
+    io.fail_status.set(true);
+    assert!(transaction::recover(&io, &disabled().saved()).is_err());
+    assert!(io.commands.borrow().is_empty());
+    assert_eq!(io.saved(), before);
 }
 #[test]
 fn software_cannot_enable_or_restore_an_enabled_or_unreported_plan() {

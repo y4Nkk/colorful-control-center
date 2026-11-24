@@ -191,13 +191,13 @@ fn policy_uses_distinct_quiet_plus_aspm_and_power_plan_slots() {
     io.tables.borrow_mut().insert(29, plan);
     let target = policy::target(&io, 4, hardware_energy()).unwrap();
     assert_eq!(target.fan_mode, 8);
-    assert_eq!(target.fan_offset_pct, 12);
+    assert_eq!(target.fan_offset_pct, Some(12));
     assert_eq!(target.aspm, Some([1, 2]));
     assert_eq!(target.power_plan, Some(2));
     assert_eq!(target.command(), 0);
     let perf = policy::target(&io, 2, hardware_energy()).unwrap();
     assert_eq!(perf.fan_mode, 1);
-    assert_eq!(perf.fan_offset_pct, 34);
+    assert_eq!(perf.fan_offset_pct, Some(34));
     assert_eq!(perf.aspm, Some([0, 1]));
     assert_eq!(perf.power_plan, Some(1));
     assert!(io.commands.borrow().is_empty());

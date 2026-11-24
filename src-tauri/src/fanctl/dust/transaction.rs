@@ -9,20 +9,19 @@ fn save(io: &impl Io, raw: &[u8; 5]) -> Result<()> {
     Ok(())
 }
 pub(super) fn recover(io: &impl Io, raw: &[u8; 5]) -> Result<()> {
-    if !protocol::supported(&field::<12>(io, 7, 0)?)? {
-        bail!("除尘能力已变化，恢复快照保留待重试");
-    }
     let schedule = protocol::decode(raw)?;
+    let clock = if schedule.is_some_and(|s| s.enabled()) {
+        require_idle(io)?;
+        io.sync_clock().context("恢复除尘时钟")
+    } else {
+        Ok(())
+    };
+    require_idle(io)?;
     let mut errors = Vec::new();
-    if schedule.is_some_and(|s| s.enabled()) {
-        if let Err(e) = io.sync_clock() {
-            errors.push(format!("恢复时钟：{e:#}"));
-        }
-    }
     for (name, result) in [
         (
             "恢复固件计划",
-            io.command(40, schedule.map_or(0, |s| s.command())),
+            clock.and_then(|_| io.command(40, schedule.map_or(0, |s| s.command()))),
         ),
         ("恢复保存字段", save(io, raw)),
     ] {
@@ -52,14 +51,13 @@ pub(super) fn apply_tracked(
     if schedule.is_some_and(|s| s.enabled()) {
         io.sync_clock()?;
     }
+    require_idle(io)?;
     state.baseline.get_or_insert(before.saved);
     *needs_rollback = true;
-    let result = (|| {
+    let result: Result<()> = (|| {
         io.command(40, schedule.map_or(0, |s| s.command()))?;
         save(io, &raw)?;
-        if field::<12>(io, 7, 0)? != before.capability {
-            bail!("除尘能力在写入期间变化");
-        }
+        io.running()?.context("除尘能力在写入期间变化")?;
         Ok(())
     })();
     if let Err(error) = result {

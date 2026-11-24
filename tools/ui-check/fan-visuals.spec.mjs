@@ -264,6 +264,7 @@ test("娱乐档寂静覆盖显示有效档位，保存偏移时绑定娱乐记�
     data.fanRemembersOffset = true;
     data.performanceOptions.currentMode = 3;
     data.entertainmentQuiet = true;
+    data.fan.currentMode = 8;
   });
   await openWorkspace(page, "性能与散热");
   const fan = page.getByRole("region", { name: "风扇设置", exact: true });
@@ -277,7 +278,7 @@ test("娱乐档寂静覆盖显示有效档位，保存偏移时绑定娱乐记�
   ]);
   await expect(slider).toHaveValue("21");
   await expect(fan.getByRole("status", { name: "当前控制" })).toHaveText("固件 · 寂静模式");
-  expect(await page.evaluate(() => window.__uiFixture.fan.currentMode)).toBe(0);
+  expect(await page.evaluate(() => window.__uiFixture.fan.currentMode)).toBe(8);
 });
 
 test("偏移提交遇到电源档切换时回读原值，重新调整使用新记忆槽", async ({ page }) => {
@@ -333,7 +334,7 @@ test("直接应用复核设备状态，写入失败后恢复实读值", async ({
   await expect(page.getByRole("alert")).toContainText("隔离风扇写入失败");
 });
 
-test("RPM 自定义点选即应用并回读调整后的停转级", async ({ page }) => {
+test("RPM 自定义点选直接使用原表并保留停转级", async ({ page }) => {
   await page.evaluate(() => {
     const fixture = window.__uiFixture;
     fixture.fanKind = "rpmTable";
@@ -344,10 +345,10 @@ test("RPM 自定义点选即应用并回读调整后的停转级", async ({ page
   const first = page.getByRole("spinbutton", { name: "RPM 转速" });
   await expect(first).toHaveValue("0");
   await page.getByRole("radio", { name: "自定义", exact: true }).click();
-  await expect(first).toHaveValue("20");
+  await expect(first).toHaveValue("0");
   await expect(page.getByRole("status", { name: "当前控制" })).toHaveText("固件 · 自定义");
   await expect(page.getByRole("heading", { name: "待应用变更", exact: true })).toHaveCount(0);
-  expect((await fanWrites(page)).map(item => item.command)).toEqual(["apply_rpm_fan_curves"]);
+  expect((await fanWrites(page)).map(item => item.command)).toEqual(["set_fan_mode"]);
 });
 
 test("软件曲线档案可应用，从同一个风扇设置交还固件控制", async ({ page }) => {

@@ -32,10 +32,10 @@ unsafe extern "system" fn write(_: i32, _: i32, _: i32, _: *const u8) -> i32 {
     1
 }
 unsafe extern "system" fn set(command: i32, _: *const u8, length: i32) -> i32 {
-    if [4, 256].contains(&length) {
-        command
-    } else {
-        0
+    match (command, length) {
+        (0x0e, 256) => 0x14,
+        (_, 4 | 256) => command,
+        _ => 0,
     }
 }
 unsafe extern "system" fn no_packet(_: i32, _: *mut u8) -> i32 {
@@ -69,7 +69,7 @@ fn fake() -> ManuallyDrop<Dchu> {
 }
 
 #[test]
-fn command_echo_is_success_for_the_reviewed_native_exports() {
+fn native_set_returns_the_firmware_result() {
     let io = fake();
     assert_eq!(io.read_int(16), (true, 17));
     assert_eq!(io.read_package(12).unwrap()[1], 0x42);
@@ -77,6 +77,17 @@ fn command_echo_is_success_for_the_reviewed_native_exports() {
     io.set_data_sub(121, 1, 6).unwrap();
     io.set_u32(39, 3).unwrap();
     io.set_package(14, &[0; 256]).unwrap();
+}
+
+#[test]
+fn two_point_command_echo_is_rejected() {
+    unsafe extern "system" fn echo(command: i32, _: *const u8, _: i32) -> i32 {
+        command
+    }
+    let mut io = fake();
+    io.set_data = echo;
+    assert!(io.set_package(14, &[0; 256]).is_err());
+    io.set_package(4, &[0; 256]).unwrap();
 }
 
 #[test]

@@ -27,6 +27,18 @@ fn handshake_and_disarm_leave_no_recovery_or_child() {
 }
 
 #[test]
+fn disarm_requires_child_readback_and_retries_if_the_fan_is_still_manual() {
+    let mut fixture = Fixture::start("disarm-unverified");
+    fixture.wait_file("parent.ready");
+    let result = fixture.wait_file("parent.result");
+    assert!(result.contains("RECOVERY_FAILED") && result.contains("风扇归还未证实"));
+    fixture.wait_parent();
+    fixture.wait_child_exit();
+    assert_eq!(fixture.read("restore.log").lines().count(), 3);
+    assert!(fixture.read("child.exit").contains("Err"));
+}
+
+#[test]
 fn forcibly_killed_parent_leaves_child_to_restore_once() {
     let mut fixture = Fixture::start("killed-parent");
     fixture.wait_file("parent.ready");

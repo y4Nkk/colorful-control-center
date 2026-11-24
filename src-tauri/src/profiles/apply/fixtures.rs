@@ -19,6 +19,7 @@ use crate::{
     gpuctl::GpuController,
     hal::{
         Hal,
+        firmware::DirectControl,
         nvapi::{
             pstates::{DomainReading, ParsedPstates},
             transaction::PstatesIo,
@@ -57,6 +58,13 @@ pub struct State {
     pub ignore_energy_write: bool,
     pub fail_fan_mode: bool,
     pub fan_command: Option<u8>,
+    pub fan_mode: u8,
+    pub offset_raw: u8,
+    pub fan_curves: [[u8; 14]; 3],
+    pub ignore_fan_write: bool,
+    pub fail_curve_commands: usize,
+    pub fail_rpm_write: bool,
+    direct_control: [DirectControl; 2],
     pub fan_count: u8,
     pub cpu_temperature: u8,
     pub gpu_khz: i32,
@@ -77,194 +85,12 @@ static SERIAL: Mutex<()> = Mutex::new(());
 fn device() -> Arc<Device> {
     ACTIVE.lock().unwrap().as_ref().unwrap().clone()
 }
-unsafe extern "system" fn buffer(command: i32, out: *mut u8) -> i32 {
-    let mut packet = [0; 257];
-    match command {
-        12 => {
-            packet[18] = device().0.lock().unwrap().cpu_temperature;
-            packet[16] = 76;
-            packet[19] = 76;
-        }
-        13 => {
-            let d = device();
-            let state = d.0.lock().unwrap();
-            packet[15] = state.pages[2][4];
-            packet[43] = u8::from(state.keyboard_boot_supported);
-            packet[12] = state.fan_count;
-            packet[50] = (1 << state.fan_count) - 1;
-            for at in [16, 24] {
-                packet[at..at + 6].copy_from_slice(&[40, 51, 60, 102, 80, 204]);
-            }
-        }
-        17 | 18 => (),
-        _ => return 0,
-    }
-    unsafe {
-        std::ptr::copy_nonoverlapping(packet.as_ptr(), out, packet.len());
-    }
-    command
+fn direct_control(_: &Dchu) -> anyhow::Result<[DirectControl; 2]> {
+    Ok(device().0.lock().unwrap().direct_control)
 }
-unsafe extern "system" fn read(page: i32, offset: i32, length: i32, out: *mut u8) -> i32 {
-    let d = device();
-    let state = d.0.lock().unwrap();
-    unsafe {
-        std::ptr::copy_nonoverlapping(
-            state.pages[page as usize][offset as usize..].as_ptr(),
-            out,
-            length as usize,
-        );
-    }
-    4096
-}
-unsafe extern "system" fn write(page: i32, offset: i32, length: i32, bytes: *const u8) -> i32 {
-    let d = device();
-    let mut state = d.0.lock().unwrap();
-    let bytes = unsafe { std::slice::from_raw_parts(bytes, length as usize) };
-    state.events.push(format!("PAGE{page}:{offset}:{bytes:?}"));
-    state.pages[page as usize][offset as usize..offset as usize + bytes.len()]
-        .copy_from_slice(bytes);
-    if page == 1 && offset == 1 && state.fail_mode_save {
-        state.fail_mode_save = false;
-        return 0;
-    }
-    if state.fail_option_save == Some((page as u8, offset as usize)) {
-        state.fail_option_save = None;
-        return 0;
-    }
-    if page == 6 && offset == 69 && state.fail_saved {
-        state.fail_saved = false;
-        return 0;
-    }
-    if page == 4 && offset == 81 && state.fail_dust_save {
-        state.fail_dust_save = false;
-        return 0;
-    }
-    if page == 1 && offset == 36 && state.fail_keyboard_save {
-        state.fail_keyboard_save = false;
-        return 0;
-    }
-    if page == 2 && state.fail_page2_at == Some(offset as usize) {
-        state.fail_page2_at = None;
-        return 0;
-    }
-    1
-}
-unsafe extern "system" fn set(command: i32, bytes: *const u8, length: i32) -> i32 {
-    let d = device();
-    let mut state = d.0.lock().unwrap();
-    let bytes = unsafe { std::slice::from_raw_parts(bytes, length as usize) };
-    if command == 79 {
-        if !energy_packet::set(&mut state, bytes[0]) {
-            return 0;
-        }
-    } else if matches!(command, 39 | 103) {
-        let word = u32::from_le_bytes(bytes[..4].try_into().unwrap());
-        state.events.push(format!("LIGHT:{command}:{word:08x}"));
-        if state.fail_lighting_words != 0 {
-            state.fail_lighting_words -= 1;
-            return 0;
-        }
-    } else if command == 121 && matches!(bytes[3], 40 | 41) {
-        let sub = bytes[3];
-        let value = u32::from_le_bytes(bytes[..4].try_into().unwrap()) & 0xffffff;
-        state.events.push(format!("DUST:{sub}:{value}"));
-        if state.fail_dust_commands != 0 {
-            state.fail_dust_commands -= 1;
-            return 0;
-        }
-    } else if command == 121 && bytes[3] == 25 {
-        let mode = bytes[0];
-        state.events.push(format!("MODE:{mode}"));
-        state.power = ((1040 | 0x8000) << 32) | (720 | 0x8000);
-        state.voltage = [-20, -21, 0];
-        if state.fail_mode {
-            return 0;
-        }
-    } else if command == 121 && bytes[3] == 34 {
-        state.events.push("FAN_RESET".into());
-        if state.fail_default {
-            state.fail_default = false;
-            return 0;
-        }
-    } else if command == 121 && bytes[3] == 1 && state.fail_fan_mode {
-        state.fail_fan_mode = false;
-        state.events.push("FAN_MODE_FAILURE".into());
-        return 0;
-    } else {
-        if command == 121 && bytes[3] == 1 {
-            state.fan_command = Some(bytes[0]);
-        }
-        state.events.push(format!("DCHU:{command}"));
-    }
-    command
-}
-pub fn io() -> Dchu {
-    Dchu::test_io(buffer, read, set, write).with_test_exchange(exchange)
-}
-
-unsafe extern "system" fn exchange(command: i32, input: *const u8, _: i32, out: *mut u8) -> i32 {
-    let selector = unsafe { *input };
-    let d = device();
-    let mut state = d.0.lock().unwrap();
-    if matches!(selector, 24 | 25) {
-        if selector == 25 {
-            let values: [u8; 5] = unsafe {
-                std::slice::from_raw_parts(input.add(1), 5)
-                    .try_into()
-                    .unwrap()
-            };
-            state.keyboard_live = values;
-            state.events.push(format!("KEYBOARD:{values:?}"));
-            if state.fail_keyboard_send != 0 {
-                state.fail_keyboard_send -= 1;
-                return 0;
-            }
-        }
-        unsafe {
-            std::ptr::write_bytes(out, 0, 257);
-            std::ptr::copy_nonoverlapping(state.keyboard_live.as_ptr(), out, 5);
-            *out.add(256) = state.keyboard_live[0];
-        }
-        return command;
-    }
-    if selector == 1 && unsafe { *input.add(1) } == 163 {
-        unsafe {
-            std::ptr::write_bytes(out, 0, 257);
-            *out.add(1) = u8::from(state.dust_running);
-        }
-        return command;
-    }
-    if selector == 54 || selector == 55 {
-        if selector == 55 {
-            state.pd_level[0] = unsafe { *input.add(1) };
-            let level = state.pd_level[0];
-            state.events.push(format!("PD:{level}"));
-            if state.fail_pd != 0 {
-                state.fail_pd -= 1;
-                return 0;
-            }
-        }
-        unsafe {
-            std::ptr::write_bytes(out, 0, 257);
-            std::ptr::copy_nonoverlapping(state.pd_level.as_ptr(), out, 2);
-            *out.add(256) = state.pd_level[0];
-        }
-        return command;
-    }
-    let table = if selector == 8 {
-        Some(&state.bios)
-    } else {
-        state.policy_tables.get(&selector)
-    };
-    let Some(table) = table else {
-        return 0;
-    };
-    unsafe {
-        std::ptr::copy_nonoverlapping(table.as_ptr(), out, 256);
-        *out.add(256) = table[0];
-    }
-    command
-}
+#[path = "fixtures_device.rs"]
+mod device_io;
+pub use device_io::io;
 
 impl MsrAccess for Device {
     fn read(&self, address: u32) -> Result<u64, String> {
@@ -412,6 +238,13 @@ impl Device {
             ignore_energy_write: false,
             fail_fan_mode: false,
             fan_command: None,
+            fan_mode: 0,
+            offset_raw: 0,
+            fan_curves: device_io::FACTORY_CURVES,
+            ignore_fan_write: false,
+            fail_curve_commands: 0,
+            fail_rpm_write: false,
+            direct_control: [DirectControl::Firmware; 2],
             fan_count: 2,
             cpu_temperature: 50,
             gpu_khz: 135_000,
@@ -437,10 +270,13 @@ impl Fixture {
         self
     }
     pub fn new() -> Self {
-        let serial = SERIAL.lock().unwrap();
+        let serial = SERIAL
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let device = Device::initial();
         *ACTIVE.lock().unwrap() = Some(device.clone());
         let mut hal = Hal::test_instance(io(), None).with_test_msr(device.clone());
+        hal.test_fan_control = Some(direct_control);
         hal.system_power = device.clone();
         let gpu_environment = crate::gpu_power::test_fixture::EnvironmentFixture::new();
         gpu_environment.io.0.lock().unwrap().supported = false;

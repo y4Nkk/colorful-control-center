@@ -10,7 +10,7 @@ async function details(page) {
 }
 async function expectPreference(page, value) {
   const dialog = await details(page);
-  await expect(dialog.locator(".ccc-fact-row").filter({ hasText: "保存偏好" }).locator("dd")).toHaveText(value);
+  await expect(dialog.locator(".ccc-fact-row").filter({ hasText: "电脑保存的设置" }).locator("dd")).toHaveText(value);
   await page.keyboard.press("Escape");
 }
 async function expectDiagnostic(page, message) {

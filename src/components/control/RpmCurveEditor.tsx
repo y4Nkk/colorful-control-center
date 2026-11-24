@@ -11,14 +11,15 @@ import { moveRpmPoint, rpmLimits, rpmStepPath, sameRpmCurve } from "./rpmCurve";
 interface Props {
   status?: string;
   fanName: string;
-  source: object;
+  source: string;
   current: RpmPoint[];
   maximumRpm: number;
   editable: boolean;
-  onCommit: (points: RpmPoint[]) => void;
+  busy: boolean;
+  onCommit: (points: RpmPoint[]) => void | Promise<void>;
 }
 
-export function RpmCurveEditor({ status, fanName, source, current, maximumRpm, editable, onCommit }: Props) {
+export function RpmCurveEditor({ status, fanName, source, current, maximumRpm, editable, busy, onCommit }: Props) {
   const plot = useRef<HTMLDivElement>(null);
   const [selected, select] = useState(0);
   const edit = useFanEdit(source, current, onCommit);
@@ -33,7 +34,7 @@ export function RpmCurveEditor({ status, fanName, source, current, maximumRpm, e
       {draft.map((p, index) => {
         const bounds = rpmLimits(draft, index).temp;
         return <FirmwareCurveHandle key={index} source={source} plotRef={plot} plotMin={0} rpmIndex={index}
-          selected={selected === index} disabled={!editable} onSelect={() => select(index)}
+          selected={selected === index} disabled={!editable} busy={busy} onSelect={() => select(index)}
           x={p.tempC} y={100 - p.rpmPct} temp={p.tempC} minTemp={bounds.min} maxTemp={bounds.max}
           label={`第 ${index + 1} 级温度与转速`} valueText={`${p.tempC}°C，最大转速的 ${p.rpmPct}%`}
           onMove={(temp, rpm) => edit.update(before => moveRpmPoint(before, index, temp, rpm))}
@@ -50,13 +51,13 @@ export function RpmCurveEditor({ status, fanName, source, current, maximumRpm, e
     <h4>{fanName} 曲线点</h4>
     <div className="ccc-curve-point ccc-rpm-inputs" role="group" aria-label="RPM 曲线数值">
       <label className="ccc-curve-number">级别<Select size="compact" value={String(selected)} label="选择 RPM 级别"
-        disabled={!editable}
+        disabled={!editable} busy={busy}
         options={draft.map((_, index) => ({ value: String(index), label: `第 ${index + 1} 级` }))}
         onChange={value => select(Number(value))} /></label>
       <PointNumber key={`temp${selected}`} label="温度 °C" name="RPM 温度" value={point.tempC} {...limits.temp}
-        disabled={!editable} onChange={value => edit.update(changeTemp(value))} onCommit={value => edit.commit(changeTemp(value))} onCancel={edit.cancel} />
+        disabled={!editable} busy={busy} onChange={value => edit.update(changeTemp(value))} onCommit={value => edit.commit(changeTemp(value))} onCancel={edit.cancel} />
       <PointNumber key={`rpm${selected}`} label="目标转速 %" name="RPM 转速" value={point.rpmPct} {...limits.rpm}
-        disabled={!editable || selected === draft.length - 1} onChange={value => edit.update(changeRpm(value))}
+        disabled={!editable || selected === draft.length - 1} busy={busy} onChange={value => edit.update(changeRpm(value))}
         onCommit={value => edit.commit(changeRpm(value))} onCancel={edit.cancel} />
     </div>
   </>} />;

@@ -3,16 +3,17 @@ import { appliesPerformanceOptions, optionCommand, entertainmentCommand, modePre
 export function fanProfile(data) {
   const powerMode = data.performanceOptions.currentMode;
   const fan = data.fan;
-  const quiet = powerMode === 3 && fan.currentMode === 0 && fan.availableModes.includes(8)
-    && data.entertainmentQuiet && !(entertainmentCommand(data) & 64);
-  const currentMode = quiet ? 8 : fan.currentMode;
+  const currentMode = fan.currentMode;
+  const turbo = powerMode === 2 && data.performanceOptions.current.turboFan === true ||
+    powerMode === 3 && !!(entertainmentCommand(data) & 64);
+  const customBlockedReason = turbo ? "Turbo 风扇不能与自定义固件风扇曲线或软件风扇曲线同时启用" : null;
   const offsetSlot = data.fanRemembersOffset ? (powerMode === 4 ? 0 : powerMode) : null;
   const running = data.dust?.running ? "固件正在除尘，请等待结束后再调整风扇或电源模式" : null;
   const offsetBlockedReason = fan.offsetBlockedReason ?? running ?? (fan.software ? "软件接管期间无法调节加速偏移。"
     : [0, 8].includes(currentMode) && fan.availableModes.includes(currentMode) ? null : "仅自动或寂静模式可调节加速偏移。");
-  const profile = { ...fan, currentMode, offsetSlot, blockedReason: running, offsetBlockedReason };
+  const profile = { ...fan, currentMode, customBlockedReason, offsetSlot, blockedReason: running, offsetBlockedReason };
   if (data.fanKind !== "rpmTable") return profile;
-  return { ...profile, curveKind: "rpmTable", offsetBlockedReason: "此机型不支持风扇加速偏移。", fans: [],
+  return { ...profile, curveKind: "rpmTable", offsetPct: null, offsetBlockedReason: "此机型不支持风扇加速偏移。", fans: [],
     rpmFans: fan.rpmFans.length ? fan.rpmFans : [{ id: "cpu", maximumRpm: 5000,
       points: Array.from({ length: 10 }, (_, i) => ({ tempC: 40 + i * 5, rpmPct: i === 9 ? 100 : 20 + i * 8 })) }] };
 }
@@ -52,7 +53,7 @@ export function applyPerformanceOptions(data, { values, quietFan, replaceCustomF
       if (!fields.some(field => field.offset === 9)) fields.push({ offset: 9, data: [Number(data.entertainmentQuiet)] });
       data.entertainmentQuiet = quietFan === true;
     }
-    data.fan.currentMode = 0;
+    data.fan.currentMode = quietFan ? 8 : 0;
   }
   p.revision = `options-${++data.performanceRevision}`;
   return { ok: true, message: "已接受" };
@@ -65,7 +66,7 @@ export async function invokePerformance(data, command, args) {
   const appliesInCurrentMode = appliesPerformanceOptions(data, p.currentMode);
   const quiet = (performance || entertainment) && data.fan.availableModes.includes(8) ? {
     enabled: entertainment ? data.entertainmentQuiet : (data.performanceFanMode ?? data.fan.currentMode) === 8,
-    active: data.fan.currentMode === 8 || entertainment && data.fan.currentMode === 0 && data.entertainmentQuiet && !(entertainmentCommand(data) & 64),
+    active: data.fan.currentMode === 8,
     remembered: entertainment || data.performanceFanMode !== null,
   } : null;
   const energy = () => {
@@ -112,7 +113,9 @@ export async function invokePerformance(data, command, args) {
       data.acMode = args.expected.acMode; p.currentMode = args.expected.mode;
       data.modeOptionsCommand = optionCommand(p.currentMode, args.expected.turbo, args.expected.dtt);
       data.modeEnergy = structuredClone(args.expected.energy);
-      data.fan.currentMode = args.expected.fanSavedMode; data.fan.offsetPct = args.expected.fanOffsetPct; data.fan.software = null;
+      data.fan.currentMode = args.expected.fanMode;
+      if (args.expected.fanOffsetPct !== null) data.fan.offsetPct = args.expected.fanOffsetPct;
+      data.fan.software = null;
       p.customFan = data.fan.currentMode === 6;
       if (args.expected.mode === 2 && data.performanceFanMode !== null) data.performanceFanMode = args.expected.fanSavedMode;
       p.revision = `options-${++data.performanceRevision}`; return { ok: true, message: "模式已应用" };

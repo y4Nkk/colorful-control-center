@@ -19,21 +19,12 @@ pub(crate) fn entertainment_quiet(io: &impl SettingsAccess) -> Result<bool> {
     }
 }
 
-pub(super) fn effective_mode(
-    io: &impl ModeIo,
-    power_mode: u8,
-    mode: u8,
-    supports_quiet: bool,
-) -> Result<u8> {
-    if mode == FAN_MODE_AUTO
-        && power_mode == 3
-        && supports_quiet
-        && !power::boost::turbo_enabled(io, power_mode)?
-        && entertainment_quiet(io)?
+pub(super) fn automatic_target(io: &impl ModeIo, power_mode: u8) -> Result<u8> {
+    if power_mode == 3 && !power::boost::turbo_enabled(io, power_mode)? && entertainment_quiet(io)?
     {
         return Ok(FAN_MODE_NOISELESS);
     }
-    Ok(mode)
+    Ok(FAN_MODE_AUTO)
 }
 
 pub(crate) fn keeps_mode(caps: &[u8]) -> bool {

@@ -15,8 +15,8 @@ async function publish(page, reading, available = true) {
     snapshot.sampledAtMs = data.lastMemorySample = Math.max(Date.now(), data.lastMemorySample ?? 0) + 1000;
     snapshot.dchuAvailable = available;
     if (!available) {
-      snapshot.cpuTempC = snapshot.cpuRemoteRaw = null;
-      snapshot.fan = { cpuRpm: null, cpuDutyPct: null, gpuRpm: null, gpuDutyPct: null };
+      const missing = { tempC: null, rpm: null, dutyPct: null };
+      snapshot.fan = { cpu: { ...missing }, gpu1: { ...missing }, gpu2: { ...missing }, sys: { ...missing } };
     }
     window.__uiEmit("hardware-snapshot", snapshot);
   }, { reading, available });
@@ -84,9 +84,9 @@ test("两个字段独立未知，连接失败清旧值，恢复后重新显示",
 test("离线仍能阅读单位与共享报告说明", async ({ page }) => {
   await publish(page, null, false);
   await openDetails(page);
-  await expect(details(page)).toContainText("1 MB 为 1024 KB");
-  await expect(details(page)).toContainText("可能有更新延迟");
-  await expect(details(page)).toContainText("参考频率不是硬上限");
+  await expect(details(page)).toContainText("1 MB 是 1024 KB");
+  await expect(details(page)).toContainText("更新可能有延迟");
+  await expect(details(page)).toContainText("参考频率只供对照");
   await expect(details(page)).toContainText("DDR 有效传输速率");
 });
 

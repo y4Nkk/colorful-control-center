@@ -4,8 +4,8 @@ import { clampInt, movePoint, pointLimits, type CurveAnchors, type CurveDraft } 
 
 type PointEdit = (draft: CurveDraft) => CurveDraft;
 
-export function CurvePointInputs({ anchors, draft, disabled, selected, onSelect, onChange, onCommit, onCancel }: {
-  anchors: CurveAnchors; draft: CurveDraft; disabled: boolean; selected: "p2" | "p3" | null;
+export function CurvePointInputs({ anchors, draft, disabled, busy, selected, onSelect, onChange, onCommit, onCancel }: {
+  anchors: CurveAnchors; draft: CurveDraft; disabled: boolean; busy: boolean; selected: "p2" | "p3" | null;
   onSelect: (point: "p2" | "p3") => void; onChange: (edit: PointEdit) => void;
   onCommit: (edit: PointEdit) => void; onCancel: () => void;
 }) {
@@ -20,17 +20,17 @@ export function CurvePointInputs({ anchors, draft, disabled, selected, onSelect,
       const changeDuty = (next: number): PointEdit => before => movePoint(anchors, before, point, point === "p2" ? before.t2 : before.t3, next);
       return <div className="ccc-curve-point" key={point} data-selected={selected === point || undefined} onFocus={() => onSelect(point)}>
         <strong className="ccc-mono">{label}</strong>
-        <PointNumber name={`${label} 温度`} value={temp} {...limits.temp} disabled={disabled}
+        <PointNumber name={`${label} 温度`} value={temp} {...limits.temp} disabled={disabled} busy={busy}
           onChange={next => onChange(changeTemp(next))} onCommit={next => onCommit(changeTemp(next))} onCancel={onCancel} />
-        <PointNumber name={`${label} 占空比`} value={duty} {...limits.duty} disabled={disabled}
+        <PointNumber name={`${label} 占空比`} value={duty} {...limits.duty} disabled={disabled} busy={busy}
           onChange={next => onChange(changeDuty(next))} onCommit={next => onCommit(changeDuty(next))} onCancel={onCancel} />
       </div>;
     })}
   </div>;
 }
 
-export function PointNumber({ label, name, value, min, max, disabled, onChange, onCommit, onCancel }: {
-  label?: string; name: string; value: number; min: number; max: number; disabled: boolean;
+export function PointNumber({ label, name, value, min, max, disabled, busy, onChange, onCommit, onCancel }: {
+  label?: string; name: string; value: number; min: number; max: number; disabled: boolean; busy: boolean;
   onChange: (next: number) => void; onCommit: (next: number) => void; onCancel: () => void;
 }) {
   const [text, setText] = useState(String(value));
@@ -39,7 +39,7 @@ export function PointNumber({ label, name, value, min, max, disabled, onChange, 
   const invalid = text !== String(value) && (text.trim() === "" || !Number.isFinite(Number(text)) || Number(text) < min || Number(text) > max);
   const cancel = () => { edited.current = false; setText(String(value)); onCancel(); };
   const commit = () => {
-    if (disabled || !edited.current) return;
+    if (disabled || busy || !edited.current) return;
     if (!text.trim() || !Number.isFinite(Number(text))) { cancel(); return; }
     const next = clampInt(Number(text), min, max);
     edited.current = false;
@@ -50,7 +50,9 @@ export function PointNumber({ label, name, value, min, max, disabled, onChange, 
     {label && <span>{label}</span>}
     <Input size="compact" type="number" className="ccc-mono" aria-label={name} aria-invalid={invalid}
       title={`${min}–${max}`} min={min} max={max} step={1} value={text} disabled={disabled}
+      readOnly={busy} aria-disabled={busy && !disabled || undefined} aria-busy={busy && !disabled || undefined}
       onChange={(event) => {
+        if (busy) return;
         edited.current = true;
         const next = event.target.value;
         setText(next);

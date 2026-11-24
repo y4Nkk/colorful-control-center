@@ -1,8 +1,12 @@
-use super::{FAN_MODE_NOISELESS, NOISELESS_FAN_LABEL, saved};
-use crate::hal::Hal;
-use anyhow::{Result, anyhow, ensure};
+use super::{CurveKind, FanProfile, saved, software};
+use crate::{
+    hal::{Hal, oem_dchu::Dchu},
+    powerctl::mode::boost::{self, FanTarget},
+};
+use anyhow::{Result, anyhow, bail, ensure};
 use ccc_core::{
-    fan::{build_curve_package, oem_duty_byte},
+    fan::{oem_duty_percent, oem_page4_offsets},
+    msr::with_recovery,
     settings::{self, Patch},
 };
 mod storage;
@@ -15,8 +19,9 @@ pub struct FanCheckpoint {
     rpm_pairs: Option<Vec<ccc_core::rpm::Pair>>,
     fields: Vec<Patch>,
     mode: u8,
-    offset: u8,
+    offset_raw: Option<u8>,
 }
+
 impl FanCheckpoint {
     pub(crate) fn software_curves(&self) -> Option<&ccc_core::software_fan::Curves> {
         self.software.as_ref()
@@ -24,8 +29,8 @@ impl FanCheckpoint {
     pub(crate) fn mode(&self) -> u8 {
         self.mode
     }
-    pub(crate) fn offset(&self) -> u8 {
-        self.offset
+    pub(crate) fn offset(&self) -> Option<u8> {
+        self.offset_raw.map(oem_duty_percent)
     }
     pub(crate) fn entertainment_quiet(&self) -> Option<bool> {
         self.fields
@@ -49,84 +54,202 @@ impl FanCheckpoint {
                 .fields
                 .iter()
                 .filter(|patch| patch.offset >= 16)
-                .collect::<Vec<_>>()
-                != other
-                    .fields
-                    .iter()
-                    .filter(|patch| patch.offset >= 16)
-                    .collect::<Vec<_>>()
+                .ne(other.fields.iter().filter(|patch| patch.offset >= 16))
+    }
+    pub(super) fn two_point_package(&self) -> Result<[u8; 256]> {
+        self.package
+            .ok_or_else(|| anyhow!("缺少已读取的即时两点曲线"))
+    }
+    pub(super) fn has_tables(&self) -> bool {
+        self.package.is_some() || self.rpm_pairs.is_some()
+    }
+    pub(super) fn with_rpm_tables(mut self, pairs: Vec<ccc_core::rpm::Pair>) -> Self {
+        self.rpm_pairs = Some(pairs);
+        self
+    }
+    pub(super) fn check_restorable_from(&self, current: &Self) -> Result<()> {
+        ensure!(
+            (self.package.is_none() || current.package.is_some())
+                && (self.rpm_pairs.is_none() || current.rpm_pairs.is_some())
+                && (self.offset_raw.is_none() || current.offset_raw.is_some()),
+            "缺少恢复前的即时曲线或偏移，请重新读取设备状态"
+        );
+        Ok(())
     }
 }
 
 pub fn checkpoint(hal: &Hal, include_curve: bool) -> Result<FanCheckpoint> {
-    let current = super::read_profile(hal)?;
-    super::validate_mode(current.current_mode)?;
-    let capture_curve = include_curve
-        && (current.custom_supported || current.current_mode == super::FAN_MODE_CUSTOM);
-    let rpm_layout = current.curve_kind == super::CurveKind::RpmTable;
-    let inputs = if capture_curve && !rpm_layout {
-        Some(super::profile::prepare(&current, [None; 3])?)
-    } else {
-        None
-    };
-    let rpm_pairs = if capture_curve && rpm_layout {
-        Some(super::rpm::checkpoint(hal)?.pairs)
-    } else {
-        None
-    };
-    let mut layout = inputs
-        .as_ref()
-        .map(super::profile::page_patches)
-        .unwrap_or_default();
-    layout.push(Patch::new(5, [0]));
-    layout.push(Patch::new(7, [0]));
-    let fields = hal.with_dchu(|d| {
-        layout.extend(super::saved::capture_slots(d)?);
-        layout
-            .iter()
-            .map(|p| {
-                d.read_settings(4, p.offset as i32, p.data.len())
-                    .map(|bytes| Patch::new(p.offset, bytes))
-            })
-            .collect::<Result<Vec<_>>>()
+    capture(hal, &super::read_profile(hal)?, include_curve)
+}
+
+pub(super) fn capture(
+    hal: &Hal,
+    current: &FanProfile,
+    include_curve: bool,
+) -> Result<FanCheckpoint> {
+    let custom = include_curve && current.custom_supported;
+    let rpm_pairs = (custom && current.curve_kind == CurveKind::RpmTable)
+        .then(|| super::rpm::checkpoint(hal).map(|snapshot| snapshot.pairs))
+        .transpose()?;
+    let (package, fields, offset_raw) = hal.with_dchu(|io| {
+        ensure!(
+            io.read_fan_mode()? == current.current_mode,
+            "EC 风扇档位已变化，请重新读取"
+        );
+        let package = (custom && current.curve_kind == CurveKind::TwoPoint)
+            .then(|| read_two_point(io, hal.reviewed_dsdt))
+            .transpose()?;
+        let page = io.read_settings(4, 0, 256)?;
+        let mut fields = vec![Patch::new(5, [page[5]]), Patch::new(7, [page[7]])];
+        if package.is_some() {
+            for (index, _) in current
+                .fans
+                .iter()
+                .enumerate()
+                .filter(|(_, fan)| fan.present)
+            {
+                let (duty, temp, slope) = oem_page4_offsets(index);
+                fields.extend([
+                    Patch::new(duty, page[duty..duty + 4].to_vec()),
+                    Patch::new(temp, page[temp..temp + 4].to_vec()),
+                    Patch::new(slope, page[slope..slope + 6].to_vec()),
+                ]);
+            }
+        }
+        fields.extend(saved::capture_slots(io)?);
+        let offset_raw = current
+            .offset_raw
+            .map(|_| io.read_fan_offset(hal.reviewed_dsdt))
+            .transpose()?;
+        Ok((package, fields, offset_raw))
     })?;
     Ok(FanCheckpoint {
-        software: current.software,
+        software: current.software.clone(),
+        package,
         rpm_pairs,
-        package: inputs.as_ref().map(build_curve_package),
         fields,
         mode: current.current_mode,
-        offset: current.offset_pct,
+        offset_raw,
     })
 }
 
-pub fn restore_checkpoint(hal: &Hal, checkpoint: &FanCheckpoint) -> Result<()> {
-    super::dust::ensure_manual_allowed(hal)?;
-    if checkpoint.entertainment_quiet().is_some() {
-        ensure!(
-            hal.with_dchu(|d| Ok(super::supports_noiseless(&d.read_bios_capabilities(0, 22)?)))?,
-            "固件未声明支持恢复娱乐模式的{NOISELESS_FAN_LABEL}"
-        );
-    }
-    if checkpoint.mode == FAN_MODE_NOISELESS {
-        crate::powerctl::mode::boost::ensure_noiseless_allowed(hal)?;
-    }
-    super::software::stop_safely(hal)?;
-    let result = hal.with_dchu(|d| {
-        if let Some(pairs) = &checkpoint.rpm_pairs {
-            super::rpm::restore_pairs(d, pairs)?;
+pub(super) fn read_two_point(io: &Dchu, reviewed_dsdt: bool) -> Result<[u8; 256]> {
+    let info = io.read_fan_info()?;
+    read_two_point_from(io, reviewed_dsdt, &info)
+}
+
+pub(super) fn read_two_point_from(
+    io: &Dchu,
+    reviewed_dsdt: bool,
+    info: &[u8; 256],
+) -> Result<[u8; 256]> {
+    let bitmap = ccc_core::fan_sensors::fan_channels(info)
+        .filter(|bits| bits & 8 == 0)
+        .ok_or_else(|| anyhow!("EC 两点曲线通道不明"))?;
+    io.read_fan_curve_package(reviewed_dsdt, info, bitmap)
+}
+
+pub(super) fn write_two_point(io: &Dchu, reviewed_dsdt: bool, package: &[u8; 256]) -> Result<()> {
+    ensure!(reviewed_dsdt, "当前固件未确认 EC 两点曲线读写通道");
+    io.set_package(14, package)?;
+    ensure!(
+        read_two_point(io, reviewed_dsdt)? == *package,
+        "EC 两点曲线回读与目标不一致"
+    );
+    Ok(())
+}
+
+pub(super) fn remember_baseline(hal: &Hal, before: &FanCheckpoint) -> Result<()> {
+    let mut state = hal.recovery()?;
+    if let Some(initial) = &mut state.fan {
+        initial.package = initial.package.or(before.package);
+        if initial.rpm_pairs.is_none() {
+            initial.rpm_pairs.clone_from(&before.rpm_pairs);
         }
-        if let Some(package) = checkpoint.package {
-            d.set_package(14, &package)?;
-        }
-        settings::apply(d, 4, &checkpoint.fields, None).map_err(|e| anyhow!(e))?;
-        d.set_data_sub(121, 14, oem_duty_byte(checkpoint.offset as f64) as u32)?;
-        d.set_data_sub(121, 1, checkpoint.mode as u32)
-    });
-    super::fail_safe(hal, result)?;
-    if let Some(curves) = &checkpoint.software {
-        super::fail_safe(hal, hal.ensure_software_fan_restart_allowed())?;
-        super::software::apply(hal, curves)?;
+        initial.offset_raw = initial.offset_raw.or(before.offset_raw);
+        settings::remember(&mut initial.fields, before.fields.clone());
+    } else {
+        let mut initial = before.clone();
+        initial.software = None;
+        state.fan = Some(initial);
     }
     Ok(())
+}
+
+pub(super) fn transact(
+    hal: &Hal,
+    before: &FanCheckpoint,
+    attempt: impl FnOnce(&Dchu) -> Result<()>,
+) -> Result<()> {
+    software::stop_safely(hal)?;
+    remember_baseline(hal, before)?;
+    with_rollback(hal, before, hal.with_dchu(attempt))
+}
+
+pub(super) fn with_rollback(hal: &Hal, before: &FanCheckpoint, result: Result<()>) -> Result<()> {
+    if let Err(error) = result {
+        let recovery = restore_checkpoint(hal, before).map_err(|error| format!("{error:#}"));
+        bail!(with_recovery(format!("{error:#}"), recovery));
+    }
+    Ok(())
+}
+
+pub fn restore_checkpoint(hal: &Hal, before: &FanCheckpoint) -> Result<()> {
+    super::ensure_manual_allowed(hal)?;
+    software::stop_safely(hal)?;
+    let errors = hal.with_dchu(|io| Ok(restore_hardware(hal, io, before)))?;
+    if !errors.is_empty() {
+        bail!(errors.join("；"));
+    }
+    if let Some(curves) = &before.software {
+        software::apply(hal, curves)?;
+    }
+    Ok(())
+}
+
+fn restore_hardware(hal: &Hal, io: &Dchu, before: &FanCheckpoint) -> Vec<String> {
+    let mut errors = Vec::new();
+    let mut record = |label: &str, result: Result<()>| {
+        if let Err(error) = result {
+            errors.push(format!("{label}：{error:#}"));
+        }
+    };
+    if let Some(pairs) = &before.rpm_pairs {
+        record("十级 RPM 表", super::rpm::restore_pairs(io, pairs));
+    }
+    if let Some(package) = &before.package {
+        record("两点曲线", write_two_point(io, hal.reviewed_dsdt, package));
+    }
+    for field in &before.fields {
+        let current = io.read_settings(4, field.offset as i32, field.data.len());
+        if current.is_ok_and(|data| data == field.data) {
+            continue;
+        }
+        record(
+            &format!("保存字段 {}", field.offset),
+            settings::apply(io, 4, std::slice::from_ref(field), None)
+                .map(|_| ())
+                .map_err(anyhow::Error::msg),
+        );
+    }
+    if let Some(offset) = before.offset_raw {
+        if !io
+            .read_fan_offset(hal.reviewed_dsdt)
+            .is_ok_and(|raw| raw == offset)
+        {
+            record(
+                "即时偏移",
+                io.set_fan_offset_verified(hal.reviewed_dsdt, offset),
+            );
+        }
+    }
+    let mode =
+        boost::ensure_fan_allowed_on(io, FanTarget::Firmware(before.mode)).and_then(|()| match io
+            .read_fan_mode()
+        {
+            Ok(mode) if mode == before.mode => Ok(()),
+            _ => io.set_fan_mode_verified(before.mode),
+        });
+    record("即时档位", mode);
+    errors
 }

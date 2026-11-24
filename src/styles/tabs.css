@@ -44,5 +44,6 @@
   box-shadow: none;
 }
 
-.ccc-tabs-tab:is(:disabled, [aria-disabled="true"]) { cursor: not-allowed; opacity: 0.55; }
+.ccc-tabs-tab:is(:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
+.ccc-tabs-tab:is(:disabled, [aria-disabled="true"]):not([aria-busy="true"]) { opacity: 0.55; }
 .ccc-tabs-panel { min-width: 0; }

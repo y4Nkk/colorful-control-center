@@ -3,49 +3,47 @@
 mod client;
 #[path = "watchdog/protocol.rs"]
 mod protocol;
-use crate::hal::{nvidia::Nvidia, oem_dchu::Dchu};
-use anyhow::{Result, bail};
+use crate::hal::{firmware, nvidia::Nvidia, oem_dchu::Dchu};
+use anyhow::{Context, Result, bail, ensure};
+use ccc_core::fan_sensors::FanReadings;
 pub use client::Watchdog;
 pub(crate) use protocol::report_failure;
 
 pub fn run_child() -> Result<()> {
     let _lease = crate::controller_lease::ControllerLease::retain(crate::controller_lease::NAME)?;
-    if !crate::hal::firmware::reviewed_dsdt() {
-        bail!("监护进程未能核对逐通道自动恢复协议，未启用软件风扇曲线");
-    }
+    ensure!(firmware::reviewed_dsdt(), firmware::FAN_CONTROL_UNVERIFIED);
+    let reader = firmware::DIRECT_FAN_READER.context(firmware::FAN_CONTROL_UNVERIFIED)?;
     let dchu = Dchu::load()?;
-    let mut nvidia = Nvidia::init().ok();
-    let input = protocol::read_lines(std::io::stdin());
+    firmware::verify_direct_release(&dchu, Some(reader))?;
+    let sensors = Dchu::load()?;
+    let mut nvidia = None;
+    let sample = protocol::monitor_samples(move || {
+        let packet = sensors.read_package(12).ok()?;
+        let reading = FanReadings::decode(&packet, firmware::DIRECT_FAN_MASK as u8)?;
+        let cpu = reading.cpu.temp_c?;
+        if nvidia.is_none() {
+            nvidia = Nvidia::init().ok();
+        }
+        let sample = nvidia.as_ref().map(|n| n.sample()).transpose();
+        if sample.is_err() {
+            nvidia.take();
+        }
+        Some((cpu, sample.ok().flatten().and_then(|value| value.temp_c)))
+    })?;
     protocol::run(
-        input,
-        || {
-            let packet = dchu.read_package(12).ok()?;
-            let raw = packet[18] as f64;
-            if raw <= 0.0 || raw >= 150.0 {
-                return None;
-            }
-            // 本版本 OEM GetTDP()=="0"，CPU 原始值就是其显示与控制温度。
-            if nvidia.is_none() {
-                nvidia = Nvidia::init().ok();
-            }
-            let sample = nvidia.as_ref().map(|n| n.sample()).transpose();
-            if sample.is_err() {
-                nvidia.take();
-            }
-            Some((raw, sample.ok().flatten().and_then(|value| value.temp_c)))
-        },
-        || restore_auto(&dchu, true),
+        protocol::read_lines(std::io::stdin()),
+        sample,
+        || firmware::verify_direct_release(&dchu, Some(reader)),
+        || restore_auto(&dchu, Some(reader)),
     )
 }
 
-pub fn restore_auto(dchu: &Dchu, direct: bool) -> Result<()> {
+pub(crate) fn restore_auto(dchu: &Dchu, reader: Option<firmware::ReadDirectControl>) -> Result<()> {
     let mut errors = Vec::new();
-    if direct {
-        if let Err(error) = dchu.set_u32(0x69, crate::hal::firmware::DIRECT_FAN_MASK) {
-            errors.push(format!("C1 自动恢复：{error:#}"));
-        }
+    if let Err(error) = dchu.set_u32(0x69, firmware::DIRECT_FAN_MASK) {
+        errors.push(format!("C1 自动恢复：{error:#}"));
     }
-    if let Err(error) = dchu.set_data_sub(121, 1, 0) {
+    if let Err(error) = dchu.set_fan_mode_verified(0) {
         errors.push(format!("固件自动模式：{error:#}"));
     }
     let saved = dchu.write_settings(4, 5, &[0]).and_then(|_| {
@@ -56,6 +54,9 @@ pub fn restore_auto(dchu: &Dchu, direct: bool) -> Result<()> {
     });
     if let Err(error) = saved {
         errors.push(format!("自动模式保存：{error:#}"));
+    }
+    if let Err(error) = firmware::verify_direct_release(dchu, reader) {
+        errors.push(format!("逐通道风扇归还未证实：{error:#}"));
     }
     if !errors.is_empty() {
         bail!(errors.join("；"));

@@ -22,6 +22,7 @@ fn main() -> Result<()> {
     let scenario = args.get(2).context("缺少场景")?;
     if ![
         "disarm",
+        "disarm-unverified",
         "killed-parent",
         "timeout",
         "child-exit",
@@ -79,6 +80,11 @@ fn parent(root: &Path, scenario: &str) -> Result<()> {
         fs::write(root.join("parent.result"), "DISARMED")?;
         return Ok(());
     }
+    if scenario == "disarm-unverified" {
+        let error = guard.disarm().err().context("未归还的风扇不应解除监护")?;
+        fs::write(root.join("parent.result"), format!("{error:#}"))?;
+        return Ok(());
+    }
     if scenario == "timeout" {
         std::thread::sleep(Duration::from_millis(3800));
     }
@@ -128,6 +134,12 @@ fn child(root: &Path, scenario: &str) -> Result<()> {
             }
         },
         || {
+            if scenario == "disarm-unverified" {
+                bail!("EC 仍有风扇通道处于软件控制");
+            }
+            Ok(())
+        },
+        || {
             let mut log = OpenOptions::new()
                 .create(true)
                 .append(true)
@@ -142,6 +154,9 @@ fn child(root: &Path, scenario: &str) -> Result<()> {
             }
             if scenario == "recovery-failure" {
                 bail!("隔离恢复被拒绝");
+            }
+            if scenario == "disarm-unverified" {
+                bail!("风扇归还未证实");
             }
             Ok(())
         },

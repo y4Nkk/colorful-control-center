@@ -10,23 +10,23 @@ import { Surface } from "../Surface";
 import { Switch } from "../Switch";
 import { useDeviceSettings } from "./useDeviceSettings";
 export const performanceState = (value: boolean | null) => value === null ? "未确认支持" : value ? "开启" : "关闭";
-export const PERFORMANCE_FIELDS = [{ key: "turboFan", label: PERFORMANCE_OPTION_LABELS.turboFan, description: "启用固件的 Turbo 风扇策略" },
-  { key: "dtt", label: PERFORMANCE_OPTION_LABELS.dtt, description: "使用 Dynamic Tuning 驱动调节性能" }] as const;
-const QUIET_FAN_FIELD = { key: "quietFan", label: NOISELESS_FAN_LABEL, description: "娱乐与性能可分别开启固件的低噪声风扇策略" } as const;
+export const PERFORMANCE_FIELDS = [{ key: "turboFan", label: PERFORMANCE_OPTION_LABELS.turboFan, description: "提高风扇转速来加强散热，运行时可能更吵" },
+  { key: "dtt", label: PERFORMANCE_OPTION_LABELS.dtt, description: "交给 Intel Dynamic Tuning 驱动自动调节功耗和散热" }] as const;
+const QUIET_FAN_FIELD = { key: "quietFan", label: NOISELESS_FAN_LABEL, description: "降低风扇噪音，高负载时温度可能升高。娱乐和性能模式可分别开启" } as const;
 type OptionChange = {
   revision: string; key: keyof OemPerformanceDraft; next: OemPerformanceDraft; replaceCustomFan: boolean;
 };
 
 export function OemPerformanceOptions({ active, revision, onSettled }: { active: boolean; revision: number; onSettled: () => void }) {
-  const { profile, busy, error, run, reread } = useDeviceSettings(readOemPerformanceOptions, active, revision);
+  const { profile: confirmed, lastProfile: profile, busy, error, run, reread } = useDeviceSettings(readOemPerformanceOptions, active, revision);
   const [pending, setPending] = useState<OptionChange | null>(null);
-  useEffect(() => setPending(null), [active, profile?.revision, profile?.softwareActive, profile?.blockedReason]);
+  useEffect(() => setPending(null), [active, confirmed?.revision, confirmed?.softwareActive, confirmed?.blockedReason]);
   const current = profile && { ...profile.current, quietFan: profile.quietFan?.enabled ?? null };
   const fields = profile?.quietFan ? [...PERFORMANCE_FIELDS, QUIET_FAN_FIELD] : PERFORMANCE_FIELDS;
   const performance = profile?.currentMode === 2;
   const entertainment = profile?.currentMode === 3;
   const applies = profile?.appliesInCurrentMode === true;
-  const canEdit = !busy && !profile?.blockedReason && (entertainment || performance) && (!applies || !profile?.softwareActive);
+  const canEdit = !!confirmed && !profile?.blockedReason && (entertainment || performance) && (!applies || !profile?.softwareActive);
   const driverMissing = applies && profile?.dttDriverAvailable !== true;
   const disabled = (key: keyof OemPerformanceDraft) => !canEdit || current?.[key] == null
     || key === "quietFan" && !!profile?.softwareActive || applies && key === "turboFan" && !!profile?.customFan && !entertainment
@@ -40,7 +40,7 @@ export function OemPerformanceOptions({ active, revision, onSettled }: { active:
   };
   const toggle = (key: keyof OemPerformanceDraft, enabled: boolean, applySaved = false) => {
     const reapplyQuiet = key === "quietFan" && enabled && !profile?.quietFan?.active;
-    if (!profile || !current || disabled(key) || current[key] === enabled && !reapplyQuiet && !applySaved) return;
+    if (!profile || !current || busy || disabled(key) || current[key] === enabled && !reapplyQuiet && !applySaved) return;
     const next = { ...current, [key]: enabled, quietFan: key === "quietFan" ? enabled : null };
     if (applies && enabled && key === "quietFan" && next.turboFan !== null) next.turboFan = false;
     if (applies && enabled && key === "turboFan" && current.quietFan !== null) next.quietFan = false;
@@ -51,16 +51,17 @@ export function OemPerformanceOptions({ active, revision, onSettled }: { active:
     else submit(change);
   };
   const savedKey = current?.turboFan ? "turboFan" : "dtt";
-  return <Surface as="section" variant="group" className="ccc-panel" aria-label="性能选项">
+  return <Surface as="section" variant="group" className="ccc-panel" aria-label="性能选项" aria-busy={busy || undefined}>
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="performance" />性能选项</h2>
       <div className="ccc-module-tools"><DetailsDialog title="性能选项说明与诊断" label="详情">
         {fields.map(field => <p key={field.key}><strong>{field.label}</strong> · {field.description}</p>)}
-        {applies && profile?.quietFan && current?.turboFan != null && <p className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{NOISELESS_FAN_LABEL}与 {PERFORMANCE_OPTION_LABELS.turboFan}互斥。</p>}
+        {applies && profile?.quietFan && current?.turboFan != null && <p className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{NOISELESS_FAN_LABEL}与 {PERFORMANCE_OPTION_LABELS.turboFan}不能同时开启，开启其中一个会自动关闭另一个。</p>}
         {profile?.warnings.map(warning => <p key={warning} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{warning}</p>)}
-        <p>可在「预设模式」查看和恢复初始设置。</p>
+        {applies && current?.turboFan != null && <p>开启或关闭 {PERFORMANCE_OPTION_LABELS.turboFan}后，风扇档位都会切换为「自动」。</p>}
       </DetailsDialog><Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取性能选项" disabled={busy} onClick={reread} /></div>
     </div>
     {error && <p className="ccc-control-error" role="alert">{error}</p>}
+    {!confirmed && profile && <p className="ccc-control-caption">显示上次读取的设置。重新读取后可修改。</p>}
     <OemConflictAction issues={[error, profile?.blockedReason]} disabled={busy} onClosed={reread} />
     {!profile || !current ? <p className="ccc-control-caption">{error ? "暂时无法读取，请重试。" : "正在读取性能选项。"}</p> : <>
       <div className="ccc-setting-tiles">{fields.map(({ key, label }) => <Surface as="div" variant="inset" className="ccc-keyboard-setting" key={key}>
@@ -68,17 +69,17 @@ export function OemPerformanceOptions({ active, revision, onSettled }: { active:
           {current[key] === null && <p className="ccc-control-caption">{performanceState(current[key])}</p>}
           {key === "quietFan" && <p className="ccc-control-caption">{OEM_POWER_MODES[profile.currentMode]}模式</p>}
         </div>
-        <Switch label={label} checked={current[key] ?? false} disabled={disabled(key)} onChange={value => toggle(key, value)} />
+        <Switch label={label} checked={current[key] ?? false} disabled={disabled(key)} busy={busy} onChange={value => toggle(key, value)} />
       </Surface>)}</div>
-      <PerformanceHints profile={profile} quietDisabled={disabled("quietFan") || driverMissing && !!current.dtt && !!current.turboFan}
+      <PerformanceHints profile={profile} quietDisabled={busy || disabled("quietFan") || driverMissing && !!current.dtt && !!current.turboFan}
         onApplyQuiet={() => toggle("quietFan", true)} />
       {profile.entertainmentOptionsPending && <Button className="ccc-inline-tool" variant="secondary" size="compact"
-        disabled={disabled(savedKey) || driverMissing && current.dtt === true} onClick={() => toggle(savedKey, true, true)}>应用已保存的性能选项</Button>}
+        disabled={busy || disabled(savedKey) || driverMissing && current.dtt === true} onClick={() => toggle(savedKey, true, true)}>应用已保存的性能选项</Button>}
       {driverMissing && current.dtt !== null && <p className="ccc-control-caption">{profile.dttDriverAvailable === false ? "Dynamic Tuning 驱动未就绪，不能启用 DTT。" : "驱动状态未确认，不能启用 DTT。"}</p>}
       {driverMissing && current.dtt && <p className="ccc-control-caption">更改关联的风扇选项前，请确认驱动或关闭 DTT。</p>}
       {profile.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
     </>}
-    {active && pending && profile && pending.revision === profile.revision && !disabled(pending.key) && <OptionConfirmation pending={pending}
+    {active && !busy && pending && profile && pending.revision === profile.revision && !disabled(pending.key) && <OptionConfirmation pending={pending}
       mode={OEM_POWER_MODES[profile.currentMode]} previewOptions={entertainment && applies} quietEnabled={current?.quietFan === true} onCancel={() => setPending(null)}
       onConfirm={() => { setPending(null); submit(pending); }} />}
   </Surface>;

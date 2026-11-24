@@ -1,6 +1,8 @@
 //! 生产 apply/tick/恢复与真实独立监护组合；DCHU 为内存外部函数桩。
 #![allow(dead_code, unused_imports)]
 include!("../src/modules.rs");
+#[path = "support/direct_control_tests.rs"]
+mod direct_control_tests;
 #[path = "support/firmware_handoff_tests.rs"]
 mod firmware_handoff_tests;
 #[path = "support/software_lan_tests.rs"]
@@ -9,10 +11,13 @@ mod lan_tests;
 mod process;
 #[path = "support/software_safety_tests.rs"]
 mod safety_tests;
+#[path = "support/software_device.rs"]
+mod software_device;
 use ccc_core::{
     fan::{CurvePoint, FanCurve},
     software_fan::Curves,
 };
+use software_device::{DEVICE, Device, direct_control, io};
 use std::{
     fs,
     path::PathBuf,
@@ -21,123 +26,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-struct Device {
-    pages: [[u8; 256]; 16],
-    cpu: u8,
-    writes: Vec<(i32, Vec<u8>)>,
-    fail_duty: bool,
-    fail_release: bool,
-    journal_path: Option<PathBuf>,
-    unjournaled: usize,
-    hold_on_duty: bool,
-    journal_hold: Option<fs::File>,
-}
-static DEVICE: Mutex<Device> = Mutex::new(Device {
-    pages: [[0; 256]; 16],
-    cpu: 50,
-    writes: Vec::new(),
-    fail_duty: false,
-    fail_release: false,
-    journal_path: None,
-    unjournaled: 0,
-    hold_on_duty: false,
-    journal_hold: None,
-});
 static SERIAL: Mutex<()> = Mutex::new(());
-
-unsafe extern "system" fn buffer(command: i32, out: *mut u8) -> i32 {
-    let device = DEVICE.lock().unwrap();
-    let mut p = [0; 257];
-    match command {
-        12 => {
-            p[18] = device.cpu;
-            p[16] = 76;
-            p[19] = 76;
-            p[2..4].copy_from_slice(&474u16.to_be_bytes());
-        }
-        13 => {
-            p[12] = 2;
-            p[50] = 3;
-            for at in [16, 24] {
-                p[at..at + 6].copy_from_slice(&[40, 51, 60, 102, 80, 204]);
-            }
-        }
-        _ => return 0,
-    }
-    p[256] = p[0];
-    unsafe {
-        std::ptr::copy_nonoverlapping(p.as_ptr(), out, p.len());
-    }
-    command
-}
-unsafe extern "system" fn exchange(
-    command: i32,
-    input: *const u8,
-    length: i32,
-    out: *mut u8,
-) -> i32 {
-    assert_eq!((command, length, unsafe { *input }), (4, 256, 8));
-    let device = DEVICE.lock().unwrap();
-    unsafe {
-        std::ptr::copy_nonoverlapping(device.pages[7].as_ptr(), out, 256);
-        *out.add(256) = device.pages[7][0];
-    }
-    command
-}
-unsafe extern "system" fn read(page: i32, offset: i32, length: i32, out: *mut u8) -> i32 {
-    let device = DEVICE.lock().unwrap();
-    unsafe {
-        std::ptr::copy_nonoverlapping(
-            device.pages[page as usize][offset as usize..].as_ptr(),
-            out,
-            length as usize,
-        );
-    }
-    4096
-}
-unsafe extern "system" fn write(page: i32, offset: i32, length: i32, data: *const u8) -> i32 {
-    let bytes = unsafe { std::slice::from_raw_parts(data, length as usize) };
-    let mut device = DEVICE.lock().unwrap();
-    device.pages[page as usize][offset as usize..offset as usize + bytes.len()]
-        .copy_from_slice(bytes);
-    1
-}
-unsafe extern "system" fn set(command: i32, data: *const u8, length: i32) -> i32 {
-    let bytes = unsafe { std::slice::from_raw_parts(data, length as usize) };
-    let mut device = DEVICE.lock().unwrap();
-    if command == 4 && bytes.get(6) == Some(&0xc1) {
-        let active = device
-            .journal_path
-            .as_ref()
-            .and_then(|path| fs::read(path).ok())
-            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-            .is_some_and(|record| record["active"] == true);
-        if !active {
-            device.unjournaled += 1;
-        }
-        if device.hold_on_duty {
-            use std::os::windows::fs::OpenOptionsExt;
-            device.hold_on_duty = false;
-            device.journal_hold = device.journal_path.as_ref().and_then(|path| {
-                fs::OpenOptions::new()
-                    .read(true)
-                    .share_mode(1)
-                    .open(path)
-                    .ok()
-            });
-        }
-    }
-    device.writes.push((command, bytes.to_vec()));
-    if command == 4 && device.fail_duty {
-        device.fail_duty = false;
-        return 0;
-    }
-    if command == 0x69 && device.fail_release {
-        device.fail_release = false;
-        return 0;
-    }
-    command
-}
 
 fn curves() -> Curves {
     [(
@@ -170,17 +59,7 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         let serial = SERIAL.lock().unwrap();
-        *DEVICE.lock().unwrap() = Device {
-            pages: [[0; 256]; 16],
-            cpu: 50,
-            writes: vec![],
-            fail_duty: false,
-            fail_release: false,
-            journal_path: None,
-            unjournaled: 0,
-            hold_on_duty: false,
-            journal_hold: None,
-        };
+        *DEVICE.lock().unwrap() = Device::new();
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/software-tests");
         fs::create_dir_all(&root).unwrap();
         let root = root.canonicalize().unwrap();
@@ -193,9 +72,8 @@ impl Fixture {
                 .as_nanos()
         ));
         fs::create_dir(&dir).unwrap();
-        let io =
-            hal::oem_dchu::Dchu::test_io(buffer, read, set, write).with_test_exchange(exchange);
-        let mut hal = hal::Hal::test_instance(io, None);
+        let mut hal = hal::Hal::test_instance(io(), None);
+        hal.test_fan_control = Some(direct_control);
         hal.bind_software_fan_record(dir.join(hal::SOFTWARE_FAN_RECORD_NAME));
         DEVICE.lock().unwrap().journal_path = Some(dir.join(hal::SOFTWARE_FAN_RECORD_NAME));
         let guards = std::sync::Arc::new(Mutex::new(Vec::new()));

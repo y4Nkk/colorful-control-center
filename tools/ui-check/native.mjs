@@ -153,7 +153,7 @@ async function appChecks(page) {
     await panel.getByRole("button", { name: "保存 · 管理员登录启动", exact: true }).click();
     await panel.getByRole("button", { name: "确认 · 管理员登录启动", exact: true }).click();
     await expect(panel.getByRole("alert")).toContainText("原生隔离授权取消");
-    await expect(panel).toContainText("当前进程 · 权限未知");
+    await expect(panel).toContainText("本软件当前的权限 · 未知");
   });
   await page.screenshot({ path: `${output}/native-settings.png`, animations: "disabled", timeout: 15000 });
 }

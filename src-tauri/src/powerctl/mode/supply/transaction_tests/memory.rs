@@ -31,7 +31,7 @@ pub(super) fn target(mode: u8) -> Target {
         dtt: false,
         fan_mode: 0,
         fan_saved_mode: 0,
-        fan_offset_pct: 0,
+        fan_offset_pct: Some(0),
         aspm: None,
         power_plan: None,
     }
@@ -42,7 +42,8 @@ pub(super) fn snapshot(
     energy: crate::powerctl::mode::EnergyState,
 ) -> StoredModeSnapshot {
     serde_json::from_value(serde_json::json!({"core":{"mode":mode,"command":if mode == 4 { 0 } else { mode },"preferences":[0,0],"acMode":null},
-        "fan":{"software":null,"package":null,"rpmPairs":[],"fields":[{"offset":5,"data":[0]}, {"offset":7,"data":[offset]}],"mode":0,"offset":offset},
+        "fan":{"software":null,"package":null,"rpmPairs":null,"fields":[{"offset":5,"data":[0]}, {"offset":7,"data":[offset]}],"mode":0,
+            "offsetRaw":ccc_core::fan::oem_duty_byte(f64::from(offset))},
         "system":{"active":format!("{:032x}", crate::hal::power_plan::SCHEMES[0]),"aspm":{"381b4222f69441f09685ff5bb260df2e":[0,1]}},
         "energy":energy})).unwrap()
 }
@@ -177,7 +178,11 @@ impl Io for Memory {
         data.writes += 1;
         let index = (data.writes - 1) % data.plans.len();
         data.plans[index].aspm = [u32::from(target.mode), u32::from(target.mode)];
-        data.snapshot = snapshot(target.mode, target.fan_offset_pct, before.mode.energy()?);
+        data.snapshot = snapshot(
+            target.mode,
+            target.fan_offset_pct.unwrap(),
+            before.mode.energy()?,
+        );
         data.review.current_mode = target.mode;
         drop(data);
         self.apply_gpu_action(attempt, gpu::Stage::BeforeMode);

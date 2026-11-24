@@ -7,6 +7,8 @@ use crate::powerctl::mode::workflow::StoredModeSnapshot;
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::{io::Read, path::PathBuf};
+
+const RECORD_VERSION: u8 = 4;
 #[path = "record/clocks.rs"]
 mod clocks;
 #[path = "record/initial.rs"]
@@ -105,7 +107,7 @@ impl Record {
         clock_approval: ClockApproval,
     ) -> Result<Self> {
         let record = Self {
-            version: 3,
+            version: RECORD_VERSION,
             enabled: true,
             device_identity,
             identity,
@@ -121,7 +123,7 @@ impl Record {
     }
     fn validate(&self) -> Result<()> {
         self.clock_approval.validate()?;
-        if self.version != 3
+        if self.version != RECORD_VERSION
             || [&self.identity, &self.device_identity].iter().any(|value| {
                 value.len() != 64
                     || !value
@@ -276,7 +278,7 @@ fn validate_target(target: &Target) -> Result<()> {
         || target.revision.is_some()
         || target.unavailable_reason.is_some()
         || target.mode > 4
-        || target.fan_offset_pct > 100
+        || target.fan_offset_pct.is_some_and(|value| value > 100)
         || target
             .aspm
             .is_some_and(|values| values.iter().any(|value| *value > 2))
@@ -307,7 +309,8 @@ impl FileStore {
         if bytes.len() > 262_144 {
             bail!("供电模式恢复记录过大");
         }
-        let record: Record = serde_json::from_slice(&bytes).context("供电模式恢复记录损坏")?;
+        let record: Record = serde_json::from_slice(&bytes)
+            .with_context(|| format!("供电模式恢复记录不符合当前版本 {RECORD_VERSION}"))?;
         record.validate()?;
         Ok(Some(record))
     }

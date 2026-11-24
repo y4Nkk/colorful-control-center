@@ -54,6 +54,7 @@ impl Scope<'_> {
         target: &profile::Target,
     ) -> Result<profile::Review> {
         target.validate()?;
+        let software_fan_running = crate::fanctl::software::read_for_handoff(hal)?.is_some();
         self.with_io(hal, |io| {
             let p = preview(io, &self.controller.store)?.context("本机未提供档案显卡模式接口")?;
             let current = profile::capture(&p)?;
@@ -65,13 +66,16 @@ impl Scope<'_> {
             Ok(profile::Review {
                 before,
                 target: target.mode,
-                software_fan_running: crate::fanctl::software::read(hal)?.is_some(),
+                software_fan_running,
             })
         })
     }
     pub(crate) fn execute_profile(&mut self, hal: &Hal, review: &profile::Review) -> Result<()> {
         if self.active.is_some() {
             bail!("档案显卡选择已执行");
+        }
+        if review.changes() && crate::fanctl::software::active(hal)? {
+            bail!("软件风扇归还未证实，无法修改显卡模式");
         }
         let mut plan = self.with_io(hal, |io| {
             let p = preview(io, &self.controller.store)?.context("显卡模式接口已不可用")?;

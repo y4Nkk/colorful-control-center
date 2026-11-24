@@ -54,6 +54,6 @@
 .ccc-switch > input:is(:disabled, [aria-disabled="true"]) {
   cursor: not-allowed;
 }
-.ccc-switch > input:is(:disabled, [aria-disabled="true"]) + .ccc-switch-track {
+.ccc-switch > input:is(:disabled, [aria-disabled="true"]):not([aria-busy="true"]) + .ccc-switch-track {
   opacity: 0.5;
 }

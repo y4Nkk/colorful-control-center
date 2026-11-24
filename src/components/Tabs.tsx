@@ -6,6 +6,7 @@ interface TabsProps<Value extends string | number> {
   tabs: readonly { value: Value; label: string; content: ReactNode }[];
   onChange: (value: Value) => void;
   disabled?: boolean;
+  busy?: boolean;
   keepAlive?: boolean;
 }
 
@@ -22,7 +23,7 @@ function moveFocus(event: KeyboardEvent<HTMLDivElement>) {
   buttons[next].focus();
 }
 
-export function Tabs<Value extends string | number>({ label, value, tabs, onChange, disabled, keepAlive }: TabsProps<Value>) {
+export function Tabs<Value extends string | number>({ label, value, tabs, onChange, disabled, busy, keepAlive }: TabsProps<Value>) {
   const id = useId();
   const [focused, setFocused] = useState<Value | null>(null);
   const [visited, setVisited] = useState<ReadonlySet<Value>>(() => new Set());
@@ -37,8 +38,8 @@ export function Tabs<Value extends string | number>({ label, value, tabs, onChan
       }}>
       {tabs.map((tab, index) => <button key={tab.value} className="ccc-tabs-tab" type="button" role="tab"
         id={`${id}-tab-${index}`} aria-controls={`${id}-panel-${index}`} aria-selected={tab.value === value}
-        aria-disabled={disabled || undefined} tabIndex={tab.value === tabStop ? 0 : -1}
-        onFocus={() => setFocused(tab.value)} onClick={() => { if (!disabled && tab.value !== value) onChange(tab.value); }}>
+        aria-disabled={disabled || busy || undefined} aria-busy={busy && !disabled || undefined} tabIndex={tab.value === tabStop ? 0 : -1}
+        onFocus={() => setFocused(tab.value)} onClick={() => { if (!disabled && !busy && tab.value !== value) onChange(tab.value); }}>
         {tab.label}
       </button>)}
     </div>

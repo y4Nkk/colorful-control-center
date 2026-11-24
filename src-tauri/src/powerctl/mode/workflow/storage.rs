@@ -17,8 +17,8 @@ pub(crate) struct RecoveryPreview {
     pub initial_fan: crate::fanctl::StoredCheckpoint,
     pub current_fan_mode: u8,
     pub initial_fan_mode: u8,
-    pub current_fan_offset: u8,
-    pub initial_fan_offset: u8,
+    pub current_fan_offset: Option<u8>,
+    pub initial_fan_offset: Option<u8>,
     pub current_software_fan: bool,
     pub initial_software_fan: bool,
     pub fan_saved_settings_changed: bool,
@@ -158,12 +158,12 @@ mod tests {
     #[test]
     fn recovery_preview_preserves_option_preferences_and_complete_distinct_fan_snapshots() {
         let initial = serde_json::json!({"core":{"mode":2,"command":194,"preferences":[1,1],"acMode":3},
-            "fan":{"software":null,"package":null,"rpmPairs":[],"fields":[{"offset":5,"data":[0]}, {"offset":7,"data":[5]}],"mode":0,"offset":5},
+            "fan":{"software":null,"package":null,"rpmPairs":null,"fields":[{"offset":5,"data":[0]}, {"offset":7,"data":[5]}],"mode":0,"offsetRaw":13},
             "system":{"active":"381b4222f69441f09685ff5bb260df2e","aspm":{"381b4222f69441f09685ff5bb260df2e":[0,2]}},"energy":{"hardwarePState":true,"energyStar":null}});
         let mut current = initial.clone();
         current["core"] = serde_json::json!({"mode":3,"command":3,"preferences":[0,0],"acMode":2});
         current["fan"]["fields"][1]["data"] = serde_json::json!([15]);
-        current["fan"]["offset"] = 15.into();
+        current["fan"]["offsetRaw"] = 38.into();
         let saved: StoredModeSnapshot = serde_json::from_value(initial.clone()).unwrap();
         let now: StoredModeSnapshot = serde_json::from_value(current.clone()).unwrap();
         let value = serde_json::to_value(saved.recovery_preview(&now).unwrap()).unwrap();
@@ -181,7 +181,7 @@ mod tests {
     #[test]
     fn strict_mode_snapshot_rejects_inconsistent_commands_and_unknown_fields() {
         let mut data = serde_json::json!({"core":{"mode":2,"command":194,"preferences":[1,1],"acMode":null},
-            "fan":{"software":null,"package":null,"rpmPairs":[],"fields":[{"offset":5,"data":[0]}, {"offset":7,"data":[0]}],"mode":0,"offset":0},
+            "fan":{"software":null,"package":null,"rpmPairs":null,"fields":[{"offset":5,"data":[0]}, {"offset":7,"data":[0]}],"mode":0,"offsetRaw":0},
             "system":{"active":"00000000000000000000000000000001","aspm":{"00000000000000000000000000000001":[0,2]}},"energy":{"hardwarePState":true,"energyStar":null}});
         let saved: StoredModeSnapshot = serde_json::from_value(data.clone()).unwrap();
         let restored = saved.restore().unwrap();

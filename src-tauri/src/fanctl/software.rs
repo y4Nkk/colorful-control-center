@@ -1,13 +1,10 @@
 //! 软件自由曲线调度；所有入口在 HAL 控制锁内运行，写入不修改固件曲线表。
 use crate::{
     fanctl::FanProfile,
-    hal::{Hal, HardwareSnapshot},
+    hal::{Hal, HardwareSnapshot, firmware},
 };
-use anyhow::{Result, anyhow, bail};
-use ccc_core::{
-    settings::Patch,
-    software_fan::{self, Controller, Curves},
-};
+use anyhow::{Context, Result, anyhow, bail, ensure};
+use ccc_core::software_fan::{self, Controller, Curves};
 use std::{collections::BTreeMap, time::Instant};
 
 pub struct Session {
@@ -18,7 +15,9 @@ pub struct Session {
 
 fn temperature(sample: &HardwareSnapshot, gpu_required: bool) -> Result<f64> {
     let cpu = sample
-        .cpu_temp_c
+        .fan
+        .cpu
+        .temp_c
         .filter(|v| v.is_finite() && (0.0..150.0).contains(v))
         .ok_or_else(|| anyhow!("CPU 温度不可用"))?;
     let gpu = sample.nvidia.as_ref().and_then(|g| g.temp_c);
@@ -44,8 +43,8 @@ impl Session {
         temperature(sample, gpu_required)?;
         let mut initial = BTreeMap::new();
         for (id, duty) in [
-            ("cpu", sample.fan.cpu_duty_pct),
-            ("gpu1", sample.fan.gpu_duty_pct),
+            ("cpu", sample.fan.cpu.duty_pct),
+            ("gpu1", sample.fan.gpu1.duty_pct),
         ] {
             if let Some(duty) = duty {
                 initial.insert(id.into(), duty);
@@ -80,7 +79,7 @@ impl Session {
 fn prepare(profile: &FanProfile, curves: &Curves) -> Result<()> {
     software_fan::validate(curves).map_err(|e| anyhow!(e))?;
     if !profile.software_supported {
-        bail!("当前固件未通过逐通道软件风扇协议核对");
+        bail!(firmware::FAN_CONTROL_UNVERIFIED);
     }
     if curves
         .keys()
@@ -96,20 +95,39 @@ pub fn validate(hal: &Hal, curves: &Curves) -> Result<()> {
     validate_configuration(hal, curves)
 }
 pub(crate) fn validate_configuration(hal: &Hal, curves: &Curves) -> Result<()> {
+    ensure!(
+        hal.software_fan_supported(),
+        firmware::FAN_CONTROL_UNVERIFIED
+    );
     prepare(&super::read_profile(hal)?, curves)?;
     Session::new(curves.clone(), &hal.snapshot()).map(|_| ())
 }
 pub(crate) fn validate_points(hal: &Hal, curves: &Curves) -> Result<()> {
+    ensure!(
+        hal.software_fan_supported(),
+        firmware::FAN_CONTROL_UNVERIFIED
+    );
     prepare(&super::read_profile(hal)?, curves).map(|_| ())
 }
 
-pub fn read(hal: &Hal) -> Result<Option<Curves>> {
-    if hal
+pub(crate) fn active(hal: &Hal) -> Result<bool> {
+    Ok(
+        hal.fan_recovery_pending()
+            || has_progress(hal)?
+            || hal.software_fan_release_unverified()?,
+    )
+}
+
+fn has_progress(hal: &Hal) -> Result<bool> {
+    Ok(hal
         .software_progress
         .lock()
         .map_err(|_| anyhow!("软件曲线进度异常"))?
-        .is_none()
-    {
+        .is_some())
+}
+
+pub fn read(hal: &Hal) -> Result<Option<Curves>> {
+    if !has_progress(hal)? {
         return Ok(None);
     }
     Ok(hal
@@ -120,6 +138,15 @@ pub fn read(hal: &Hal) -> Result<Option<Curves>> {
         .map(|s| s.controller.curves.clone()))
 }
 
+pub(crate) fn read_for_handoff(hal: &Hal) -> Result<Option<Curves>> {
+    let curves = read(hal)?;
+    ensure!(
+        !hal.fan_recovery_pending() && (curves.is_some() || !active(hal)?),
+        "软件风扇归还未证实，请等待恢复"
+    );
+    Ok(curves)
+}
+
 #[cfg(test)]
 pub(crate) fn inject_test_session(hal: &Hal, curves: Curves) -> Result<()> {
     let session = Session::new(curves, &hal.snapshot())?;
@@ -128,47 +155,114 @@ pub(crate) fn inject_test_session(hal: &Hal, curves: Curves) -> Result<()> {
     Ok(())
 }
 
-pub fn discard(hal: &Hal) -> Result<bool> {
-    let running = hal
+fn stop_progress(hal: &Hal) -> Result<bool> {
+    Ok(hal
         .software_progress
         .lock()
         .map_err(|_| anyhow!("软件曲线进度异常"))?
         .take()
-        .is_some();
-    let existed = hal
+        .is_some())
+}
+
+fn discard_session(hal: &Hal) -> Result<bool> {
+    Ok(hal
         .software_fan
         .lock()
         .map_err(|_| anyhow!("软件曲线状态异常"))?
         .take()
-        .is_some();
-    Ok(running || existed)
+        .is_some())
+}
+
+pub fn discard(hal: &Hal) -> Result<bool> {
+    let running = stop_progress(hal)?;
+    Ok(discard_session(hal)? || running)
+}
+
+fn release(hal: &Hal) -> Result<()> {
+    // Keep the progress deadline while the foreground writer waits for release readback.
+    if !discard_session(hal)? && !hal.software_fan_release_unverified()? {
+        return Ok(());
+    }
+    let result = hal.with_dchu(|d| {
+        ensure!(hal.reviewed_dsdt, firmware::FAN_CONTROL_UNVERIFIED);
+        d.set_u32(0x69, firmware::DIRECT_FAN_MASK)?;
+        firmware::verify_direct_release(d, hal.direct_fan_reader())
+    });
+    if let Err(error) = result {
+        hal.latch_software_fan_fault();
+        if hal.software_fan_supported() {
+            hal.request_fan_recovery()?;
+        } else {
+            stop_progress(hal)?;
+        }
+        return Err(error).context("风扇归还未证实");
+    }
+    stop_progress(hal)?;
+    ensure!(!hal.fan_recovery_pending(), "独立风扇监护正在恢复");
+    Ok(())
 }
 
 pub fn stop(hal: &Hal) -> Result<()> {
-    if discard(hal)? {
-        hal.with_dchu(|d| d.set_u32(0x69, crate::hal::firmware::DIRECT_FAN_MASK))?;
-        hal.record_software_fan_stopped()?;
-    }
-    Ok(())
+    release(hal)?;
+    hal.record_software_fan_stopped()
 }
+
 pub(crate) fn stop_safely(hal: &Hal) -> Result<()> {
     hal.pulse_fan_guard()?;
-    super::fail_safe(hal, stop(hal))?;
-    hal.disarm_fan_guard()
+    release(hal)?;
+    hal.disarm_fan_guard()?;
+    hal.record_software_fan_stopped()
+        .context("风扇已交还，恢复记录未提交")
+}
+
+fn recover(hal: &Hal, error: anyhow::Error) -> anyhow::Error {
+    let result = (|| {
+        discard_session(hal)?;
+        hal.latch_software_fan_fault();
+        ensure!(!hal.fan_recovery_pending(), "独立风扇监护正在恢复");
+        hal.with_dchu(|d| crate::watchdog::restore_auto(d, hal.direct_fan_reader()))?;
+        stop_progress(hal)?;
+        hal.disarm_fan_guard()
+    })();
+    match result {
+        Ok(()) => match hal.record_software_fan_stopped() {
+            Ok(()) => anyhow!("{error:#}；已核实风扇恢复自动控制"),
+            Err(record) => anyhow!("{error:#}；已核实风扇恢复自动控制，恢复记录未提交：{record:#}"),
+        },
+        Err(restore) => {
+            if active(hal).unwrap_or(true) {
+                if let Err(retry) = hal.request_fan_recovery() {
+                    log::error!("[watchdog] 无法安排自动恢复：{retry:#}");
+                }
+            }
+            anyhow!("{error:#}；自动恢复失败：{restore:#}")
+        }
+    }
 }
 
 fn write_step(hal: &Hal, session: &mut Session, elapsed: f64) -> Result<()> {
+    let reader = hal
+        .direct_fan_reader()
+        .ok_or_else(|| anyhow!(firmware::FAN_CONTROL_UNVERIFIED))?;
+    super::dust::ensure_software_allowed(hal)?;
+    crate::powerctl::mode::boost::ensure_fan_allowed(
+        hal,
+        crate::powerctl::mode::boost::FanTarget::Software,
+    )?;
     let snapshot = hal.snapshot();
     session.advance(&snapshot, elapsed, |packet| {
-        if hal
-            .software_progress
-            .lock()
-            .map_err(|_| anyhow!("软件曲线进度异常"))?
-            .is_none()
-        {
-            bail!("软件控制已被监护停止");
-        }
-        hal.with_dchu(|d| d.set_package(4, packet))
+        hal.pulse_fan_guard()?;
+        hal.with_dchu(|d| {
+            ensure!(has_progress(hal)?, "软件控制已被监护停止");
+            d.set_package(4, packet)?;
+            let channel = usize::from(packet[1] - 1);
+            ensure!(
+                reader(d)?[channel] == firmware::DirectControl::Manual(packet[2]),
+                "风扇通道 {} 接管或目标占空比回读不一致",
+                packet[1]
+            );
+            Ok(())
+        })
     })?;
     let mut progress = hal
         .software_progress
@@ -194,14 +288,30 @@ pub(crate) fn apply_manual(hal: &Hal, curves: &Curves) -> Result<()> {
 fn apply_inner(hal: &Hal, curves: &Curves, manual: bool) -> Result<()> {
     hal.ensure_software_fan_start_allowed(manual)?;
     super::dust::ensure_software_allowed(hal)?;
+    ensure!(
+        hal.software_fan_supported(),
+        firmware::FAN_CONTROL_UNVERIFIED
+    );
+    crate::powerctl::mode::boost::ensure_fan_allowed(
+        hal,
+        crate::powerctl::mode::boost::FanTarget::Software,
+    )?;
     let current = super::read_profile(hal)?;
     prepare(&current, curves)?;
     let mut session = Session::new(curves.clone(), &hal.snapshot())?;
-    super::capture_baseline(hal, &current, &[Patch::new(5, [current.saved_mode])])?;
+    let before = super::checkpoint(hal, false)?;
+    super::checkpoint::remember_baseline(hal, &before)?;
+    hal.pulse_fan_guard()?;
+    stop(hal)?;
+    hal.with_dchu(|d| firmware::verify_direct_release(d, hal.direct_fan_reader()))?;
     hal.arm_fan_guard()?;
+    if let Err(error) = hal.record_software_fan_started(manual) {
+        return match hal.disarm_fan_guard() {
+            Ok(()) => Err(error),
+            Err(disarm) => Err(anyhow!("{error:#}；解除监护失败：{disarm:#}")),
+        };
+    }
     let result = (|| {
-        stop(hal)?;
-        hal.record_software_fan_started(manual)?;
         *hal.software_progress
             .lock()
             .map_err(|_| anyhow!("软件曲线进度异常"))? = Some(Instant::now());
@@ -211,7 +321,7 @@ fn apply_inner(hal: &Hal, curves: &Curves, manual: bool) -> Result<()> {
             .map_err(|_| anyhow!("软件曲线状态异常"))? = Some(session);
         Ok(())
     })();
-    super::fail_safe(hal, result)?;
+    result.map_err(|error| recover(hal, error))?;
     hal.set_safety_status("软件曲线 · 监护中".into())
 }
 
@@ -227,14 +337,9 @@ pub fn tick(hal: &Hal) -> Result<()> {
     let result = write_step(hal, session, session.updated.elapsed().as_secs_f64());
     drop(slot);
     if let Err(error) = result {
-        let result = super::fail_safe(hal, Err(error));
-        let message = result
-            .as_ref()
-            .err()
-            .map(|e| format!("软件曲线已停止：{e:#}"))
-            .unwrap();
-        hal.set_safety_status(message)?;
-        return result;
+        let error = recover(hal, error);
+        hal.set_safety_status(format!("软件曲线已停止：{error:#}"))?;
+        return Err(error);
     }
     Ok(())
 }

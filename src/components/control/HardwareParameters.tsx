@@ -14,7 +14,7 @@ export function CpuParameters({ overview, live }: { overview: SystemOverview | n
       { label: "逻辑处理器数", value: formatParameter(cpu?.logicalProcessors, "个") },
       { label: "标称基础频率", value: ghz(cpu?.baseClockMhz) },
       { label: "标称最高频率", value: ghz(cpu?.maxClockMhz) },
-      { label: "当前温度", value: formatParameter(live?.cpuTempC, "°C", 1) },
+      { label: "当前温度", value: formatParameter(live?.fan.cpu.tempC, "°C", 1) },
     ]} />
     <ParameterDescriptions items={CPU_SPEC_HELP} />
   </DetailsDialog>;

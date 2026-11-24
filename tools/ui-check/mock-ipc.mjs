@@ -132,7 +132,11 @@ function installIpc() {
         case "set_fan_mode": {
           if (data.fanWriteFault === command) return { ok: false, message: "隔离风扇写入失败" };
           if (data.dust?.running || !data.fan.availableModes.includes(args.mode)) return { ok: false, message: "风扇模式不可用" };
-          data.fan.currentMode = args.mode;
+          const fan = fanProfile(data);
+          if (args.mode === 6 && fan.customBlockedReason) return { ok: false, message: fan.customBlockedReason };
+          const quiet = args.mode === 0 && data.performanceOptions.currentMode === 3 && data.entertainmentQuiet &&
+            fan.availableModes.includes(8) && !(entertainmentCommand(data) & 64);
+          data.fan.currentMode = quiet ? 8 : args.mode;
           data.fan.software = null;
           return { ok: true, message: "风扇模式已写入" };
         }
@@ -423,11 +427,13 @@ async function invokePlatform(data, command, args) {
 
 function hardwareSnapshot(data) {
   const sampledAtMs = Date.now();
+  const missing = { tempC: null, rpm: null, dutyPct: null };
   return { dchuAvailable: true, oemPowerMode: data.performanceOptions.currentMode,
-    cpuTempC: 50, cpuRemoteRaw: 50, sampledAtMs, warnings: ["隔离监控诊断"],
+    sampledAtMs, warnings: ["隔离监控诊断"],
     cpuUtility: data.cpuUtility === undefined ? { valuePct: 42, clockMhz: 2900, sampledAtMs } : structuredClone(data.cpuUtility),
     oemMemory: data.oemMemory === undefined ? { reportedClockMhz: 2400, referenceClockMhz: 3200 } : structuredClone(data.oemMemory),
-    fan: { cpuRpm: 1800, gpuRpm: 1500, cpuDutyPct: 30, gpuDutyPct: 25 },
+    fan: { cpu: { tempC: 50, rpm: 1800, dutyPct: 30 }, gpu1: { tempC: 45, rpm: 1500, dutyPct: 25 },
+      gpu2: { ...missing }, sys: { ...missing } },
     nvidiaSuspended: !data.gpuPower.devices[0].enabled,
     nvidia: data.gpuPower.devices[0].enabled ? { name: "Isolated GPU", tempC: 45, fanPct: 25, utilizationPct: 30, graphicsClockMhz: 1800, memUsedMb: 1000, memTotalMb: 8000 } : null };
 }

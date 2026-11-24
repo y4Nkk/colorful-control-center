@@ -10,7 +10,7 @@ pub(super) fn execute(
     let Some(review) = review else {
         return Ok(());
     };
-    let resume = if review.changes() && fanctl::software::read(hal)?.is_some() {
+    let resume = if review.changes() && fanctl::software::active(hal)? {
         let checkpoint = fanctl::checkpoint(hal, false)?;
         *fan_touched = true;
         stage(
@@ -18,7 +18,7 @@ pub(super) fn execute(
             "显卡选择前释放软件风扇",
             fanctl::software::stop_safely(hal),
         )?;
-        Some(checkpoint)
+        checkpoint.software_curves().is_some().then_some(checkpoint)
     } else {
         None
     };
@@ -46,7 +46,7 @@ pub(super) fn rollback(
     if !devices.graphics_mode.profile_dirty() {
         return;
     }
-    if fanctl::software::read(hal).ok().flatten().is_some() {
+    if fanctl::software::active(hal).unwrap_or(true) {
         *fan_touched = true;
         if stage(
             steps,

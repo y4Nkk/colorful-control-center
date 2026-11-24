@@ -7,25 +7,25 @@ const errorMessage = (cause: unknown) => cause instanceof Error ? cause.message 
 
 export function useOemPowerMode(active: boolean, revision: number, onSettled: () => void) {
   const [profile, setProfile] = useState<OemPowerMode | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
   const [pending, setPending] = useState<number | null>(null);
   const [reading, setReading] = useState(true);
   const conflict = useOemConflict();
   const loading = useRef(0);
   const running = useRef(false);
-  const load = useCallback(async (operationError: string | null = null) => {
+  const load = useCallback(async () => {
     const id = ++loading.current;
     setReading(true);
     try {
       const next = await readOemPowerMode();
       if (id !== loading.current) return;
       setProfile(next);
-      setError(operationError);
+      setReadError(null);
       return next;
     } catch (cause) {
       if (id !== loading.current) return;
-      setProfile(null);
-      setError([operationError, errorMessage(cause)].filter(Boolean).join("；"));
+      setReadError(errorMessage(cause));
     } finally {
       if (id === loading.current) setReading(false);
     }
@@ -36,25 +36,30 @@ export function useOemPowerMode(active: boolean, revision: number, onSettled: ()
     // 切页可作废普通读取；写入后的回读仍须完成，避免保活页停留在忙碌状态。
     return () => { if (!running.current) ++loading.current; };
   }, [active, revision, load]);
-  const retry = () => { if (active && !running.current) void load(); };
+  const retry = () => {
+    if (!active || running.current) return;
+    void load().then(next => { if (next) setActionError(null); });
+  };
   const run = async (operation: number, action: (snapshot: OemPowerMode) => Promise<OpResult | null>) => {
-    if (!active || running.current || reading || !profile || profile.blockedReason) return;
+    if (!active || running.current || reading || readError !== null || !profile || profile.blockedReason) return;
     ++loading.current;
     running.current = true;
     setPending(operation);
-    setError(null);
     let refresh = true;
     try {
       const result = await action(profile);
       if (!result) { refresh = false; return; }
-      const next = await load(result.ok ? null : result.message);
-      if (result.ok && next && next.currentMode !== operation) {
-        setError("设备回读的模式与所选模式不同。");
+      const next = await load();
+      if (result.ok) {
+        setActionError(next && next.currentMode !== operation ? "设备回读的模式与所选模式不同。" : null);
+      } else {
+        setActionError(result.message);
+        conflict.review([result.message], retry);
       }
-      if (!result.ok) conflict.review([result.message], retry);
     } catch (cause) {
       const message = errorMessage(cause);
-      await load(message);
+      await load();
+      setActionError(message);
       conflict.review([message], retry);
     } finally {
       running.current = false;
@@ -62,8 +67,9 @@ export function useOemPowerMode(active: boolean, revision: number, onSettled: ()
       if (refresh) onSettled();
     }
   };
+  const error = [actionError, readError].filter(Boolean).join("；") || null;
   return {
-    profile, error, reading, pending, retry,
+    profile, error, readValid: !!profile && readError === null, reading, pending, retry,
     switchMode: (mode: number, label: string) => run(mode, async snapshot => {
       const target = snapshot.targets.find(candidate => candidate.mode === mode);
       if (!target || !snapshot.availableModes.includes(mode)) throw new Error("未读取到可执行的模式目标。");

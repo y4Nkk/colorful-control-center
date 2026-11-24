@@ -43,7 +43,7 @@ pub use cpu_utility::Reading as CpuUtilityReading;
 pub use memory::OemMemoryReading;
 
 use anyhow::{Result, anyhow};
-use ccc_core::settings::Patch;
+use ccc_core::{fan_sensors::FanReadings, settings::Patch};
 use serde::Serialize;
 use std::{
     collections::BTreeMap,
@@ -52,15 +52,6 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
-
-#[derive(Clone, Copy, Serialize, Debug, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct FanSnapshot {
-    pub cpu_rpm: Option<f64>,
-    pub cpu_duty_pct: Option<f64>,
-    pub gpu_rpm: Option<f64>,
-    pub gpu_duty_pct: Option<f64>,
-}
 
 #[derive(Clone, Serialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
@@ -84,10 +75,8 @@ pub struct NvidiaSnapshot {
 pub struct HardwareSnapshot {
     pub dchu_available: bool,
     pub oem_power_mode: Option<u8>,
-    pub cpu_temp_c: Option<f64>,
-    pub cpu_remote_raw: Option<f64>,
     pub cpu_utility: Option<CpuUtilityReading>,
-    pub fan: FanSnapshot,
+    pub fan: FanReadings,
     pub nvidia: Option<NvidiaSnapshot>,
     pub oem_memory: Option<OemMemoryReading>,
     pub nvidia_suspended: bool,
@@ -101,10 +90,7 @@ pub struct Recovery {
     pub power: Vec<Patch>,
     pub runtime_pl: Option<u64>,
     pub voltage: BTreeMap<u64, i16>,
-    pub fan_page: Vec<Patch>,
-    pub fan_package: Option<[u8; 256]>,
-    pub fan_mode: Option<u8>,
-    pub rpm_fan_pairs: Option<Vec<ccc_core::rpm::Pair>>,
+    pub fan: Option<crate::fanctl::FanCheckpoint>,
 }
 
 pub struct Hal {
@@ -137,6 +123,8 @@ pub struct Hal {
     #[cfg(test)]
     pub(crate) test_fan_guard:
         Option<std::sync::Arc<dyn Fn() -> Result<crate::watchdog::Watchdog> + Send + Sync>>,
+    #[cfg(test)]
+    pub(crate) test_fan_control: Option<firmware::ReadDirectControl>,
     safety: Mutex<String>,
     mutation: std::sync::Arc<Mutex<()>>,
     fan_recovery_needed: AtomicBool,
@@ -178,6 +166,8 @@ impl Hal {
             fan_guard: Mutex::new(None),
             #[cfg(test)]
             test_fan_guard: None,
+            #[cfg(test)]
+            test_fan_control: None,
             safety: Mutex::new("固件控制".into()),
             fan_recovery_needed: AtomicBool::new(false),
             software_fan_safety: Mutex::new(fan_safety::journal::Journal::default()),
@@ -249,6 +239,7 @@ impl Hal {
             recovery: Mutex::new(Recovery::default()),
             fan_guard: Mutex::new(guard),
             test_fan_guard: None,
+            test_fan_control: None,
             safety: Mutex::new("固件控制".into()),
             mutation: std::sync::Arc::new(Mutex::new(())),
             fan_recovery_needed: AtomicBool::new(false),

@@ -23,8 +23,8 @@ export function GpuPowerSettings({ active, revision, onSettled }: { active: bool
   return <Surface as="section" variant="group" className="ccc-panel" aria-label="独显电源" aria-busy={busy || undefined}>
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="gpu" />独显电源</h2><div className="ccc-module-tools">
       {selected && <DetailsDialog title="设备与授权" label="详情">
-        <p className="ccc-control-caption">{selected.name}</p><p>切换会请求 Windows 授权。关闭可能中断正在使用独显的程序。</p>
-        {!selected.canDisable && <p className="ccc-control-caption">独显正在驱动显示器，或无法确认其他活动输出，暂不能关闭。</p>}
+        <p className="ccc-control-caption">{selected.name}</p><p>开启或关闭独显时，Windows 会弹出授权确认。关闭后，正在使用独显的游戏或程序可能中断。</p>
+        {!selected.canDisable && <p className="ccc-control-caption">独显正在给显示器输出画面，或者无法确认关闭后屏幕是否还有其他输出，所以暂时不能关闭。</p>}
       </DetailsDialog>}
       <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取独显" disabled={busy} onClick={reread} />
     </div></div>

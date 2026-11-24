@@ -21,7 +21,6 @@ export function useDeviceSettings<T>(read: () => Promise<T>, active: boolean, re
       return true;
     } catch (error) {
       if (current === generation.current) {
-        setProfile(null);
         setReadError(String(error));
       }
       return false;
@@ -46,10 +45,11 @@ export function useDeviceSettings<T>(read: () => Promise<T>, active: boolean, re
     // A read started before this action cannot update the displayed state during submission.
     ++generation.current;
     setBusy(true);
-    setActionError(null);
     try {
       await action();
-      if (await reload() && successTitle) toast({ kind: "success", title: successTitle });
+      const refreshed = await reload();
+      setActionError(null);
+      if (refreshed && successTitle) toast({ kind: "success", title: successTitle });
     } catch (error) {
       const message = String(error);
       setActionError(message);
@@ -65,9 +65,9 @@ export function useDeviceSettings<T>(read: () => Promise<T>, active: boolean, re
     if (active && !writing.current) return reload();
   }, [active, reload]);
   const reread = () => {
-    setActionError(null);
-    void refresh();
+    void refresh()?.then(refreshed => { if (refreshed) setActionError(null); });
   };
   const error = [actionError, readError].filter(Boolean).join("。") || null;
-  return { profile: profile ?? null, loaded: profile !== undefined, busy, error, run, reread, refresh };
+  return { profile: readError === null ? profile ?? null : null, lastProfile: profile ?? null,
+    loaded: profile !== undefined || readError !== null, busy, error, run, reread, refresh };
 }

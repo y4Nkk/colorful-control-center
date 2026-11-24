@@ -152,7 +152,7 @@ test("温度趋势与图标读数分区，规格与详情使用可键盘操作�
   await expect(cpu.getByRole("meter", { name: "CPU 利用率" })).toBeVisible();
   const sampleLayout = () => page.evaluate(async () => {
     const sample = await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot");
-    window.__uiEmit("hardware-snapshot", { ...sample, oemPowerMode: 3, fan: { ...sample.fan, cpuDutyPct: 100 },
+    window.__uiEmit("hardware-snapshot", { ...sample, oemPowerMode: 3, fan: { ...sample.fan, cpu: { ...sample.fan.cpu, dutyPct: 100 } },
       nvidia: { ...sample.nvidia, memUsedMb: 2171, memTotalMb: 8192 } });
   });
   await sampleLayout();
@@ -240,7 +240,8 @@ test("温度趋势按采样时刻定位，标出高温且缺测时断开折线�
     for (const [offset, cpu, gpu] of [[0, 45, 49], [500, 0, null], [1500, null, 54], [2500, 60.5, 55],
       [11500, 98, 87], [12500, 95, 88], [13500, 94.8, 89]]) {
       window.__uiEmit("hardware-snapshot", {
-        ...sample, sampledAtMs: start + offset, cpuTempC: cpu, nvidia: { ...sample.nvidia, tempC: gpu },
+        ...sample, sampledAtMs: start + offset, fan: { ...sample.fan, cpu: { ...sample.fan.cpu, tempC: cpu } },
+        nvidia: { ...sample.nvidia, tempC: gpu },
       });
     }
   });
@@ -262,7 +263,8 @@ test("温度趋势按采样时刻定位，标出高温且缺测时断开折线�
   await page.evaluate(() => {
     const sample = window.__overviewSnapshot;
     window.__uiEmit("hardware-snapshot", {
-      ...sample, sampledAtMs: sample.sampledAtMs + 14500, cpuTempC: null, nvidia: null, nvidiaSuspended: true,
+      ...sample, sampledAtMs: sample.sampledAtMs + 14500, fan: { ...sample.fan, cpu: { ...sample.fan.cpu, tempC: null } },
+      nvidia: null, nvidiaSuspended: true,
     });
   });
   await expect(latestCpu).toHaveText("—");
@@ -360,10 +362,10 @@ test("多磁盘时内存与存储上下排列，磁盘卷随宽度排布", async
     const sample = await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot");
     for (let index = 1; index <= 300; index++) {
       if (index >= 122 && index <= 137) continue;
-      const cpuTempC = Math.round(48 + Math.min(index, 210) * 0.238 + Math.sin(index / 6) * 2);
+      const cpuTemp = Math.round(48 + Math.min(index, 210) * 0.238 + Math.sin(index / 6) * 2);
       const tempC = index >= 235 && index <= 248 ? null : Math.round(44 + Math.min(index, 200) * 0.218 + Math.sin(index / 8) * 1.5);
       window.__uiEmit("hardware-snapshot", { ...sample, sampledAtMs: sample.sampledAtMs + index * 1000,
-        cpuTempC, nvidia: { ...sample.nvidia, tempC } });
+        fan: { ...sample.fan, cpu: { ...sample.fan.cpu, tempC: cpuTemp } }, nvidia: { ...sample.nvidia, tempC } });
     }
   });
   await expect(sensor(page, "CPU").getByLabel("CPU 当前温度")).toHaveClass(/is-hot/);

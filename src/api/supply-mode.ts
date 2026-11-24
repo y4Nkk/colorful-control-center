@@ -47,8 +47,8 @@ export interface SupplyModeRecovery {
   initialFan: StoredFanCheckpoint;
   currentFanMode: number;
   initialFanMode: number;
-  currentFanOffset: number;
-  initialFanOffset: number;
+  currentFanOffset: number | null;
+  initialFanOffset: number | null;
   currentSoftwareFan: boolean;
   initialSoftwareFan: boolean;
   fanSavedSettingsChanged: boolean;

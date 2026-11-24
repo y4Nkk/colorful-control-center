@@ -1,14 +1,16 @@
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { editHotkeys, finishHotkeyEdit, openHotkeyDetails, openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 const panel = page => page.getByRole("region", { name: "原厂热键与屏显", exact: true });
 const facts = page => page.getByRole("region", { name: "原厂电池音频事实与预览", exact: true });
-const scope = page => panel(page).getByRole("checkbox", { name: "原厂电池音频事件", exact: true });
+const scope = editor => editor.getByRole("checkbox", { name: "原厂电池音频事件", exact: true });
+const lowBrightness = editor => editor.getByRole("checkbox", { name: "原厂低电量亮度", exact: true });
+const brightness = page => page.getByRole("region", { name: "原厂低电量亮度事实与预览", exact: true });
 const calls = (page, command) => page.evaluate(command => window.__uiFixture.calls.filter(call => call.command === command), command);
 test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与灯光"); });
 async function applied(page) {
-  await scope(page).check();
+  await expect(panel(page).getByRole("button", { name: "配置热键", exact: true })).toBeEnabled();
   await page.evaluate(() => {
     const h = window.__uiFixture.hotkeys, alert = h.facts.batteryAlert;
     alert.codec.initial = structuredClone(alert.codec.current); alert.codec.current.muted = false;
@@ -16,16 +18,21 @@ async function applied(page) {
     h.current = { enabled: true, actions: ["batteryAlert"], osd: true }; h.authorized = true;
     h.status.running = true; h.revision = "alert-active"; window.__uiEmit("hardware-controls-changed", null);
   });
+  const details = await openHotkeyDetails(page);
   await expect(facts(page).getByRole("button", { name: "恢复初始电池音频", exact: true })).toBeEnabled();
+  return details;
 }
 test("独立范围预览与应用，绝对亮度保留真实目标", async ({ page }) => {
-  await scope(page).check();
+  const editor = await editHotkeys(page);
+  await scope(editor).check();
+  await expect(lowBrightness(editor)).not.toBeChecked();
+  await editor.getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
+  await finishHotkeyEdit(editor);
+  const details = await openHotkeyDetails(page);
   await expect(facts(page)).toBeVisible();
-  await expect(panel(page).getByRole("checkbox", { name: "原厂低电量亮度", exact: true })).not.toBeChecked();
-  const brightness = page.getByRole("region", { name: "原厂低电量亮度事实与预览", exact: true });
-  await expect(brightness).toContainText("事件指定亮度");
-  expect(await brightness.getByRole("meter").count()).toBe(2);
-  await panel(page).getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
+  await expect(brightness(page)).toContainText("事件指定亮度");
+  await expect(brightness(page).getByRole("meter")).toHaveCount(2);
+  await details.getByRole("button", { name: "关闭弹窗", exact: true }).click();
   await previewConfiguration(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
   await configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true }).click();
@@ -34,7 +41,7 @@ test("独立范围预览与应用，绝对亮度保留真实目标", async ({ pa
 test("初始codec恢复保留二次确认，失败后记录仍可重试", async ({ page }) => {
   await applied(page);
   await expect(facts(page)).toContainText("未静音");
-  await expect(facts(page)).toContainText("初始：静音");
+  await expect(facts(page)).toContainText("接管前：静音");
   await page.evaluate(() => { window.__uiFixture.batteryAlertRestoreFault = "隔离音频恢复失败"; });
   for (let attempt = 0; attempt < 2; attempt++) {
     await facts(page).getByRole("button", { name: "恢复初始电池音频", exact: true }).click();
@@ -60,9 +67,12 @@ test("设备变化保留原控件恢复信息并禁止覆盖", async ({ page }) 
   expect(await calls(page, "restore_battery_alert_audio")).toEqual([]);
 });
 test("两个范围共用亮度事实与恢复，音频离散状态不画比例", async ({ page }) => {
-  await scope(page).check();
-  await panel(page).getByRole("checkbox", { name: "原厂低电量亮度", exact: true }).check();
-  await expect(page.getByRole("region", { name: "原厂低电量亮度事实与预览", exact: true })).toHaveCount(1);
+  const editor = await editHotkeys(page);
+  await scope(editor).check();
+  await lowBrightness(editor).check();
+  await finishHotkeyEdit(editor);
+  await openHotkeyDetails(page);
+  await expect(brightness(page)).toHaveCount(1);
   expect(await facts(page).getByRole("meter").count()).toBe(0);
   expect(await facts(page).locator("svg[data-icon]").count()).toBeGreaterThanOrEqual(2);
   expect(await calls(page, "restore_low_battery_brightness")).toEqual([]);
@@ -88,7 +98,9 @@ test("深浅宽窄布局保留左右模块边框和间隔", async ({ page }) => 
 });
 
 test("无低电量调暗能力时仍可单独预览绝对亮度事件", async ({ page }) => {
-  await scope(page).check();
+  const editor = await editHotkeys(page);
+  await scope(editor).check();
+  await finishHotkeyEdit(editor);
   await page.evaluate(() => {
     const h = window.__uiFixture.hotkeys, alert = h.facts.batteryAlert;
     alert.binding.lowControl = false; alert.brightness.current.rule.feature = false;
@@ -96,22 +108,25 @@ test("无低电量调暗能力时仍可单独预览绝对亮度事件", async ({
     low.identity = null; low.reason = "固件未声明低电量亮度控制";
     h.revision = "absolute-without-low"; window.__uiEmit("hardware-controls-changed", null);
   });
-  const brightness = page.getByRole("region", { name: "原厂低电量亮度事实与预览", exact: true });
-  await expect(brightness).toContainText("事件指定亮度");
-  await expect(brightness).not.toContainText("低电量条件成立时");
-  await expect(scope(page)).toBeEnabled();
-  await expect(panel(page).getByRole("checkbox", { name: "原厂低电量亮度", exact: true })).toBeDisabled();
+  const details = await openHotkeyDetails(page);
+  await expect(details.getByLabel("不可用的热键动作")).toContainText("固件未声明低电量亮度控制");
+  await expect(brightness(page)).toContainText("事件指定亮度");
+  await expect(brightness(page)).not.toContainText("还会再调暗");
+  await details.getByRole("button", { name: "关闭弹窗", exact: true }).click();
+  await editHotkeys(page);
+  await expect(scope(editor)).toBeEnabled();
+  await expect(lowBrightness(editor)).toHaveCount(0);
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
 });
 
 test("监听已结束但循环停止失败时仍能重试清理", async ({ page }) => {
-  await applied(page);
+  const details = await applied(page);
   await page.evaluate(() => {
     const h = window.__uiFixture.hotkeys; h.status.running = false;
     window.__uiFixture.batteryAlertStopFault = "隔离播放器停止失败";
     h.revision = "listener-ended-player-owned"; window.__uiEmit("hardware-controls-changed", null);
   });
-  const stop = panel(page).getByRole("button", { name: "临时停止监听", exact: true });
+  const stop = details.getByRole("button", { name: "临时停止监听", exact: true });
   await expect(stop).toBeEnabled(); await stop.click();
   await expect(page.getByText("隔离播放器停止失败", { exact: true }).first()).toBeVisible();
   await expect(facts(page)).toContainText("运行中");

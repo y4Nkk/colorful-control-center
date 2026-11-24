@@ -39,11 +39,21 @@ fn software_process_hot_firmware_curves_and_restore_need_no_guard() {
     let f = Fixture::new();
     let hal = f.hal();
     let _gate = hal.begin_write().unwrap();
-    DEVICE.lock().unwrap().pages[4][5] = 1;
+    {
+        let mut device = DEVICE.lock().unwrap();
+        device.mode = 1;
+        device.pages[4][5] = 1;
+    }
     DEVICE.lock().unwrap().cpu = 99;
     let checkpoint = fanctl::checkpoint(hal, false).unwrap();
     fanctl::set_mode_offset(hal, 20).unwrap();
-    fanctl::apply_curve(hal, None, None, None).unwrap();
+    let points = ccc_core::fan::OemCurvePoints {
+        t2: 61.0,
+        t3: 80.0,
+        d2: 40.0,
+        d3: 80.0,
+    };
+    fanctl::apply_curve(hal, Some(points), None, None).unwrap();
     assert_eq!(DEVICE.lock().unwrap().pages[4][5], 6);
     fanctl::restore_checkpoint(hal, &checkpoint).unwrap();
     assert_eq!(DEVICE.lock().unwrap().pages[4][7], 0);

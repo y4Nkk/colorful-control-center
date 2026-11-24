@@ -16,6 +16,7 @@ fn dtt_uses_original_integer_feature_branch_when_packet_has_no_embedded_flags() 
 struct Memory {
     features: Cell<[u32; 2]>,
     pages: RefCell<[[u8; 256]; 8]>,
+    fan_mode_bits: Cell<u8>,
     commands: RefCell<Vec<u32>>,
     fail_at: Cell<Option<(u8, usize)>>,
     fail_command: Cell<bool>,
@@ -31,6 +32,7 @@ impl Memory {
         Self {
             features: Cell::new([0, 0]),
             pages: RefCell::new(pages),
+            fan_mode_bits: Cell::new(2),
             commands: Default::default(),
             fail_at: Cell::new(None),
             fail_command: Cell::new(false),
@@ -66,7 +68,10 @@ impl ModeIo for Memory {
         Ok(self.features.get()[usize::from(command == 96)])
     }
     fn fan_info(&self) -> Result<[u8; 256]> {
-        Ok([0; 256])
+        let mut packet = [0; 256];
+        packet[12] = 2;
+        packet[14] = self.fan_mode_bits.get();
+        Ok(packet)
     }
     fn table(&self, _: u8) -> Result<[u8; 256]> {
         Ok([0; 256])
@@ -195,7 +200,7 @@ fn missing_or_unknown_driver_blocks_new_dtt_but_allows_switching_it_off() {
 #[test]
 fn custom_fan_blocks_turbo_change_without_blocking_independent_dtt() {
     let io = Memory::new();
-    io.pages.borrow_mut()[4][5] = 6;
+    io.fan_mode_bits.set(4);
     let p = preview(&io, Some(true)).unwrap();
     assert!(p.target(&io.request(Some(true), Some(false))).is_err());
     assert!(p.target(&io.request(Some(false), Some(true))).is_ok());
@@ -219,7 +224,7 @@ fn revision_binds_mode_flags_caps_fan_and_driver_presence() {
                 Some(true)
             }
             3 => {
-                io.pages.borrow_mut()[4][5] = 1;
+                io.fan_mode_bits.set(16);
                 Some(true)
             }
             _ => Some(false),

@@ -11,3 +11,19 @@ export async function openPowerArea(page, area) {
   await tab.click();
   await expect(tab).toHaveAttribute("aria-selected", "true");
 }
+
+const hotkeys = page => page.getByRole("region", { name: "原厂热键与屏显", exact: true });
+
+export async function editHotkeys(page) {
+  await hotkeys(page).getByRole("button", { name: "配置热键", exact: true }).click();
+  return page.getByRole("dialog", { name: "配置热键与屏显", exact: true });
+}
+
+export function finishHotkeyEdit(editor) {
+  return editor.getByRole("button", { name: "完成编辑", exact: true }).click();
+}
+
+export async function openHotkeyDetails(page) {
+  await hotkeys(page).getByRole("button", { name: "详情", exact: true }).click();
+  return page.getByRole("dialog", { name: "热键状态与诊断", exact: true });
+}

@@ -1,5 +1,6 @@
 /** 硬件监控（对应 src-tauri/src/hal/；1Hz hardware-snapshot 事件推送）。 */
 import { invoke, listenEvent } from "./client";
+import type { FanId } from "./fans";
 
 export interface Reading {
   ok: boolean;
@@ -8,11 +9,11 @@ export interface Reading {
   stale: boolean;
 }
 
-export interface FanSnapshot {
-  cpuRpm: number | null;
-  cpuDutyPct: number | null;
-  gpuRpm: number | null;
-  gpuDutyPct: number | null;
+export interface FanReading {
+  rpm: number | null;
+  dutyPct: number | null;
+  /** 对应风扇通道的 EC 温度（°C）。 */
+  tempC: number | null;
 }
 
 export interface NvidiaSnapshot {
@@ -38,13 +39,9 @@ export interface OemMemoryReading {
 export interface HardwareSnapshot {
   dchuAvailable: boolean;
   oemPowerMode: number | null;
-  /** CPU 温度（°C，本机原厂零 TDP 分支直接使用 cmd12 buf[18]）。 */
-  cpuTempC: number | null;
-  /** cmd12 buf[18] 原始 remote（校准对照用） */
-  cpuRemoteRaw: number | null;
   /** Windows处理器效用（限制到100%）与实时频率（标称基频 × 性能百分比），同一次采样；包含独立采样时间。 */
   cpuUtility: { valuePct: number; clockMhz: number | null; sampledAtMs: number } | null;
-  fan: FanSnapshot;
+  fan: Record<FanId, FanReading>;
   nvidia: NvidiaSnapshot | null;
   /** 原厂共享报告，未报告或本次 OEM 传输失败时为 null。 */
   oemMemory: OemMemoryReading | null;

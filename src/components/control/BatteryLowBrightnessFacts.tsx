@@ -13,7 +13,7 @@ export function BatteryLowBrightnessFacts({ profile, powerSummary, busy, run, ab
     <strong>{absolute ? "电池事件亮度" : "原厂低电量亮度"}</strong>
     <div className="ccc-battery-low-columns">
       <Surface variant="inset" className="ccc-battery-low-part">
-        <strong>当前活动计划</strong>
+        <strong>当前使用的电源计划</strong>
         {current ? <>
           <div className="ccc-battery-low-meters">{current.levels.map((value, index) =>
             <MetricReadout key={labels[index]} label={labels[index]} value={value} maximum={100} unit="%" colorVar="var(--ccc-action)" />)}</div>
@@ -25,12 +25,12 @@ export function BatteryLowBrightnessFacts({ profile, powerSummary, busy, run, ab
         {absolute ? <>
           <strong>事件指定亮度</strong>
           <p className="ccc-control-caption">0–100% · 同步插电 / 电池</p>
-          {lowControl && <p className="ccc-control-caption">低电量条件成立时再按缓存调暗。</p>}
+          {lowControl && <p className="ccc-control-caption">同时满足低电量条件时，还会再调暗到电脑记录的亮度。</p>}
         </> : <>
         <strong>事件目标</strong>
         <div className="ccc-battery-low-meters">{labels.map((label, index) =>
           <MetricReadout key={label} label={label} value={profile.settingTarget?.[index] ?? null} maximum={100} unit="%" colorVar="var(--ccc-action)" />)}</div>
-        <p className="ccc-control-caption">自然结束 · 插电 {profile.endingTarget?.[0] ?? "—"}% · 电池 {profile.endingTarget?.[1] ?? "—"}%</p>
+        <p className="ccc-control-caption">事件自然结束时恢复为 · 插电 {profile.endingTarget?.[0] ?? "—"}% · 电池 {profile.endingTarget?.[1] ?? "—"}%</p>
         </>}
       </Surface>
     </div>
@@ -40,7 +40,7 @@ export function BatteryLowBrightnessFacts({ profile, powerSummary, busy, run, ab
         <p>{labels.map((label, index) => recovery.record.levelsOwned[index]
           ? `${label} ${recovery.levels[index]}% → ${recovery.record.baseline.levels[index]}%`
           : `${label}保留`).join(" · ")}</p>
-        <span className="ccc-control-caption">仅恢复接管字段和缓存</span>
+        <span className="ccc-control-caption">只恢复本软件接管时改过的亮度和电脑记录的值</span>
       </>}
       {profile.restoreError && <p className="ccc-control-error"><Icon name="error" size={16} />{profile.restoreError}</p>}
       {recovery && <ConfirmButton icon="undo" key={profile.restoreRevision ?? "low-brightness-unavailable"} variant="secondary"

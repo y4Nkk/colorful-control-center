@@ -43,8 +43,8 @@ fn available(hal: &Hal, display: &display::Controller, allow_software: bool) -> 
     if display.trial_pending()? {
         bail!("请先保留或恢复刷新率试用，再请求独显系统授权");
     }
-    if !allow_software && crate::fanctl::software::read(hal)?.is_some() {
-        bail!("请先退出软件风扇曲线，再请求独显系统授权");
+    if !allow_software && crate::fanctl::software::active(hal)? {
+        bail!("请先确认软件风扇已归还，再请求独显系统授权");
     }
     Ok(())
 }

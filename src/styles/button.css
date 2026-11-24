@@ -43,6 +43,7 @@
 }
 .ccc-button[data-tone="danger"][data-variant="ghost"]:hover:enabled:not([aria-disabled="true"]) { background: var(--ccc-danger-tint); color: var(--ccc-danger); }
 .ccc-button[aria-busy="true"] { opacity: 0.7; cursor: progress; }
+.ccc-button:is([data-variant="field"], [data-variant="handle"])[aria-busy="true"] { opacity: 1; cursor: not-allowed; }
 
 .ccc-button[data-variant="selection"] {
   flex-direction: column;

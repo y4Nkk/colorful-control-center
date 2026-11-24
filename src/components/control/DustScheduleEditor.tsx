@@ -10,21 +10,27 @@ export function formatDustSchedule(schedule: DustSchedule | null): string {
     `${schedule.weekdays === 127 ? "每天" : DUST_DAYS.filter(day => schedule.weekdays & day.bit).map(day => day.label).join("、")} ${String(schedule.hour).padStart(2,"0")}:00` : ""].filter(Boolean);
   return parts.length ? parts.join("；") : "定时和唤醒触发均关闭";
 }
-export function DustScheduleEditor({ schedule, disabled, softwareActive, onChange }: {
-  schedule: DustSchedule; disabled: boolean; softwareActive: boolean; onChange: (value: DustSchedule) => void;
+export function DustScheduleEditor({ schedule, disabled, busy, softwareActive, onChange }: {
+  schedule: DustSchedule; disabled: boolean; busy: boolean; softwareActive: boolean; onChange: (value: DustSchedule) => void;
 }) {
+  const weekdaysDisabled = disabled || softwareActive;
+  const weekdaysBusy = busy && !weekdaysDisabled;
   return <div className="ccc-dust-editor">
     <div className="ccc-keyboard-setting"><span>系统唤醒后除尘</span>
-      <Switch label="系统唤醒后除尘" checked={schedule.onResume} disabled={disabled || softwareActive && (!schedule.onResume || schedule.weekdays !== 0)}
+      <Switch label="系统唤醒后除尘" checked={schedule.onResume} busy={busy} disabled={disabled || softwareActive && (!schedule.onResume || schedule.weekdays !== 0)}
         onChange={onResume => onChange({ ...schedule, onResume })} /></div>
     <div className="ccc-keyboard-setting"><span>按星期除尘</span>
-      <Switch label="按星期除尘" checked={schedule.weekdays !== 0} disabled={disabled || softwareActive && (!schedule.weekdays || schedule.onResume)}
+      <Switch label="按星期除尘" checked={schedule.weekdays !== 0} busy={busy} disabled={disabled || softwareActive && (!schedule.weekdays || schedule.onResume)}
         onChange={enabled => onChange({ ...schedule, weekdays: enabled ? 127 : 0, hour: enabled ? schedule.hour : 0 })} /></div>
     {schedule.weekdays !== 0 && <>
-      <div className="ccc-dust-days">{DUST_DAYS.map(day => <Checkbox key={day.bit} label={day.label} checked={!!(schedule.weekdays & day.bit)} disabled={disabled || softwareActive}
-        onChange={event => { const weekdays = event.target.checked ? schedule.weekdays | day.bit : schedule.weekdays & ~day.bit;
+      <div className="ccc-dust-days">{DUST_DAYS.map(day => <Checkbox key={day.bit} label={day.label} checked={!!(schedule.weekdays & day.bit)} disabled={weekdaysDisabled}
+        aria-disabled={weekdaysBusy || undefined} aria-busy={weekdaysBusy || undefined}
+        onClick={event => { if (busy) event.preventDefault(); }}
+        onChange={event => {
+          if (busy) return;
+          const weekdays = event.target.checked ? schedule.weekdays | day.bit : schedule.weekdays & ~day.bit;
           onChange({ ...schedule, weekdays, hour: weekdays ? schedule.hour : 0 }); }} />)}</div>
-      <label className="ccc-dust-hour">执行时间 <Select label="除尘执行时间" value={String(schedule.hour)} disabled={disabled || softwareActive}
+      <label className="ccc-dust-hour">执行时间 <Select label="除尘执行时间" value={String(schedule.hour)} disabled={weekdaysDisabled} busy={busy}
         options={Array.from({ length: 24 }, (_, hour) => ({ value: String(hour), label: `${String(hour).padStart(2,"0")}:00` }))}
         onChange={value => onChange({ ...schedule, hour: Number(value) })} /></label>
     </>}

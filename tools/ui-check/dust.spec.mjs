@@ -85,7 +85,7 @@ test("高占空比、软件曲线及校准互斥在界面明确显示", async ({
   await expect(panel).toContainText("电池校准正在接管");
   expect(await writes(page)).toHaveLength(0);
 });
-test("失败回读实际状态并保留恢复入口，读取失败撤销快照", async ({ page }) => {
+test("失败回读实际状态并保留恢复入口，读取失败保留画面并锁定写入", async ({ page }) => {
   const panel = panelOf(page);
   await page.evaluate(() => { window.__uiFixture.dustFault = "隔离计划失败，恢复尚需重试"; });
   await panel.getByRole("switch", { name: "系统唤醒后除尘", exact: true }).click();
@@ -94,7 +94,10 @@ test("失败回读实际状态并保留恢复入口，读取失败撤销快照",
   await expect(availableAction(page, "除尘计划", true)).toBeEnabled();
   await page.evaluate(() => { window.__uiFixture.dustReadFault = "隔离除尘读取失败"; });
   await panel.getByRole("button", { name: "重新读取除尘状态" }).click();
-  await expect(panel.getByRole("button", { name: "立即除尘", exact: true })).toHaveCount(0);
+  await expect(panel.getByRole("alert")).toContainText("隔离除尘读取失败");
+  await expect(panel.getByRole("button", { name: "立即除尘", exact: true })).toBeDisabled();
+  await expect(panel.getByRole("switch", { name: "系统唤醒后除尘", exact: true })).toBeChecked();
+  await expect(availableAction(page, "除尘计划", true)).toBeDisabled();
 });
 test("左右卡片窄屏回流且无能力时隐藏", async ({ page }) => {
   const panel = panelOf(page);

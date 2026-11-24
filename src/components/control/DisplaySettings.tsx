@@ -36,7 +36,7 @@ export function DisplaySettings({ active, revision, rotationRequest }: { active:
         <p className="ccc-control-caption">{selected.current.name} · {selected.current.device}</p>
         <p className="ccc-control-caption">支持刷新率 · {selected.frequencies.join(" / ")} Hz</p>
         {!canRotate && <p className="ccc-control-caption">{rotation ? "翻转只适用于主显示器。" : "当前主显示器无法翻转。"}</p>}
-        <p>刷新率和主屏方向切换后可在 15 秒内保留。</p>
+        <p>切换刷新率或翻转主屏后有 15 秒试用时间，期间可以保留，否则自动恢复。</p>
       </DetailsDialog></div>}
     </div>
     {(error || profile?.error) && <p role="alert" className="ccc-control-error">{error || profile?.error}</p>}

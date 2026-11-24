@@ -7,12 +7,16 @@ use std::collections::BTreeSet;
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct StoredCheckpoint {
+    #[serde(deserialize_with = "Option::deserialize")]
     software: Option<Curves>,
+    #[serde(deserialize_with = "Option::deserialize")]
     package: Option<Vec<u8>>,
+    #[serde(deserialize_with = "Option::deserialize")]
     rpm_pairs: Option<Vec<StoredPair>>,
     fields: Vec<StoredPatch>,
     mode: u8,
-    offset: u8,
+    #[serde(deserialize_with = "Option::deserialize")]
+    offset_raw: Option<u8>,
 }
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -50,19 +54,14 @@ impl FanCheckpoint {
                 })
                 .collect(),
             mode: self.mode,
-            offset: self.offset,
+            offset_raw: self.offset_raw,
         }
     }
 }
 impl StoredCheckpoint {
     pub(crate) fn restore(&self) -> Result<FanCheckpoint> {
         super::super::validate_mode(self.mode)?;
-        if self.offset > 100
-            || self.package.is_some() && self.rpm_pairs.is_some()
-            || self.mode == 6
-                && self.package.is_none()
-                && self.rpm_pairs.as_ref().is_none_or(Vec::is_empty)
-        {
+        if self.package.is_some() && self.rpm_pairs.is_some() {
             bail!("风扇恢复记录无效");
         }
         if let Some(curves) = &self.software {
@@ -89,12 +88,12 @@ impl StoredCheckpoint {
             rpm_pairs,
             fields,
             mode: self.mode,
-            offset: self.offset,
+            offset_raw: self.offset_raw,
         })
     }
 }
 fn parse_pairs(pairs: &[StoredPair]) -> Result<Vec<Pair>> {
-    if pairs.len() > 2 {
+    if !(1..=2).contains(&pairs.len()) {
         bail!("风扇恢复表数量无效");
     }
     let mut seen = BTreeSet::new();
@@ -158,7 +157,7 @@ mod tests {
                 Patch::new(7, [10]),
             ],
             mode: 0,
-            offset: 10,
+            offset_raw: Some(26),
         }
     }
     #[test]
@@ -180,11 +179,14 @@ mod tests {
         saved.package.as_mut().unwrap().pop();
         assert!(saved.restore().is_err());
         saved = checkpoint().stored();
-        saved.mode = 6;
-        saved.package = None;
+        saved.rpm_pairs = Some(vec![]);
         assert!(saved.restore().is_err());
         let mut json = serde_json::to_value(checkpoint().stored()).unwrap();
         json["unknown"] = true.into();
+        assert!(serde_json::from_value::<StoredCheckpoint>(json).is_err());
+        let mut json = serde_json::to_value(checkpoint().stored()).unwrap();
+        json.as_object_mut().unwrap().remove("offsetRaw");
+        json["offset"] = 10.into();
         assert!(serde_json::from_value::<StoredCheckpoint>(json).is_err());
     }
 }

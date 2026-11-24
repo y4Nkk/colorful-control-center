@@ -1,14 +1,14 @@
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { editHotkeys, finishHotkeyEdit, openHotkeyDetails, openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
 const panel = page => page.getByRole("region", { name: "原厂热键与屏显", exact: true });
 const facts = page => page.getByRole("region", { name: "原厂低电量阈值事实与预览", exact: true });
-const scope = page => panel(page).getByRole("checkbox", { name: "原厂低电量阈值", exact: true });
+const scope = editor => editor.getByRole("checkbox", { name: "原厂低电量阈值", exact: true });
 const calls = (page, command) => page.evaluate(command => window.__uiFixture.calls.filter(call => call.command === command), command);
 async function applied(page) {
-  await expect(facts(page)).toBeVisible();
+  await expect(panel(page).getByRole("button", { name: "配置热键", exact: true })).toBeEnabled();
   await page.evaluate(() => {
     const h = window.__uiFixture.hotkeys, battery = h.facts.batteryThresholds;
     const baseline = structuredClone(battery.current), targets = [25, 20, 22];
@@ -21,25 +21,32 @@ async function applied(page) {
     h.current = { enabled: true, actions: ["batteryThresholds"], osd: true }; h.authorized = true; h.status.running = true;
     h.revision = "battery-applied"; window.__uiEmit("hardware-controls-changed", null);
   });
+  const details = await openHotkeyDetails(page);
   await expect(facts(page).getByRole("button", { name: "恢复初始电池阈值", exact: true })).toBeEnabled();
+  return details;
 }
 test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与灯光"); });
 
 test("预览真实计划和三个比例目标，选择草稿不写入", async ({ page }) => {
-  await expect(facts(page)).toContainText("平衡计划 · 当前活动");
+  const editor = await editHotkeys(page);
+  await scope(editor).check();
+  await finishHotkeyEdit(editor);
+  await openHotkeyDetails(page);
+  await expect(facts(page)).toContainText("平衡计划 · 当前使用");
   await expect(facts(page)).toContainText("低电量 10 / 11%");
   await expect(facts(page)).toContainText("节能计划");
   for (const [name, value] of [["低电量", "25"], ["严重电量", "20"], ["预留电量", "22"]]) {
     await expect(facts(page).getByRole("meter", { name, exact: true })).toHaveAttribute("aria-valuenow", value);
   }
-  await scope(page).check();
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
   expect(await calls(page, "restore_battery_thresholds")).toEqual([]);
 });
 
 test("阈值事件独立授权，确认前不应用", async ({ page }) => {
-  await panel(page).getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
-  await scope(page).check();
+  const editor = await editHotkeys(page);
+  await editor.getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
+  await scope(editor).check();
+  await finishHotkeyEdit(editor);
   await previewConfiguration(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
   await configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true }).click();
@@ -47,7 +54,7 @@ test("阈值事件独立授权，确认前不应用", async ({ page }) => {
 });
 
 test("逐计划初始值预览后确认恢复，失败可重试", async ({ page }) => {
-  await applied(page);
+  const details = await applied(page);
   await expect(facts(page)).toContainText("低电量 25→10% / 25→11%");
   await expect(facts(page)).toContainText("低电量 25→9% / 25→0%");
   await page.evaluate(() => { window.__uiFixture.batteryThresholdRestoreFault = "计划恢复失败"; });
@@ -59,8 +66,9 @@ test("逐计划初始值预览后确认恢复，失败可重试", async ({ page 
   }
   expect(await calls(page, "restore_battery_thresholds")).toHaveLength(2);
   await expect(facts(page)).toContainText("低电量 10 / 11%");
-  await expect(panel(page)).toContainText("热键监听已停止");
-  await expect(scope(page)).toBeChecked();
+  await expect(details).toContainText("热键监听已停止");
+  await details.getByRole("button", { name: "关闭弹窗", exact: true }).click();
+  await expect(scope(await editHotkeys(page))).toBeChecked();
 });
 
 test("来源异常展示记录并禁止覆盖", async ({ page }) => {
@@ -72,7 +80,7 @@ test("来源异常展示记录并禁止覆盖", async ({ page }) => {
     const cap = h.facts.capabilities.find(c => c.scope === "batteryThresholds"); cap.identity = null; cap.reason = battery.error;
     h.revision = "battery-conflict"; window.__uiEmit("hardware-controls-changed", null);
   });
-  await expect(facts(page)).toContainText("初始恢复目标");
+  await expect(facts(page)).toContainText("恢复接管前的值");
   await expect(facts(page)).toContainText("计划阈值已被其他程序修改");
   await expect(facts(page).getByRole("button", { name: "恢复初始电池阈值", exact: true })).toBeDisabled();
   expect(await calls(page, "restore_battery_thresholds")).toEqual([]);

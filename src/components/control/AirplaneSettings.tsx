@@ -24,6 +24,7 @@ export function AirplaneSettings({ active, revision }: { active: boolean; revisi
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="airplane" />飞行模式</h2>
       <div className="ccc-module-tools">
         {issues.length > 0 && <DetailsDialog title="飞行模式诊断" label="详情">
+          {!current && <p>要确认 Windows 当前的飞行模式，请关闭此弹窗，点「重新读取飞行模式」。</p>}
           {issues.map(issue => <p key={issue}>{issue}</p>)}
         </DetailsDialog>}
         <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取飞行模式" disabled={busy} onClick={reread} />

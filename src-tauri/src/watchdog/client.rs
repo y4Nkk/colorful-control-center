@@ -117,7 +117,7 @@ impl Watchdog {
 
     pub fn disarm(&mut self) -> Result<()> {
         if self.exited()? {
-            return Ok(());
+            bail!("风扇监护已退出，缺少控制权归还确认");
         }
         self.send("DISARM")?;
         self.expect("DISARMED")?;

@@ -27,18 +27,20 @@ const yPct = (duty: number) => 100 - duty;
 interface FanCurveEditorProps {
   status?: string;
   fanName: string;
-  source: object;
+  source: string;
   anchors: CurveAnchors;
   /** 已应用的当前曲线，草稿变化时显示参考线 */
   current: CurveDraft;
   editable: boolean;
+  busy: boolean;
   /** 实时传感器温度，缺失时不显示曲线目标预估 */
   liveTempC: number | null;
-  onCommit: (next: CurveDraft) => void;
+  stale: boolean;
+  onCommit: (next: CurveDraft) => void | Promise<void>;
 }
 
 export function FanCurveEditor(props: FanCurveEditorProps) {
-  const { status, fanName, source, anchors, current, editable, liveTempC, onCommit } = props;
+  const { status, fanName, source, anchors, current, editable, busy, liveTempC, stale, onCommit } = props;
   const plotRef = useRef<HTMLDivElement | null>(null);
   const [selected, setSelected] = useState<"p2" | "p3" | null>(null);
   const edit = useFanEdit(source, current, onCommit);
@@ -62,7 +64,7 @@ export function FanCurveEditor(props: FanCurveEditorProps) {
           const limits = pointLimits(anchors, draft, point).temp;
           const name = second ? "T2/D2" : "T3/D3";
           return <FirmwareCurveHandle key={point} source={source} plotRef={plotRef} plotMin={plotMinTemp} point={point}
-            disabled={!editable} selected={selected === point} onSelect={() => setSelected(point)}
+            disabled={!editable} busy={busy} selected={selected === point} onSelect={() => setSelected(point)}
             x={xPct(temp)} y={yPct(duty)} temp={temp} minTemp={limits.min} maxTemp={limits.max}
             label={`${name} 可调点：左右改温度，上下改占空比`} valueText={`温度 ${temp}°C，占空比 ${duty}%`}
             onMove={(t, d) => edit.update(before => movePoint(anchors, before, point, t, d))}
@@ -74,13 +76,13 @@ export function FanCurveEditor(props: FanCurveEditorProps) {
         <PlotLabel point="p3" x={xPct(draft.t3)} y={yPct(draft.d3Pct)} text={`T3 ${draft.t3}°·${draft.d3Pct}%`} />
       </FanCurvePlot>
       <FanCurveLegend hasReference={differs} mainLabel={differs ? "草稿" : "当前设置"}>
-        {projectedDuty != null && <span>{differs ? "草稿估算" : "曲线估算"} <span className="ccc-mono">{fmtInt(projectedDuty)}%</span></span>}
+        {projectedDuty != null && <span>{stale ? "按上次温度估算" : differs ? "草稿估算" : "曲线估算"} <span className="ccc-mono">{fmtInt(projectedDuty)}%</span></span>}
         <span className="ccc-plot-hint">{editable ? "拖动圆点 · 方向键微调" : "曲线只读"}</span>
       </FanCurveLegend>
     </div>;
   return <FanCurveSection status={status} plot={plot} fields={<>
     <h4>{fanName} 曲线点</h4>
-    <CurvePointInputs anchors={anchors} draft={draft} disabled={!editable} selected={selected} onSelect={setSelected}
+    <CurvePointInputs anchors={anchors} draft={draft} disabled={!editable} busy={busy} selected={selected} onSelect={setSelected}
       onChange={edit.update} onCommit={edit.commit} onCancel={edit.cancel} />
   </>} />;
 }

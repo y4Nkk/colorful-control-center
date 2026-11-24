@@ -1,8 +1,8 @@
 use anyhow::{Result, anyhow, bail};
 use ccc_core::{
     fan::{
-        OemCurvePoints, OemFanAnchors, OemFanCurveInput, oem_page4_offsets, oem_slope,
-        validate_oem_curve,
+        OemCurvePoints, OemFanAnchors, OemFanCurveInput, build_curve_package, decode_oem_fan_mode,
+        oem_duty_percent, oem_page4_offsets, oem_slope, validate_oem_curve,
     },
     settings::Patch,
 };
@@ -19,6 +19,10 @@ pub struct FanPointSet {
     pub d2_pct: f64,
     pub t3: f64,
     pub d3_pct: f64,
+    #[serde(skip)]
+    t4: u8,
+    #[serde(skip)]
+    d4: u8,
 }
 
 #[derive(Clone, Serialize)]
@@ -32,10 +36,11 @@ pub struct FanProfile {
     pub available_modes: Vec<u8>,
     pub fan_count: u8,
     pub custom_supported: bool,
+    pub custom_blocked_reason: Option<String>,
     #[serde(skip)]
-    pub(crate) saved_mode: u8,
+    pub(crate) offset_raw: Option<u8>,
     pub current_mode: u8,
-    pub offset_pct: u8,
+    pub offset_pct: Option<u8>,
     pub offset_slot: Option<usize>,
     pub offset_blocked_reason: Option<String>,
     pub can_restore: bool,
@@ -60,19 +65,18 @@ pub enum CurveKind {
     RpmTable,
 }
 
-pub fn decode(package: &[u8; 256], page: &[u8], capabilities: &[u8]) -> Result<FanProfile> {
+pub fn decode(package: &[u8; 256], capabilities: &[u8]) -> Result<FanProfile> {
     let count = package[12];
     let rpm_layout = super::rpm::supported(capabilities);
-    if !(1..=if rpm_layout { 4 } else { 3 }).contains(&count)
-        || page.len() != 256
-        || capabilities.len() != 256
-    {
+    if !(1..=if rpm_layout { 4 } else { 3 }).contains(&count) || capabilities.len() != 256 {
         bail!("风扇能力数据布局未确认");
     }
+    let channels = ccc_core::fan_sensors::fan_channels(package)
+        .ok_or_else(|| anyhow!("风扇通道布局未确认"))?;
     let fans = if rpm_layout {
         Vec::new()
     } else {
-        decode_points(package, page)
+        decode_points(package, channels)
     };
     let known_layout = capabilities[0..2] == [0, 0] || capabilities[0..2] == [1, 0];
     let supported = known_layout
@@ -81,7 +85,7 @@ pub fn decode(package: &[u8; 256], page: &[u8], capabilities: &[u8]) -> Result<F
             package[50] & 15 != 0
         } else {
             count > 1
-                && package[50] & 8 == 0
+                && channels & 8 == 0
                 && fans
                     .iter()
                     .filter(|f| f.present)
@@ -99,9 +103,10 @@ pub fn decode(package: &[u8; 256], page: &[u8], capabilities: &[u8]) -> Result<F
         available_modes: available_modes(package, capabilities, supported),
         fan_count: count,
         custom_supported: supported,
-        saved_mode: page[5],
-        current_mode: page[5],
-        offset_pct: page[7],
+        custom_blocked_reason: None,
+        current_mode: decode_oem_fan_mode(package[14]).map_err(anyhow::Error::msg)?,
+        offset_raw: None,
+        offset_pct: None,
         offset_slot: None,
         offset_blocked_reason: None,
         can_restore: false,
@@ -123,41 +128,21 @@ pub fn decode(package: &[u8; 256], page: &[u8], capabilities: &[u8]) -> Result<F
     })
 }
 
-fn decode_points(package: &[u8; 256], page: &[u8]) -> Vec<FanPointSet> {
+fn decode_points(package: &[u8; 256], bitmap: u8) -> Vec<FanPointSet> {
     let mut fans = Vec::new();
     for (index, id) in ["cpu", "gpu1", "gpu2"].into_iter().enumerate() {
         let at = 16 + index * 8;
-        let (d, t, _) = oem_page4_offsets(index);
-        let saved = page[d + 1] != 0;
         fans.push(FanPointSet {
             id: id.into(),
-            present: if package[50] == 0 {
-                index < package[12] as usize
-            } else {
-                package[50] & (1 << index) != 0
-            },
+            present: bitmap & (1 << index) != 0,
             t1: package[at] as f64,
-            d1_pct: (package[at + 1] as f64 / 255.0 * 100.0).round_ties_even(),
-            t2: if saved {
-                page[t + 1] as f64
-            } else {
-                package[at + 2] as f64
-            },
-            d2_pct: if saved {
-                page[d + 1] as f64
-            } else {
-                (package[at + 3] as f64 / 255.0 * 100.0).round_ties_even()
-            },
-            t3: if saved {
-                page[t + 2] as f64
-            } else {
-                package[at + 4] as f64
-            },
-            d3_pct: if saved {
-                page[d + 2] as f64
-            } else {
-                (package[at + 5] as f64 / 255.0 * 100.0).round_ties_even()
-            },
+            d1_pct: f64::from(oem_duty_percent(package[at + 1])),
+            t2: f64::from(package[at + 2]),
+            d2_pct: f64::from(oem_duty_percent(package[at + 3])),
+            t3: f64::from(package[at + 4]),
+            d3_pct: f64::from(oem_duty_percent(package[at + 5])),
+            t4: package[at + 6],
+            d4: package[at + 7],
         });
     }
     fans
@@ -165,7 +150,7 @@ fn decode_points(package: &[u8; 256], page: &[u8]) -> Vec<FanPointSet> {
 
 fn available_modes(package: &[u8; 256], capabilities: &[u8], custom: bool) -> Vec<u8> {
     let mut modes = vec![super::FAN_MODE_AUTO, super::FAN_MODE_FULL_SPEED];
-    if package[14] == 5 {
+    if package[14] == 0x01 {
         modes.push(5);
     }
     if custom {
@@ -190,18 +175,12 @@ pub fn prepare(
     }
     let mut inputs = [None; 3];
     for (index, set) in profile.fans.iter().enumerate() {
-        if !set.present {
-            if wanted[index].is_some() {
-                bail!("{} 风扇不存在", set.id);
-            }
+        let Some(mut points) = wanted[index] else {
             continue;
+        };
+        if !set.present {
+            bail!("{} 风扇不存在", set.id);
         }
-        let mut points = wanted[index].unwrap_or(OemCurvePoints {
-            t2: set.t2,
-            d2: set.d2_pct,
-            t3: set.t3,
-            d3: set.d3_pct,
-        });
         points.t2 = points.t2.round();
         points.t3 = points.t3.round();
         points.d2 = points.d2.round();
@@ -217,6 +196,55 @@ pub fn prepare(
         inputs[index] = Some(input);
     }
     Ok(inputs)
+}
+
+pub(super) fn edit_package(
+    mut live: [u8; 256],
+    updates: &[Option<OemFanCurveInput>; 3],
+) -> [u8; 256] {
+    let edits = build_curve_package(updates);
+    for (index, _) in updates
+        .iter()
+        .enumerate()
+        .filter(|(_, update)| update.is_some())
+    {
+        let points = 2 + index * 4;
+        let slopes = 14 + index * 6;
+        live[points..points + 4].copy_from_slice(&edits[points..points + 4]);
+        live[slopes..slopes + 6].copy_from_slice(&edits[slopes..slopes + 6]);
+    }
+    live
+}
+
+pub(super) fn live_page_patches(profile: &FanProfile, package: &[u8; 256]) -> Vec<Patch> {
+    let mut patches = Vec::new();
+    for (index, fan) in profile
+        .fans
+        .iter()
+        .enumerate()
+        .filter(|(_, fan)| fan.present)
+    {
+        let (duty, temp, slope) = oem_page4_offsets(index);
+        let start = 14 + index * 6;
+        let mut slopes = package[start..start + 6].to_vec();
+        for word in slopes.chunks_exact_mut(2) {
+            word.swap(0, 1);
+        }
+        patches.extend([
+            Patch::new(
+                duty,
+                [
+                    fan.d1_pct as u8,
+                    fan.d2_pct as u8,
+                    fan.d3_pct as u8,
+                    oem_duty_percent(fan.d4),
+                ],
+            ),
+            Patch::new(temp, [fan.t1 as u8, fan.t2 as u8, fan.t3 as u8, fan.t4]),
+            Patch::new(slope, slopes),
+        ]);
+    }
+    patches
 }
 
 pub fn page_patches(inputs: &[Option<OemFanCurveInput>; 3]) -> Vec<Patch> {
@@ -253,12 +281,21 @@ mod tests {
     fn recorded_two_fan_packet_does_not_hide_all_fans_on_zero_bitmap() {
         let mut packet = [0u8; 256];
         packet[12] = 2;
+        packet[14] = 2;
         packet[16..32].copy_from_slice(&[
             51, 58, 60, 82, 80, 84, 100, 255, 55, 71, 60, 74, 80, 94, 99, 255,
         ]);
-        let profile = decode(&packet, &[0; 256], &[0; 256]).unwrap();
+        let profile = decode(&packet, &[0; 256]).unwrap();
         assert_eq!(profile.fans.iter().filter(|f| f.present).count(), 2);
-        let inputs = prepare(&profile, [None, None, None]).unwrap();
+        let wanted = OemCurvePoints {
+            t2: 61.0,
+            d2: 32.0,
+            t3: 79.0,
+            d3: 33.0,
+        };
+        let inputs = prepare(&profile, [Some(wanted), None, None]).unwrap();
+        assert!(inputs[0].is_some());
+        assert!(inputs[1].is_none());
         assert!(inputs[2].is_none());
         assert!(!page_patches(&inputs).iter().any(|p| p.offset >= 52));
     }
@@ -285,10 +322,11 @@ mod tests {
     fn only_declared_modes_and_curve_layout_are_exposed() {
         let mut packet = [0; 256];
         packet[12] = 2;
+        packet[14] = 2;
         let mut capabilities = [0; 256];
         capabilities[0] = 1;
         capabilities[20] = 0x11;
-        let profile = decode(&packet, &[0; 256], &capabilities).unwrap();
+        let profile = decode(&packet, &capabilities).unwrap();
         assert_eq!(profile.available_modes, [0, 1, 8]);
         assert!(!profile.custom_supported);
         assert!(prepare(&profile, [None; 3]).is_err());

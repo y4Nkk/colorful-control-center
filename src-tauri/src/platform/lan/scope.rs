@@ -46,8 +46,8 @@ impl Scope<'_> {
     }
     fn available(&self, hal: &Hal, allow_software: bool) -> Result<()> {
         hal.ensure_mode_change_allowed()?;
-        if !allow_software && crate::fanctl::software::read(hal)?.is_some() {
-            bail!("请先退出软件风扇曲线，再请求网络策略系统授权");
+        if !allow_software && crate::fanctl::software::active(hal)? {
+            bail!("请先确认软件风扇已归还，再请求网络策略系统授权");
         }
         self.environment()?.ensure_owner_absent()
     }
@@ -164,13 +164,11 @@ impl Scope<'_> {
         Ok(&mut prepared.session)
     }
     fn pause(&mut self, hal: &Hal, allow_software: bool) -> Result<()> {
-        if allow_software {
+        if allow_software && crate::fanctl::software::active(hal)? {
             if self.paused.is_none() {
                 self.paused = crate::fanctl::software::read(hal)?;
             }
-            if self.paused.is_some() {
-                crate::fanctl::software::stop_safely(hal)?;
-            }
+            crate::fanctl::software::stop_safely(hal)?;
         }
         Ok(())
     }
@@ -195,9 +193,7 @@ impl Scope<'_> {
         plan.operation.plans(&frame, &record)?;
         self.available(hal, allow_software)?;
         self.session(plan)?;
-        if let Err(error) = self.pause(hal, allow_software) {
-            return combine(Err(error), self.resume(hal), "恢复软件风扇");
-        }
+        self.pause(hal, allow_software)?;
         let result = (|| -> Result<()> {
             let session = self.session(plan)?;
             let result = session.execute();
@@ -231,9 +227,7 @@ impl Scope<'_> {
         }
         self.available(hal, allow_software)?;
         self.session(plan)?;
-        if let Err(error) = self.pause(hal, allow_software) {
-            return combine(Err(error), self.resume(hal), "恢复软件风扇");
-        }
+        self.pause(hal, allow_software)?;
         let result = (|| {
             let session = self.session(plan)?;
             let result = session.rollback();

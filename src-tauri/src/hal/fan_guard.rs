@@ -1,11 +1,30 @@
 use super::*;
 
 impl Hal {
+    pub(crate) fn direct_fan_reader(&self) -> Option<firmware::ReadDirectControl> {
+        if !self.reviewed_dsdt {
+            return None;
+        }
+        #[cfg(test)]
+        if self.test_fan_control.is_some() {
+            return self.test_fan_control;
+        }
+        firmware::DIRECT_FAN_READER
+    }
+
+    pub(crate) fn software_fan_supported(&self) -> bool {
+        self.direct_fan_reader().is_some()
+    }
+
     pub(crate) fn fan_recovery_pending(&self) -> bool {
         self.fan_recovery_needed.load(Ordering::SeqCst)
     }
 
     pub fn arm_fan_guard(&self) -> Result<()> {
+        anyhow::ensure!(
+            self.software_fan_supported(),
+            firmware::FAN_CONTROL_UNVERIFIED
+        );
         self.pulse_fan_guard()?;
         let mut guard = self
             .fan_guard
@@ -57,32 +76,33 @@ impl Hal {
             .fan_guard
             .lock()
             .map_err(|_| anyhow!("风扇监护状态异常"))?;
-        if guard.is_none() && !self.fan_recovery_needed.load(Ordering::SeqCst) {
+        anyhow::ensure!(!self.fan_recovery_pending(), "风扇监护仍在恢复");
+        let Some(client) = guard.as_mut() else {
             return Ok(());
-        }
-        let result = guard
-            .as_mut()
-            .map(|client| client.disarm())
-            .unwrap_or(Ok(()));
+        };
+        anyhow::ensure!(
+            self.software_progress
+                .lock()
+                .map_err(|_| anyhow!("软件曲线进度异常"))?
+                .is_none(),
+            "软件曲线仍在运行，不能解除监护"
+        );
+        let result = self
+            .with_dchu(|d| firmware::verify_direct_release(d, self.direct_fan_reader()))
+            .and_then(|_| client.disarm());
         self.fan_recovery_needed
             .store(result.is_err(), Ordering::SeqCst);
         if result.is_ok() {
             guard.take();
+        } else {
+            client.stop_heartbeats();
+            self.latch_software_fan_fault();
         }
         *self.safety.lock().map_err(|_| anyhow!("监护状态不可用"))? = match &result {
             Ok(()) => "固件控制".into(),
             Err(error) => format!("风扇监护退出异常：{error:#}"),
         };
-        result?;
-        if self
-            .software_progress
-            .lock()
-            .map_err(|_| anyhow!("软件曲线进度异常"))?
-            .is_none()
-        {
-            self.record_software_fan_stopped()?;
-        }
-        Ok(())
+        result
     }
 
     pub fn pulse_fan_guard(&self) -> Result<()> {
@@ -151,7 +171,7 @@ impl Hal {
             self.latch_software_fan_fault();
         }
         let result = self
-            .with_dchu(|d| crate::watchdog::restore_auto(d, self.reviewed_dsdt))
+            .with_dchu(|d| crate::watchdog::restore_auto(d, self.direct_fan_reader()))
             .and_then(|_| {
                 let recorded = self.record_software_fan_stopped();
                 self.fan_recovery_needed.store(false, Ordering::SeqCst);

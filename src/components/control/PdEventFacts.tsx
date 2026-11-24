@@ -14,7 +14,7 @@ export function PdEventFacts({ profile, busy, run }: Props) {
         {pd ? <dl className="ccc-pd-event-details">
           <div><dt>当前档位</dt><dd>{pd.currentValid ? pdLevelText(pd.currentLevel, pd.zeroBased) : "未识别"}</dd></div>
           <div><dt>适配器报告功率</dt><dd>{pd.adapterWatts === null ? "未报告" : `${pd.adapterWatts} W`}</dd></div>
-          <div><dt>当前候选</dt><dd>{pd.availableLevels.map(level => pdLevelText(level, pd.zeroBased)).join("、")}</dd></div>
+          <div><dt>可选档位</dt><dd>{pd.availableLevels.map(level => pdLevelText(level, pd.zeroBased)).join("、")}</dd></div>
         </dl> : <p className="ccc-control-caption">PD 状态当前不可读取。</p>}
         {profile.error && <p className="ccc-control-error">{profile.error}</p>}
       </Surface>
@@ -22,9 +22,9 @@ export function PdEventFacts({ profile, busy, run }: Props) {
         <strong>事件目标与恢复</strong>
         {pd ? <>
           <p>触发后设置：{pdLevelText(1, pd.zeroBased)}</p>
-          <p className="ccc-control-caption">原厂事件使用固定编号；执行前重新核对适配器与候选。</p>
+          <p className="ccc-control-caption">原厂事件使用固定的档位编号；执行前会再核对一次适配器和可选档位。</p>
           {pd.initial && <>
-            <p className="ccc-control-caption">初始恢复：{pd.currentValid ? pdLevelText(pd.currentLevel, pd.zeroBased) : "未知"} → {pdLevelText(pd.initial.value, pd.initial.zeroBased)}</p>
+            <p className="ccc-control-caption">恢复接管前的档位：{pd.currentValid ? pdLevelText(pd.currentLevel, pd.zeroBased) : "未知"} → {pdLevelText(pd.initial.value, pd.initial.zeroBased)}</p>
             {pd.restoreBlockedReason && <p className="ccc-control-error">{pd.restoreBlockedReason}</p>}
             <ConfirmButton icon="undo" key={`${pd.revision}-${pd.blockedReason}-${pd.restoreBlockedReason}`} variant="secondary"
               label="恢复初始 PD 档位" confirmLabel="确认停止监听并恢复初始 PD 档位？" busy={busy}

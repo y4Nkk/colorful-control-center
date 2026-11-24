@@ -5,6 +5,7 @@ interface SliderProps extends Pick<ComponentProps<"input">, "id" | "aria-label" 
   min: number;
   max: number;
   value: number;
+  busy?: boolean;
   appearance?: "hue";
   marker?: { value: number; label: string };
   magnetInterval?: number;
@@ -35,9 +36,11 @@ function tickPositions(min: number, max: number, magnetInterval?: number) {
   return Array.from({ length: ticks }, (_, index) => index / (ticks - 1));
 }
 
-export function Slider({ appearance, min, max, value, marker, magnetInterval, disabled = false,
+export function Slider({ appearance, min, max, value, marker, magnetInterval, disabled = false, busy = false,
   onChange, onCommit, onCancel, ...props }: SliderProps) {
-  const { input, rail, dragging, pointer, keyboard } = useSliderInput({ min, max, magnetInterval, disabled, onChange, onCommit, onCancel });
+  const { input, rail, dragging, pointer, keyboard } = useSliderInput({
+    min, max, magnetInterval, disabled: disabled || busy, onChange, onCommit, onCancel,
+  });
   const ratio = progress(value, min, max);
   const thumb = position(ratio);
   const style = {
@@ -47,7 +50,7 @@ export function Slider({ appearance, min, max, value, marker, magnetInterval, di
   const ticks = appearance === "hue" ? [] : tickPositions(min, max, magnetInterval);
 
   return <div className="ccc-range" data-appearance={appearance} data-disabled={disabled || undefined}
-    data-dragging={dragging || undefined} style={style} {...pointer}>
+    data-busy={busy && !disabled || undefined} data-dragging={dragging || undefined} style={style} {...pointer}>
     <div className="ccc-range-track" aria-hidden="true">
       {appearance !== "hue" && <span className="ccc-range-fill" />}
       <span ref={rail} className="ccc-range-ticks">
@@ -59,6 +62,6 @@ export function Slider({ appearance, min, max, value, marker, magnetInterval, di
       aria-hidden="true" title={marker.label} />}
     <span className="ccc-range-thumb" aria-hidden="true" />
     <input {...props} {...keyboard} ref={input} className="ccc-range-input" type="range"
-      min={min} max={max} step={1} value={value} disabled={disabled} />
+      min={min} max={max} step={1} value={value} disabled={disabled} aria-disabled={busy && !disabled || undefined} />
   </div>;
 }

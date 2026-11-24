@@ -58,7 +58,7 @@ impl PowerAccess for Memory {
 fn snapshot() -> StoredModeSnapshot {
     serde_json::from_value(serde_json::json!({
         "core":{"mode":2,"command":2,"preferences":[0,0],"acMode":null},
-        "fan":{"software":null,"package":null,"rpmPairs":[],"fields":[{"offset":5,"data":[0]},{"offset":7,"data":[0]}],"mode":0,"offset":0},
+        "fan":{"software":null,"package":null,"rpmPairs":null,"fields":[{"offset":5,"data":[0]},{"offset":7,"data":[0]}],"mode":0,"offsetRaw":0},
         "system":{"active":format!("{:032x}", SCHEMES[0]),"aspm":{"381b4222f69441f09685ff5bb260df2e":[0,1]}},"energy":{"hardwarePState":true,"energyStar":null}
     })).unwrap()
 }
@@ -78,7 +78,7 @@ fn fixture() -> (Memory, Review, StoredModeSnapshot) {
         dtt: false,
         fan_mode: 0,
         fan_saved_mode: 0,
-        fan_offset_pct: 0,
+        fan_offset_pct: Some(0),
         aspm: Some([2, 2]),
         power_plan: Some(2),
     };

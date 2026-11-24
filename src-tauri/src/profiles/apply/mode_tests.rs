@@ -260,27 +260,48 @@ fn custom_saved_fan(f: &Fixture) {
 fn default_fan_reset_synchronizes_defaults_and_is_fully_reversible() {
     let f = Fixture::new();
     custom_saved_fan(&f);
+    {
+        let mut state = f.device.0.lock().unwrap();
+        state.offset_raw = 77;
+        state.pages[4][7] = 20;
+        state.pages[4][77] = 15;
+    }
     let original = f.device.0.lock().unwrap().pages[4];
     let _write = f.hal.begin_write().unwrap();
     fanctl::restore_default(&f.hal).unwrap();
     {
         let state = f.device.0.lock().unwrap();
         assert_eq!(state.pages[4][73], 0);
+        assert_eq!(
+            (state.offset_raw, state.pages[4][7], state.pages[4][77]),
+            (0, 0, 0)
+        );
         assert_eq!(&state.pages[4][16..20], &[20, 40, 80, 100]);
     }
     fanctl::restore_initial(&f.hal).unwrap();
-    assert_eq!(f.device.0.lock().unwrap().pages[4], original);
+    let state = f.device.0.lock().unwrap();
+    assert_eq!(state.pages[4], original);
+    assert_eq!(state.offset_raw, 77);
 }
 #[test]
 fn default_command_failure_retains_original_fan_state_and_recovery_path() {
     let f = Fixture::new();
     custom_saved_fan(&f);
     let original = f.device.0.lock().unwrap().pages[4];
-    f.device.0.lock().unwrap().fail_default = true;
+    {
+        let mut state = f.device.0.lock().unwrap();
+        state.fan_mode = 1;
+        state.fail_default = true;
+    }
     let _write = f.hal.begin_write().unwrap();
     assert!(fanctl::restore_default(&f.hal).is_err());
-    assert_eq!(f.device.0.lock().unwrap().pages[4], original);
-    assert!(f.hal.recovery().unwrap().fan_mode.is_some());
+    {
+        let state = f.device.0.lock().unwrap();
+        assert_eq!(state.pages[4], original);
+        assert_eq!(state.fan_mode, 1);
+        assert_eq!(state.fan_command, Some(1));
+    }
+    assert!(f.hal.recovery().unwrap().fan.is_some());
 }
 
 #[test]

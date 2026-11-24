@@ -22,7 +22,7 @@ export function LightBarSettings({ active, revision }: { active: boolean; revisi
   return <Surface as="section" variant="group" className="ccc-panel" aria-label="独立灯条">
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="lighting" />独立灯条</h2>
       <div className="ccc-module-tools">{profile && <DetailsDialog title="灯条诊断" label="详情">
-        <p className="ccc-control-caption">{profile.kind.toUpperCase()}</p>{profile.warnings.map(warning => <p key={warning} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{warning}</p>)}
+        <p className="ccc-control-caption">灯条型号 {profile.kind.toUpperCase()}</p>{profile.warnings.map(warning => <p key={warning} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{warning}</p>)}
       </DetailsDialog>}
       <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取独立灯条" disabled={busy} onClick={model.reread} /></div>
     </div>

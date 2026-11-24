@@ -12,6 +12,12 @@ impl Hal {
             .map(|s| s.clone())
             .unwrap_or_else(|_| "监护异常".into());
         match self.software_fan_safety.lock() {
+            Ok(journal) if journal.active() && !self.software_fan_supported() => {
+                format!(
+                    "软件风扇归还未证实。{}",
+                    super::firmware::FAN_CONTROL_UNVERIFIED
+                )
+            }
             Ok(journal) => match journal.reason() {
                 Some(reason) if !status.contains(&reason) => format!("{status}；{reason}"),
                 _ => status,
@@ -71,6 +77,14 @@ impl Hal {
             .lock()
             .map_err(|_| anyhow!("软件风扇恢复记录状态异常"))?
             .stopped()
+    }
+
+    pub(crate) fn software_fan_release_unverified(&self) -> Result<bool> {
+        Ok(self
+            .software_fan_safety
+            .lock()
+            .map_err(|_| anyhow!("软件风扇恢复记录状态异常"))?
+            .active())
     }
 
     pub(crate) fn acknowledge_software_fan_restart(&self) -> Result<()> {

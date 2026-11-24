@@ -7,7 +7,7 @@ import { modeCycleFixture } from "./mode-cycle-fixture.mjs";
 const panel = page => page.getByRole("region", { name: "原厂热键与屏显", exact: true });
 const dialog = (page, name) => page.getByRole("dialog", { name, exact: true });
 const details = page => dialog(page, "热键状态与诊断");
-const modeReview = page => dialog(page, "电源模式循环联动预览");
+const modeReview = page => dialog(page, "电源模式循环会改动什么");
 const preview = page => modeReview(page).getByRole("region", { name: "电源模式循环GPU预览", exact: true });
 const edit = page => panel(page).getByRole("button", { name: "配置热键", exact: true }).click();
 const openDetails = page => panel(page).getByRole("button", { name: "详情", exact: true }).click();
@@ -23,7 +23,7 @@ async function setup(page, off = false) {
   await editor.getByRole("checkbox", { name: "电源模式循环", exact: true }).check();
   await editor.getByRole("button", { name: "完成编辑", exact: true }).click();
   await openDetails(page);
-  await details(page).getByRole("button", { name: "电源模式循环联动预览", exact: true }).click();
+  await details(page).getByRole("button", { name: "电源模式循环会改动什么", exact: true }).click();
 }
 
 test("热键模式循环展示全部供电目标及独显阶段，确认只启用监听", async ({ page }) => {
@@ -35,7 +35,7 @@ test("热键模式循环展示全部供电目标及独显阶段，确认只启�
   await expect(saving.getByRole("row", { name: /^电池/ }).getByRole("cell").first()).toHaveText("900");
   await expect(preview(page).getByRole("region", { name: "性能循环目标", exact: true })).toContainText("切换前 · 确保开启");
   const driver = preview(page).getByRole("region", { name: "驱动范围", exact: true });
-  await expect(driver).toContainText("可编辑");
+  await expect(driver).toContainText("可调整");
   await close(modeReview(page));
   await close(details(page));
   await previewConfiguration(page, "原厂热键与屏显");
@@ -47,7 +47,7 @@ test("热键模式循环展示全部供电目标及独显阶段，确认只启�
 
 test("关闭独显时不补造频率，驱动预检错误保留事实并禁用旧确认", async ({ page }) => {
   await setup(page, true);
-  await expect(preview(page).getByText("开启后核对频率", { exact: true })).toBeVisible();
+  await expect(preview(page).getByText("开启独显后再读取频率", { exact: true })).toBeVisible();
   const recovery = preview(page).getByRole("region", { name: "设备与恢复说明", exact: true });
   await expect(recovery).toContainText("独显已关闭；驱动范围和实际频率");
   await expect(preview(page).getByText(/^图形锁频：/)).toHaveCount(0);

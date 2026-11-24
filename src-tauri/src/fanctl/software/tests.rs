@@ -28,7 +28,13 @@ fn curves() -> Curves {
 
 fn sample(cpu: Option<f64>, gpu: Option<f64>) -> HardwareSnapshot {
     HardwareSnapshot {
-        cpu_temp_c: cpu,
+        fan: ccc_core::fan_sensors::FanReadings {
+            cpu: ccc_core::fan_sensors::FanReading {
+                temp_c: cpu,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
         nvidia: Some(NvidiaSnapshot {
             temp_c: gpu,
             ..Default::default()

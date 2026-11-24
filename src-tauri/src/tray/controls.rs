@@ -100,7 +100,7 @@ fn read_fans(hal: &Hal, blocked: Option<String>) -> Result<Fans> {
 
 fn temperatures(hardware: &HardwareSnapshot) -> String {
     let gpu = hardware.nvidia.as_ref().and_then(|value| value.temp_c);
-    let readings = [("CPU", hardware.cpu_temp_c), ("GPU", gpu)]
+    let readings = [("CPU", hardware.fan.cpu.temp_c), ("GPU", gpu)]
         .into_iter()
         .filter_map(|(name, value)| {
             value
@@ -204,11 +204,7 @@ struct FanPreview {
 }
 
 fn fan_access(hal: &Hal) -> Result<()> {
-    ensure!(
-        !hal.fan_recovery_pending(),
-        "风扇监护正在恢复，暂不接受新的控制"
-    );
-    fanctl::dust::ensure_manual_allowed(hal)
+    fanctl::ensure_manual_allowed(hal)
 }
 
 fn fan_preview(hal: &Hal, target: u8) -> Result<FanPreview> {

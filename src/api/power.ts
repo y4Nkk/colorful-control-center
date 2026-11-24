@@ -59,7 +59,7 @@ export interface OemModeTarget {
   dtt: boolean;
   fanMode: number;
   fanSavedMode: number;
-  fanOffsetPct: number;
+  fanOffsetPct: number | null;
   aspm: [number, number] | null;
   powerPlan: number | null;
 }

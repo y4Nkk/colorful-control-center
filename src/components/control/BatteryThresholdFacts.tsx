@@ -17,13 +17,13 @@ export function BatteryThresholdFacts({ profile, busy, run }: Props) {
     <strong>原厂低电量阈值</strong>
     <div className="ccc-battery-threshold-columns">
       <Surface variant="inset" className="ccc-battery-threshold-part">
-        <strong>当前计划 · 插电 / 电池</strong>
+        <strong>各电源计划的阈值 · 插电 / 电池</strong>
         {current ? <>
           {current.plans.map(plan => <div key={plan.id} className="ccc-battery-threshold-plan">
-            <span>{powerPlanName(plan.id)}{plan.id === current.active ? " · 当前活动" : ""}</span>
+            <span>{powerPlanName(plan.id)}{plan.id === current.active ? " · 当前使用" : ""}</span>
             <span className="ccc-control-caption">{values(plan)}</span>
           </div>)}
-          <p className="ccc-control-caption">原厂缓存：{current.cache.map(value => `${value}%`).join(" / ")}</p>
+          <p className="ccc-control-caption">电脑记录的阈值：{current.cache.map(value => `${value}%`).join(" / ")}</p>
         </> : <p className="ccc-control-caption">计划阈值当前不可读取。</p>}
         {profile.error && <p className="ccc-control-error"><Icon name="error" size={16} />{profile.error}</p>}
       </Surface>
@@ -31,17 +31,17 @@ export function BatteryThresholdFacts({ profile, busy, run }: Props) {
         <strong>事件目标</strong>
         <div className="ccc-battery-threshold-targets">{targets.map((target, index) =>
           <MetricReadout key={names[index]} label={names[index]} value={target} maximum={100} unit="%" colorVar="var(--ccc-action)" />)}</div>
-        <DetailsDialog title="阈值作用范围"><p>接管后对活动计划和存在的标准计划分别设置插电与电池阈值；不创建缺失计划。</p></DetailsDialog>
+        <DetailsDialog title="阈值作用范围"><p>接管后，本软件会把上面的目标写进当前使用的电源计划和电脑上已有的标准电源计划，插电和用电池各设一组。电脑上原本没有的电源计划不会被创建。</p></DetailsDialog>
       </Surface>
     </div>
     {(recovery || profile.restoreError) && <Surface variant="inset" className="ccc-battery-threshold-part">
-      <strong>初始恢复目标</strong>
+      <strong>恢复接管前的值</strong>
       {recovery && <>
         <div className="ccc-battery-threshold-recovery-plans">{recovery.baseline.plans.map((plan, index) => <div key={plan.id} className="ccc-battery-threshold-plan">
           <span>{powerPlanName(plan.id)}</span>
           <span className="ccc-control-caption">{plan.values.map((pair, level) => `${names[level]} ${pair.map((value, supply) => recovery.owned[index][level][supply] ? `${recovery.current[index].values[level][supply]}→${value}%` : "保留").join(" / ")}`).join(" · ")}</span>
         </div>)}</div>
-        <p className="ccc-control-caption">恢复只修改本应用接管字段及缓存，保留其他计划和字段。</p>
+        <p className="ccc-control-caption">恢复只改回本软件接管过的阈值和电脑记录的值，其他电源计划和其他设置保持不变。</p>
       </>}
       {profile.restoreError && <p className="ccc-control-error"><Icon name="error" size={16} />{profile.restoreError}</p>}
       {recovery && <ConfirmButton icon="undo" key={profile.restoreRevision ?? "battery-restore-unavailable"} variant="secondary"

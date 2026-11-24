@@ -28,6 +28,7 @@ impl Memory {
         pages[1][1] = 2;
         let mut info = [0; 256];
         info[12] = 4;
+        info[14] = 2;
         info[50] = 15;
         let pairs = [40, 42]
             .into_iter()

@@ -222,11 +222,11 @@ pub fn read(hal: &Hal) -> Result<ModeProfile> {
         })
     })?;
     profile.blocked_reason = profile.blocked_reason.or_else(|| {
-        crate::fanctl::dust::ensure_manual_allowed(hal)
+        crate::fanctl::ensure_manual_allowed(hal)
             .err()
             .map(|e| format!("{e:#}"))
     });
-    profile.software_active = crate::fanctl::software::read(hal)?.is_some();
+    profile.software_active = crate::fanctl::software::active(hal)?;
     Ok(profile)
 }
 

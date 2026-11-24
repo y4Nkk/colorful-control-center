@@ -22,8 +22,8 @@ export function AutostartSetting({ active, busy }: { active: boolean; busy: bool
         onChange={value => void model.apply(value as AutostartLevel)} />
     </SettingRow>
     <DetailsDialog title="自启权限说明">
-      <p>当前进程 · {model.snapshot ? model.snapshot.elevated ? "管理员权限" : "普通权限" : "未知"}</p>
-      <p>管理员登录启动会在登录后沿用管理员权限。更改自启需要 Windows 授权。</p>
+      <p>本软件当前的权限 · {model.snapshot ? model.snapshot.elevated ? "管理员权限" : "普通权限" : "未知"}</p>
+      <p>选择「管理员登录启动」后，软件在登录 Windows 后会以管理员权限运行。修改登录自启方式时，需要通过 Windows 的授权确认。</p>
     </DetailsDialog>
     {level && model.snapshot?.legacy && <Button size="compact" variant="secondary" disabled={locked}
       onClick={() => void model.apply(level)}>转换旧登录项</Button>}

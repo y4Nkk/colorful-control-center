@@ -8,6 +8,7 @@
   cursor: pointer;
 }
 .ccc-range[data-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
+.ccc-range[data-busy="true"] { cursor: not-allowed; }
 .ccc-range-track {
   position: absolute;
   inset-inline: 0;
@@ -49,7 +50,7 @@
   transition: opacity var(--ccc-motion-range) var(--ccc-easing), scale var(--ccc-motion-fast) var(--ccc-easing-press);
 }
 .ccc-range-tick[data-filled="true"] { opacity: 0; }
-.ccc-range:hover:not([data-disabled]) .ccc-range-tick[data-filled="false"] { scale: 1.08; }
+.ccc-range:hover:not([data-disabled], [data-busy]) .ccc-range-tick[data-filled="false"] { scale: 1.08; }
 .ccc-range-thumb {
   left: var(--range-position);
   width: var(--ccc-range-thumb);
@@ -64,7 +65,7 @@
   height: var(--ccc-space-3);
   border: 2px solid var(--ccc-text-muted);
 }
-.ccc-range:hover:not([data-disabled]) .ccc-range-thumb { box-shadow: var(--ccc-range-shadow-hover); }
+.ccc-range:hover:not([data-disabled], [data-busy]) .ccc-range-thumb { box-shadow: var(--ccc-range-shadow-hover); }
 .ccc-range[data-dragging] { --range-motion: 0ms; }
 .ccc-range[data-dragging] .ccc-range-thumb { scale: 0.96; }
 .ccc-range:has(.ccc-range-input:focus-visible) .ccc-range-thumb { box-shadow: var(--ccc-range-shadow), var(--ccc-focus-shadow); }

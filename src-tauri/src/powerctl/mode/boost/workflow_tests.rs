@@ -120,6 +120,7 @@ fn confirmed_custom_curve_handoff_applies_quiet_in_both_modes() {
             state.bios[20] |= 1;
             state.bios[21] |= 1;
             state.pages[4][5] = FAN_MODE_CUSTOM;
+            state.fan_mode = FAN_MODE_CUSTOM;
             state.pages[4][70 + usize::from(mode)] = FAN_MODE_CUSTOM;
             state.pages[4][9] = u8::from(mode == 3);
         }
@@ -180,7 +181,7 @@ fn entertainment_noiseless_remembers_its_own_preference_across_mode_changes() {
     }
     let quiet = fanctl::read_profile(&f.hal).unwrap();
     assert_eq!(quiet.current_mode, FAN_MODE_NOISELESS);
-    assert_eq!(quiet.saved_mode, FAN_MODE_AUTO);
+    assert_eq!(f.device.0.lock().unwrap().pages[4][5], FAN_MODE_AUTO);
     assert_eq!(quiet.offset_slot, Some(3));
     super::super::checkpoint(&f.hal, 2)
         .unwrap()
@@ -199,6 +200,7 @@ fn entertainment_noiseless_can_switch_off_after_save_failure() {
         state.bios[20] |= 1;
         state.pages[4][8] = 1;
         state.pages[4][9] = 1;
+        state.fan_mode = FAN_MODE_NOISELESS;
         state.fail_option_save = Some((4, 9));
     }
     let _gate = f.hal.begin_write().unwrap();
@@ -244,7 +246,7 @@ fn hot_performance_selection_applies_remembered_noiseless_mode_and_offset() {
         .find(|target| target.mode == 2)
         .unwrap();
     assert_eq!(target.fan_mode, FAN_MODE_NOISELESS);
-    assert_eq!(target.fan_offset_pct, 20);
+    assert_eq!(target.fan_offset_pct, Some(20));
     super::super::apply_preview(&f.hal, &target).unwrap();
     assert!(!f.hal.fan_guard_armed().unwrap());
     let state = f.device.0.lock().unwrap();

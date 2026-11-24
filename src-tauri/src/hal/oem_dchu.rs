@@ -11,6 +11,8 @@ const DLL_PATH: &str = "C:\\Program Files (x86)\\ControlCenter\\DCHU\\InsydeDCHU
 const OUTPUT_CAPACITY: usize = 1025; // 0x40C ACPI 输出容器，含 DLL 的尾随复制。
 #[path = "oem_dchu/capabilities.rs"]
 mod capabilities;
+#[path = "oem_dchu/fan.rs"]
+mod fan;
 
 type GetInt = unsafe extern "system" fn(command: i32, data: *mut i32) -> i32;
 type GetBuf = unsafe extern "system" fn(command: i32, buffer: *mut u8) -> i32;
@@ -188,7 +190,8 @@ impl Dchu {
     /// SetWMIPackage：256 字节整包写。
     pub fn set_package(&self, command: i32, package: &[u8; 256]) -> Result<()> {
         let status = unsafe { (self.set_data)(command, package.as_ptr(), 256) };
-        check_status(status, command, &format!("SetWMIPackage(cmd={command})"))
+        let expected = if command == 0x0e { 0x14 } else { command };
+        check_status(status, expected, &format!("SetWMIPackage(cmd={command})"))
     }
 
     /// WriteAppSettings(page, offset, data)。

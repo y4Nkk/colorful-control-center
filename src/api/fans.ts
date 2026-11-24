@@ -15,7 +15,7 @@ export interface StoredFanCheckpoint {
   rpmPairs: { query: number; tables: [number[], number[]] }[] | null;
   fields: { offset: number; data: number[] }[];
   mode: number;
-  offset: number;
+  offsetRaw: number | null;
 }
 
 export interface FanPointSet {
@@ -36,8 +36,9 @@ export interface FanProfile {
   availableModes: number[];
   fanCount: number;
   customSupported: boolean;
+  customBlockedReason: string | null;
   currentMode: number;
-  offsetPct: number;
+  offsetPct: number | null;
   offsetSlot: number | null;
   offsetBlockedReason: string | null;
   fans: FanPointSet[];

@@ -1,5 +1,5 @@
-.ccc-fan-panel-head { display: grid; justify-items: start; }
-.ccc-fan-panel-help { padding-inline-start: calc(20px + var(--ccc-space-2)); }
+.ccc-fan-panel-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; justify-items: start; }
+.ccc-fan-panel-help { grid-column: 1 / -1; padding-inline-start: calc(20px + var(--ccc-space-2)); }
 
 .ccc-fan-layout, .ccc-fan-details {
   display: grid;

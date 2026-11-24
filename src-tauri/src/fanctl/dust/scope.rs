@@ -30,7 +30,7 @@ impl Controller {
     pub fn read(&self, hal: &Hal) -> Result<Option<Profile>> {
         let mut scope = self.scope()?;
         let _gate = hal.begin_write()?;
-        let software = super::super::software::read(hal)?.is_some();
+        let software = super::super::software::active(hal)?;
         let blocked = hal
             .ensure_mode_change_allowed()
             .err()
@@ -43,21 +43,21 @@ impl Controller {
         let mut scope = self.scope()?;
         let _gate = hal.begin_write()?;
         hal.ensure_mode_change_allowed()?;
-        let software = super::super::software::read(hal)?.is_some();
+        let software = super::super::software::active(hal)?;
         hal.with_dchu(|io| start(io, &mut scope.state, software, expected))
     }
     pub fn apply(&self, hal: &Hal, request: &Request) -> Result<()> {
         let mut scope = self.scope()?;
         let _gate = hal.begin_write()?;
         hal.ensure_mode_change_allowed()?;
-        let software = super::super::software::read(hal)?.is_some();
+        let software = super::super::software::active(hal)?;
         hal.with_dchu(|io| apply(io, &mut scope.state, software, request))
     }
     pub fn restore(&self, hal: &Hal, expected: &str) -> Result<()> {
         let mut scope = self.scope()?;
         let _gate = hal.begin_write()?;
         hal.ensure_mode_change_allowed()?;
-        let software = super::super::software::read(hal)?.is_some();
+        let software = super::super::software::active(hal)?;
         hal.with_dchu(|io| restore(io, &mut scope.state, software, expected))
     }
 }
@@ -98,15 +98,12 @@ impl Scope<'_> {
         needs_rollback: &mut bool,
     ) -> Result<()> {
         hal.ensure_mode_change_allowed()?;
-        if plan.schedule.enabled() && super::super::software::read(hal)?.is_some() {
+        if plan.schedule.enabled() && super::super::software::active(hal)? {
             bail!("软件风扇曲线仍运行，未启用除尘计划");
         }
         hal.with_dchu(|io| {
             let current = capture(io)?.context("档案中的除尘能力已丢失")?;
-            if current.capability != plan.before.capability
-                || current.saved != plan.before.saved
-                || current.running
-            {
+            if current.saved != plan.before.saved || current.running {
                 bail!("除尘计划或运行状态已变化，请重新预览档案");
             }
             transaction::apply_tracked(
@@ -120,15 +117,9 @@ impl Scope<'_> {
     }
     pub(crate) fn rollback(&self, hal: &Hal, plan: &Plan) -> Result<()> {
         hal.ensure_mode_change_allowed()?;
-        if !plan.restores_before_fan() && super::super::software::read(hal)?.is_some() {
+        if !plan.restores_before_fan() && super::super::software::active(hal)? {
             bail!("软件风扇曲线尚未退出，除尘恢复快照保留待重试");
         }
-        hal.with_dchu(|io| {
-            let current = capture(io)?.context("原除尘能力已丢失，恢复快照保留")?;
-            if current.capability != plan.before.capability || current.running {
-                bail!("除尘能力或运行状态已变化，恢复快照保留");
-            }
-            transaction::recover(io, &plan.before.saved)
-        })
+        hal.with_dchu(|io| transaction::recover(io, &plan.before.saved))
     }
 }

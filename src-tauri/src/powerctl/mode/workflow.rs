@@ -67,7 +67,7 @@ pub(super) fn checkpoint_options(
 }
 fn prepare(hal: &Hal, wanted: u8, options: Option<&boost::Values>, entry: Entry) -> Result<Plan> {
     hal.ensure_mode_change_allowed()?;
-    fanctl::dust::ensure_manual_allowed(hal)?;
+    fanctl::ensure_manual_allowed(hal)?;
     let (core, target, preferences, energy) = configured(hal, wanted, options, entry)?;
     if target.dtt
         && (!matches!(entry, Entry::Options { .. })
@@ -81,10 +81,21 @@ fn prepare(hal: &Hal, wanted: u8, options: Option<&boost::Values>, entry: Entry)
     if !fan_profile.available_modes.contains(&target.fan_mode) {
         bail!("原厂分模式风扇策略未被当前固件声明支持");
     }
-    if target.fan_mode == 6 && fan_profile.curve_kind == fanctl::CurveKind::TwoPoint {
-        fanctl::validate_curve(hal, [None; 3])?;
+    boost::validate_fan(
+        target.mode,
+        target.turbo,
+        boost::FanTarget::Firmware(target.fan_mode),
+    )?;
+    if target.fan_mode == fanctl::FAN_MODE_CUSTOM {
+        fanctl::validate_custom_table(hal, &fan_profile)?;
     }
     let fan = fan_checkpoint(hal, core.mode, entry)?;
+    if !matches!(entry, Entry::Options { .. })
+        && target.fan_offset_pct.is_some()
+        && fan.offset().is_none()
+    {
+        bail!("无法确认切换前的 EC 风扇偏移");
+    }
     let system = system::capture(hal.system_power.as_ref(), &target)?;
     Ok(Plan {
         target,
@@ -197,7 +208,7 @@ impl Plan {
     ) -> Result<()> {
         self.reset_attempted();
         hal.ensure_mode_change_allowed()?;
-        fanctl::dust::ensure_manual_allowed(hal)?;
+        fanctl::ensure_manual_allowed(hal)?;
         self.review(hal)?;
         permit()?;
         let previous_baseline = hal.recovery()?.oem_mode.clone();
@@ -269,8 +280,11 @@ impl Plan {
         )?;
         permit()?;
         fanctl::apply_mode_policy(hal, self.target.fan_saved_mode, self.target.fan_mode)?;
-        permit()?;
-        fanctl::set_mode_offset(hal, u32::from(self.target.fan_offset_pct))
+        if let Some(offset) = self.target.fan_offset_pct {
+            permit()?;
+            fanctl::set_mode_offset(hal, u32::from(offset))?;
+        }
+        Ok(())
     }
     pub fn restore(&self, hal: &Hal) -> Result<()> {
         recover_snapshot(hal, &self.before)
@@ -321,7 +335,7 @@ pub(super) fn restore_snapshot(hal: &Hal, before: &Snapshot) -> Result<()> {
 }
 fn recover_snapshot(hal: &Hal, before: &Snapshot) -> Result<()> {
     hal.ensure_mode_change_allowed()?;
-    fanctl::dust::ensure_manual_allowed(hal)?;
+    fanctl::ensure_manual_allowed(hal)?;
     let current_energy = energy::review_restore(hal, before.energy);
     // 模式先恢复，风扇快照最后恢复；系统恢复的失败不跳过其他域。
     let mut errors = Vec::new();

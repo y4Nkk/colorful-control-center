@@ -46,16 +46,6 @@ pub fn decode(saved: &[u8; 5]) -> Result<Option<Schedule>> {
         _ => bail!("未知除尘计划保存标记"),
     }
 }
-pub fn supported(page: &[u8]) -> Result<bool> {
-    if page.len() != 12 {
-        bail!("除尘能力页长度无效");
-    }
-    match &page[..2] {
-        [0, 0] => Ok(false),
-        [1, 0] => Ok(page[10] & 128 != 0),
-        _ => bail!("未知除尘能力页版本"),
-    }
-}
 pub fn clock(weekday: u16, hour: u16, minute: u16, second: u16) -> Result<u32> {
     if weekday > 6 || hour > 23 || minute > 59 || second > 59 {
         bail!("除尘计划的本地时钟无效");

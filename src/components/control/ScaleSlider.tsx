@@ -17,6 +17,7 @@ interface ScaleSliderProps {
   /** 草稿值（滑块位置） */
   draft: number;
   disabled?: boolean;
+  busy?: boolean;
   /** 后端未上报该通道：显示"未上报"并禁用 */
   unavailable?: boolean;
   onChange: (value: number) => void;
@@ -25,7 +26,7 @@ interface ScaleSliderProps {
 }
 
 export function ScaleSlider({
-  label, unit, min, max, magnetInterval, current, draft, disabled = false, unavailable = false, onChange, onCommit, onCancel,
+  label, unit, min, max, magnetInterval, current, draft, disabled = false, busy = false, unavailable = false, onChange, onCommit, onCancel,
 }: ScaleSliderProps) {
   const dirty = !onCommit && !unavailable && draft !== current;
   return (
@@ -55,6 +56,7 @@ export function ScaleSlider({
         value={unavailable ? min : draft}
         marker={dirty ? { value: current, label: `当前 ${fmtInt(current)} ${unit}` } : undefined}
         disabled={disabled || unavailable}
+        busy={busy}
         aria-label={label}
         aria-valuetext={unavailable ? "未上报" : `${fmtInt(draft)} ${unit}`}
         onChange={onChange}

@@ -132,20 +132,18 @@ fn options_preflight(
     settings: &ProfileSettings,
     mode: Option<&powerctl::mode::Plan>,
 ) -> Result<Option<powerctl::mode::boost::Plan>> {
-    let Some(values) = &settings.performance_options else {
-        return Ok(None);
-    };
     powerctl::mode::boost::validate_profile(
         hal,
-        values,
+        settings.performance_options.as_ref(),
         mode,
         super::super::model::fan_target(settings),
     )?;
-    if mode.is_some() {
-        Ok(None)
-    } else {
-        Ok(Some(powerctl::mode::boost::Plan::prepare(hal, values)?))
-    }
+    settings
+        .performance_options
+        .as_ref()
+        .filter(|_| mode.is_none())
+        .map(|values| powerctl::mode::boost::Plan::prepare(hal, values))
+        .transpose()
 }
 
 fn fan_preflight(
@@ -158,7 +156,7 @@ fn fan_preflight(
     if settings.fan_mode.is_none() && !include_curve && settings.fan_software_curves.is_none() {
         return Ok(None);
     }
-    fanctl::dust::ensure_manual_allowed(hal)?;
+    fanctl::ensure_manual_allowed(hal)?;
     let profile = fanctl::read_profile(hal)?;
     if let Some(curves) = &settings.fan_software_curves {
         if awaiting_gpu {
@@ -183,16 +181,7 @@ fn fan_preflight(
     } else if let Some(curves) = &settings.fan_rpm_curves {
         fanctl::rpm::validate(hal, curves)?;
     } else if settings.fan_mode == Some(6) {
-        if profile.curve_kind == fanctl::CurveKind::RpmTable {
-            let curves = profile
-                .rpm_fans
-                .iter()
-                .map(|f| (f.id.clone(), f.points))
-                .collect();
-            fanctl::rpm::validate(hal, &curves)?;
-        } else {
-            fanctl::validate_curve(hal, points(settings))?;
-        }
+        fanctl::validate_custom_table(hal, &profile)?;
     }
     Ok(Some(fanctl::checkpoint(
         hal,
@@ -209,7 +198,7 @@ fn dust_preflight(
         || (settings.fan_mode.is_none()
             && settings.fan_curves.is_none()
             && settings.fan_rpm_curves.is_none()
-            && fanctl::software::read(hal)?.is_some());
+            && fanctl::software::active(hal)?);
     settings
         .dust_schedule
         .map(|schedule| devices.dust.prepare(hal, schedule, software_after))

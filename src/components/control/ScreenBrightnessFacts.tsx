@@ -21,21 +21,21 @@ export function ScreenBrightnessFacts({ profile, busy, run }: Props) {
       ]} />
       </div>
       <p className="ccc-control-caption" aria-label="原厂屏幕亮度触发目标">
-        原厂触发目标：{current.targets.map((value, index) => `第${index + 1}项 ${value}%`).join(" · ")}
+        触发时电脑会设置的亮度：{current.targets.map((value, index) => `第${index + 1}项 ${value}%`).join(" · ")}
       </p>
-      {current.targets.includes(0) && <p className="ccc-control-caption">目标包含 0%，触发后屏幕可能极暗，请在确认接管前核对。</p>}
+      {current.targets.includes(0) && <p className="ccc-control-caption">目标里有 0%：触发后屏幕可能变得非常暗，确认接管前请留意。</p>}
     </> : <p className="ccc-control-caption">本次屏幕亮度报告不可用。</p>}
     {profile.error && <p className="ccc-control-error">{profile.error}</p>}
     {profile.initial.map(initial => <div className="ccc-screen-brightness-initial" key={initial.plan}>
-      <p className="ccc-control-caption">初始恢复 · {powerPlanName(initial.plan)}</p>
+      <p className="ccc-control-caption">恢复接管前的值 · {powerPlanName(initial.plan)}</p>
       <FactList compact facts={(["插电", "电池"] as const).map((label, index) => ({
-        label, value: initial.owned[index] ? `${initial.current ? `${initial.current[index]}%` : "未知"} → ${initial.original[index]}%` : "未接管，保留当前值",
+        label, value: initial.owned[index] ? `${initial.current ? `${initial.current[index]}%` : "未知"} → ${initial.original[index]}%` : "本软件未改动，保留当前值",
       }))} />
       {initial.error && <p className="ccc-control-error">{initial.error}</p>}
     </div>)}
     {profile.restoreError && <p className="ccc-control-error">{profile.restoreError}</p>}
     {profile.initial.length > 0 && <>
-      <span className="ccc-control-caption">恢复时停止本次监听 · 保留软件策略</span>
+      <span className="ccc-control-caption">恢复时会停止本次监听，已保存的热键设置保持不变</span>
       <ConfirmButton icon="undo" key={profile.restoreRevision ?? JSON.stringify(profile.initial)} variant="secondary"
         label="恢复初始屏幕计划亮度" confirmLabel="确认停止监听并恢复上述亮度？" busy={busy} disabled={!profile.restoreRevision}
         onConfirm={() => run(() => restoreScreenBrightness(profile.restoreRevision!), "初始屏幕计划亮度已恢复", false)} />

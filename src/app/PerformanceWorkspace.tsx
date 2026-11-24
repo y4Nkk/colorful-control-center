@@ -40,18 +40,16 @@ export function PerformanceWorkspace({ active, model, fanRequest }: HardwareWork
     };
   }, [active, fanRequest]);
   return <div className="ccc-control" ref={workspace}>
-    <OemPowerMode active={active} revision={revisions.mode} onSettled={() => model.refreshOthers("mode")} />
-    <OemPerformanceOptions active={active} revision={revisions.options} onSettled={() => model.refreshOthers("options")} />
+    <OemPowerMode active={active} revision={revisions.mode} onSettled={() => model.refreshAfterControl("mode")} />
+    <OemPerformanceOptions active={active} revision={revisions.options} onSettled={() => model.refreshAfterControl("options")} />
     <div className="ccc-module-grid">
-      <PowerPanel active={active} revision={revisions.power} onSettled={() => model.refreshOthers("power")} />
-      <GpuTuning active={active} revision={revisions.gpu} onSettled={() => model.refreshOthers("gpu")} />
+      <PowerPanel active={active} revision={revisions.power} />
+      <GpuTuning active={active} revision={revisions.gpu} onSettled={() => model.refreshAfterControl("gpu")} />
     </div>
     <div ref={fanSettings} className="ccc-control" tabIndex={-1}>
-      <FanPanel active={active} revision={revisions.fan} onSettled={() => model.refreshOthers("fan")}
-        live={model.history.stale ? null : model.history.live} />
-      <FanDust active={active} revision={revisions.fan + revisions.mode} onSettled={() => model.setRevisions(previous => ({
-        ...previous, fan: previous.fan + 1, mode: previous.mode + 1, options: previous.options + 1,
-      }))} />
+      <FanPanel active={active} revision={revisions.fan} onSettled={() => model.refreshAfterControl("fan")}
+        live={model.history.live} stale={model.history.stale} />
+      <FanDust active={active} revision={revisions.dust} onSettled={() => model.refreshAfterControl("dust")} />
     </div>
   </div>;
 }

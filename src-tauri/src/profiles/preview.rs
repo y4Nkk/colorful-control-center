@@ -44,14 +44,12 @@ pub(super) fn checkpoint_mode(
                     settings.gpu.is_some() || settings.fan_software_curves.is_some(),
                 )?,
             };
-            if let Some(values) = &settings.performance_options {
-                powerctl::mode::boost::validate_profile(
-                    context.hal,
-                    values,
-                    Some(&plan.core),
-                    model::fan_target(settings),
-                )?;
-            }
+            powerctl::mode::boost::validate_profile(
+                context.hal,
+                settings.performance_options.as_ref(),
+                Some(&plan.core),
+                model::fan_target(settings),
+            )?;
             Ok(plan)
         })
         .transpose()

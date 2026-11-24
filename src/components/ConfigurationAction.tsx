@@ -11,17 +11,19 @@ type ActionOptions = {
   applyLabel?: string;
   revision: string;
   disabled?: boolean;
+  blocked?: boolean;
   restore?: boolean;
   children?: ReactNode;
   onConfirm: Commit;
 };
 
-export function ConfigurationAction({ label, applyLabel = "应用更改", revision, disabled, restore, children, onConfirm }: ActionOptions) {
+export function ConfigurationAction({ label, applyLabel = "应用更改", revision, disabled, blocked, restore, children, onConfirm }: ActionOptions) {
   const active = useContext(WorkspaceActivity);
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
+  const unavailable = disabled || blocked;
   const submit = async () => {
-    if (!active || disabled || running.current) return;
+    if (!active || unavailable || running.current) return;
     running.current = true;
     setBusy(true);
     try { await onConfirm(); }
@@ -31,11 +33,11 @@ export function ConfigurationAction({ label, applyLabel = "应用更改", revisi
   if (!active || (disabled && !busy)) return null;
   if (restore) return <div className="ccc-actions" data-module-restore={label}>
     <ConfirmButton key={revision} label={`恢复${label}`} confirmLabel="确认恢复" icon="undo" size="compact"
-      busy={busy} disabled={disabled} onConfirm={submit}>{children}</ConfirmButton>
+      busy={busy} disabled={unavailable} onConfirm={submit}>{children}</ConfirmButton>
   </div>;
   return <section className="ccc-module-action ccc-review-section" aria-label={`${label} · ${applyLabel}`} data-module-action={label} aria-busy={busy}>
     {children}
     <div className="ccc-actions"><Button icon={busy ? "loading" : "check"} data-configuration-apply="" aria-busy={busy || undefined}
-      disabled={busy || disabled} onClick={() => void submit()}>{applyLabel}</Button></div>
+      disabled={busy || unavailable} onClick={() => void submit()}>{applyLabel}</Button></div>
   </section>;
 }

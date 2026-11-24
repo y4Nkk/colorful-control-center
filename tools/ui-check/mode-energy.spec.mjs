@@ -68,7 +68,7 @@ test("档案复用节能预览和首次恢复，后续失败补偿实际前态",
   await page.evaluate(() => { window.__uiFixture.profile.settings.oemPowerMode = 1; });
   await selectProfile(page);
   const review = await showProfileSettings(page);
-  await expect(review.getByLabel("模式联动目标")).toContainText("固件节能值 1");
+  await expect(review.getByLabel("模式联动目标")).toContainText("电脑节能等级 1");
   await previewConfiguration(page);
   expect(await calls(page, "apply_profile")).toHaveLength(0);
   await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
@@ -95,7 +95,7 @@ test("启动选择包含节能目标但不执行模式", async ({ page }) => {
   await startup.getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
   const parameters = await openStartupParameters(page);
-  await expect(parameters.getByLabel("模式联动目标")).toContainText("固件节能值 1");
+  await expect(parameters.getByLabel("模式联动目标")).toContainText("电脑节能等级 1");
   await page.keyboard.press("Escape");
   await submitConfiguration(configurationView(page));
   expect((await calls(page, "set_startup_profile"))[0].args.expected.settings.oemPowerMode).toBe(1);

@@ -28,7 +28,7 @@ export function TouchpadSettings({ active, revision }: { active: boolean; revisi
     <div className="ccc-panel-head"><h2 id="touchpad-heading" className="ccc-panel-title"><Icon name="touchpad" />触摸板</h2>
       <div className="ccc-module-tools">
         <DetailsDialog title="触摸板详情" label="详情">
-          {current && <FactList compact facts={[{ label: "系统触摸板", value: stateText(current.enabled) }, { label: "保存偏好", value: savedText(current.saved) }]} />}
+          {current && <FactList compact facts={[{ label: "Windows 当前状态", value: stateText(current.enabled) }, { label: "电脑保存的设置", value: savedText(current.saved) }]} />}
           {profile?.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
           {error && <p className="ccc-control-error"><Icon name="error" size={16} />{error}</p>}
         </DetailsDialog>

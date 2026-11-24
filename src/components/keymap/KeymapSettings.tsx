@@ -30,10 +30,10 @@ export function KeymapSettings({ active, revision = 0 }: { active: boolean; revi
       <div className="ccc-module-tools">
         <DetailsDialog title="映射详情" label="详情">
           {profile && <FactList compact facts={[
-            { label: "来源", value: profile.sourceName },
+            { label: "映射来源", value: profile.sourceName },
             { label: "键盘映射", value: profile.enabledFlags[0] ? "开启" : "关闭" },
             { label: "鼠标映射", value: profile.enabledFlags[1] ? "开启" : "关闭" },
-            { label: "恢复目标", value: profile.baselineName ?? "首次应用前记录原配置" },
+            { label: "恢复目标", value: profile.baselineName ?? "首次应用前的原配置" },
           ]} />}
           {profile?.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
           {profile?.warnings.map(warning => <p key={warning} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{warning}</p>)}

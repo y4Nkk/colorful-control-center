@@ -112,7 +112,7 @@ fn software_process_lan_resumes_the_curve_selected_by_an_earlier_profile_step() 
     fanctl::set_mode(hal, 0).unwrap();
 }
 #[test]
-fn software_process_lan_stop_failure_recovers_the_curve_before_any_network_write() {
+fn software_process_lan_stop_failure_leaves_recovery_to_the_guard_without_network_writes() {
     let f = Fixture::new();
     let hal = f.hal();
     let lan = lan::test_fixture::Fixture::new();
@@ -132,12 +132,18 @@ fn software_process_lan_stop_failure_recovers_the_curve_before_any_network_write
         let mut touched = false;
         assert!(scope.execute(hal, &plan, &mut touched, true).is_err());
         assert!(!touched);
-        assert_eq!(fanctl::software::read(hal).unwrap(), Some(wanted));
+        assert!(fanctl::software::read(hal).unwrap().is_none());
+        assert!(fanctl::software::active(hal).unwrap());
+        assert!(hal.fan_recovery_pending());
         assert_eq!(lan.io.executions.load(Ordering::SeqCst), 0);
         assert!(!lan.path().exists());
     }
     scope.finish().unwrap();
+    f.wait_guard_exit();
+    hal.supervise_fan_guard().unwrap();
     fanctl::software::tick(hal).unwrap();
+    assert!(!fanctl::software::active(hal).unwrap());
+    assert!(hal.ensure_software_fan_restart_allowed().is_err());
     let _gate = hal.begin_write().unwrap();
     fanctl::set_mode(hal, 0).unwrap();
 }

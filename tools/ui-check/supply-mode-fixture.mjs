@@ -27,10 +27,10 @@ export function supplyModeFixture() {
 }
 export function supplyRecoveryFixture() {
   const fan = { software: null, package: null, rpmPairs: [{ query: 40, tables: [Array(112).fill(30), Array(112).fill(50)] }],
-    fields: [{ offset: 5, data: [0] }, { offset: 7, data: [5] }], mode: 0, offset: 5 };
+    fields: [{ offset: 5, data: [0] }, { offset: 7, data: [5] }], mode: 0, offsetRaw: 13 };
   const clocks = supplyModeFixture().review.clocks.driver.current;
   return { currentMode: 2, initialMode: 3, currentAcMode: null, initialAcMode: null, currentTurbo: true, initialTurbo: false, currentDtt: true, initialDtt: false,
-    currentFan: fan, initialFan: { ...fan, fields: [{ offset: 5, data: [8] }, { offset: 7, data: [0] }], mode: 8, offset: 0 },
+    currentFan: fan, initialFan: { ...fan, fields: [{ offset: 5, data: [8] }, { offset: 7, data: [0] }], mode: 8, offsetRaw: 0 },
     currentFanMode: 0, initialFanMode: 8, currentFanOffset: 5, initialFanOffset: 0,
     currentSoftwareFan: false, initialSoftwareFan: false, fanSavedSettingsChanged: true,
     currentSystem: ["8c5e7fdae8bf4a969a85a6e23a8c635c", [0, 0]], initialSystem: ["381b4222f69441f09685ff5bb260df2e", [1, 2]],

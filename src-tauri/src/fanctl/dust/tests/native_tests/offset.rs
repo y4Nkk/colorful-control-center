@@ -39,6 +39,7 @@ fn noiseless_fan_offset_only_updates_the_offset_and_its_slot() {
         w.pages[7][21] = 1;
         w.pages[1][1] = 3;
         w.pages[4][5] = FAN_MODE_NOISELESS;
+        w.fan_mode_bits = 0x40;
         w.pages[4][7] = 20;
         w.pages[4][9] = 1;
         w.pages[4][73] = FAN_MODE_NOISELESS;
@@ -53,7 +54,7 @@ fn noiseless_fan_offset_only_updates_the_offset_and_its_slot() {
     let profile = fanctl::read_profile(&hal).unwrap();
     assert_eq!(
         (profile.current_mode, profile.offset_pct),
-        (FAN_MODE_NOISELESS, 50)
+        (FAN_MODE_NOISELESS, Some(50))
     );
     wire(|w| {
         assert_eq!(w.writes, [(121, vec![128, 0, 0, 14])]);
@@ -70,6 +71,7 @@ fn manual_offset_rechecks_mode_capability_and_software_before_any_write() {
     let expected = wire(|w| {
         w.pages[7][20] = 1;
         w.pages[4][5] = FAN_MODE_NOISELESS;
+        w.fan_mode_bits = 0x40;
         w.pages[4]
     });
     assert!(
@@ -78,7 +80,7 @@ fn manual_offset_rechecks_mode_capability_and_software_before_any_write() {
             .to_string()
             .contains("档位已变化")
     );
-    wire(|w| w.pages[4][5] = 1);
+    wire(|w| w.fan_mode_bits = 0x10);
     assert!(
         fanctl::set_manual_offset(&hal, source(FAN_MODE_AUTO, None), 50)
             .unwrap_err()
@@ -86,7 +88,7 @@ fn manual_offset_rechecks_mode_capability_and_software_before_any_write() {
             .contains("仅自动或寂静")
     );
     wire(|w| {
-        w.pages[4][5] = FAN_MODE_NOISELESS;
+        w.fan_mode_bits = 0x40;
         w.pages[7][11] = 4;
     });
     assert!(
@@ -118,7 +120,7 @@ fn manual_offset_rechecks_mode_capability_and_software_before_any_write() {
             .contains("软件接管")
     );
     assert!(fanctl::software::read(&hal).unwrap().is_some());
-    assert!(hal.recovery().unwrap().fan_mode.is_none());
+    assert!(hal.recovery().unwrap().fan.is_none());
     wire(|w| {
         assert!(w.writes.is_empty());
         assert_eq!(w.pages[4], expected);
@@ -126,7 +128,7 @@ fn manual_offset_rechecks_mode_capability_and_software_before_any_write() {
 }
 
 #[test]
-fn entertainment_quiet_is_effective_with_saved_auto_and_rejects_stale_auto() {
+fn entertainment_quiet_uses_the_ec_mode_and_rejects_stale_auto() {
     let hal = hal();
     let _gate = hal.begin_write().unwrap();
     wire(|w| {
@@ -138,8 +140,12 @@ fn entertainment_quiet_is_effective_with_saved_auto_and_rejects_stale_auto() {
     assert_eq!((auto.current_mode, auto.offset_slot), (FAN_MODE_AUTO, None));
 
     wire(|w| w.pages[4][9] = 1);
+    assert_eq!(
+        fanctl::read_profile(&hal).unwrap().current_mode,
+        FAN_MODE_AUTO
+    );
+    wire(|w| w.fan_mode_bits = 0x40);
     let quiet = fanctl::read_profile(&hal).unwrap();
-    assert_eq!(quiet.saved_mode, FAN_MODE_AUTO);
     assert_eq!(quiet.current_mode, FAN_MODE_NOISELESS);
     assert!(quiet.offset_blocked_reason.is_none());
     assert_eq!(
@@ -150,7 +156,7 @@ fn entertainment_quiet_is_effective_with_saved_auto_and_rejects_stale_auto() {
     let error = fanctl::set_manual_offset(&hal, stale, 50).unwrap_err();
     assert!(error.to_string().contains("档位已变化"));
     wire(|w| assert!(w.writes.is_empty()));
-    assert!(hal.recovery().unwrap().fan_mode.is_none());
+    assert!(hal.recovery().unwrap().fan.is_none());
 
     fanctl::set_manual_offset(&hal, source(FAN_MODE_NOISELESS, None), 50).unwrap();
     wire(|w| {
@@ -182,7 +188,7 @@ fn stale_offset_slot_is_rejected_even_when_mode_and_offset_match() {
     assert_eq!(performance.offset_pct, entertainment.offset_pct);
     let error = fanctl::set_manual_offset(&hal, source(FAN_MODE_AUTO, Some(2)), 50).unwrap_err();
     assert!(error.to_string().contains("记忆槽已变化"));
-    assert!(hal.recovery().unwrap().fan_mode.is_none());
+    assert!(hal.recovery().unwrap().fan.is_none());
     wire(|w| {
         assert!(w.writes.is_empty());
         assert_eq!(w.pages[4][7], 20);
@@ -201,6 +207,8 @@ fn partial_slot_save_failure_reissues_the_previous_offset_and_retains_first_base
         w.pages[7][21] = 1;
         w.pages[1][1] = 2;
         w.pages[4][5] = FAN_MODE_NOISELESS;
+        w.fan_mode_bits = 0x40;
+        w.offset_raw = 77;
         w.pages[4][7] = 20;
         w.pages[4][76] = 20;
     });
@@ -211,23 +219,19 @@ fn partial_slot_save_failure_reissues_the_previous_offset_and_retains_first_base
     });
     let error =
         fanctl::set_manual_offset(&hal, source(FAN_MODE_NOISELESS, Some(2)), 50).unwrap_err();
-    assert!(error.to_string().contains("已重新下发写入前的风扇偏移"));
+    assert!(error.to_string().contains("已恢复"));
     wire(|w| {
-        assert_eq!((w.pages[4][5], w.pages[4][7], w.pages[4][76]), (0, 40, 40));
+        assert_eq!((w.pages[4][5], w.pages[4][7], w.pages[4][76]), (8, 40, 40));
         assert_eq!(
-            w.writes[..2],
+            w.writes,
             [(121, vec![128, 0, 0, 14]), (121, vec![102, 0, 0, 14])]
         );
-        assert_eq!(w.writes.last().unwrap(), &(121, vec![0, 0, 0, 1]));
         w.writes.clear();
     });
     fanctl::restore_initial(&hal).unwrap();
     wire(|w| {
         assert_eq!((w.pages[4][5], w.pages[4][7], w.pages[4][76]), (8, 20, 20));
-        assert_eq!(
-            w.writes,
-            [(121, vec![51, 0, 0, 14]), (121, vec![8, 0, 0, 1])]
-        );
+        assert_eq!(w.writes, [(121, vec![77, 0, 0, 14])]);
     });
 }
 
@@ -237,14 +241,17 @@ fn offset_compensation_failure_is_reported_alongside_the_save_error() {
     let _gate = hal.begin_write().unwrap();
     wire(|w| {
         w.pages[4][7] = 20;
+        w.offset_raw = 77;
         w.offset_save_failure = Some(7);
-        w.offset_command_failure = Some(51);
+        w.offset_command_failure = Some(77);
     });
     let error = fanctl::set_manual_offset(&hal, source(FAN_MODE_AUTO, None), 50).unwrap_err();
     let message = error.to_string();
     assert!(message.contains("offset=7"), "{message}");
-    assert!(message.contains("风扇偏移补偿失败"), "{message}");
-    assert!(message.contains("已恢复风扇自动模式"), "{message}");
+    assert!(
+        message.contains("即时偏移") && message.contains("恢复失败"),
+        "{message}"
+    );
     wire(|w| assert_eq!(w.pages[4][7], 20));
 }
 
@@ -259,6 +266,7 @@ fn entertainment_turbo_restores_auto_without_erasing_quiet_preference() {
         w.pages[7][20] = 1;
         w.pages[1][1] = 3;
         w.pages[4][7..10].copy_from_slice(&[20, 1, 1]);
+        w.offset_raw = 51;
     });
     hal.with_dchu(|d| {
         d.test_entertainment_options.store(true, Ordering::Relaxed);
@@ -271,17 +279,17 @@ fn entertainment_turbo_restores_auto_without_erasing_quiet_preference() {
         FAN_MODE_AUTO
     );
     fanctl::set_manual_offset(&hal, source(FAN_MODE_AUTO, None), 50).unwrap();
-    assert_eq!(hal.recovery().unwrap().fan_mode, Some(FAN_MODE_AUTO));
+    assert_eq!(
+        hal.recovery().unwrap().fan.as_ref().map(|fan| fan.mode()),
+        Some(FAN_MODE_AUTO)
+    );
     wire(|w| w.writes.clear());
     fanctl::restore_initial(&hal).unwrap();
     wire(|w| {
-        assert_eq!(
-            w.writes,
-            [(121, vec![51, 0, 0, 14]), (121, vec![0, 0, 0, 1])]
-        );
+        assert_eq!(w.writes, [(121, vec![51, 0, 0, 14])]);
         assert_eq!(&w.pages[4][7..10], &[20, 1, 1]);
     });
-    assert!(hal.recovery().unwrap().fan_mode.is_none());
+    assert!(hal.recovery().unwrap().fan.is_none());
 }
 
 #[test]

@@ -97,6 +97,7 @@ fn guard(config: &Config) -> Result<()> {
     protocol::run(
         protocol::read_lines(std::io::stdin()),
         || Some((50.0, None)),
+        || Ok(()),
         || {
             config.write("recovery-started", "1")?;
             config.wait("release-recovery")?;

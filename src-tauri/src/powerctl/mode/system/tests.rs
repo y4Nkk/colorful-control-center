@@ -97,7 +97,7 @@ fn fixture() -> (Memory, Target) {
         dtt: false,
         fan_mode: 0,
         fan_saved_mode: 0,
-        fan_offset_pct: 0,
+        fan_offset_pct: Some(0),
         aspm: Some([2, 2]),
         power_plan: Some(2),
     };

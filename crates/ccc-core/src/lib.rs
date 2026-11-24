@@ -7,6 +7,7 @@
 
 pub mod display_brightness;
 pub mod fan;
+pub mod fan_sensors;
 pub mod gpu_turbo;
 pub mod keymap;
 pub mod msr;

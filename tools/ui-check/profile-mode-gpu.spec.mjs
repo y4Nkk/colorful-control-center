@@ -33,7 +33,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("档案预览展示三阶段节点与延后频率，一次应用携带完整目标", async ({ page }) => {
-  await expect(gpu(page).getByText("开启后核对频率", { exact: true })).toBeVisible();
+  await expect(gpu(page).getByText("开启独显后再读取频率", { exact: true })).toBeVisible();
   const steps = gpu(page).getByRole("list", { name: "独显联动步骤", exact: true }).getByRole("listitem");
   await expect(steps).toHaveCount(3);
   await expect(steps.nth(0)).toContainText("准备开启");

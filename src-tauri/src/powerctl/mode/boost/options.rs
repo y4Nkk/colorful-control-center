@@ -63,7 +63,7 @@ impl Plan {
     }
     pub fn execute(&self, hal: &Hal, resume_software: bool, change: &mut Change) -> Result<()> {
         hal.ensure_mode_change_allowed()?;
-        crate::fanctl::dust::ensure_manual_allowed(hal)?;
+        fanctl::ensure_manual_allowed(hal)?;
         if revision(hal)? != self.revision {
             bail!("性能选项或驱动已变化，请重新预览");
         }
@@ -127,7 +127,7 @@ impl Plan {
     }
     pub fn rollback(&self, hal: &Hal, change: &mut Change, restore_fan: bool) -> Result<()> {
         hal.ensure_mode_change_allowed()?;
-        crate::fanctl::dust::ensure_manual_allowed(hal)?;
+        fanctl::ensure_manual_allowed(hal)?;
         let Some(plan) = &self.checkpoint else {
             return Ok(());
         };
@@ -189,7 +189,21 @@ pub(crate) enum FanTarget {
     Software,
 }
 pub(crate) fn validate_fan(mode: u8, turbo: bool, fan: FanTarget) -> Result<()> {
-    validate_active_fan(mode == 2 && turbo, fan)
+    validate_active_fan(matches!(mode, 2 | 3) && turbo, fan)
+}
+
+pub(crate) fn ensure_fan_allowed(hal: &Hal, fan: FanTarget) -> Result<()> {
+    hal.with_dchu(|io| ensure_fan_allowed_on(io, fan))
+}
+
+pub(crate) fn ensure_fan_allowed_on(io: &impl ModeIo, fan: FanTarget) -> Result<()> {
+    if matches!(
+        fan,
+        FanTarget::Firmware(FAN_MODE_CUSTOM | FAN_MODE_NOISELESS) | FanTarget::Software
+    ) {
+        validate_active_fan(turbo_enabled(io, current_mode(io)?)?, fan)?;
+    }
+    Ok(())
 }
 
 fn validate_active_fan(turbo: bool, fan: FanTarget) -> Result<()> {
@@ -208,10 +222,19 @@ fn validate_active_fan(turbo: bool, fan: FanTarget) -> Result<()> {
 }
 pub(crate) fn validate_profile(
     hal: &Hal,
-    values: &Values,
+    values: Option<&Values>,
     mode: Option<&super::super::Plan>,
     target: Option<FanTarget>,
 ) -> Result<()> {
+    let Some(values) = values else {
+        if let Some(target) = target {
+            if let Some(plan) = mode {
+                return validate_fan(plan.target.mode, plan.target.turbo, target);
+            }
+            return ensure_fan_allowed(hal, target);
+        }
+        return Ok(());
+    };
     values.validate()?;
     let current = hal.with_dchu(|io| preview(io, None))?;
     let preferences = values.preferences(current.core.preferences, current.caps)?;
@@ -219,7 +242,7 @@ pub(crate) fn validate_profile(
     let fan = match target {
         Some(target) => target,
         None if mode.is_some() => FanTarget::Firmware(mode.unwrap().target.fan_mode),
-        None if crate::fanctl::software::read(hal)?.is_some() => FanTarget::Software,
+        None if fanctl::software::active(hal)? => FanTarget::Software,
         None => FanTarget::Firmware(current.fan),
     };
     let turbo =

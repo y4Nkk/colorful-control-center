@@ -2,14 +2,11 @@ use super::*;
 use crate::hal::oem_dchu::Dchu;
 
 impl Io for Dchu {
-    fn running(&self) -> Result<bool> {
-        let mut packet = [0; 256];
-        packet[..7].copy_from_slice(&[1, 163, 0, 0, 0, 0, 184]);
-        match self.exchange_package(4, &packet)?[1] {
-            0 => Ok(false),
-            1 => Ok(true),
-            _ => bail!("固件除尘状态未识别"),
-        }
+    fn running(&self) -> Result<Option<bool>> {
+        self.dust_running()
+    }
+    fn fan_mode(&self) -> Result<u8> {
+        self.read_fan_mode().context("无法确认除尘前的风扇档位")
     }
     fn duties(&self) -> Result<[f64; 2]> {
         let packet = self.read_package(12)?;

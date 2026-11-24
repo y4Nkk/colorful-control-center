@@ -1,5 +1,5 @@
 //! 监护状态机与管道消息，不持有硬件；恢复操作由调用者提供。
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use ccc_core::safety::{RecoveryReason, recovery_reason};
 use std::{
     io::{BufRead, BufReader, Write},
@@ -23,6 +23,38 @@ pub fn read_lines(input: impl std::io::Read + Send + 'static) -> Receiver<String
     receive
 }
 
+type Temperature = Option<(f64, Option<f64>)>;
+
+pub fn monitor_samples(
+    mut sample: impl FnMut() -> Temperature + Send + 'static,
+) -> Result<impl FnMut() -> Temperature> {
+    let (send, receive) = mpsc::sync_channel(1);
+    std::thread::spawn(move || {
+        loop {
+            let reading = (Instant::now(), sample());
+            if matches!(
+                send.try_send(reading),
+                Err(mpsc::TrySendError::Disconnected(_))
+            ) {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(250));
+        }
+    });
+    let mut latest = receive
+        .recv_timeout(Duration::from_secs(2))
+        .context("监护首次传感采样超时")?;
+    Ok(move || {
+        if let Ok(reading) = receive.try_recv() {
+            latest = reading;
+        }
+        if latest.0.elapsed() >= Duration::from_secs(1) {
+            return None;
+        }
+        latest.1
+    })
+}
+
 fn output(value: &str) {
     let mut stdout = std::io::stdout().lock();
     // 父进程已被强杀时输出管道会关闭；报告失败不能阻断已经完成的恢复。
@@ -36,7 +68,8 @@ pub fn report_failure(message: &str) {
 
 pub fn run(
     input: Receiver<String>,
-    mut sample: impl FnMut() -> Option<(f64, Option<f64>)>,
+    mut sample: impl FnMut() -> Temperature,
+    verify_released: impl Fn() -> Result<()>,
     restore: impl Fn() -> Result<()>,
 ) -> Result<()> {
     let initial = sample().ok_or_else(|| anyhow!("传感器无效，未启用软件风扇曲线"))?;
@@ -57,6 +90,9 @@ pub fn run(
         let message = input.recv_timeout(Duration::from_millis(300));
         match message.as_deref() {
             Ok("DISARM") => {
+                if let Err(error) = verify_released() {
+                    return recover(&restore, &format!("UnverifiedRelease:{error:#}"));
+                }
                 output("DISARMED");
                 return Ok(());
             }
@@ -101,6 +137,11 @@ fn recover(restore: &impl Fn() -> Result<()>, reason: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn released() -> Result<()> {
+        Ok(())
+    }
+
     #[test]
     fn armed_disconnect_restores_once() {
         use std::cell::Cell;
@@ -111,6 +152,7 @@ mod tests {
         run(
             receive,
             || Some((50.0, Some(45.0))),
+            released,
             || {
                 restored.set(restored.get() + 1);
                 Ok(())
@@ -123,7 +165,13 @@ mod tests {
     fn unarmed_disconnect_never_writes() {
         let (send, receive) = mpsc::channel();
         drop(send);
-        run(receive, || Some((50.0, None)), || panic!("未 ARM 不应写入")).unwrap();
+        run(
+            receive,
+            || Some((50.0, None)),
+            released,
+            || panic!("未 ARM 不应写入"),
+        )
+        .unwrap();
     }
     #[test]
     fn overheat_recovers_without_waiting_for_timeout() {
@@ -137,6 +185,7 @@ mod tests {
                 count.set(count.get() + 1);
                 Some((if count.get() == 1 { 50.0 } else { 96.0 }, None))
             },
+            released,
             || Ok(()),
         )
         .unwrap();
@@ -147,7 +196,13 @@ mod tests {
         let (send, receive) = mpsc::channel();
         send.send("ARM".into()).unwrap();
         send.send("DISARM".into()).unwrap();
-        run(receive, || Some((50.0, None)), || panic!("已经解除监护")).unwrap();
+        run(
+            receive,
+            || Some((50.0, None)),
+            released,
+            || panic!("已经解除监护"),
+        )
+        .unwrap();
     }
 
     #[test]
@@ -160,6 +215,7 @@ mod tests {
         run(
             receive,
             || Some((50.0, first.replace(false).then_some(45.0))),
+            released,
             || {
                 restored.set(true);
                 Ok(())
@@ -184,6 +240,7 @@ mod tests {
                 calls.set(index + 1);
                 Some((50.0, (index == 1).then_some(45.0)))
             },
+            released,
             || {
                 restored.set(true);
                 Ok(())
@@ -204,6 +261,7 @@ mod tests {
         let result = run(
             receive,
             || first.replace(false).then_some((50.0, None)),
+            released,
             || {
                 attempts.set(attempts.get() + 1);
                 bail!("模拟驱动拒绝恢复")
@@ -221,6 +279,7 @@ mod tests {
         run(
             receive,
             || Some((50.0, None)),
+            released,
             || {
                 restored.set(true);
                 Ok(())
@@ -233,6 +292,36 @@ mod tests {
     #[test]
     fn initial_overheat_never_arms_or_writes() {
         let (_send, receive) = mpsc::channel();
-        assert!(run(receive, || Some((96.0, None)), || panic!("未 ARM 不应写入"),).is_err());
+        assert!(
+            run(
+                receive,
+                || Some((96.0, None)),
+                released,
+                || panic!("未 ARM 不应写入"),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn a_stalled_sampler_cannot_hold_the_recovery_loop() {
+        let (release, stalled) = mpsc::channel();
+        let mut first = true;
+        let sample = monitor_samples(move || {
+            if !std::mem::replace(&mut first, false) {
+                let _ = stalled.recv_timeout(Duration::from_secs(5));
+            }
+            Some((50.0, None))
+        })
+        .unwrap();
+        let (send, receive) = mpsc::channel();
+        send.send("ARM".into()).unwrap();
+        let start = Instant::now();
+        run(receive, sample, released, || {
+            release.send(()).unwrap();
+            Ok(())
+        })
+        .unwrap();
+        assert!(start.elapsed() < Duration::from_secs(3));
     }
 }

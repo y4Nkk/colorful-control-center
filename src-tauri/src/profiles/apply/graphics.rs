@@ -175,7 +175,7 @@ impl Plan {
             return Ok(());
         }
         permit()?;
-        if fanctl::software::read(hal)?.is_some() {
+        if fanctl::software::active(hal)? {
             *fan_touched = true;
             stage(steps, "退出软件风扇", fanctl::software::stop_safely(hal))?;
         }
@@ -195,8 +195,8 @@ impl Plan {
             if devices.mode.context.device()?.as_ref() != Some(&graph.final_device()) {
                 bail!("档案独显最终状态或显示用途已变化");
             }
-            if !graph.final_device().enabled && fanctl::software::read(hal)?.is_some() {
-                bail!("独显关闭后仍存在软件风扇控制");
+            if !graph.final_device().enabled && fanctl::software::active(hal)? {
+                bail!("独显关闭后仍有软件风扇控制或归还未证实");
             }
         }
         Ok(())

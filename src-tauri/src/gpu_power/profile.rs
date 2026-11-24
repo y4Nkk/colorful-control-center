@@ -78,7 +78,7 @@ impl scope::Scope<'_> {
         Ok(Review {
             before: current,
             target: target.values,
-            software_fan_running: crate::fanctl::software::read(hal)?.is_some(),
+            software_fan_running: crate::fanctl::software::read_for_handoff(hal)?.is_some(),
         })
     }
 }

@@ -14,7 +14,8 @@ export function Select(props: SelectProps) {
       role="combobox" aria-label={props.label} aria-expanded={model.open} aria-haspopup="listbox"
       aria-controls={model.open ? model.listId : undefined} aria-activedescendant={model.open ? model.activeId : undefined}
       data-placeholder={selected === undefined || undefined}
-      aria-disabled={props.disabled || undefined} tabIndex={props.disabled ? -1 : 0} onClick={model.toggle} onKeyDown={model.keyDown}>
+      aria-disabled={props.disabled || props.busy || undefined} aria-busy={props.busy && !props.disabled || undefined}
+      tabIndex={props.disabled ? -1 : 0} onClick={model.toggle} onKeyDown={model.keyDown}>
       <span style={selected?.style}>{selected?.label ?? props.placeholder ?? "请选择"}</span>
       <Icon name="chevron-down" size={16} />
     </Button>

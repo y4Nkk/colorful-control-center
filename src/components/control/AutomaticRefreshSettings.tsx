@@ -35,12 +35,12 @@ export function AutomaticRefreshSettings({ active, revision }: { active: boolean
   return <Surface as="section" variant="group" className="ccc-panel" aria-label="自动刷新率" aria-busy={busy || undefined}>
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="display" />自动刷新率</h2>
       <div className="ccc-module-tools"><DetailsDialog title="刷新率规则与恢复" label="详情">
-        {facts && <FactList compact facts={[{ label: "候选刷新率", value: `${facts.candidates.join(" / ")} Hz` }]} />}
-        <p>{facts?.customer === 5 ? "安静或省电时降低刷新率，离开后恢复。"
-          : "电池省电或静音增强时降低刷新率，按供电与模式恢复。"}</p>
-        <p>刷新率切换后有 15 秒试用时间。停用时恢复启用前的显示与保存设置。</p>
-        {facts?.candidates.some(rate => rate > 255) && <p>原厂保存字段上限为 255 Hz，恢复时可能选择最高候选。</p>}
-        {facts?.supplyModeSwitch && <p>供电切换时，等待性能模式更新后调整。</p>}
+        {facts && <FactList compact facts={[{ label: "可选刷新率", value: `${facts.candidates.join(" / ")} Hz` }]} />}
+        <p>{facts?.customer === 5 ? "切到「安静」或「省电」时降低刷新率，切回「娱乐」或「性能」时恢复。"
+          : "用电池且预设模式为「省电」或「静音增强」时降低刷新率。插拔电源或切换模式时，软件会按电脑的规则选择合适的刷新率。"}</p>
+        <p>每次自动切换刷新率后有 15 秒试用时间。关闭自动刷新率时，会把屏幕设置和电脑保存的设置恢复成启用前的样子。</p>
+        {facts?.candidates.some(rate => rate > 255) && <p>电脑能保存的刷新率最高为 255 Hz。恢复时，若保存值不在可选列表里，就会用屏幕支持的最高可选刷新率。</p>}
+        {facts?.supplyModeSwitch && <p>插拔电源时不直接调整，等预设模式切换完成后再调整。</p>}
         {issues.map(issue => <p key={issue} className="ccc-control-error"><Icon name="error" size={16} />{issue}</p>)}
       </DetailsDialog>
       {issues.length > 0 && <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取自动刷新率"

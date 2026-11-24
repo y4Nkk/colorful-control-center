@@ -21,7 +21,8 @@ pub struct Target {
     pub dtt: bool,
     pub fan_mode: u8,
     pub fan_saved_mode: u8,
-    pub fan_offset_pct: u8,
+    #[serde(deserialize_with = "Option::deserialize")]
+    pub fan_offset_pct: Option<u8>,
     pub aspm: Option<[u8; 2]>,
     pub power_plan: Option<u8>,
 }
@@ -56,12 +57,10 @@ pub(super) fn target_for(
     let [turbo_supported, dtt_supported] = super::boost::runtime_options(io, mode)?;
     let turbo = turbo_supported && byte(io, 4, 8)? == 1;
     let mut fan_mode = crate::fanctl::saved::remembered_mode(io, &caps, mode)?
-        .unwrap_or(if mode == 3 && info[14] == 5 { 5 } else { 0 });
-    let fan_offset_pct = if keep_fan {
-        byte(io, 4, 74 + slot)?
-    } else {
-        byte(io, 4, 7)?
-    };
+        .unwrap_or(if mode == 3 && info[14] == 0x01 { 5 } else { 0 });
+    let fan_offset_pct = crate::fanctl::offset_supported(io, &caps)?
+        .then(|| byte(io, 4, if keep_fan { 74 + slot } else { 7 }))
+        .transpose()?;
     if turbo && (mode == 3 || fan_mode == crate::fanctl::FAN_MODE_NOISELESS) {
         fan_mode = crate::fanctl::FAN_MODE_AUTO;
     }
@@ -75,7 +74,7 @@ pub(super) fn target_for(
         fan_mode = crate::fanctl::FAN_MODE_NOISELESS;
     }
     crate::fanctl::validate_mode(fan_mode)?;
-    if fan_offset_pct > 100 {
+    if fan_offset_pct.is_some_and(|pct| pct > 100) {
         bail!("原厂分模式风扇偏移超出范围");
     }
     let (aspm, power_plan) = if energy.is_some() || turbo_supported || dtt_supported {

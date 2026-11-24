@@ -5,6 +5,7 @@ mod transaction;
 use crate::hal::{Hal, oem_dchu::Dchu};
 use anyhow::{Result, anyhow, bail};
 use ccc_core::{
+    fan::decode_oem_fan_mode,
     rpm::{self, LEVELS, Pair, RpmPoint},
     settings::{self, Patch, SettingsAccess},
 };
@@ -44,7 +45,7 @@ impl RpmIo for Dchu {
         self.exchange_package(4, packet)
     }
     fn mode(&self, mode: u8) -> Result<()> {
-        self.set_data_sub(121, 1, u32::from(mode))
+        self.set_fan_mode_verified(mode)
     }
 }
 
@@ -70,8 +71,7 @@ fn capture(io: &impl RpmIo) -> Result<Snapshot> {
     if !(1..=4).contains(&info[12]) || bitmap == 0 || info[43] & 2 != 0 {
         bail!("RPM 风扇数量、存在位或自定义能力无效");
     }
-    let mode = read_byte(io, 4, 5)?;
-    super::validate_mode(mode)?;
+    let mode = decode_oem_fan_mode(info[14]).map_err(anyhow::Error::msg)?;
     let power_mode = read_byte(io, 1, 1)?;
     if power_mode > 4 {
         bail!("未知 OEM 电源模式，不能生成 RPM 表 ID");
@@ -169,14 +169,22 @@ pub fn validate(hal: &Hal, wanted: &Curves) -> Result<()> {
 }
 
 pub fn apply(hal: &Hal, wanted: &Curves) -> Result<()> {
-    super::dust::ensure_manual_allowed(hal)?;
+    super::ensure_manual_allowed(hal)?;
+    crate::powerctl::mode::boost::ensure_fan_allowed(
+        hal,
+        crate::powerctl::mode::boost::FanTarget::Firmware(super::FAN_MODE_CUSTOM),
+    )?;
     let before = checkpoint(hal)?;
     let targets = prepare(&before, wanted)?;
     commit(hal, before, targets, 6)
 }
 
 pub fn restore_default(hal: &Hal) -> Result<()> {
-    super::dust::ensure_manual_allowed(hal)?;
+    super::ensure_manual_allowed(hal)?;
+    crate::powerctl::mode::boost::ensure_fan_allowed(
+        hal,
+        crate::powerctl::mode::boost::FanTarget::Firmware(super::FAN_MODE_CUSTOM),
+    )?;
     let before = checkpoint(hal)?;
     let mut targets = before.pairs.clone();
     for pair in &mut targets {
@@ -193,17 +201,11 @@ pub fn restore_default(hal: &Hal) -> Result<()> {
 }
 
 fn commit(hal: &Hal, before: Snapshot, targets: Vec<Pair>, mode: u8) -> Result<()> {
-    {
-        let mut recovery = hal.recovery()?;
-        recovery
-            .rpm_fan_pairs
-            .get_or_insert_with(|| before.pairs.clone());
-        recovery.fan_mode.get_or_insert(before.mode);
-        settings::remember(&mut recovery.fan_page, before.saved.clone());
-    }
+    let saved = super::checkpoint(hal, false)?.with_rpm_tables(before.pairs.clone());
+    anyhow::ensure!(saved.mode() == before.mode, "EC 风扇档位已变化，请重新读取");
     super::software::stop_safely(hal)?;
-    let result = hal.with_dchu(|io| transaction::apply(io, &before, &targets, mode));
-    super::fail_safe(hal, result)
+    super::checkpoint::remember_baseline(hal, &saved)?;
+    hal.with_dchu(|io| transaction::apply(io, &before, &targets, mode))
 }
 
 pub fn restore_pairs(io: &Dchu, pairs: &[Pair]) -> Result<()> {

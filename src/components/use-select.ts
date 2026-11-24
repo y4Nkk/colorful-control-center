@@ -9,6 +9,7 @@ export interface SelectProps {
   options: readonly SelectOption[];
   size?: "default" | "compact";
   disabled?: boolean;
+  busy?: boolean;
   placeholder?: string;
   searchLabel?: string;
   loading?: boolean;
@@ -48,7 +49,8 @@ function useSelectDismiss(open: boolean, trigger: RefObject<HTMLButtonElement | 
 }
 
 export function useSelect(props: SelectProps) {
-  const { options, value, disabled, searchLabel } = props;
+  const { options, value, searchLabel } = props;
+  const disabled = props.disabled || props.busy;
   const [open, setOpen] = useState(false), [query, setQuery] = useState(""), [active, setActive] = useState<string | null>(null);
   const trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);
   const typed = useRef({ text: "", at: 0 });

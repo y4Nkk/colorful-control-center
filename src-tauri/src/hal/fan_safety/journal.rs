@@ -72,6 +72,10 @@ impl Journal {
         })
     }
 
+    pub(crate) fn active(&self) -> bool {
+        self.record.active
+    }
+
     pub(crate) fn allowed(&mut self) -> Result<()> {
         self.session_open()?;
         self.verify()?;
@@ -90,8 +94,13 @@ impl Journal {
         } else {
             self.allowed()?;
         }
+        let before = self.record.active;
         self.record.active = true;
-        self.persist()
+        let result = self.persist();
+        if result.is_err() {
+            self.record.active = before;
+        }
+        result
     }
 
     pub(crate) fn latch(&mut self) -> Result<()> {
@@ -104,13 +113,10 @@ impl Journal {
         if !self.record.active {
             return Ok(());
         }
-        self.verify()?;
+        // EC has released the channels even if the durable record cannot be updated.
         self.record.active = false;
-        let result = self.persist();
-        if result.is_err() {
-            self.record.active = true;
-        }
-        result
+        self.verify()?;
+        self.persist()
     }
 
     pub(crate) fn acknowledge(&mut self) -> Result<()> {

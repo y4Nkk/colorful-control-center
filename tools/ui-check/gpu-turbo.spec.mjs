@@ -37,7 +37,7 @@ test("授权前展示当前显卡与全部模式目标，选择范围不写入",
   await expect(facts(page)).toContainText("性能 · 电池锁频保持 · GPU 1 核心 0 / 显存 0 MHz");
   await expect(facts(page)).toContainText("静音增强锁频保持 · 偏移保持");
   await facts(page).getByRole("button", { name: "锁频与恢复说明", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "锁频与恢复说明", exact: true })).toContainText("锁频操作同时解除第二锁频域");
+  await expect(page.getByRole("dialog", { name: "锁频与恢复说明", exact: true })).toContainText("会同时解除第二个频率域");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
   expect(await calls(page, "restore_gpu_turbo")).toEqual([]);
 });

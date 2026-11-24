@@ -12,13 +12,13 @@ export function BatteryAlertFacts({ profile, busy, run }: Props) {
       <Surface variant="inset" className="ccc-battery-low-part">
         <strong className="ccc-icon-title"><Icon name={profile.playing ? "play" : "pause"} />静音循环</strong>
         <output>{profile.playing ? "运行中" : "已停止"}</output>
-        <p className="ccc-control-caption">亮度独立恢复</p>
+        <p className="ccc-control-caption">屏幕亮度需要单独恢复</p>
         {profile.error && <p className="ccc-control-error">{profile.error}</p>}
       </Surface>
       <Surface variant="inset" className="ccc-battery-low-part">
-        <strong className="ccc-icon-title"><Icon name={codec.current?.muted ? "volume-off" : "volume"} />PC Beep控件</strong>
-        <output>{codec.current ? codec.current.muted ? "静音" : "未静音" : binding?.pcBeep === false ? "固件未声明" : "状态不可用"}</output>
-        {codec.initial && <p className="ccc-control-caption">初始：{codec.initial.muted ? "静音" : "未静音"}</p>}
+        <strong className="ccc-icon-title"><Icon name={codec.current?.muted ? "volume-off" : "volume"} />PC 提示音（Beep）</strong>
+        <output>{codec.current ? codec.current.muted ? "静音" : "未静音" : binding?.pcBeep === false ? "电脑不支持" : "状态不可用"}</output>
+        {codec.initial && <p className="ccc-control-caption">接管前：{codec.initial.muted ? "静音" : "未静音"}</p>}
         {codec.error && <p className="ccc-control-error">{codec.error}</p>}
         {codec.restoreError && <p className="ccc-control-error">{codec.restoreError}</p>}
         {codec.initial && <ConfirmButton icon="undo" key={codec.restoreRevision ?? "audio-unavailable"} variant="secondary"

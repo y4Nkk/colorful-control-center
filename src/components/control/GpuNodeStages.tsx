@@ -11,7 +11,7 @@ export function GpuNodeStages({ stages, action, current }: { stages: GpuPowerSta
     : action && current && (action.target.enabled !== current.enabled || action.target.automaticPowerOff !== current.automaticPowerOff)
       ? [{ phase: action.stage === "beforeMode" ? "切换前" : "切换后", target: action.target,
         changesAutomatic: action.target.automaticPowerOff !== current.automaticPowerOff }] : [];
-  if (!steps.length) return <span className="ccc-control-caption">电源保持</span>;
+  if (!steps.length) return <span className="ccc-control-caption">不改动独显电源</span>;
   return <ol className="ccc-gpu-node-stages" aria-label="独显联动步骤">
     {steps.map((step, index) => <li key={`${step.phase}-${index}`}>
       {index > 0 && <Icon name="chevron-right" size={16} />}

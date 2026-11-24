@@ -19,7 +19,7 @@ function microphoneFacts(snapshot: MicrophoneSnapshot) {
     ...snapshot.endpoints.map((endpoint, index) => ({
       label: endpoint.name || `麦克风 ${index + 1}`, value: stateText(endpoint.muted),
     })),
-    { label: "保存静音偏好", value: savedText(snapshot.saved) },
+    { label: "电脑保存的静音设置", value: savedText(snapshot.saved) },
   ];
 }
 

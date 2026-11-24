@@ -93,10 +93,7 @@ fn software_process_records_the_first_output_and_a_normal_exit_clears_only_runni
         assert!(apply_manual_curve(hal).is_err());
     }
     assert_eq!(DEVICE.lock().unwrap().writes.len(), count);
-    let mut next = hal::Hal::test_instance(
-        hal::oem_dchu::Dchu::test_io(buffer, read, set, write).with_test_exchange(exchange),
-        None,
-    );
+    let mut next = hal::Hal::test_instance(io(), None);
     next.bind_software_fan_record(path);
     next.ensure_software_fan_restart_allowed().unwrap();
 }

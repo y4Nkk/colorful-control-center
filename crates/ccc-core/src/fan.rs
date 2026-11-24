@@ -151,6 +151,33 @@ pub fn oem_duty_byte(pct: f64) -> u8 {
     (pct / 100.0 * 255.0).round_ties_even() as u8
 }
 
+pub fn oem_duty_percent(raw: u8) -> u8 {
+    (f64::from(raw) / 255.0 * 100.0).round_ties_even() as u8
+}
+
+const OEM_FAN_MODES: [(u8, u8); 7] = [
+    (0, 0x02),
+    (1, 0x10),
+    (2, 0x08),
+    (5, 0x01),
+    (6, 0x04),
+    (7, 0x20),
+    (8, 0x40),
+];
+
+pub fn decode_oem_fan_mode(bits: u8) -> Result<u8, String> {
+    OEM_FAN_MODES
+        .into_iter()
+        .find_map(|(mode, reported)| (bits == reported).then_some(mode))
+        .ok_or_else(|| format!("未知 EC 风扇档位位图 {bits:#04x}"))
+}
+
+pub fn oem_fan_mode_bits(mode: u8) -> Option<u8> {
+    OEM_FAN_MODES
+        .into_iter()
+        .find_map(|(known, bits)| (mode == known).then_some(bits))
+}
+
 /// 校验 OEM 两个可调点的几何约束。
 pub fn validate_oem_curve(input: &OemFanCurveInput) -> Result<(), String> {
     let (t1, d1) = (input.anchors.t1, input.anchors.d1);

@@ -39,7 +39,7 @@ export function modePreviewTarget(data, mode) {
   const fanMode = mode === 3 && !turbo && data.entertainmentQuiet ? 8 : fanSavedMode;
   const target = { mode, fromMode: p.currentMode, acMode: mode, gpu: modeGpuReview(data, mode), unavailableReason: null,
     energy: data.modeEnergy.hardwarePState ? { hardwarePState: true, energyStar: null } : { hardwarePState: false, energyStar: [2, 1, 0, 2, 1][mode] },
-    turbo, dtt: active && p.current.dtt === true, fanMode, fanSavedMode, fanOffsetPct: 0, aspm: null, powerPlan: null };
+    turbo, dtt: active && p.current.dtt === true, fanMode, fanSavedMode, fanOffsetPct: data.fanKind === "rpmTable" ? null : 0, aspm: null, powerPlan: null };
   return { ...target, revision: JSON.stringify([target, data.acMode, data.modeEnergy, p.current, data.fan.currentMode, data.fan.offsetPct, data.fan.software]) };
 }
 export function rememberMode(data, selection, target) {
@@ -48,9 +48,9 @@ export function rememberMode(data, selection, target) {
   if (data.performanceFanMode !== null) fanFields.push({ offset: 70, data: [0, 0, data.performanceFanMode, 0, 0, 0, 0, 0] });
   const command = p.currentMode === 3 ? entertainmentCommand(data)
     : optionCommand(p.currentMode, p.currentMode === 2 && p.current.turboFan, p.currentMode === 2 && p.current.dtt);
-  const fanMode = p.currentMode === 3 && data.fan.currentMode === 0 && data.entertainmentQuiet && !(command & 64) ? 8 : data.fan.currentMode;
+  const offsetRaw = data.fanKind === "rpmTable" || data.fan.offsetPct === null ? null : Math.round(data.fan.offsetPct * 255 / 100);
   data.modeInitial ??= { mode: p.currentMode, command, acMode: null, energy: null, gpu: null, options: structuredClone(p.current),
-    fan: { mode: fanMode, offset: data.fan.offsetPct, software: structuredClone(data.fan.software), package: null, rpmPairs: [],
+    fan: { mode: data.fan.currentMode, offsetRaw, software: structuredClone(data.fan.software), package: null, rpmPairs: null,
       fields: fanFields } };
   if (!selection) return;
   if (data.modeInitial.acMode === null) data.modeInitial.acMode = data.acMode;

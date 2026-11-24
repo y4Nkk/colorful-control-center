@@ -149,7 +149,13 @@ fn start_workers(app: &tauri::AppHandle) {
     });
     start_hardware_workers(app);
 }
-fn start_hardware_workers(app: &tauri::AppHandle) {
+fn start_software_fan_workers(app: &tauri::AppHandle) {
+    if !app
+        .try_state::<Hal>()
+        .is_some_and(|hal| hal.software_fan_supported())
+    {
+        return;
+    }
     let fan_handle = app.clone();
     std::thread::spawn(move || {
         while let Some(operation) = shutdown::enter() {
@@ -173,6 +179,10 @@ fn start_hardware_workers(app: &tauri::AppHandle) {
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
     });
+}
+
+fn start_hardware_workers(app: &tauri::AppHandle) {
+    start_software_fan_workers(app);
     let display_handle = app.clone();
     let battery_handle = app.clone();
     std::thread::spawn(move || {

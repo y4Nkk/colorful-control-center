@@ -53,7 +53,7 @@ export function LightingOptions({ active, revision }: { active: boolean; revisio
   return <Surface as="section" variant="group" className="ccc-panel ccc-lighting-options" aria-label="灯光策略与外围灯区">
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="effects" />灯光策略与外围灯区</h2>
       <div className="ccc-module-tools">
-        <DetailsDialog title="灯光策略说明" label="详情"><p>闲置关灯可设为 5 秒到 1 小时 59 分 59 秒。</p></DetailsDialog>
+        <DetailsDialog title="灯光策略说明" label="详情"><p>开启「闲置关灯」后，一段时间没有操作，灯光会自动熄灭。等待时间可以设为 5 秒到 1 小时 59 分 59 秒。</p></DetailsDialog>
         <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取灯光选项" disabled={busy} onClick={reread} />
       </div>
     </div>

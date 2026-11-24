@@ -15,17 +15,16 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 trait Io: SettingsAccess {
-    fn running(&self) -> Result<bool>;
+    fn running(&self) -> Result<Option<bool>>;
+    fn fan_mode(&self) -> Result<u8>;
     fn duties(&self) -> Result<[f64; 2]>;
     fn sync_clock(&self) -> Result<()>;
     fn command(&self, sub: u8, value: u32) -> Result<()>;
 }
 #[derive(Serialize)]
 struct Facts {
-    capability: [u8; 12],
     saved: [u8; 5],
     running: bool,
-    mode: u8,
 }
 fn field<const N: usize>(io: &impl SettingsAccess, page: u8, offset: usize) -> Result<[u8; N]> {
     io.read(page, offset, N)
@@ -34,18 +33,12 @@ fn field<const N: usize>(io: &impl SettingsAccess, page: u8, offset: usize) -> R
         .map_err(|_| anyhow!("除尘字段长度无效"))
 }
 fn capture(io: &impl Io) -> Result<Option<Facts>> {
-    let capability = field(io, 7, 0)?;
-    if !protocol::supported(&capability)? {
+    let Some(running) = io.running()? else {
         return Ok(None);
-    }
+    };
     let saved = field(io, 4, 81)?;
     protocol::decode(&saved)?;
-    Ok(Some(Facts {
-        capability,
-        saved,
-        running: io.running()?,
-        mode: field::<1>(io, 4, 5)?[0],
-    }))
+    Ok(Some(Facts { saved, running }))
 }
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -85,14 +78,15 @@ pub struct Request {
     pub schedule: Schedule,
 }
 
-fn start_gate(io: &impl Io, facts: &Facts, software: bool) -> Result<()> {
+fn start_gate(io: &impl Io, software: bool) -> Result<()> {
     if software {
         bail!("请先退出软件风扇曲线，再开始除尘");
     }
-    if facts.mode == 1 {
+    let mode = io.fan_mode()?;
+    if mode == super::FAN_MODE_FULL_SPEED {
         bail!("请先退出全速风扇模式");
     }
-    super::validate_mode(facts.mode)?;
+    super::validate_mode(mode)?;
     if io
         .duties()?
         .iter()
@@ -119,11 +113,9 @@ fn read(
     }
     let schedule_blocked_reason =
         blocked.or_else(|| facts.running.then(|| "固件正在除尘，请等待结束".into()));
-    let start_blocked_reason = schedule_blocked_reason.clone().or_else(|| {
-        start_gate(io, &facts, software)
-            .err()
-            .map(|e| format!("{e:#}"))
-    });
+    let start_blocked_reason = schedule_blocked_reason
+        .clone()
+        .or_else(|| start_gate(io, software).err().map(|e| format!("{e:#}")));
     let revision = format!(
         "{:x}",
         Sha256::digest(serde_json::to_vec(&(
@@ -164,22 +156,23 @@ fn review(profile: &Profile, expected: &str, start: bool) -> Result<()> {
     }
     Ok(())
 }
-fn ensure_idle(io: &impl Io) -> Result<()> {
-    if protocol::supported(&field::<12>(io, 7, 0)?)? && io.running()? {
-        bail!("固件正在除尘，请等待结束后再调整风扇或电源模式");
+fn ensure_idle(io: &impl Io) -> Result<bool> {
+    match io.running()? {
+        Some(true) => bail!("固件正在除尘，请等待结束后再调整风扇或电源模式"),
+        Some(false) => Ok(true),
+        None => Ok(false),
     }
-    Ok(())
+}
+fn require_idle(io: &impl Io) -> Result<()> {
+    ensure_idle(io)?.then_some(()).context("固件未声明除尘能力")
 }
 pub fn ensure_manual_allowed(hal: &Hal) -> Result<()> {
-    hal.with_dchu(ensure_idle)
+    hal.with_dchu(|io| ensure_idle(io).map(|_| ()))
 }
 pub fn ensure_software_allowed(hal: &Hal) -> Result<()> {
     hal.with_dchu(|io| {
-        ensure_idle(io)?;
-        if let Some(facts) = capture(io)? {
-            if protocol::decode(&facts.saved)?.is_none_or(|s| s.enabled()) {
-                bail!("请先明确关闭定时及唤醒除尘，再启用软件风扇曲线");
-            }
+        if ensure_idle(io)? && protocol::decode(&field(io, 4, 81)?)?.is_none_or(|s| s.enabled()) {
+            bail!("请先明确关闭定时及唤醒除尘，再启用软件风扇曲线");
         }
         Ok(())
     })
@@ -187,6 +180,7 @@ pub fn ensure_software_allowed(hal: &Hal) -> Result<()> {
 fn start(io: &impl Io, state: &mut State, software: bool, expected: &str) -> Result<()> {
     let (_, profile) = read(io, state, software, None)?.context("固件未声明除尘能力")?;
     review(&profile, expected, true)?;
+    require_idle(io)?;
     state.starts = state.starts.wrapping_add(1);
     state.last_start = Some(StartOutcome::Uncertain);
     io.command(41, 1)

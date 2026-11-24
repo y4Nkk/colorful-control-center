@@ -13,7 +13,7 @@ export function HotkeyCurrent({ profile, busy, run, screenSelected, panelSelecte
     <strong>{!profile ? "监听状态未知" : profile.status.running ? "正在监听原厂热键" : "热键监听已停止"}</strong>
     {profile && <>
       <span className="ccc-control-caption">已保存 · {profile.current ? `${profile.current.enabled ? "启用" : "关闭"} · ${profile.current.actions.length} 项` : "未知"}</span>
-      {profile.current?.enabled && !profile.authorized && <p className="ccc-control-caption">授权条件已变化，请重新确认。</p>}
+      {profile.current?.enabled && !profile.authorized && <p className="ccc-control-caption">接管条件发生了变化，请重新确认接管。</p>}
       {profile.facts.blockedReason && <p className="ccc-control-caption">{profile.facts.blockedReason}</p>}
       {profile.status.error && <p className="ccc-control-error" role="alert">{profile.status.error}</p>}
       {profile.status.lastResult && <p className="ccc-control-caption" role="status">{profile.status.lastResult}</p>}
@@ -26,9 +26,9 @@ export function HotkeyCurrent({ profile, busy, run, screenSelected, panelSelecte
     {screen && (screenSelected || screen.initial.length > 0) && <ScreenBrightnessFacts profile={screen} busy={busy} run={run} />}
     {panel && (panelSelected || panel.session !== null) && <PanelHotkeyFacts profile={panel} busy={busy} run={run} />}
     <section className="ccc-detail-stack" aria-label="监听与恢复说明">
-      {profile?.current && <p>当前范围：{summary(profile.current)}</p>}
-      <p>临时停止保留已保存策略，重新打开应用可恢复监听；硬件初始状态在对应模块恢复。</p>
-      {profile?.initial && <p>初始策略：{profile.initial.enabled ? "启用" : "关闭"} · {summary(profile.initial)}</p>}
+      {profile?.current && <p>当前接管的动作：{summary(profile.current)}</p>}
+      <p>临时停止会保留已保存的热键设置。下次打开应用时，如果接管条件仍然有效，就会继续监听。需要还原某项设置时，可用该项提供的恢复按钮查看会改回哪些值。</p>
+      {profile?.initial && <p>接管前的设置：{profile.initial.enabled ? "启用" : "关闭"} · {summary(profile.initial)}</p>}
     </section>
   </Surface>;
 }

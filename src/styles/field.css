@@ -16,7 +16,8 @@
 .ccc-field:hover:enabled:not([aria-disabled="true"]) { border-color: var(--ccc-text-muted); }
 .ccc-field:focus-visible { border-color: var(--ccc-action); }
 .ccc-field[aria-invalid="true"] { border-color: var(--ccc-warning); }
-.ccc-field:is(:disabled, [aria-disabled="true"]) { opacity: 0.5; cursor: not-allowed; }
+.ccc-field:is(:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
+.ccc-field:is(:disabled, [aria-disabled="true"]):not([aria-busy="true"]) { opacity: 0.5; }
 .ccc-input::placeholder { color: var(--ccc-text-muted); }
 .ccc-input[hidden] { display: none; }
 .ccc-field[data-multiline] { height: auto; min-height: calc(var(--ccc-control-height) * 3); padding-block: var(--ccc-space-2); resize: vertical; }
