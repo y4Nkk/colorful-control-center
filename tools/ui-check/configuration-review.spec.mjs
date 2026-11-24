@@ -4,7 +4,6 @@ import { openWorkspace } from "./workspace.mjs";
 import { installTouchpadFixture } from "./touchpad-fixture.mjs";
 import { installMicrophoneFixture } from "./microphone-fixture.mjs";
 import { pageActions } from "./configuration-review.mjs";
-import { openDeviceRestore } from "./device-settings.mjs";
 
 const region = (page, name) => page.getByRole("region", { name, exact: true });
 const writes = page => page.evaluate(() => window.__uiFixture.calls
@@ -60,7 +59,7 @@ test("规格按需打开，弹窗可用 Escape 关闭并归还焦点", async ({ 
   expect(await writes(page)).toEqual([]);
 });
 
-test("触摸板与麦克风独立提交，跨页回读并支持单项恢复", async ({ page }) => {
+test("触摸板与麦克风独立提交，跨页回读并可直接切回", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await openWorkspace(page, "设备配置");
   await expect(touch(page)).toContainText("已启用");
@@ -80,12 +79,12 @@ test("触摸板与麦克风独立提交，跨页回读并支持单项恢复", as
   await openWorkspace(page, "设备配置");
   await expect(touch(page).getByRole("radio", { name: "关闭", exact: true })).toBeChecked();
   await expect(mic(page).getByRole("radio", { name: "全部静音", exact: true })).toBeChecked();
-  const restore = await openDeviceRestore(touch(page));
-  await expect(restore).toContainText("已启用");
-  await restore.getByRole("button", { name: "确认恢复", exact: true }).click();
-  await expect(touch(page).getByLabel("当前触摸板状态", { exact: true })).toContainText("已启用");
+  await expect(touch(page).getByRole("button", { name: "恢复初始设置", exact: true })).toHaveCount(0);
+  await expect(mic(page).getByRole("button", { name: "恢复初始设置", exact: true })).toHaveCount(0);
+  await touch(page).getByRole("radio", { name: "启用", exact: true }).click();
+  await expect(touch(page).getByRole("radio", { name: "启用", exact: true })).toBeChecked();
   await expect(mic(page).getByRole("radio", { name: "全部静音", exact: true })).toBeChecked();
-  expect(await writes(page)).toEqual(["apply_touchpad", "apply_microphones", "restore_touchpad"]);
+  expect(await writes(page)).toEqual(["apply_touchpad", "apply_microphones", "apply_touchpad"]);
 });
 
 test("设备写入期间锁定同一模块，离页后回读失败结果", async ({ page }) => {

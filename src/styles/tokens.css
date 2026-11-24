@@ -186,6 +186,7 @@
   --ccc-motion-rail-indicator: 320ms;
   --ccc-motion-slow: 400ms;
   --ccc-motion-preset: 620ms;
+  --ccc-motion-scan-loop: 3.6s;
   --ccc-scrollbar-idle-delay: 900ms;
   --ccc-easing: cubic-bezier(0.4, 0, 0.2, 1);
   --ccc-easing-press: cubic-bezier(0.34, 1.56, 0.64, 1);

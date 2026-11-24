@@ -1,5 +1,6 @@
-use super::model::Record;
+use super::model::{Record, RECORD_VERSION};
 use anyhow::{Context, Result, bail};
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{fs, io::Read, path::PathBuf};
 
@@ -13,6 +14,11 @@ fn revision(bytes: Option<&[u8]>) -> String {
         Some(bytes) => format!("{:x}", Sha256::digest(bytes)),
         None => "missing".into(),
     }
+}
+/// 只读取版本号：旧版本记录的字段不再解释。
+#[derive(Deserialize)]
+struct WrittenVersion {
+    version: u8,
 }
 pub trait Store {
     fn load(&self) -> Result<Loaded>;
@@ -35,6 +41,14 @@ impl Store for FileStore {
         file.take(4097).read_to_end(&mut bytes)?;
         if bytes.len() > 4096 {
             bail!("显卡选择记录过大，未覆盖原文件");
+        }
+        if serde_json::from_slice::<WrittenVersion>(&bytes)
+            .is_ok_and(|written| written.version < RECORD_VERSION)
+        {
+            return Ok(Loaded {
+                record: None,
+                revision: revision(Some(&bytes)),
+            });
         }
         let record: Record =
             serde_json::from_slice(&bytes).context("显卡选择记录损坏，未覆盖原文件")?;

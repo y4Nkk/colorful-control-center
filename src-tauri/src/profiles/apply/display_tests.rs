@@ -249,7 +249,6 @@ fn no_change_display_applies_other_settings_without_guard_or_keep() {
     assert!(report.pending.is_none());
     assert!(report.steps.iter().all(|step| step.ok));
     assert!(h.f.display.io.0.lock().unwrap().writes.is_empty());
-    assert!(!h.f.display.controller.read().unwrap().can_restore);
 }
 
 #[test]
@@ -339,14 +338,12 @@ fn touchpad_waits_for_display_keep_and_cancel_never_toggles() {
     assert!(h.f.touchpad_io.writes.lock().unwrap().is_empty());
     h.application.cancel(h.runtime(), id).unwrap();
     assert!(h.f.touchpad_io.writes.lock().unwrap().is_empty());
-    assert!(h.f.touchpad.read(&h.f.hal).unwrap().initial.is_none());
     let id = h.begin().id;
     let result = h.application.keep(h.runtime(), id).unwrap();
     assert!(result.targets_applied);
     let p = h.f.touchpad.read(&h.f.hal).unwrap();
     assert_eq!(p.current.enabled, Some(false));
     assert_eq!(p.current.saved, 1);
-    assert_eq!(p.initial.unwrap().saved, 0);
 }
 
 #[test]

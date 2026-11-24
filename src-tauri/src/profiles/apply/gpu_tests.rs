@@ -79,12 +79,6 @@ fn capture_preserves_off_mixed_policy_and_never_reads_disabled_gpu() {
     let decoded: ProfileSettings =
         serde_json::from_slice(&serde_json::to_vec(&settings).unwrap()).unwrap();
     assert!(decoded == settings);
-    assert!(
-        !f.gpu_power
-            .read_runtime(&f.hal, &f.gpu)
-            .unwrap()
-            .can_restore
-    );
     assert_eq!(f.gpu_environment.authorizations.load(Ordering::SeqCst), 0);
 }
 #[test]
@@ -115,17 +109,11 @@ fn strict_target_rejects_unknown_aliases_invalid_instances_and_conflicts() {
     assert!(f.gpu_environment.io.0.lock().unwrap().events.is_empty());
 }
 #[test]
-fn unchanged_target_requires_no_authorization_or_initial_baseline() {
+fn unchanged_target_requires_no_authorization() {
     let f = setup(true);
     success(&apply(&f, &wanted(&f, true)));
     assert_eq!(f.gpu_environment.authorizations.load(Ordering::SeqCst), 0);
     assert!(f.gpu_environment.io.0.lock().unwrap().events.is_empty());
-    assert!(
-        !f.gpu_power
-            .read_runtime(&f.hal, &f.gpu)
-            .unwrap()
-            .can_restore
-    );
 }
 #[test]
 fn disabled_gpu_is_enabled_before_driver_offsets_and_other_targets() {
@@ -176,7 +164,7 @@ fn unavailable_temperature_after_enable_restores_off_before_other_targets() {
     assert!(f.device.0.lock().unwrap().events.is_empty());
 }
 #[test]
-fn successful_shutdown_and_single_actions_share_first_mixed_baseline() {
+fn profile_shutdown_and_later_single_action_each_request_authorization() {
     let f = setup(true);
     f.gpu_environment
         .io
@@ -185,18 +173,15 @@ fn successful_shutdown_and_single_actions_share_first_mixed_baseline() {
         .unwrap()
         .device
         .automatic_power_off = true;
-    let before = f.gpu_environment.io.device();
     success(&apply(&f, &wanted(&f, false)));
     assert!(f.hal.gpu_suspended());
     let current = f.gpu_environment.io.device();
     f.gpu_power
         .apply_runtime(&f.hal, &f.gpu, &f.display.controller, &current, true)
         .unwrap();
-    f.gpu_power
-        .restore_runtime(&f.hal, &f.gpu, &f.display.controller)
-        .unwrap();
-    assert_eq!(f.gpu_environment.io.device(), before);
-    assert_eq!(f.gpu_environment.authorizations.load(Ordering::SeqCst), 3);
+    assert!(!f.hal.gpu_suspended());
+    assert!(!f.gpu_environment.io.device().automatic_power_off);
+    assert_eq!(f.gpu_environment.authorizations.load(Ordering::SeqCst), 2);
 }
 #[test]
 fn later_failure_restores_original_power_then_raw_offsets_in_same_authorization() {

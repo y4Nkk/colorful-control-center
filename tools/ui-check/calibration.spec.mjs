@@ -25,10 +25,6 @@ test("开始前预览确认，运行期间充电和节能互斥，切页保留�
   expect(await writes(page)).toHaveLength(0);
   await panel.getByRole("button", { name: "开始校准", exact: true }).click();
   await expect(panel.getByRole("status")).toHaveText("正在校准");
-  await panel.getByRole("button", { name: "详情", exact: true }).click();
-  const details = page.getByRole("dialog", { name: "校准阶段与恢复", exact: true });
-  await expect(details.getByRole("listitem").first()).toHaveAttribute("aria-current", "step");
-  await details.getByRole("button", { name: "关闭弹窗", exact: true }).click();
   const battery = page.getByRole("region", { name: "电池与充电", exact: true });
   await expect(battery.getByRole("switch", { name: "限制充电范围", exact: true })).toHaveAttribute("aria-disabled", "true");
   await expect(page.getByRole("switch", { name: "启用节能计划", exact: true })).toHaveAttribute("aria-disabled", "true");
@@ -70,7 +66,7 @@ test("失败保留诊断和恢复入口，恢复需再次确认", async ({ page 
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });
 
-test("旧预览刷新后撤销确认，未知原计划明确释放语义，窄屏卡片不溢出", async ({ page }) => {
+test("旧预览刷新后撤销确认，窄屏卡片不溢出", async ({ page }) => {
   const panel = panelOf(page);
   await panel.getByRole("button", { name: "开始电池校准", exact: true }).click();
   await page.evaluate(() => {
@@ -79,10 +75,6 @@ test("旧预览刷新后撤销确认，未知原计划明确释放语义，窄�
   });
   await expect(page.getByRole("dialog", { name: "开始电池校准", exact: true })).toHaveCount(0);
   await expect(panel.getByRole("button", { name: "开始电池校准", exact: true })).toBeVisible();
-  await panel.getByRole("button", { name: "详情", exact: true }).click();
-  const details = page.getByRole("dialog", { name: "校准阶段与恢复", exact: true });
-  await expect(details).toContainText("清除本应用时段");
-  await details.getByRole("button", { name: "关闭弹窗", exact: true }).click();
   expect(await writes(page)).toHaveLength(0);
   await page.setViewportSize({ width: 760, height: 1100 });
   await panel.screenshot({ path: "target/ui-check/battery-calibration.png" });

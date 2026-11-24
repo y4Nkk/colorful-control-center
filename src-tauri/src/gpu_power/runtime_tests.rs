@@ -12,7 +12,7 @@ fn display() -> crate::display::Controller {
     crate::display::test_fixture::Fixture::new().controller
 }
 #[test]
-fn unchanged_target_has_no_authorization_or_initial_snapshot() {
+fn unchanged_target_has_no_authorization() {
     let environment = EnvironmentFixture::new();
     let controller = Controller::with_environment(environment.clone());
     let hal = test_fixture::hal();
@@ -21,11 +21,10 @@ fn unchanged_target_has_no_authorization_or_initial_snapshot() {
         .apply_runtime(&hal, &clocks, &display(), &environment.io.device(), true)
         .unwrap();
     assert_eq!(environment.authorizations.load(Ordering::SeqCst), 0);
-    assert!(!controller.read_runtime(&hal, &clocks).unwrap().can_restore);
     assert!(environment.io.0.lock().unwrap().events.is_empty());
 }
 #[test]
-fn denied_authorization_has_no_snapshot_or_device_output() {
+fn denied_authorization_has_no_device_output() {
     let environment = EnvironmentFixture::new();
     environment.io.0.lock().unwrap().deny = true;
     let controller = Controller::with_environment(environment.clone());
@@ -36,7 +35,6 @@ fn denied_authorization_has_no_snapshot_or_device_output() {
             .apply_runtime(&hal, &clocks, &display(), &environment.io.device(), false)
             .is_err()
     );
-    assert!(!controller.read_runtime(&hal, &clocks).unwrap().can_restore);
     assert!(environment.io.0.lock().unwrap().events.is_empty());
     assert_eq!(environment.prepared.load(Ordering::SeqCst), 0);
 }
@@ -72,35 +70,6 @@ fn authorization_wait_releases_hal_and_changed_device_refuses_permission() {
     assert!(unlocked.load(Ordering::SeqCst));
     assert_eq!(environment.prepared.load(Ordering::SeqCst), 0);
     assert!(environment.io.0.lock().unwrap().events.is_empty());
-    assert!(!controller.read_runtime(&hal, &clocks).unwrap().can_restore);
-}
-#[test]
-fn initial_mixed_policy_survives_multiple_operations_and_explicit_restore() {
-    let environment = EnvironmentFixture::new();
-    {
-        let mut data = environment.io.0.lock().unwrap();
-        data.device.enabled = false;
-        data.device.problem = 22;
-        data.firmware = false;
-    }
-    let before = environment.io.device();
-    let controller = Controller::with_environment(environment.clone());
-    let hal = test_fixture::hal();
-    let clocks = GpuController::new();
-    let display = display();
-    controller
-        .apply_runtime(&hal, &clocks, &display, &environment.io.device(), true)
-        .unwrap();
-    assert!(!hal.gpu_suspended());
-    controller
-        .apply_runtime(&hal, &clocks, &display, &environment.io.device(), false)
-        .unwrap();
-    assert!(hal.gpu_suspended());
-    controller.restore_runtime(&hal, &clocks, &display).unwrap();
-    assert_eq!(environment.io.device(), before);
-    assert!(hal.gpu_suspended());
-    assert!(controller.read_runtime(&hal, &clocks).unwrap().can_restore);
-    assert_eq!(environment.authorizations.load(Ordering::SeqCst), 3);
 }
 #[test]
 fn retained_scope_restores_later_failure_without_reauthorization() {
@@ -142,24 +111,27 @@ fn isolated_default_controller_refuses_native_environment() {
 }
 
 #[test]
-fn explicit_initial_restore_replays_firmware_when_readable_flags_already_match() {
+fn replay_request_replays_firmware_when_readable_flags_already_match() {
     let environment = EnvironmentFixture::new();
     let controller = Controller::with_environment(environment.clone());
     let before = environment.io.device();
+    environment.io.0.lock().unwrap().firmware = false;
     let hal = test_fixture::hal();
     let clocks = GpuController::new();
-    let display = display();
-    controller
-        .apply_runtime(&hal, &clocks, &display, &before, false)
-        .unwrap();
+    let mut scope = controller.scope().unwrap();
+    let request = request::Request {
+        expected: before.clone(),
+        target: before.target(),
+        restore: true,
+    };
+    scope.prepare(std::slice::from_ref(&request)).unwrap();
     {
-        let mut data = environment.io.0.lock().unwrap();
-        data.device = before;
-        data.firmware = false;
+        let _gate = hal.begin_write().unwrap();
+        scope.execute(&hal, &clocks, &request).unwrap();
     }
-    controller.restore_runtime(&hal, &clocks, &display).unwrap();
+    scope.finish().unwrap();
     assert!(environment.io.0.lock().unwrap().firmware);
-    assert_eq!(environment.authorizations.load(Ordering::SeqCst), 2);
+    assert_eq!(environment.authorizations.load(Ordering::SeqCst), 1);
 }
 #[test]
 fn refresh_trial_started_during_authorization_blocks_all_device_preparation() {
@@ -183,33 +155,4 @@ fn refresh_trial_started_during_authorization_blocks_all_device_preparation() {
     assert!(result.unwrap_err().to_string().contains("刷新率试用"));
     assert_eq!(environment.prepared.load(Ordering::SeqCst), 0);
     assert!(environment.io.0.lock().unwrap().events.is_empty());
-}
-
-#[test]
-fn initial_restore_rejects_replaced_instance_and_active_output_before_authorization() {
-    let environment = EnvironmentFixture::new();
-    {
-        let mut data = environment.io.0.lock().unwrap();
-        data.device.enabled = false;
-        data.device.problem = 22;
-        data.firmware = false;
-    }
-    let before = environment.io.device();
-    let controller = Controller::with_environment(environment.clone());
-    let hal = test_fixture::hal();
-    let clocks = GpuController::new();
-    let display = display();
-    controller
-        .apply_runtime(&hal, &clocks, &display, &before, true)
-        .unwrap();
-    environment.io.0.lock().unwrap().device.id = "ACPI\\NVDA0820\\REPLACED".into();
-    assert!(controller.restore_runtime(&hal, &clocks, &display).is_err());
-    {
-        let mut data = environment.io.0.lock().unwrap();
-        data.device.id = before.id;
-        data.device.can_disable = false;
-        data.device.drives_display = true;
-    }
-    assert!(controller.restore_runtime(&hal, &clocks, &display).is_err());
-    assert_eq!(environment.authorizations.load(Ordering::SeqCst), 1);
 }

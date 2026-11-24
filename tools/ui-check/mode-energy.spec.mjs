@@ -2,7 +2,6 @@ import { availableAction, configurationView, submitConfiguration, previewConfigu
 import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
-import { supplyModeFixture } from "./supply-mode-fixture.mjs";
 import { openProfileResults, openStartupParameters, showProfileSettings } from "./profile-review.mjs";
 
 const modes = page => page.getByRole("region", { name: "预设模式", exact: true });
@@ -87,13 +86,9 @@ test("档案复用节能预览和首次恢复，后续失败补偿实际前态",
   expect(await page.evaluate(() => window.__uiFixture.modeInitial.energy.energyStar)).toBe(2);
 });
 
-test("启动选择包含节能目标但不执行模式，供电六条件只展示单一目标", async ({ page }) => {
-  const supply = supplyModeFixture();
+test("启动选择包含节能目标但不执行模式", async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
-  await page.addInitScript(supply => {
-    window.__uiFixture.supplyMode = supply;
-    window.__uiFixture.profile.settings.oemPowerMode = 1;
-  }, supply);
+  await page.addInitScript(() => { window.__uiFixture.profile.settings.oemPowerMode = 1; });
   await page.goto("/"); await openWorkspace(page, "概览");
   await openPowerArea(page, "电源设置");
   const startup = page.getByRole("region", { name: "启动档案", exact: true });
@@ -106,13 +101,4 @@ test("启动选择包含节能目标但不执行模式，供电六条件只展�
   expect((await calls(page, "set_startup_profile"))[0].args.expected.settings.oemPowerMode).toBe(1);
   expect(await energy(page)).toEqual({ hardwarePState: false, energyStar: 2 });
   expect(await calls(page, "apply_oem_power_mode")).toHaveLength(0);
-  const card = page.getByRole("region", { name: "原厂供电模式", exact: true });
-  await card.getByRole("button", { name: "详情", exact: true }).click();
-  const details = page.getByRole("dialog", { name: "供电状态与切换规则", exact: true });
-  for (const label of ["接电时", "使用电池时", "启动 · 插电", "启动 · 电池", "唤醒 · 插电", "唤醒 · 电池"]) {
-    const section = details.getByRole("region", { name: label, exact: true });
-    await section.getByRole("button", { name: "联动目标", exact: true }).click();
-    await expect(page.getByRole("dialog", { name: "联动目标", exact: true }).getByText(/^固件节能值 [01]$/u)).toHaveCount(1);
-    await page.keyboard.press("Escape");
-  }
 });

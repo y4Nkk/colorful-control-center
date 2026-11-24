@@ -223,5 +223,4 @@ fn authorization_cleanup_issue_keeps_confirmed_display_and_all_other_profile_tar
         h.f.lan.io.frame.lock().unwrap().devices[0].power_saving(),
         Some(true)
     );
-    assert!(h.f.display.controller.read().unwrap().can_restore);
 }

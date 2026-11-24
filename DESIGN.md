@@ -29,7 +29,7 @@ Colorful Control Center 是七彩虹游戏本（蓝天模具）的本地配置�
 - 应用标识采用透明背景的液态玻璃双翼气流，上翼为电光蓝至紫红，下翼为洋红至亮橙。两翼围出透明通道，玻璃厚度、折射亮边和缓慢流彩裁切在翼面内。品牌材质不扩展到数据与操作界面。`src-tauri/icons/icon.svg` 唯一拥有图形与材料，`BrandLogo` 读取同源并隔离实例 ID，响应系统及应用减少动效，强制色彩呈现双翼剪影；禁止模块复制路径或自绘第二版。`scripts/generate-icons.mjs` 唯一生成 favicon 与桌面图标，构建检查受管产物一致性，不手动维护副本。
 - 硬件插画允许局部金属明暗与 PCB/金手指材质色，颜色仍由 tokens.css 唯一拥有；品牌图片保留原色、比例与独立留白。官方标识从 public/brands/ 本地加载，来源由同目录 SOURCES.md 记录；不在运行时请求第三方图片。
 - 概览顶部使用宽幅只读模式卡，与性能与散热页共用 SVG 插画和渐变档名。档名居中置于插画下方。短窗压缩图形，换档动效跟随采样。供电预览和热键候选使用静态模式小图标，静音增强复用安静月牙。
-- 用实际状态、可操作控件和有明确含义的图形建立模块层级。同一模块的完整参数、诊断与说明由共享详情按钮打开，在弹窗内按内容分区。仅图标按钮提供可访问名称及悬停提示。相关模块同排对齐，窄窗口纵排。必要风险和阻止操作的短原因留在控件旁。
+- 用实际状态、可操作控件和有明确含义的图形建立模块层级。同一模块的完整参数、诊断与说明由共享详情按钮打开，在弹窗内按内容分区。仅图标按钮提供可访问名称及悬停提示。电源与档案页面不设信息图标入口，诊断与说明随入口一并移除，失败与阻止原因直接留在卡内。相关模块同排对齐，窄窗口纵排。必要风险和阻止操作的短原因留在控件旁。
 - 开关、选项和动作按钮表达本身的状态，邻近文字用于显示额外事实，例如部分设备状态、草稿和实读差异、执行进度及操作限制。参数差异与联动目标复用键值事实布局。
 - 禁用的控件显示禁止光标，包括下拉触发器、菜单项、滑杆和页签。只有正在处理本次操作的控件显示进度光标，同组被暂时锁定的其他控件继续显示禁止光标。
 - 采用 [Apple 布局指南](https://developer.apple.com/design/human-interface-guidelines/layout) 的逐层披露、[PowerToys 设置](https://microsoft.github.io/PowerToys/core/settings/project-overview/) 的任务分组和 [Home Assistant 卡片](https://www.home-assistant.io/dashboards/tile/) 的当前值与详情分离。品牌和硬件插画沿用本应用的视觉语言。
@@ -79,7 +79,7 @@ Colorful Control Center 是七彩虹游戏本（蓝天模具）的本地配置�
 
 ## 页面结构
 
-`DeviceConfigurationWorkspace` 中的选择和开关直接提交并回读，模块内提供初始恢复。自动刷新率以扫描纹理面板显示主屏实读频率和供电模式，下方并列低刷、恢复两档。显卡模式用固件候选按钮切换，标签上方用无底色 SVG 示意各模式通路，选中态与待重启提示由同一模式状态驱动。触摸板、麦克风与飞行模式并列，图形旁展示系统回读。
+`DeviceConfigurationWorkspace` 中的选择和开关直接提交并回读。自动刷新率以扫描纹理面板显示主屏实读频率和供电模式，下方并列低刷、恢复两档。扫描纹理是动态背景装饰：光束自上而下扫过，三段光点沿扫描线行进；读数有效且页面活动时循环，读数未知、离页或系统与应用任一启用减少动效时显示静态纹理。节奏固定，不表示实际刷新时序，装饰留在自身画幅内且不遮挡读数。显卡模式用固件候选按钮切换，标签上方用无底色 SVG 示意各模式通路：选中项里位于通路上的 GPU 用实心挖空字形，未选中项用线框与浅底色，不在通路上的 GPU 淡出；通路以箭头指向屏幕，混合模式由独显汇入集显后输出，动态切换用点线通路汇入切换徽标。选中态与待重启提示由同一模式状态驱动。触摸板、麦克风与飞行模式并列，图形旁展示系统回读。
 
 主导航依次提供概览、性能与散热、键盘与灯光、电源与档案、设备配置和设置。概览集中当前模式、CPU/GPU 频率与温度折线、内存与存储。性能与散热集中预设切换、性能选项、CPU／GPU 编辑器、风扇设置和除尘。风扇设置依次展示实况与风扇选择、曲线与点位、整机档位与偏移及恢复。说明与诊断按文字入口打开。电源与档案提供「电源设置」和「配置档案」，子区保活并记录独立滚动位置。配置档案无记录时展示保存和导入入口，有记录时显示配置组、规则引用及当前值与档案目标。托盘风扇入口定位风扇设置，托盘指定档案定位电源下的配置档案。设备配置集中屏幕、自动刷新、显卡、键盘功能、触摸板、麦克风和飞行模式。页面清单由 `src/app/navigation.ts` 拥有，`AppWorkspace` 保活已访问页面。
 
@@ -91,15 +91,16 @@ Colorful Control Center 是七彩虹游戏本（蓝天模具）的本地配置�
 
 概览通过现有硬件采样的 `oemPowerMode` 展示当前模式。空值、未知编码和停滞读数显示未知与中性静态曲线。性能调校的预设入口由 `components/control/OemPowerMode.tsx` 拥有，点击或键盘激活分段选项即提交完整模式目标。固件不支持时禁用并标明，静音增强仅在能力声明时补充。遇到已核验的原厂 FnKey 时，使用共享对话框确认「关闭并切换」，显示目标模式、原厂热键影响和恢复方法。取消或离页放弃待确认的切换。`useOemPowerMode.ts` 拥有编辑器读取、确认、执行与回读状态，切换期间阻止重复提交，选中态以回读为准。读取失败清空模式状态并显示原因，重新读取成功后恢复可切换状态。个人参数由配置档案保存，档案预览包含模式名称。
 
-`components/control/PowerProfilePolicy.tsx` 提供启用开关和三个触发条件，并提示已保存规则的暂停或等待状态。新规则在卡内预览完整档案和授权信息。已保存规则可直接启停，按下次供电或唤醒事件执行。策略供电来源、已保存规则和最近应用记录在详情展示。显示试用由 ProfileApplicationHost 确认。
+`components/control/PowerProfilePolicy.tsx` 提供启用开关和三个触发条件，并提示已保存规则的暂停或等待状态。新规则在保存确认中经「查看档案参数」文字按钮预览完整档案，授权信息直接展示。已保存规则可直接启停，按下次供电或唤醒事件执行。失败与规则不可用的原因直接显示在卡内，出错时提供「重新读取并暂停」；供电来源与最近自动应用记录不在页面展示。显示试用由 ProfileApplicationHost 确认。
 
-`components/control/SupplyModeSettings.tsx`显示供电、模式和启用草稿；供电六条件、频率实读和最近结果按需打开。启用与继续在页面预览中显示启动联动，授予系统权限的等待期间仍能暂停。恢复预览显示实际初始值和可用状态。
+`components/control/SupplyModeSettings.tsx`显示当前模式和启用开关，供电六条件、频率实读和最近结果不在页面展示，阻止与失败原因直接显示在卡内。启用与继续在页面预览中显示启动联动，授予系统权限的等待期间仍能暂停。恢复预览显示实际初始值和可用状态。
 
 - 应用外框是无原生标题栏的两行两列 grid：导航跨左侧两行、集成标题栏右上（64px）、工作区右下。侧栏展开 224px，收起 56px。列宽、标签淡入淡出和折叠图标翻转共用 250ms 时长和缓动；图标轴线固定，标签按展开宽度排版并随可用宽度裁切。手动折叠偏好由 AppShell 唯一持有，以 `localStorage` 的 `ccc-sidebar-collapsed` 布尔字符串持久保存。首次使用默认展开，启动首帧同步恢复，手动切换先保存再应用，保存失败用全局通知反馈并保留已确认状态。
 - 导航、设置和折叠按钮共用 40px 高度、12px 圆角及独立悬停和按压叠层。当前项通过 `aria-current="page"` 显示中性底色、正文色加粗标签、蓝色实心图标和左缘 3×16px 蓝色指示条。切页时图标交叉淡化并轻弹，指示条用 320ms 拉伸至新位置，连续切换从当前帧接续。设置贴底并独立定位，主导航单独滚动。两种宽度共用同一组按钮和可访问名称，收起时额外显示指针和键盘提示。系统或应用启用减少动效时直接对齐目标状态。
 - 顶栏左侧只显示品牌图标与软件名，右侧为全局信息位及应用内窗口按钮。当前页面名称用于侧栏与主工作区的可访问标签。顶栏和侧栏顶部的非交互区可拖动窗口，双击拖动区切换最大化；交互按钮不属于拖动区。置顶、最小化、最大化／还原、关闭由 WindowControls 唯一实现。图钉通过蓝色描边和按下状态显示已确认的置顶偏好，与设置页共用保存事务。最大化图标跟随真实窗口状态，关闭按已保存的软件偏好隐藏到托盘或退出。普通浏览器预览隐藏窗口按钮组。
 - 侧栏与顶栏共享连续的高斯模糊材质：Tauri 主窗口透明并启用 acrylic 背景，body 透明，AppShell 统一绘制半透明底色与背景模糊，参数由 tokens.css 拥有；不对文字、图标或页面内容使用 filter: blur，不在两个区域各叠一层材质。工作区保持不透明，保证数据与表单可读。
 - 工作区 28px 圆角、完整 overflow 裁切，由全局 `ScrollArea` 提供唯一滚动面；固定外框内的 viewport 原生滚动，页面内容只保留工作区内留白，滚动不进入顶栏或导航。
+- 工作区右下角在当前页面滚离顶部后显示返回顶部。图标按钮避开滚动槽，页尾留出操作空间。激活后焦点回到工作区，系统或应用启用减少动效时立即返回顶部。
 - 一级工作区由 AppShell 组合品牌顶栏、侧栏与滚动工作区。二级编辑器骨架（固定头 + 滚动模块区 + 固定动作栏）在第一个二级页出现时引入 `EditorFrame` 原语。
 - 页面挂载是 keep-alive：`AppWorkspace` 用 visited 集合 + `hidden` 切换，保住草稿/滚动/展开状态；`active` prop 控制轮询等副作用只在可见页运行。
 
@@ -122,7 +123,7 @@ Colorful Control Center 是七彩虹游戏本（蓝天模具）的本地配置�
 | `src/components/profiles/ProfileDetail.tsx`、`ProfileParameters.tsx`、`ProfileCurves.tsx` | 档案应用前的变更、联动和阻止原因，按需展开完整参数。风扇用同类曲线对照，当前曲线用虚线。执行摘要取真实报告。 |
 | `src/components/control/KeyboardBacklightVisual.tsx` | 白光键盘的当前保存值与亮度草稿SVG；几何键帽为示意，灯光随明确开关/亮度变化，未知不绘制点亮。编辑页的亮度数字由滑杆展示，示意图补充关闭时保留的档位。档案预览直接显示亮度数字 |
 | `src/components/control/PowerSourceVisual.tsx` | 插电/电池/备用/未知来源的语义供电SVG，瓦数只使用后端明确报告，不把PD档位换算为功率；自动规则复用来源图形但明确规则目标 |
-| `src/styles/configuration-visuals.css` | 配置领域的绘图尺寸、图形/数值/控件布局和响应；色值仍归tokens.css，表面边框归Surface，不改全局控件外观 |
+| `src/styles/configuration-visuals.css` | 配置领域的绘图尺寸、图形/数值/控件布局和响应，以及扫描纹理的静态样式、循环与减少动效门控；色值仍归tokens.css，表面边框归Surface，不改全局控件外观 |
 | `src/components/control/HotkeyEventPreviews.tsx` | 热键已选/已保存事件及恢复事实的唯一组合；草稿范围与操作入口在前，事件事实随后显示，错误及恢复不折叠隐藏，复用各事实组件 |
 | `src/styles/tokens.css` | 视觉令牌唯一所有者（颜色/圆角/间距/字阶/动效），`check:boundaries` 强制 |
 | `src/components/BrandLogo.tsx` / `src-tauri/icons/icon.svg` / `scripts/generate-icons.mjs` | 品牌标识使用同一 SVG 绘图源。组件隔离实例并接入减少动效，标题栏以 32 px 展示，关于页以 48 px 展示。README 使用生成的桌面 PNG。生成入口同步 favicon 与桌面图标，构建校验资产是否最新 |
@@ -141,7 +142,8 @@ Colorful Control Center 是七彩虹游戏本（蓝天模具）的本地配置�
 | `src/components/Slider.tsx` / `src/styles/slider.css` | 滑杆统一处理指针拖动与提交，原生 range 提供键盘步进与读屏语义。24px 胶囊轨道、填充、刻度、28px 滑块和当前值标记共用位置换算。性能与散热的常用整数刻度有磁吸，松开范围比吸入范围稍宽，方向键每次移动一个单位。色相选择使用连续色谱。ScaleSlider 提供业务读数、单位与当前值 |
 | `src/components/Surface.tsx` / `src/styles/surface.css` | 面板、卡片、信息组、工作区与内嵌区的表面/边框/圆角唯一原语；业务只保留布局，选择卡片的悬停、选中、焦点及禁用状态同源 |
 | `src/components/Switch.tsx` | 开关唯一原语：原生 checkbox 提供 switch 语义与键盘行为，CSS 自绘轨道、滑块和焦点；异步保存用 aria-disabled 加输入拦截阻止重复操作，同时保留键盘焦点 |
-| `src/components/ScrollArea.tsx` | 滚动容器唯一原语：固定外框 + 可聚焦原生 viewport；通过viewportRef向app交接定位能力，AppShell唯一保存每页会话滚动位置；侧栏与工作区统一接入 |
+| `src/components/ScrollArea.tsx` | 滚动容器唯一原语：固定外框、可聚焦原生 viewport 和固定浮层插槽。AppShell 通过 viewportRef 保存和恢复各页面及电源子区的会话滚动位置 |
+| `src/components/BackToTopButton.tsx` / `src/styles/back-to-top.css` | 返回顶部唯一实现，AppShell 在工作区固定外框内挂载一次。按钮复用全局次操作样式，按当前视口的实际滚动位置显隐，点击或键盘激活后将焦点交回工作区并滚到顶部 |
 | `src/styles/scroll-area.css` | 全局滚动条唯一样式：透明轨道、细滑块，空闲隐藏，滚动、滑块悬停或拖动时显示；尺寸、浅深颜色与空闲延时由 tokens.css 拥有 |
 | `src/app/useScrollActivityMarker.ts` | 全局滚动活动唯一所有者：App 根调用一次，被动捕获原生滚动，逐面标记并在空闲 900ms 后清除；卸载清理监听、计时器与标记 |
 | `src/components/settings/` | 软件偏好分组、PreferenceCards、系统 FontPicker、ShortcutSetting 与关于；settings.css 只拥有布局和业务内容，控件及容器外观归对应全局原语；settings-previews.css 拥有示意画语法，预览颜色复用 tokens.css |
@@ -170,10 +172,10 @@ Colorful Control Center 是七彩虹游戏本（蓝天模具）的本地配置�
 | `src/components/control/MultiZoneColors.tsx` / `src/components/profiles/ProfileMultiZonePreview.tsx` | 「键盘与灯光」和档案共用多区颜色示意，按实际能力显示灯区；模式/速度/亮度按单位展示，不冒充物理回读 |
 | `src/components/control/PerkeyLighting.tsx` / `PerkeyPatternEditor.tsx` / `usePerkeyLighting.ts` | 逐键 RGB 开关、灯效、方向及动态配色类型直接提交。逐键颜色、亮度与速度在卡内应用和恢复，按键响应另报运行状态。 |
 | `src/components/control/PerkeyKeycaps.tsx` / `src/lib/perkey-layout.ts` / `perkey-layout-data.json` | 原厂布局事实生成的键帽与LED对应关系；大键同时选择全部对应灯位，未知布局明确使用灯位矩阵。外观由全局Button的keycap变体拥有，不复制原厂UI样式 |
-| `src/components/control/KeyboardSettings.tsx` | Fn 锁、Win 锁与 Fn/Win 交换根据固件能力逐项提交。请求使用最新回读的其他字段，初始恢复沿用 keyboard 域 |
-| `src/components/control/TouchpadSettings.tsx` | 系统状态和保存偏好分开展示。启用、关闭直接提交，设备变化撤销旧执行资格，初始恢复在卡内确认 |
+| `src/components/control/KeyboardSettings.tsx` | Fn 锁、Win 锁与 Fn/Win 交换根据固件能力逐项提交。请求使用最新回读的其他字段 |
+| `src/components/control/TouchpadSettings.tsx` | 系统状态和保存偏好分开展示。启用、关闭直接提交并作用于当前设备集合，旧修订的请求被拒绝 |
 | `src/components/profiles/ProfileTouchpadPreview.tsx` | 档案触摸板设备集合、系统目标及保存偏好，左右模块预览；不以保存值冒充系统状态 |
-| `src/components/control/MicrophoneSettings.tsx` | 状态摘要与详情中的逐端点状态来自同一回读。全部静音和取消静音直接提交，卡内可恢复首次操作前的混合状态 |
+| `src/components/control/MicrophoneSettings.tsx` | 状态摘要与详情中的逐端点状态来自同一回读。全部静音和取消静音直接提交 |
 | `src/components/profiles/ProfileMicrophonePreview.tsx` | 档案与启动摘要的设备集合、逐端点静音及保存偏好只读预览；复用统一档案确认 |
 | `src/components/keymap/` / `src/styles/keymap.css` | 键盘/鼠标映射、宏序列/延时/文本草稿、显式录制、变更预览和恢复；当前保存来源与草稿左右展示，记录缓冲不自动应用，失焦及离页结束录制 |
 | `src/components/Textarea.tsx` | 多行输入唯一原语，和Input共用field.css的边框、字体、焦点与禁用状态；业务只提供内容、行数、标签和布局 |
@@ -188,22 +190,22 @@ Colorful Control Center 是七彩虹游戏本（蓝天模具）的本地配置�
 | `src/components/control/HotkeySettings.tsx` / `useHotkeySettings.ts` | 原厂热键范围与屏显草稿、规则预览（分区、颜色循环、亮度循环/反馈、只读状态通知及摄像头报告同步分别独立授权）、接管确认、临时停止及初始软件策略恢复；亮度事件说明RGB主动循环与白光报告同步的区别，产品文案不暴露原始型号编号。后台操作复用领域事务，硬件初始恢复保留在对应模块。状态通知标为原厂报告，最后结果与是否显示桌面提示分开；键盘灯快捷入口打开「键盘与灯光」，聚焦键盘灯光区域后确认消费 |
 | `src/components/OsdHost.tsx` / `src/styles/osd.css` / `src-tauri/src/osd/` | 桌面屏显唯一Host：独立透明、置顶、无焦点、穿透窗口；展示已提交操作结果、已授权原厂状态报告或明确预览样例。序列号隔离旧消息与计时任务，窗口只允许读取屏显状态；不挂载主应用或硬件轮询 |
 | `src/components/control/PlatformPower.tsx` | 选择原厂支持的 PD 档位直接提交并回读，初始等级卡内恢复。Deep S5 只读，适配器瓦数和 PD 档位分别展示。 |
-| `src/components/control/UsbPowerPolicy.tsx` | 改动只提交所选的插电或电池字段，详情显示三个标准计划的实读值。原厂建议一次提交两种供电策略，初始恢复保留活动计划。 |
+| `src/components/control/UsbPowerPolicy.tsx` | 改动只提交所选的插电或电池字段。原厂建议一次提交两种供电策略，初始恢复预览显示三个标准计划的初始值并保留活动计划，恢复受阻的原因留在卡内。 |
 | `src/components/control/LanPolicy.tsx` / `useLanWakePreview.ts` / `lan-values.ts` | 网卡节能直接预检并请求系统授权。组合唤醒补丁和逐字段初始恢复在对应卡片预览后执行。 |
 | `src/components/control/FanDust.tsx` / `DustScheduleEditor.tsx` / `useFanDust.ts` | 除尘星期、整点和唤醒触发直接提交并回读。一次除尘与恢复初始计划分别确认，运行状态由固件报告。 |
-| `src/components/control/DisplaySettings.tsx` | 选择活动显示器的刷新率或翻转主屏，直接开始 15 秒试用。在屏幕卡内保留、取消或恢复初始状态。自动试用和档案试用指向各自的全局入口 |
-| `src/components/control/AutomaticRefreshSettings.tsx` | 即时提交自动刷新策略，停用恢复初始屏幕与原厂保存字段。当前、低刷与恢复频率用离散读数展示，监听失败、外部修改和恢复资格在卡内反馈 |
+| `src/components/control/DisplaySettings.tsx` | 选择活动显示器的刷新率或翻转主屏，直接开始 15 秒试用。在屏幕卡内保留或取消。自动试用和档案试用指向各自的全局入口 |
+| `src/components/control/AutomaticRefreshSettings.tsx` | 即时提交自动刷新策略，停用恢复初始屏幕与原厂保存字段；开关表示是否仍持有启用记录，已暂停或事务未完成时保持打开，关闭即恢复。当前、低刷与恢复频率用离散读数展示，监听失败和外部修改在卡内反馈。读数面板内的扫描纹理 SVG 拥有动态背景装饰：画幅、扫描线、扫掠光束与行进光点，对辅助技术隐藏并忽略指针 |
 | `src/components/control/useDeviceSettings.ts` | 独立模块共用读写生命周期。一次提交锁定所属模块，旧读取失效，写入后回读，操作错误和读取错误分别保留。 |
-| `src/components/control/SupplyModeSettings.tsx` / `SupplyModeScenarios.tsx` / `SupplyModeCurrent.tsx` / `SupplyModeRecovery.tsx` / `useSupplyMode.ts` / `src/styles/supply-mode.css` | 原厂自动模式的六条件、当前事实、最近结果及完整初始恢复；独立启用/继续/暂停/恢复、失效读请求、模块边框和左右布局，通知结果由后端拥有 |
+| `src/components/control/SupplyModeSettings.tsx` / `SupplyModeRecovery.tsx` / `useSupplyMode.ts` / `src/styles/supply-mode.css` | 原厂自动模式的完整初始恢复；独立启用/继续/暂停/恢复、失效读请求、模块边框和左右布局，通知结果由后端拥有 |
 | `src/components/control/gpu-values.ts` / `power-plan-values.ts` | GPU原始锁/偏移及目标、Windows计划/链路节能名称的共用展示；未知保留未知，不建立另一份执行规则 |
 | `src/components/AutomaticDisplayTrialHost.tsx` | 自动刷新率试用确认的唯一全局Host，应用根挂载；任何页面或隐藏到托盘后唤起时均可看到当前至目标、剩余时间和保留／恢复。保留前由后端复核供电和模式，超时由独立监护恢复；手动与档案试用不在此Host重复确认 |
-| `src/components/control/GpuPowerSettings.tsx` | 独显电源选择直接请求 Windows 授权并回读，保留活动输出保护及卡内混合初态恢复。关断暂停 GPU 轮询和调校 |
+| `src/components/control/GpuPowerSettings.tsx` | 独显电源选择直接请求 Windows 授权并回读，保留活动输出保护。关断暂停 GPU 轮询和调校 |
 | `src/components/control/GraphicsModeSettings.tsx` | 按固件支持的按钮直接发送模式选择。固件现值、待重启目标及重启后确认分开展示，待重启时由用户显式发起重启 |
 | `src/components/control/BatterySettings.tsx` | 充电开关和有效阈值直接提交，缺少合法组合时等待选齐。节能、校准和充电写入互斥，初始恢复在卡内。 |
-| `src/components/control/BatteryOverview.tsx` / `BatteryArtwork.tsx` / `src/styles/battery-visuals.css` | 同一摘要行显示电池图、系统电量和供电及充电状态，有系统估时才显示预计剩余时间。填充只取实际百分比，未知显示空电池，0%显示数值。正在充电，以及外接电源、100% 且明确未在充电时，填充用语义绿。充电标记取明确的充电报告。OEM 容量与循环次数归电池详情，容量保留原始超过 100% 的数值 |
+| `src/components/control/BatteryOverview.tsx` / `BatteryArtwork.tsx` / `src/styles/battery-visuals.css` | 同一摘要行显示电池图、系统电量和供电及充电状态，有系统估时才显示预计剩余时间。填充只取实际百分比，未知显示空电池，0%显示数值。正在充电，以及外接电源、100% 且明确未在充电时，填充用语义绿。充电标记取明确的充电报告。 |
 | `src/components/control/EnergyPolicySettings.tsx` / `EnergyPolicyEditor.tsx` / `useEnergyPolicy.ts` | 开关直接切换已保存计划，停用恢复充电策略。对应编辑器保存日期、时间段和阈值组合，卡内恢复初始计划。 |
-| `src/components/control/BatteryCalibrationSettings.tsx` / `useBatteryCalibration.ts` | 电池校准的五阶段、真实状态与耗时、接管及恢复目标预览、独立开始和停止及恢复确认。任务采样电量在校准详情查看，过期或无效读数为空。任务生命周期由原生校准领域拥有 |
-| `src/components/control/StartupProfilePicker.tsx`、`useStartupProfile.ts` | 取消启动档案直接保存。选择新的启动档案时，在卡片中预览完整档案并授权未来执行，授权绑定文件和模式联动。最近启动结果从执行状态读取。 |
+| `src/components/control/BatteryCalibrationSettings.tsx` / `useBatteryCalibration.ts` | 电池校准的当前阶段、真实状态与耗时、接管及恢复目标预览、独立开始和停止及恢复确认。任务生命周期由原生校准领域拥有 |
+| `src/components/control/StartupProfilePicker.tsx`、`useStartupProfile.ts` | 取消启动档案直接保存。选择新的启动档案时，在授权确认中经「查看档案参数」文字按钮预览完整档案，授权绑定文件和模式联动。最近启动结果从执行状态读取。 |
 | `src/components/control/OemModeEffects.tsx`、`energy-values.ts` | 档案、供电条件与热键循环共用的原厂模式联动预览。插电偏好、固件节能、风扇、偏移、Turbo/DTT、ASPM与系统计划按语义展示，节能值与硬件管理共用唯一格式化函数 |
 | `src/components/control/OemModeGpuEffects.tsx` / `GpuModeFacts.tsx` | 模式GPU当前/目标、独显动作时序、驱动范围和首次恢复来源；宽屏左右、窄屏纵排，Surface保留模块边框和间距。GpuModeFacts唯一展示原始锁频、偏移及未读取原因，供电与明确选择共用；离散模式不画比例，关闭独显时不伪造频率 |
 | `src/components/control/ModeCycleFacts.tsx` | 热键循环的完整模式候选、插电/电池频率及独显阶段预览；左侧实读、右侧按模式分组，原始频率与驱动范围复用GpuModeFacts |

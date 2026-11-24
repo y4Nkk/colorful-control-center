@@ -22,12 +22,10 @@ export async function invokeAutoRefresh(data, command, args, emit) {
     const target = { ...current, frequency: value.current.savedOrHighest };
     if (target.frequency !== current.frequency) {
       data.displayBefore = structuredClone(current);
-      data.displayInitial ??= structuredClone(current);
       data.display.displays[0].current = structuredClone(target);
       data.display.pending = { before: [structuredClone(current)], targets: [target], rotation: false, automatic: true,
         trialId: (data.displayTrialId = (data.displayTrialId ?? 0) + 1), remainingMs: 15000, profileSession: null, error: null };
       data.displayExpiresAt = Date.now() + 15000;
-      data.display.canRestore = true;
       emit("automatic-display-trial", null);
     }
     return null;

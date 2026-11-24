@@ -1,4 +1,3 @@
-import { deviceRestoreButton, openDeviceRestore, restoreDevice } from "./device-settings.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -23,7 +22,7 @@ test.beforeEach(async ({ page }) => {
   await expect(current(page)).toContainText("部分静音");
 });
 
-test("直接统一静音，卡内可恢复原始混合状态", async ({ page }) => {
+test("直接统一静音并回读，卡内不再提供初始恢复", async ({ page }) => {
   const initial = await details(page);
   await expect(endpoint(initial, "内置麦克风")).toHaveText("未静音");
   await expect(endpoint(initial, "USB麦克风")).toHaveText("已静音");
@@ -33,13 +32,8 @@ test("直接统一静音，卡内可恢复原始混合状态", async ({ page }) 
   await expect(mute(page)).toBeChecked();
   await expect(current(page)).not.toContainText("全部静音");
   expect((await writes(page))[0].args.request.muted).toBe(true);
-  const restore = await openDeviceRestore(panel(page));
-  await expect(endpoint(restore, "内置麦克风")).toHaveText("未静音");
-  await expect(endpoint(restore, "USB麦克风")).toHaveText("已静音");
-  await restore.getByRole("button", { name: "确认恢复", exact: true }).click();
-  await expect(current(page)).toContainText("部分静音");
-  await expect(deviceRestoreButton(panel(page))).toHaveCount(0);
-  expect(await page.evaluate(() => window.__uiFixture.microphones.current.endpoints.map(endpoint => endpoint.muted))).toEqual([false, true]);
+  await expect(panel(page).getByRole("button", { name: "恢复初始设置", exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => window.__uiFixture.microphones.current.endpoints.map(endpoint => endpoint.muted))).toEqual([true, true]);
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });
 
@@ -64,19 +58,11 @@ test("外部修订和热键事件刷新回读，之后的切换携带新修订",
   expect((await writes(page))[0].args.request).toEqual({ expectedRevision: "hotkey-mic", muted: true });
 });
 
-test("写入及恢复失败显示实际状态，重试可恢复首次基线", async ({ page }) => {
+test("写入失败显示实际状态", async ({ page }) => {
   await page.evaluate(() => window.__uiFixture.microphoneWriteFault = "隔离麦克风写入失败");
   await mute(page).click();
   await expect(panel(page).getByRole("alert")).toContainText("本次前态已恢复");
   await expect(mute(page)).not.toBeChecked();
-  await page.evaluate(() => window.__uiFixture.microphoneRestoreFault = "隔离恢复失败，基线保留");
-  await restoreDevice(panel(page));
-  await expect(panel(page).getByRole("alert")).toContainText("基线保留");
-  await page.evaluate(() => { window.__uiFixture.microphoneRestoreFault = null; window.__uiFixture.microphoneWriteFault = null; });
-  await restoreDevice(panel(page));
-  await expect(current(page)).toContainText("部分静音");
-  await expect(deviceRestoreButton(panel(page))).toHaveCount(0);
-  await expect(panel(page).getByRole("alert")).toHaveCount(0);
 });
 
 test("无活动设备或原厂控制者运行时禁用写入", async ({ page }) => {
@@ -99,15 +85,15 @@ test("无活动设备或原厂控制者运行时禁用写入", async ({ page }) 
   expect(await writes(page)).toHaveLength(0);
 });
 
-test("设备替换保留恢复记录，禁用对新设备执行初始恢复", async ({ page }) => {
+test("设备替换后仍可直接切换", async ({ page }) => {
   await mute(page).click();
   await expect(mute(page)).toBeChecked();
   await page.evaluate(() => { const p = window.__uiFixture.microphones; p.current.endpoints[1].id = "replacement"; p.revision = "replaced-mic"; });
   await reread(page);
-  await expect(unmute(page)).toBeDisabled();
-  await expect(await details(page)).toContainText("不能恢复到其他设备");
-  await expect(deviceRestoreButton(panel(page))).toHaveCount(0);
-  expect(await page.evaluate(() => window.__uiFixture.microphones.initial)).not.toBeNull();
+  await expect(unmute(page)).toBeEnabled();
+  await unmute(page).click();
+  await expect(unmute(page)).toBeChecked();
+  expect(await page.evaluate(() => window.__uiFixture.microphones.current.endpoints.map(endpoint => endpoint.muted))).toEqual([false, false]);
 });
 
 test("麦克风卡片在深浅宽窄布局保持模块边界", async ({ page }) => {
@@ -154,7 +140,7 @@ test("读取失败禁用切换，读取成功后恢复实际值", async ({ page 
   expect(await writes(page)).toHaveLength(0);
 });
 
-test("新增设备保持原状态，恢复只处理初始设备", async ({ page }) => {
+test("新增设备加入当前控制", async ({ page }) => {
   await mute(page).click();
   await expect(mute(page)).toBeChecked();
   await page.evaluate(() => {
@@ -163,9 +149,8 @@ test("新增设备保持原状态，恢复只处理初始设备", async ({ page 
     profile.revision = "added-mic";
   });
   await reread(page);
-  await expect(unmute(page)).toBeDisabled();
-  await expect(current(page)).toContainText("可先恢复初始设备");
-  await restoreDevice(panel(page));
   await expect(unmute(page)).toBeEnabled();
-  expect(await page.evaluate(() => window.__uiFixture.microphones.current.endpoints.map(endpoint => endpoint.muted))).toEqual([false, true, true]);
+  await unmute(page).click();
+  await expect(unmute(page)).toBeChecked();
+  expect(await page.evaluate(() => window.__uiFixture.microphones.current.endpoints.map(endpoint => endpoint.muted))).toEqual([false, false, false]);
 });

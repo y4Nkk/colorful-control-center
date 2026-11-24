@@ -60,9 +60,8 @@ impl Io for Fake {
 #[test]
 fn reading_and_preview_never_write() {
     let io = Fake::new();
-    let frame = profile(&io, None).unwrap();
+    let frame = profile(&io).unwrap();
     assert!(frame.revision.is_some());
-    assert!(frame.restore_revision.is_none());
     assert!(io.log.borrow().is_empty());
 }
 #[test]
@@ -70,20 +69,16 @@ fn ownership_blocker_is_visible_without_discarding_actual_radio_state() {
     let io = Fake::new();
     let before = io.current().unwrap();
     io.blocked.set(true);
-    let frame = profile(&io, Some(before.clone())).unwrap();
+    let frame = profile(&io).unwrap();
     assert_eq!(frame.current, Some(before));
     assert_eq!(frame.blocked_reason.as_deref(), Some("隔离原厂进程占用"));
-    assert!(frame.restore_revision.is_some());
     assert!(io.log.borrow().is_empty());
 }
 #[test]
-fn absolute_protocol_preserves_first_baseline_across_changes() {
+fn absolute_protocol_writes_both_channels_for_each_change() {
     let io = Fake::new();
-    let mut initial = None;
-    let before = io.current().unwrap();
-    transaction::apply(&io, &mut initial, before.clone(), true, || Ok(())).unwrap();
-    transaction::apply(&io, &mut initial, io.current().unwrap(), false, || Ok(())).unwrap();
-    assert_eq!(initial, Some(before));
+    transaction::apply(&io, io.current().unwrap(), true, || Ok(())).unwrap();
+    transaction::apply(&io, io.current().unwrap(), false, || Ok(())).unwrap();
     assert_eq!(
         *io.log.borrow(),
         [
@@ -95,12 +90,11 @@ fn absolute_protocol_preserves_first_baseline_across_changes() {
     );
 }
 #[test]
-fn partial_failure_compensates_both_channels_and_preserves_baseline() {
+fn partial_failure_compensates_both_channels() {
     let io = Fake::new();
     io.fail.set(true);
-    let mut initial = None;
     let error =
-        transaction::apply(&io, &mut initial, io.current().unwrap(), true, || Ok(())).unwrap_err();
+        transaction::apply(&io, io.current().unwrap(), true, || Ok(())).unwrap_err();
     assert!(format!("{error:#}").contains("injected system failure"));
     assert_eq!(
         *io.log.borrow(),
@@ -111,33 +105,29 @@ fn partial_failure_compensates_both_channels_and_preserves_baseline() {
             "system:false"
         ]
     );
-    assert!(!initial.unwrap().enabled);
     assert!(!io.current().unwrap().enabled);
 }
 #[test]
-fn cancellation_and_stale_state_before_output_leave_no_baseline() {
+fn cancellation_and_stale_state_before_output_never_write() {
     let io = Fake::new();
-    let mut initial = None;
     assert!(
-        transaction::apply(&io, &mut initial, io.current().unwrap(), true, || bail!(
+        transaction::apply(&io, io.current().unwrap(), true, || bail!(
             "cancelled"
         ))
         .is_err()
     );
     let mut stale = io.current().unwrap();
     stale.enabled = true;
-    assert!(transaction::apply(&io, &mut initial, stale, true, || Ok(())).is_err());
-    assert!(initial.is_none());
+    assert!(
+        transaction::apply(&io, stale, true, || Ok(())).is_err()
+    );
     assert!(io.log.borrow().is_empty());
 }
 #[test]
-fn device_change_blocks_restore_and_changes_identity() {
+fn device_change_changes_identity() {
     let io = Fake::new();
     let before = io.current().unwrap();
     io.current.borrow_mut().device = "device-b".into();
-    let frame = profile(&io, Some(before.clone())).unwrap();
-    assert!(frame.restore_revision.is_none());
-    assert!(frame.restore_error.is_some());
     assert_ne!(
         before.identity().unwrap(),
         io.current().unwrap().identity().unwrap()
@@ -146,10 +136,9 @@ fn device_change_blocks_restore_and_changes_identity() {
 #[test]
 fn cancellation_after_firmware_compensates() {
     let io = Fake::new();
-    let mut initial = None;
     let mut calls = 0;
     assert!(
-        transaction::apply(&io, &mut initial, io.current().unwrap(), true, || {
+        transaction::apply(&io, io.current().unwrap(), true, || {
             calls += 1;
             if calls == 3 {
                 bail!("cancelled");

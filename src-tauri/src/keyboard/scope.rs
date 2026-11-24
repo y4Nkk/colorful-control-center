@@ -2,7 +2,7 @@ use super::*;
 use std::sync::MutexGuard;
 
 pub(crate) struct Scope<'a> {
-    pub(super) baseline: MutexGuard<'a, Option<Snapshot>>,
+    _lock: MutexGuard<'a, ()>,
 }
 pub(crate) struct Plan {
     before: Snapshot,
@@ -11,10 +11,10 @@ pub(crate) struct Plan {
 impl Controller {
     pub(crate) fn scope(&self) -> Result<Scope<'_>> {
         Ok(Scope {
-            baseline: self
-                .baseline
+            _lock: self
+                .mutation
                 .lock()
-                .map_err(|_| anyhow!("键盘恢复状态异常"))?,
+                .map_err(|_| anyhow!("键盘控制状态异常"))?,
         })
     }
 }
@@ -31,9 +31,6 @@ impl Scope<'_> {
         }
         hal.with_dchu(|io| {
             let before = read(io)?;
-            if let Some(original) = self.baseline.as_ref() {
-                require_same_capabilities(&before, original)?;
-            }
             target(&before, values)?;
             Ok(Plan {
                 before,
@@ -42,7 +39,7 @@ impl Scope<'_> {
         })
     }
     pub(crate) fn execute(
-        &mut self,
+        &self,
         hal: &Hal,
         plan: &Plan,
         needs_rollback: &mut bool,
@@ -50,7 +47,6 @@ impl Scope<'_> {
         hal.with_dchu(|io| {
             apply_tracked(
                 io,
-                &mut self.baseline,
                 &Request {
                     expected_revision: plan.before.revision(),
                     values: plan.values.clone(),

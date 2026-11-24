@@ -12,6 +12,7 @@ export const UI_CONTRACT = [
   { name: "Switch", style: "switch", prefixes: ["switch"], native: ["input"] },
   { name: "Dialog", style: "dialog", prefixes: ["dialog"], native: ["dialog"] },
   { name: "ScrollArea", style: "scroll-area", prefixes: ["scroll-area", "scroll-viewport"], native: [] },
+  { name: "BackToTopButton", style: "back-to-top", prefixes: ["back-to-top"], native: [] },
 ];
 
 export const VISUAL_PROPERTIES = /^(?:background(?:-|$)|border(?:-|$)|color$|box-shadow$|outline(?:-|$)|font(?:-|$)|opacity$|cursor$|appearance$)/;

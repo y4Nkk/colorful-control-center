@@ -1,5 +1,4 @@
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { deviceRestoreButton, restoreDevice } from "./device-settings.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { openWorkspace } from "./workspace.mjs";
@@ -8,32 +7,29 @@ const calls = page => page.evaluate(() => window.__uiFixture.calls.filter(call =
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "设备配置");
 });
-test("飞行模式开关直接提交并回读，首次恢复在卡内执行", async ({ page }) => {
+test("飞行模式开关直接提交并回读，写入期间锁定模块", async ({ page }) => {
   const p = card(page);
   const toggle = p.getByRole("switch", { name: "飞行模式", exact: true });
   await expect(toggle).not.toBeChecked();
   await expect(toggle).toHaveCSS("cursor", "pointer");
   await expect(toggle).toHaveAccessibleDescription("开启后可能断开无线连接");
   expect(await calls(page)).toEqual([]);
-  await toggle.click();
-  await expect(toggle).toBeChecked();
-  expect((await calls(page))[0].args.request.enabled).toBe(true);
   await page.evaluate(() => {
     const ipc = window.__TAURI_INTERNALS__;
     const invoke = ipc.invoke;
     ipc.invoke = async (command, args) => {
-      if (command === "restore_airplane") await new Promise(resolve => { window.__finishAirplaneRestore = resolve; });
+      if (command === "apply_airplane") await new Promise(resolve => { window.__finishAirplaneWrite = resolve; });
       return invoke(command, args);
     };
   });
-  await restoreDevice(p);
-  await expect(deviceRestoreButton(p)).toHaveCSS("cursor", "progress");
+  await toggle.click();
   await expect(p.getByRole("button", { name: "重新读取飞行模式", exact: true })).toHaveCSS("cursor", "not-allowed");
-  await expect.poll(() => page.evaluate(() => typeof window.__finishAirplaneRestore)).toBe("function");
-  await page.evaluate(() => window.__finishAirplaneRestore());
-  await expect(toggle).not.toBeChecked();
+  await expect.poll(() => page.evaluate(() => typeof window.__finishAirplaneWrite)).toBe("function");
+  await page.evaluate(() => window.__finishAirplaneWrite());
+  await expect(toggle).toBeChecked();
+  expect((await calls(page))[0].args.request.enabled).toBe(true);
   await expect(p.getByText(/^(已开启|已关闭)$/)).toHaveCount(0);
-  await expect(deviceRestoreButton(p)).toHaveCount(0);
+  await expect(p.getByRole("button", { name: "恢复初始设置", exact: true })).toHaveCount(0);
 });
 test("失败保留错误与当前状态，未知状态禁用开关", async ({ page }) => {
   const p = card(page);

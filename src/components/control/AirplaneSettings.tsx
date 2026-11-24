@@ -1,7 +1,6 @@
 import { useId } from "react";
-import { applyAirplane, readAirplane, restoreAirplane } from "../../api/client";
+import { applyAirplane, readAirplane } from "../../api/client";
 import { Button } from "../Button";
-import { ConfirmButton } from "../ConfirmButton";
 import { DetailsDialog } from "../DetailsDialog";
 import { Icon } from "../Icon";
 import { OemConflictAction } from "../OemConflictAction";
@@ -10,14 +9,12 @@ import { Switch } from "../Switch";
 import { AirplaneArtwork } from "./AirplaneArtwork";
 import { useDeviceSettings } from "./useDeviceSettings";
 
-const stateText = (enabled: boolean) => enabled ? "已开启" : "已关闭";
-
 export function AirplaneSettings({ active, revision }: { active: boolean; revision: number }) {
   const { profile, busy, error, run, reread } = useDeviceSettings(readAirplane, active, revision, 5000);
-  const current = profile?.current, expectedRevision = profile?.revision, restoreRevision = profile?.restoreRevision;
+  const current = profile?.current, expectedRevision = profile?.revision;
   const blocked = profile?.blockedReason;
   const hintId = useId();
-  const issues = Array.from(new Set([blocked, error, profile?.error, profile?.restoreError].filter((issue): issue is string => !!issue)));
+  const issues = Array.from(new Set([blocked, error, profile?.error].filter((issue): issue is string => !!issue)));
   const change = (enabled: boolean) => {
     if (!expectedRevision || !current || blocked || current.enabled === enabled) return;
     void run(() => applyAirplane({ expectedRevision, enabled }), "飞行模式已应用");
@@ -41,11 +38,5 @@ export function AirplaneSettings({ active, revision }: { active: boolean; revisi
     </div>
     {issues.length > 0 && <p className="ccc-control-error" role="alert">{issues[0]}</p>}
     <OemConflictAction issues={issues} disabled={busy} onClosed={reread} />
-    {restoreRevision && <div className="ccc-actions">
-      <ConfirmButton key={restoreRevision} label="恢复初始设置" confirmLabel="确认恢复" size="compact" icon="undo" busy={busy} disabled={!!blocked}
-        onConfirm={() => run(() => restoreAirplane(restoreRevision), "飞行模式初始状态已恢复")}>
-        {profile.initial && <p>恢复至{stateText(profile.initial.enabled)}。</p>}
-      </ConfirmButton>
-    </div>}
   </Surface>;
 }

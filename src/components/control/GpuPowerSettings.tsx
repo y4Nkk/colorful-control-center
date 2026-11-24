@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { applyGpuPower, readGpuPower, restoreGpuPower } from "../../api/client";
+import { applyGpuPower, readGpuPower } from "../../api/client";
 import { Button } from "../Button";
-import { ConfirmButton } from "../ConfirmButton";
 import { DetailsDialog } from "../DetailsDialog";
 import { Icon } from "../Icon";
 import { SegmentedControl } from "../SegmentedControl";
@@ -24,7 +23,7 @@ export function GpuPowerSettings({ active, revision, onSettled }: { active: bool
   return <Surface as="section" variant="group" className="ccc-panel" aria-label="独显电源" aria-busy={busy || undefined}>
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="gpu" />独显电源</h2><div className="ccc-module-tools">
       {selected && <DetailsDialog title="设备与授权" label="详情">
-        <p className="ccc-control-caption">{selected.name}</p><p>切换和恢复会请求 Windows 授权。关闭可能中断正在使用独显的程序。</p>
+        <p className="ccc-control-caption">{selected.name}</p><p>切换会请求 Windows 授权。关闭可能中断正在使用独显的程序。</p>
         {!selected.canDisable && <p className="ccc-control-caption">独显正在驱动显示器，或无法确认其他活动输出，暂不能关闭。</p>}
       </DetailsDialog>}
       <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取独显" disabled={busy} onClick={reread} />
@@ -41,11 +40,5 @@ export function GpuPowerSettings({ active, revision, onSettled }: { active: bool
           if (next !== value && (next === "true" || selected.canDisable)) void commit(() => applyGpuPower(selected, next === "true"));
         }} />
     </> : <GpuPowerVisual label={profile ? "未发现可用独显" : "当前状态"} enabled={null} automatic={null} />}
-    {profile?.canRestore && <div className="ccc-actions">
-      <ConfirmButton key={JSON.stringify(profile.devices)} label="恢复初始设置" confirmLabel="确认恢复" size="compact" icon="undo"
-        busy={busy} onConfirm={() => commit(restoreGpuPower)}>
-        <p>恢复首次操作前的独显电源与自动关断状态。操作时将请求 Windows 授权。</p>
-      </ConfirmButton>
-    </div>}
   </Surface>;
 }

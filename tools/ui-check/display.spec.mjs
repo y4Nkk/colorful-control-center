@@ -1,9 +1,8 @@
-import { restoreDevice } from "./device-settings.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
-test("显示试用使用后端剩余时长，保留后仍可恢复初始模式", async ({ page }) => {
+test("显示试用使用后端剩余时长，保留后可再次切换", async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
   await page.goto("/"); await openWorkspace(page, "设备配置");
   const panel = page.getByRole("region", { name: "屏幕显示", exact: true });
@@ -22,7 +21,10 @@ test("显示试用使用后端剩余时长，保留后仍可恢复初始模式",
   await page.evaluate(() => window.__uiFixture.displayExpiresAt = Date.now() - 1);
   await expect(panel.getByRole("status")).toHaveCount(0);
   await expect(panel).toContainText("144 Hz");
-  await restoreDevice(panel);
+  await panel.getByRole("combobox", { name: "目标刷新率" }).click();
+  await page.getByRole("option", { name: "60 Hz", exact: true }).click();
+  await panel.getByRole("button", { name: "保留刷新率", exact: true }).click();
   await expect(panel).toContainText("60 Hz");
+  await expect(panel.getByRole("button", { name: "恢复初始设置", exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });

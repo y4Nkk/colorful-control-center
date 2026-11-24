@@ -15,17 +15,10 @@ pub(super) fn capture(io: &dyn Io) -> Result<Snapshot> {
     snapshot.validate()?;
     Ok(snapshot)
 }
-pub(super) fn prepare(
-    before: Snapshot,
-    after: Snapshot,
-    initial: &Option<Snapshot>,
-) -> Result<Plan> {
+pub(super) fn prepare(before: Snapshot, after: Snapshot) -> Result<Plan> {
     before.validate()?;
     after.validate()?;
     before.same_devices(&after)?;
-    if let Some(initial) = initial {
-        before.same_devices(initial)?;
-    }
     Ok(Plan {
         before,
         after,
@@ -37,17 +30,6 @@ fn verify(io: &dyn Io, expected: &Snapshot) -> Result<()> {
         bail!("麦克风状态在执行中变化或回读不一致");
     }
     Ok(())
-}
-pub(super) fn prepare_restore(before: Snapshot, initial: &Snapshot) -> Result<Plan> {
-    before.require_initial_devices(initial)?;
-    let mut after = before.clone();
-    for endpoint in &mut after.endpoints {
-        if let Some(old) = initial.endpoints.iter().find(|old| old.id == endpoint.id) {
-            endpoint.muted = old.muted;
-        }
-    }
-    after.saved = initial.saved;
-    prepare(before, after, &None)
 }
 fn write(io: &dyn Io, plan: &Plan, attempts: &mut Attempts) -> Result<()> {
     let mut expected = plan.before.clone();
@@ -72,7 +54,6 @@ fn write(io: &dyn Io, plan: &Plan, attempts: &mut Attempts) -> Result<()> {
 }
 pub(super) fn execute(
     io: &dyn Io,
-    initial: &mut Option<Snapshot>,
     plan: &Plan,
     needs_rollback: &mut bool,
 ) -> Result<()> {
@@ -88,7 +69,6 @@ pub(super) fn execute(
     if !attempts.endpoints.is_empty() || attempts.saved.is_some() {
         bail!("麦克风操作仍需恢复，不能重复执行");
     }
-    initial.get_or_insert_with(|| plan.before.clone());
     *needs_rollback = true;
     if let Err(error) = write(io, plan, &mut attempts) {
         let recovery = recover(io, plan, &mut attempts);

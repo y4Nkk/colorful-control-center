@@ -1,5 +1,3 @@
-import { pageActions } from "./configuration-review.mjs";
-import { deviceRestoreButton } from "./device-settings.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -35,18 +33,6 @@ test("领域模块与设置标题显式使用语义图标，硬件插画继续�
   for (const [title, icon] of [["外观", "appearance"], ["窗口与托盘", "window"], ["运行与诊断", "performance"], ["关于", "info"]]) {
     await expect(page.getByRole("heading", { name: title, exact: true }).locator("svg")).toHaveAttribute("data-icon", icon);
   }
-});
-
-test("独显切换直接回读，卡内恢复沿用撤销图标", async ({ page }) => {
-  await page.addInitScript(() => { Object.assign(window.__uiFixture.gpuPower.devices[0], { drivesDisplay: false, canDisable: true }); });
-  await page.goto("/");
-  await openWorkspace(page, "设备配置");
-  const panel = page.getByRole("region", { name: "独显电源", exact: true });
-  expect(await calls(page, "apply_gpu_power")).toHaveLength(0);
-  await panel.getByRole("radio", { name: "关闭独显", exact: true }).click();
-  await expect.poll(async () => (await calls(page, "apply_gpu_power")).length).toBe(1);
-  await expect(deviceRestoreButton(panel).locator("svg")).toHaveAttribute("data-icon", "undo");
-  await expect(pageActions(page)).toHaveCount(0);
 });
 
 test("深浅主题与窄窗口保持图标尺寸、模块间距和页面宽度", async ({ page }, testInfo) => {

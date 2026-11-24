@@ -17,18 +17,50 @@
   border-radius: var(--ccc-radius-card);
   background: linear-gradient(110deg, var(--ccc-content-muted), var(--ccc-nav-selected));
 }
-.ccc-refresh-screen::before {
-  content: "";
+.ccc-refresh-scan {
   position: absolute;
   z-index: -1;
-  inset: var(--ccc-space-2);
+  inset-block: var(--ccc-space-2);
   inset-inline-start: 48%;
+  inline-size: calc(52% - var(--ccc-space-2));
+  block-size: calc(100% - var(--ccc-space-2) * 2);
+  overflow: hidden;
+  pointer-events: none;
   border: 1px solid color-mix(in srgb, var(--ccc-action) 24%, transparent);
   border-radius: var(--ccc-radius-control);
-  background:
-    linear-gradient(transparent 47%, color-mix(in srgb, var(--ccc-action) 26%, transparent) 48% 50%, transparent 51%),
-    repeating-linear-gradient(transparent 0 6px, color-mix(in srgb, var(--ccc-action) 11%, transparent) 6px 7px);
   mask-image: linear-gradient(90deg, transparent, var(--ccc-text) 70%);
+}
+.ccc-refresh-scan-beam { transform: translateY(50%); }
+.ccc-refresh-scan-edge { opacity: .26; }
+.ccc-refresh-scan-trail, .ccc-refresh-scan-pulse { opacity: 0; }
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="reduce"]) .ccc-refresh-scan[data-active] {
+    .ccc-refresh-scan-beam {
+      animation: ccc-refresh-scan-sweep var(--ccc-motion-scan-loop) linear infinite;
+      > .ccc-refresh-scan-edge { opacity: .62; }
+      > .ccc-refresh-scan-trail { opacity: 1; }
+    }
+    .ccc-refresh-scan-pulse {
+      stroke-dasharray: 12 88;
+      animation: ccc-refresh-scan-pulse calc(var(--ccc-motion-scan-loop) * .75) linear infinite;
+      &:nth-child(2) { animation-delay: calc(var(--ccc-motion-scan-loop) * -.25); }
+      &:nth-child(3) { animation-delay: calc(var(--ccc-motion-scan-loop) * -.5); }
+    }
+  }
+}
+
+@keyframes ccc-refresh-scan-sweep {
+  0% { transform: translateY(0); opacity: 0; }
+  6% { opacity: 1; }
+  68%, 74% { transform: translateY(100%); opacity: 1; }
+  80%, 100% { transform: translateY(100%); opacity: 0; }
+}
+
+@keyframes ccc-refresh-scan-pulse {
+  0%, 8% { opacity: 0; stroke-dashoffset: 12; }
+  24%, 62% { opacity: .8; }
+  86%, 100% { opacity: 0; stroke-dashoffset: -100; }
 }
 .ccc-refresh-screen > strong { font-size: var(--ccc-text-temperature); line-height: 1.15; }
 .ccc-refresh-screen > strong > span { font-size: var(--ccc-text-xl); }
@@ -45,8 +77,6 @@
 .ccc-power-source-visual strong { color: var(--ccc-text); font-size: var(--ccc-text-xl); }
 .ccc-rule-heading { display: flex; align-items: center; gap: var(--ccc-space-2); min-width: 0; }
 .ccc-rule-heading > .ccc-icon { flex: none; color: var(--ccc-action); }
-.ccc-rule-mode { display: flex; align-items: center; gap: var(--ccc-space-3); min-width: 0; }
-.ccc-rule-mode > .ccc-mode-art { flex: 0 0 var(--ccc-control-height); width: var(--ccc-control-height); }
 .ccc-rule-facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ccc-space-2); }
 .ccc-state-symbol { display: inline-flex; align-items: center; gap: var(--ccc-space-2); }
 .ccc-state-symbol[data-state="on"] { color: var(--ccc-safe-text); }

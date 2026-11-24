@@ -18,10 +18,6 @@ async function saveStartup(page) {
   await submitConfiguration(await previewConfiguration(page, "启动档案"));
   await expect(availableAction(page, "启动档案")).toHaveCount(0);
 }
-async function openPolicyDetails(page) {
-  await policy(page).getByRole("button", { name: "详情", exact: true }).click();
-  return page.getByRole("dialog", { name: "供电档案状态与记录", exact: true });
-}
 async function noHardwareCalls(page) {
   expect(await page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_|restore_)/.test(call.command)))).toEqual([]);
 }
@@ -46,8 +42,8 @@ test("启动确认展示两种供电目标，只保存稳定授权而不执行�
   await expect(table.getByRole("row").filter({ hasText: "插电" })).toContainText("1700");
   await expect(table.getByRole("row").filter({ hasText: "电池" })).toContainText("保持");
   await expect(approval(review).locator(".ccc-gpu-power-visual svg")).toBeVisible();
-  await expect(infoButtons(review)).toHaveCount(1);
-  await review.getByRole("button", { name: "启动档案参数", exact: true }).click();
+  await expect(infoButtons(review)).toHaveCount(0);
+  await review.getByRole("button", { name: "查看档案参数", exact: true }).click();
   const details = page.getByRole("dialog", { name: "启动档案参数", exact: true });
   await expect(details.getByRole("region", { name: "后台 GPU 执行与恢复", exact: true })).toContainText("失败恢复本次前态");
   await page.keyboard.press("Escape");
@@ -68,10 +64,9 @@ test("供电规则确认完整未来目标，启用只记录版本二授权", as
   const review = await previewConfiguration(page, "供电与唤醒档案");
   await expect(approval(review)).toBeVisible();
   const rule = review.getByRole("region", { name: "插电时", exact: true });
-  await expect(infoButtons(rule)).toHaveCount(1);
-  const parameters = "查看「隔离档案」参数";
-  await rule.getByRole("button", { name: parameters, exact: true }).click();
-  await expect(page.getByRole("dialog", { name: parameters, exact: true })
+  await expect(infoButtons(rule)).toHaveCount(0);
+  await rule.getByRole("button", { name: "查看档案参数", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "查看「隔离档案」参数", exact: true })
     .getByRole("region", { name: "后台 GPU 执行与恢复", exact: true })).toContainText("失败恢复本次前态");
   await page.keyboard.press("Escape");
   expect(await calls(page, "save_power_profile_policy")).toHaveLength(0);
@@ -94,11 +89,9 @@ test("未来GPU目标读取失败时可查看原因并阻止保存", async ({ pa
   await expect(startup(page).getByRole("alert").filter({ hasText: "未来电池目标超过驱动范围" })).toBeVisible();
   await expect(availableAction(page, "启动档案")).toHaveCount(0);
   await choose(page, policy(page), "插电时");
-  await expect(policy(page).locator('button:has(> svg[data-icon="info"])')).toHaveCount(1);
-  await policy(page).getByRole("button", { name: "详情", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "供电档案状态与记录", exact: true })
-    .getByRole("region", { name: "插电时 · 档案不可用", exact: true })).toContainText("未来电池目标超过驱动范围");
-  await page.keyboard.press("Escape");
+  await expect(policy(page).locator('button:has(> svg[data-icon="info"])')).toHaveCount(0);
+  await expect(policy(page)).toContainText("档案不可用");
+  await expect(policy(page)).toContainText("未来电池目标超过驱动范围");
   await expect(availableAction(page, "供电与唤醒档案")).toHaveCount(0);
   expect(await calls(page, "set_startup_profile")).toHaveLength(0);
   expect(await calls(page, "save_power_profile_policy")).toHaveLength(0);
@@ -110,7 +103,7 @@ test("确认前未来目标变化拒绝旧供电规则且不触发设备执行",
   await previewConfiguration(page, "供电与唤醒档案");
   await page.evaluate(() => { window.__uiFixture.profileModeChoices.find(choice => choice.mode === 2 && !choice.onAc).candidate.decision.target.lockMhz = 800; });
   await submitConfiguration(await previewConfiguration(page, "供电与唤醒档案"));
-  await expect(await openPolicyDetails(page)).toContainText("模式联动已变化");
+  await expect(policy(page).getByRole("alert").filter({ hasText: "模式联动已变化" })).toBeVisible();
   expect(await page.evaluate(() => window.__uiFixture.powerPolicy.record.enabled)).toBe(false);
   await noHardwareCalls(page);
 });
@@ -131,8 +124,7 @@ test("不可用旧规则按文件修订两次确认清除，变化时拒绝旧�
   expect(await calls(page, "reset_power_profile_policy")).toHaveLength(0);
   const reset = page.getByRole("dialog", { name: "清除不可用规则", exact: true });
   await submitConfiguration(reset, "清除规则并停用");
-  await expect(await openPolicyDetails(page)).toContainText("规则已变化");
-  await page.keyboard.press("Escape");
+  await expect(policy(page).getByRole("alert").filter({ hasText: "规则已变化" })).toBeVisible();
   await policy(page).getByRole("button", { name: "清除不可用规则", exact: true }).click();
   await submitConfiguration(reset, "清除规则并停用");
   await expect(policy(page).getByRole("button", { name: "清除不可用规则", exact: true })).toHaveCount(0);

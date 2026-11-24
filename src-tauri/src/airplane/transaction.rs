@@ -2,7 +2,6 @@ use super::*;
 
 pub(super) fn apply(
     io: &dyn Io,
-    initial: &mut Option<Snapshot>,
     before: Snapshot,
     enabled: bool,
     mut permit: impl FnMut() -> Result<()>,
@@ -13,7 +12,6 @@ pub(super) fn apply(
         bail!("飞行模式前态已变化，未执行请求");
     }
     permit()?;
-    initial.get_or_insert_with(|| before.clone());
     let result = (|| {
         io.firmware(enabled)?;
         permit()?;

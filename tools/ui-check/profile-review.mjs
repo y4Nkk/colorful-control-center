@@ -36,6 +36,6 @@ export async function openProfileResults(page) {
 
 export async function openStartupParameters(page) {
   const review = page.getByRole("region", { name: "启动档案 · 授权启动应用档案", exact: true });
-  await review.getByRole("button", { name: "启动档案参数", exact: true }).click();
+  await review.getByRole("button", { name: "查看档案参数", exact: true }).click();
   return page.getByRole("dialog", { name: "启动档案参数", exact: true });
 }

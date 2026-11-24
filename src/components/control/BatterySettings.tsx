@@ -1,9 +1,7 @@
 import { Icon } from "../Icon";
-import { applyBatteryCharge, readBatteryProfile, restoreBatteryCharge, type BatteryChargeValues, type BatteryProfile } from "../../api/client";
+import { applyBatteryCharge, readBatteryProfile, restoreBatteryCharge, type BatteryChargeValues } from "../../api/client";
 import { Button } from "../Button";
-import { DetailsDialog } from "../DetailsDialog";
 import { ConfigurationAction } from "../ConfigurationAction";
-import { FactList } from "../FactList";
 import { Select } from "../Select";
 import { Surface } from "../Surface";
 import { Switch } from "../Switch";
@@ -43,7 +41,6 @@ export function BatterySettings({ active, revision: refreshRevision, onPolicyCha
       <div className="ccc-panel-head">
         <h2 className="ccc-panel-title"><Icon name="charging" />电池与充电</h2>
         <div className="ccc-module-tools">
-          <BatteryDetails profile={profile} />
           <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取电池" disabled={busy} onClick={reread} />
         </div>
       </div>
@@ -85,21 +82,4 @@ export function BatterySettings({ active, revision: refreshRevision, onPolicyCha
       <BatteryCalibrationSettings active={active} locked={chargeBusy || energyBusy} onChanged={refreshFacts} onBusy={setCalibrationBusy} onLocked={setCalibrationLocked} />
     </div>
   </div>;
-}
-
-function BatteryDetails({ profile }: { profile: BatteryProfile | null }) {
-  const diagnostics = profile?.diagnostics;
-  return <DetailsDialog title="电池读数与诊断" label="详情">
-    {diagnostics && <FactList compact facts={[
-      { label: "生产日期", value: diagnostics.manufacturedOn ?? "—" },
-      { label: "循环次数", value: diagnostics.cycleCount ?? "—" },
-      { label: "满充 / 设计容量", value: diagnostics.capacityPct === null ? "未知" : `${diagnostics.capacityPct}%` },
-      { label: "满充容量原始值", value: diagnostics.fullCapacityRaw },
-      { label: "设计容量原始值", value: diagnostics.designCapacityRaw },
-      { label: "电池状态码", value: `0x${diagnostics.batteryStatus.toString(16)}` },
-      { label: "故障状态码", value: `0x${diagnostics.permanentFailureStatus.toString(16)}` },
-    ]} />}
-    <p>当前电量取系统读数。满充容量与设计容量的比例用于比较容量变化。</p>
-    {profile?.warnings.map(warning => <p key={warning} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{warning}</p>)}
-  </DetailsDialog>;
 }

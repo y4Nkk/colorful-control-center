@@ -34,7 +34,7 @@
 .ccc-refresh-control > div { display: grid; }
 .ccc-graphics-choices { display: flex; flex-wrap: wrap; gap: var(--ccc-space-2); margin-block: auto; }
 .ccc-graphics-choices > [aria-pressed] { flex: 1 1 calc(50% - var(--ccc-space-2)); align-items: center; text-align: center; }
-.ccc-graphics-choice-art { display: block; width: min(100%, 136px); height: auto; color: var(--ccc-text-muted); }
+.ccc-graphics-choice-art { display: block; width: min(100%, 156px); height: auto; color: var(--ccc-text-muted); }
 .ccc-graphics-choices > [aria-pressed="true"] .ccc-graphics-choice-art { color: inherit; }
 @container ccc-control (min-width: 62rem) {
   .ccc-graphics-choices > [aria-pressed] { flex-basis: calc(25% - var(--ccc-space-2)); }

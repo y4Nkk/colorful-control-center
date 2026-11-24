@@ -1,6 +1,6 @@
 use super::*;
 
-/// One persisted choice and its compensating request share the original baseline.
+/// One persisted choice and its compensating request share the recorded previous mode.
 pub(super) struct Plan {
     before: Preview,
     request: Record,
@@ -13,18 +13,16 @@ impl Plan {
         self.dirty
     }
 
-    pub fn new(before: Preview, target: u8, restoring: bool) -> Result<Self> {
+    pub fn new(before: Preview, target: u8) -> Result<Self> {
         if !before.observed.supports(target) {
             bail!("固件未声明支持此显卡模式");
         }
-        let uncertain = before.loaded.record.as_ref().is_some_and(|record| {
+        // 未确认的记录只有实际发送一次才能回到已接受，因此不按“已是该模式”跳过。
+        let unconfirmed = before.loaded.record.as_ref().is_some_and(|record| {
             record.verification(&before.observed, &before.identity) == Verification::Uncertain
         });
-        if uncertain && !restoring {
-            bail!("此前显卡选择尚未确认，请先恢复选择记录");
-        }
-        let noop = !restoring && profile::known(&before) == target;
-        let request = pending(&before, target, restoring);
+        let noop = !unconfirmed && profile::known(&before) == target;
+        let request = pending(&before, target);
         Ok(Self {
             before,
             request,

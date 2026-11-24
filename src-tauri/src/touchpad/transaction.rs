@@ -15,15 +15,8 @@ pub(super) fn capture(io: &dyn Io) -> Result<Snapshot> {
     snapshot.validate()?;
     Ok(snapshot)
 }
-pub(super) fn prepare(
-    before: Snapshot,
-    after: Snapshot,
-    initial: &Option<Snapshot>,
-) -> Result<Plan> {
+pub(super) fn prepare(before: Snapshot, after: Snapshot) -> Result<Plan> {
     before.same_devices(&after)?;
-    if let Some(initial) = initial {
-        before.same_devices(initial)?;
-    }
     Ok(Plan {
         before,
         after,
@@ -56,12 +49,7 @@ fn write(io: &dyn Io, plan: &Plan, attempts: &mut Attempts) -> Result<()> {
     }
     Ok(())
 }
-pub(super) fn execute(
-    io: &dyn Io,
-    initial: &mut Option<Snapshot>,
-    plan: &Plan,
-    needs: &mut bool,
-) -> Result<()> {
+pub(super) fn execute(io: &dyn Io, plan: &Plan, needs: &mut bool) -> Result<()> {
     verify(io, &plan.before)?;
     if plan.before == plan.after {
         return Ok(());
@@ -74,7 +62,6 @@ pub(super) fn execute(
     if attempts.state || attempts.saved {
         bail!("触摸板操作仍需恢复，不能重复执行");
     }
-    initial.get_or_insert_with(|| plan.before.clone());
     *needs = true;
     if let Err(error) = write(io, plan, &mut attempts) {
         let recovery = recover(io, plan, &mut attempts);

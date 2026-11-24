@@ -16,16 +16,18 @@ export function AutomaticRefreshSettings({ active, revision }: { active: boolean
   const hintId = useId();
   const facts = profile?.current;
   const enabled = !!profile?.active;
+  // 启用记录仍在：策略运行中，或已暂停、事务未完成而等待用户关闭。
+  const held = profile?.initial != null;
   const issues = Array.from(new Set([profile?.blockedReason, error, profile?.error, profile?.issue].filter((issue): issue is string => !!issue)));
-  const status = busy ? "正在应用…" : !enabled && profile?.initial ? "已暂停" : !profile && !error ? "读取中…" : null;
-  const mayChange = enabled ? profile?.canRestore : profile?.canStart;
+  const status = busy ? "正在应用…" : held && !enabled ? "已暂停" : !profile && !error ? "读取中…" : null;
+  const mayChange = held ? profile?.canRestore : profile?.canStart;
   const preview = profile?.preview;
-  const hint = enabled && profile?.initialDisplay ? `停用时恢复 ${profile.initialDisplay.frequency} Hz`
-    : !enabled && mayChange && preview && preview.before.frequency !== preview.target.frequency
+  const hint = held && profile?.initialDisplay ? `停用时恢复 ${profile.initialDisplay.frequency} Hz`
+    : !held && mayChange && preview && preview.before.frequency !== preview.target.frequency
       ? `启用时试用 ${preview.target.frequency} Hz` : null;
 
   const setEnabled = (next: boolean) => {
-    if (!profile || !mayChange || next === enabled) return;
+    if (!profile || !mayChange || next === held) return;
     const action = next ? enableAutomaticRefresh : restoreAutomaticRefresh;
     void run(() => action(profile.revision));
   };
@@ -49,23 +51,44 @@ export function AutomaticRefreshSettings({ active, revision }: { active: boolean
         {status && <span className="ccc-control-caption" role="status">{status}</span>}
         {hint && <span id={hintId} className="ccc-control-caption">{hint}</span>}
       </div>
-      <Switch label="启用自动刷新率" describedBy={hint ? hintId : undefined} checked={enabled}
+      <Switch label="启用自动刷新率" describedBy={hint ? hintId : undefined} checked={held}
         disabled={busy || !mayChange} onChange={setEnabled} />
     </div>
-    <AutomaticRefreshReadout facts={facts} />
+    <AutomaticRefreshReadout facts={facts} active={active} />
     {issues.length > 0 && <p className="ccc-control-error" role="alert">{issues[0]}</p>}
     <OemConflictAction issues={issues} disabled={busy} onClosed={reread} />
-    {profile?.canRestore && !enabled && <div className="ccc-actions">
-      <Button size="compact" icon="undo" variant="secondary" disabled={busy}
-        onClick={() => void run(() => restoreAutomaticRefresh(profile.revision))}>恢复启用前状态</Button>
-    </div>}
   </Surface>;
 }
 
-function AutomaticRefreshReadout({ facts }: { facts?: AutomaticRefreshFacts | null }) {
+/** 扫描纹理是纯装饰：节奏固定，不表示实际刷新时序。 */
+function RefreshScanArtwork({ active }: { active: boolean }) {
+  const id = `ccc-scan-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  return <svg className="ccc-refresh-scan" aria-hidden="true" focusable="false" data-active={active || undefined}>
+    <defs>
+      <pattern id={`${id}-lines`} width="6" height="6" patternUnits="userSpaceOnUse">
+        <rect y="5" width="6" height="1" fill="var(--ccc-action)" fillOpacity=".11" />
+      </pattern>
+      <linearGradient id={`${id}-trail`} x1="0" y1="0" x2="0" y2="1">
+        <stop stopColor="var(--ccc-action)" stopOpacity="0" />
+        <stop offset="1" stopColor="var(--ccc-action)" stopOpacity=".22" />
+      </linearGradient>
+    </defs>
+    <rect width="100%" height="100%" fill={`url(#${id}-lines)`} />
+    <g className="ccc-refresh-scan-beam">
+      <rect className="ccc-refresh-scan-trail" y="-26" width="100%" height="26" fill={`url(#${id}-trail)`} />
+      <rect className="ccc-refresh-scan-edge" y="-1.5" width="100%" height="1.5" fill="var(--ccc-action)" />
+    </g>
+    <g className="ccc-refresh-scan-pulses" fill="none" stroke="var(--ccc-action)" strokeWidth="1.5" strokeLinecap="round">
+      {[23.5, 47.5, 71.5].map(y => <line key={y} className="ccc-refresh-scan-pulse" x1="0" x2="100%" y1={y} y2={y} pathLength="100" />)}
+    </g>
+  </svg>;
+}
+
+function AutomaticRefreshReadout({ facts, active }: { facts?: AutomaticRefreshFacts | null; active: boolean }) {
   const supply = facts?.onAc === true ? "已插电" : facts?.onAc === false ? "电池供电" : "供电未知";
   return <div className="ccc-refresh-readout">
     <div className="ccc-refresh-screen">
+      <RefreshScanArtwork active={active && !!facts} />
       <span className="ccc-control-caption">当前主屏</span>
       <strong className="ccc-mono">{facts ? <>{facts.display.frequency} <span>Hz</span></> : "—"}</strong>
       {facts && <span className="ccc-refresh-source">

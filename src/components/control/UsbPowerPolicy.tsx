@@ -1,7 +1,6 @@
 import { Icon } from "../Icon";
 import { applyUsbPolicy, readUsbPolicy, restoreUsbPolicy, USB_POLICY_LABEL, type UsbPlan, type UsbTargets } from "../../api/client";
 import { Button } from "../Button";
-import { DetailsDialog } from "../DetailsDialog";
 import { ConfigurationAction } from "../ConfigurationAction";
 import { FactList } from "../FactList";
 import { OemConflictAction } from "../OemConflictAction";
@@ -34,13 +33,7 @@ export function UsbPowerPolicy({ active, revision }: { active: boolean; revision
   const update = (field: keyof UsbTargets, value: string) => apply({ ac: null, dc: null, [field]: value === "on" });
   return <Surface as="section" variant="group" className="ccc-panel" aria-labelledby="usb-policy-heading">
     <div className="ccc-panel-head"><h2 id="usb-policy-heading" className="ccc-panel-title"><Icon name="usb" />{USB_POLICY_LABEL}</h2>
-      <div className="ccc-module-tools">{profile && <DetailsDialog title={`${USB_POLICY_LABEL}详情`} label="详情">
-        <FactList compact facts={plans(profile.plans)} />
-        {profile.missing.length > 0 && <p>未安装 · {profile.missing.map(id => NAMES[id]).join("、")}</p>}
-        {profile.restoreBlockedReason && <p>{profile.restoreBlockedReason}</p>}
-        {profile.warnings.map(warning => <p key={warning}>{warning}</p>)}
-      </DetailsDialog>}
-      <Button icon="refresh" variant="ghost" size="icon-compact" aria-label={`重新读取 ${USB_POLICY_LABEL}`} disabled={busy} onClick={reread} /></div></div>
+      <div className="ccc-module-tools"><Button icon="refresh" variant="ghost" size="icon-compact" aria-label={`重新读取 ${USB_POLICY_LABEL}`} disabled={busy} onClick={reread} /></div></div>
     {error && <p className="ccc-control-error" role="alert">{error}</p>}
     <OemConflictAction issues={[error, profile?.blockedReason, profile?.restoreBlockedReason]} disabled={busy} onClosed={reread} />
     {!profile ? <p className="ccc-control-caption">{error ? "读取失败" : "读取中…"}</p> : <>
@@ -54,6 +47,7 @@ export function UsbPowerPolicy({ active, revision }: { active: boolean; revision
           onClick={() => apply({ ac: profile.recommendation, dc: profile.recommendation })}>使用原厂建议 · {text(profile.recommendation)}</Button>}
         {(unknown("ac") || unknown("dc")) && <p className="ccc-control-caption">请重新读取未知现值，确保改动可恢复。</p>}
         {profile.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
+        {profile.restoreBlockedReason && <p className="ccc-control-caption">{profile.restoreBlockedReason}</p>}
       </div>
       <ConfigurationAction label={USB_POLICY_LABEL} revision={profile.revision} restore disabled={busy || !profile.initial.length || !!profile.restoreBlockedReason}
         onConfirm={() => run(() => restoreUsbPolicy(profile.revision), `${USB_POLICY_LABEL}已恢复初始设置`)}>

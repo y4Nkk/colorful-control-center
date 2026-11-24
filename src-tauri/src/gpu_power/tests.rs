@@ -67,7 +67,6 @@ fn stale_output_and_fault_states_never_execute() {
     let now = io.list().unwrap()[0].clone();
     assert!(c.apply(&io, &now, Target::requested(false), false).is_err());
     assert_eq!(io.0.lock().unwrap().calls, 0);
-    assert!(!c.read(&io).unwrap().can_restore);
 }
 #[test]
 fn failed_authorized_write_does_not_launch_unnecessary_recovery() {
@@ -79,10 +78,9 @@ fn failed_authorized_write_does_not_launch_unnecessary_recovery() {
     );
     assert_eq!(io.0.lock().unwrap().calls, 1);
     assert!(io.list().unwrap()[0].enabled);
-    assert!(c.read(&io).unwrap().can_restore);
 }
 #[test]
-fn ignored_write_fails_readback_and_keeps_baseline() {
+fn ignored_write_fails_readback() {
     let (c, io) = setup();
     io.0.lock().unwrap().ignore = true;
     assert!(
@@ -91,10 +89,9 @@ fn ignored_write_fails_readback_and_keeps_baseline() {
             .to_string()
             .contains("回读不一致")
     );
-    assert!(c.read(&io).unwrap().can_restore);
 }
 #[test]
-fn partial_failure_keeps_first_baseline_and_current_apply_can_retry() {
+fn partial_failure_leaves_flags_and_replay_can_retry() {
     let (c, io) = setup();
     {
         let mut d = io.0.lock().unwrap();
@@ -140,6 +137,5 @@ fn runtime_blocks_uac_while_refresh_trial_needs_automatic_recovery() {
             .to_string()
             .contains("刷新率试用")
     );
-    assert!(controller.restore_runtime(&hal, &clocks, &display).is_err());
     assert_eq!(io.0.lock().unwrap().calls, 0);
 }

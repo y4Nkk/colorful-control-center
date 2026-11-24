@@ -7,7 +7,7 @@ export interface DisplayProfile {
   displays: { current: DisplayMode; frequencies: number[]; primary: boolean }[];
   rotation: { before: DisplayMode; target: DisplayMode } | null;
   pending: { before: DisplayMode[]; targets: DisplayMode[]; rotation: boolean; automatic: boolean; trialId: number | null; remainingMs: number | null; profileSession: number | null; error: string | null } | null;
-  canRestore: boolean; error: string | null; blockedReason: string | null;
+  error: string | null; blockedReason: string | null;
 }
 export type DisplayPending = NonNullable<DisplayProfile["pending"]>;
 export type OemModeGpuValues = Pick<GpuPowerDevice, "enabled" | "automaticPowerOff">;
@@ -27,17 +27,15 @@ export interface AutomaticRefreshStatus {
   listenerOnline: boolean; sleeping: boolean; blockedReason: string | null; issue: string | null;
 }
 export interface GpuPowerDevice { id: string; name: string; enabled: boolean; automaticPowerOff: boolean; problem: number; drivesDisplay: boolean; canDisable: boolean }
-export interface GpuPowerProfile { devices: GpuPowerDevice[]; canRestore: boolean }
+export interface GpuPowerProfile { devices: GpuPowerDevice[] }
 export type GraphicsModeVerification = "uncertain" | "pendingReboot" | "confirmed" | "notApplied";
 export interface GraphicsModeProfile {
   current: { mode: number; availableMask: number } | null;
   revision: string;
-  lastRequest: { initialMode: number; target: number; verification: GraphicsModeVerification } | null;
-  canRestore: boolean;
+  lastRequest: { target: number; verification: GraphicsModeVerification } | null;
 }
 export const readGraphicsMode = (): Promise<GraphicsModeProfile> => invoke("read_graphics_mode");
 export const applyGraphicsMode = (expectedRevision: string, target: number): Promise<void> => invoke("apply_graphics_mode", { request: { expectedRevision, target } });
-export const restoreGraphicsMode = (expectedRevision: string): Promise<void> => invoke("restore_graphics_mode", { expectedRevision });
 export const rebootForGraphicsMode = (expectedRevision: string): Promise<void> => invoke("reboot_for_graphics_mode", { expectedRevision });
 export const readDisplayModes = (): Promise<DisplayProfile> => invoke("read_display_modes");
 export const readAutomaticRefresh = (): Promise<AutomaticRefreshStatus> => invoke("read_automatic_refresh");
@@ -48,10 +46,8 @@ export const applyDisplayRefresh = (expected: DisplayMode, frequency: number): P
 export const applyDisplayRotation = (expected: DisplayMode): Promise<void> => invoke("apply_display_rotation", { expected });
 export const keepDisplayMode = (trialId: number, expected: DisplayMode): Promise<void> => invoke("keep_display_mode", { trialId, expected });
 export const cancelDisplayTrial = (trialId: number): Promise<void> => invoke("cancel_display_trial", { trialId });
-export const restoreDisplayModes = (): Promise<void> => invoke("restore_display_modes");
 export const readGpuPower = (): Promise<GpuPowerProfile> => invoke("read_gpu_power");
 export const applyGpuPower = (expected: GpuPowerDevice, enabled: boolean): Promise<void> => invoke("apply_gpu_power", { expected, enabled });
-export const restoreGpuPower = (): Promise<void> => invoke("restore_gpu_power");
 
 export type PdEncoding = "legacyZeroBased" | "legacyOneBased" | "adapterV1";
 export interface PowerDeliveryTarget {

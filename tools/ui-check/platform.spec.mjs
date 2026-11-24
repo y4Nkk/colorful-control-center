@@ -84,7 +84,15 @@ test("校准锁和恢复不适配状态分别阻止写入", async ({ page }) => 
   });
   await panel.getByRole("button", { name: "重新读取平台电源" }).click();
   await expect(panel.getByRole("combobox", { name: "PD 档位" })).toBeEnabled();
+  await expect(panel).toContainText("当前适配器不支持初始PD档位");
   await expect(availableAction(page, "PD 档位", true)).toHaveCount(0);
+});
+
+test("部分读取失败的提示直接显示在卡内", async ({ page }) => {
+  const panel = panelOf(page);
+  await page.evaluate(() => { window.__uiFixture.platform.warnings = ["PD档位：隔离读取失败"]; });
+  await panel.getByRole("button", { name: "重新读取平台电源" }).click();
+  await expect(panel).toContainText("PD档位：隔离读取失败");
 });
 
 test("PD模块左右布局与窄屏回流不溢出", async ({ page }) => {

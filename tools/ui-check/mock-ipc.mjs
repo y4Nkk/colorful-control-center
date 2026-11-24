@@ -41,14 +41,14 @@ function fixtureData() {
     keyboard: { available: true, unavailableReason: null, detectedType: 6, detectedFamily: "zoneRgb", detectionSource: "隔离夹具", baseline: null, warnings: [],
       current: { brightnessLevel: 3, enabled: true, rawMode: 0, effect: "zones", allColor: color, zones: [0, 1, 2].map(() => ({ enabled: true, color })) } },
     display: { displays: [{ current: { device: "DISPLAY1", identity: "isolated-panel", name: "隔离屏幕", width: 1920, height: 1080,
-      bits: 32, orientation: 0, x: 0, y: 0, flags: 0, frequency: 60 }, frequencies: [60, 144], primary: true }], pending: null, canRestore: false, error: null },
+      bits: 32, orientation: 0, x: 0, y: 0, flags: 0, frequency: 60 }, frequencies: [60, 144], primary: true }], pending: null, error: null },
     autoRefreshRevision: 0, autoRefreshOwned: null,
     autoRefresh: { revision: "automatic-0", current: { identity: "isolated", display: null, candidates: [60, 144], low: 60, savedOrHighest: 144,
       fields: [0, 0, 144], mode: 1, modes: [0, 1, 2, 3], customer: 1, product: 20600, supplyModeSwitch: false, onAc: true, defaultEnabled: true },
       initial: null, initialDisplay: null, preview: null, active: false, canStart: true, canRestore: false,
       error: null, listenerOnline: true, sleeping: false, issue: null },
-    keyboardSettings: { revision: "keyboard-0", current: { fnLocked: false, winLocked: false, fnWinSwap: null }, canRestore: false },
-    keyboardInitial: { fnLocked: false, winLocked: false, fnWinSwap: null }, keyboardRevision: 0, keyboardFault: null,
+    keyboardSettings: { revision: "keyboard-0", current: { fnLocked: false, winLocked: false, fnWinSwap: null } },
+    keyboardRevision: 0, keyboardFault: null,
     lightingOptions: { revision: "lighting-options-0", current: { idleTimer: { enabled: true, seconds: 30 }, bootOverride: false, logo: null, lightBar: null , topCover: null},
       capabilities: { keyboardType: 6, peripheralSupportKnown: true, bootOverride: true, logo: false, lightBar: false , topCover: false}, canRestore: false, initial: null },
     multiZone: null, multiZoneRevision: 0, multiZoneReadFault: null, multiZoneWriteFault: null,
@@ -57,8 +57,8 @@ function fixtureData() {
     keymap: null, keymapRevision: 0, keymapReadFault: null, keymapFault: null,
     platform: { powerDelivery: null, deepS5: null, warnings: [] }, pdRevision: 0, pdFault: null, platformReadFault: null,
     gpuPower: { devices: [{ id: "ACPI\\NVDA0820\\ISOLATED", name: "隔离原厂独显控制器", enabled: true,
-      automaticPowerOff: false, problem: 0, drivesDisplay: true, canDisable: false }], canRestore: false }, gpuPowerFault: null,
-    graphicsMode: { current: { mode: 3, availableMask: 15 }, revision: "graphics-0", lastRequest: null, canRestore: false },
+      automaticPowerOff: false, problem: 0, drivesDisplay: true, canDisable: false }] }, gpuPowerFault: null,
+    graphicsMode: { current: { mode: 3, availableMask: 15 }, revision: "graphics-0", lastRequest: null },
     graphicsRevision: 0, graphicsReboots: 0, graphicsModeFault: null, graphicsRebootFault: null,
     battery: { charge: { current: { enabled: false, start: 95, stop: 100 }, startValues: [40, 50, 60, 70, 80, 95], stopValues: [60, 70, 80, 90, 100] },
       revision: "battery-0", chargeLockReason: null, power: { present: true, acOnline: true, charging: false, percent: 62, remainingSeconds: null, windowsBatterySaver: false },
@@ -160,14 +160,14 @@ function installIpc() {
         case "restore_power_profile": return { ok: true, message: "已恢复初始设置" };
         case "read_gpu_profile": return data.gpu;
         case "restart_as_administrator": return null;
-        case "read_touchpad": case "apply_touchpad": case "restore_touchpad": return invokeTouchpad(data, command, args);
-        case "read_microphones": case "apply_microphones": case "restore_microphones": return invokeMicrophones(data, command, args);
-        case "read_airplane": case "apply_airplane": case "restore_airplane": return invokeAirplane(data, command, args);
+        case "read_touchpad": case "apply_touchpad": return invokeTouchpad(data, command, args);
+        case "read_microphones": case "apply_microphones": return invokeMicrophones(data, command, args);
+        case "read_airplane": case "apply_airplane": return invokeAirplane(data, command, args);
         case "restore_fan_default": return { ok: true, message: "隔离恢复完成" };
         case "read_multi_zone_lighting": case "apply_multi_zone_lighting": case "restore_multi_zone_lighting": case "read_lighting_options":
         case "read_keyboard_lighting": case "apply_keyboard_lighting": case "restore_keyboard_lighting":
         case "apply_lighting_options": case "restore_lighting_options":
-        case "read_keyboard_settings": case "apply_keyboard_settings": case "restore_keyboard_settings":
+        case "read_keyboard_settings": case "apply_keyboard_settings":
         case "read_perkey_lighting": case "apply_perkey_lighting": case "restore_perkey_lighting":
           return invokeLighting(data, command, args);
         case "read_battery_calibration": case "start_battery_calibration":
@@ -181,14 +181,13 @@ function installIpc() {
         case "apply_oem_performance_options": case "apply_oem_power_mode":
           return invokePerformance(data, command, args);
         case "read_display_modes": case "apply_display_refresh": case "apply_display_rotation":
-        case "keep_display_mode": case "cancel_display_trial": case "restore_display_modes":
+        case "keep_display_mode": case "cancel_display_trial":
           return invokeDisplay(data, command, args);
         case "read_automatic_refresh": case "enable_automatic_refresh": case "restore_automatic_refresh":
           return invokeAutoRefresh(data, command, args, emit);
-        case "read_graphics_mode": case "apply_graphics_mode":
-        case "restore_graphics_mode": case "reboot_for_graphics_mode":
+        case "read_graphics_mode": case "apply_graphics_mode": case "reboot_for_graphics_mode":
           return invokeGraphics(data, command, args);
-        case "read_gpu_power": case "apply_gpu_power": case "restore_gpu_power":
+        case "read_gpu_power": case "apply_gpu_power":
           return invokeGpuPower(data, command, args, emitSnapshot);
         case "get_startup_profile": case "set_startup_profile": case "get_autostart": case "set_autostart": case "get_oem_startup_notice":
         case "get_backend_info": case "list_profiles": case "load_profile": case "preview_profile_import": case "preview_profile_application": case "preview_profile_authorization":
@@ -235,13 +234,8 @@ async function invokeLighting(data, command, args) {
     case "read_keyboard_settings": return structuredClone(data.keyboardSettings);
     case "apply_keyboard_settings":
       if (args.request.expectedRevision !== data.keyboardSettings.revision) throw new Error("键盘预览已变化");
-      data.keyboardSettings.canRestore = true;
       if (data.keyboardFault) { const message = data.keyboardFault; data.keyboardFault = null; throw new Error(message); }
       data.keyboardSettings.current = structuredClone(args.request.values);
-      data.keyboardSettings.revision = `keyboard-${++data.keyboardRevision}`;
-      return null;
-    case "restore_keyboard_settings":
-      data.keyboardSettings.current = structuredClone(data.keyboardInitial);
       data.keyboardSettings.revision = `keyboard-${++data.keyboardRevision}`;
       return null;
     case "read_perkey_lighting": return structuredClone(data.perkey);
@@ -350,18 +344,10 @@ async function invokeGraphics(data, command, args) {
     case "apply_graphics_mode": {
       if (args.request.expectedRevision !== data.graphicsMode.revision) throw new Error("显卡选择预览已变化");
       if (data.graphicsModeFault) { const message = data.graphicsModeFault; data.graphicsModeFault = null; throw new Error(message); }
-      const initialMode = data.graphicsMode.lastRequest?.initialMode ?? data.graphicsMode.current.mode;
-      data.graphicsMode.lastRequest = { initialMode, target: args.request.target, verification: "pendingReboot" };
-      data.graphicsMode.canRestore = args.request.target !== initialMode;
+      data.graphicsMode.lastRequest = { target: args.request.target, verification: "pendingReboot" };
       data.graphicsMode.revision = `graphics-${++data.graphicsRevision}`;
       return null;
     }
-    case "restore_graphics_mode":
-      if (args.expectedRevision !== data.graphicsMode.revision) throw new Error("显卡选择预览已变化");
-      data.graphicsMode.lastRequest.target = data.graphicsMode.lastRequest.initialMode;
-      data.graphicsMode.lastRequest.verification = "pendingReboot";
-      data.graphicsMode.canRestore = false; data.graphicsMode.revision = `graphics-${++data.graphicsRevision}`;
-      return null;
     case "reboot_for_graphics_mode":
       if (args.expectedRevision !== data.graphicsMode.revision) throw new Error("显卡选择预览已变化");
       if (data.graphicsRebootFault) throw new Error(data.graphicsRebootFault);
@@ -376,14 +362,11 @@ async function invokeGpuPower(data, command, args, emitSnapshot) {
     case "apply_gpu_power": {
       const device = data.gpuPower.devices[0];
       if (JSON.stringify(device) !== JSON.stringify(args.expected)) throw new Error("原厂独显预览已变化");
-      data.gpuPowerInitial ??= structuredClone(device);
-      data.gpuPower.canRestore = true;
       if (data.gpuPowerFault) { const message = data.gpuPowerFault; data.gpuPowerFault = null; throw new Error(message); }
       device.enabled = args.enabled; device.automaticPowerOff = !args.enabled; device.problem = args.enabled ? 0 : 22;
       emitSnapshot();
       return null;
     }
-    case "restore_gpu_power": data.gpuPower.devices[0] = structuredClone(data.gpuPowerInitial); emitSnapshot(); return null;
   }
 }
 

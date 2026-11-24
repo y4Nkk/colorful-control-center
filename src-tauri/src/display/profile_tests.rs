@@ -25,13 +25,12 @@ fn begin(controller: &Controller, target: &Target) -> Review {
 }
 
 #[test]
-fn capture_and_preview_do_not_write_or_create_initial_baseline() {
+fn capture_and_preview_do_not_write() {
     let (controller, io, target) = group();
     let captured = controller.capture().unwrap().unwrap();
     assert!(captured.displays.iter().all(|mode| mode.frequency == 60));
     let review = controller.preview_profile(&target, None).unwrap();
     assert_eq!(review.changes().len(), 2);
-    assert!(!controller.read().unwrap().can_restore);
     assert_eq!(io.0.lock().unwrap().writes, 0);
     io.0.lock().unwrap().modes.clear();
     assert!(controller.capture().unwrap().is_none());
@@ -47,7 +46,6 @@ fn group_trial_blocks_independent_writes_and_requires_group_owner() {
     assert!(controller.keep(1, &target.displays[0], 1).is_err());
     assert!(controller.cancel(1).is_err());
     assert!(controller.keep_profile(41, 1).is_err());
-    assert!(controller.restore().is_err());
     assert!(controller.apply(&target.displays[0], 60, 1).is_err());
     assert!(controller.capture().is_err());
     assert_eq!(io.0.lock().unwrap().writes, 2);
@@ -88,19 +86,18 @@ fn retained_trial_keeps_current_targets_and_remains_reversible_until_commit() {
 }
 
 #[test]
-fn successful_release_preserves_targets_and_shared_initial_restore() {
+fn successful_release_preserves_targets() {
     let (controller, io, target) = group();
     begin(&controller, &target);
     controller.keep_profile(42, 100).unwrap();
     controller.release_profile(42).unwrap();
     assert!(!controller.trial_pending().unwrap());
     assert_eq!(io.0.lock().unwrap().writes, 2);
-    controller.restore().unwrap();
     assert!(
         io.list()
             .unwrap()
             .iter()
-            .all(|display| display.current.frequency == 60)
+            .all(|display| display.current.frequency == 144)
     );
 }
 
@@ -134,23 +131,21 @@ fn changed_geometry_candidates_and_stale_review_reject_before_any_write() {
     io.0.lock().unwrap().modes[1].current.frequency = 144;
     assert!(controller.begin_profile(&review, 42, 0).is_err());
     assert_eq!(io.0.lock().unwrap().writes, 0);
-    assert!(!controller.read().unwrap().can_restore);
 }
 
 #[test]
-fn no_change_trial_does_not_start_guard_or_take_recovery_baseline() {
+fn no_change_trial_does_not_start_guard() {
     let (_, io, _) = group();
     let controller = Controller::with_guards(io.clone(), FaultFactory(GuardFault::Start));
     let target = controller.capture().unwrap().unwrap();
     let review = controller.preview_profile(&target, None).unwrap();
     assert!(!controller.begin_profile(&review, 42, 0).unwrap());
     assert!(controller.profile_pending(42, 0).unwrap().is_none());
-    assert!(!controller.read().unwrap().can_restore);
     assert_eq!(io.0.lock().unwrap().writes, 0);
 }
 
 #[test]
-fn cancel_uses_this_application_before_not_earliest_independent_baseline() {
+fn cancel_uses_this_application_before_state() {
     let (controller, io, mut target) = group();
     controller.apply(&mode(), 144, 0).unwrap();
     let current = io.list().unwrap()[0].current.clone();
@@ -161,8 +156,6 @@ fn cancel_uses_this_application_before_not_earliest_independent_baseline() {
     controller.cancel_profile(42).unwrap();
     assert_eq!(io.list().unwrap()[0].current.frequency, 144);
     assert_eq!(io.list().unwrap()[1].current.frequency, 60);
-    controller.restore().unwrap();
-    assert_eq!(io.list().unwrap()[0].current.frequency, 60);
 }
 
 #[test]

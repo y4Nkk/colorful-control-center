@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { availableAction, pageActions, previewConfiguration, submitConfiguration } from "./configuration-review.mjs";
+import { showProfileSettings } from "./profile-review.mjs";
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
@@ -49,6 +50,31 @@ test("充电调整即时提交并保留启动与供电规则的独立预览", as
   expect(await writes()).toEqual([...chargeWrites, "set_startup_profile"]);
   await expect(main.getByRole("combobox", { name: "开始充电阈值", exact: true })).toHaveText("70%");
   await expect(availableAction(page, "供电与唤醒档案")).toBeVisible();
+});
+
+test("电源与档案页面不提供信息图标入口，授权预览使用文字按钮", async ({ page }) => {
+  await page.goto("/");
+  await openPowerArea(page, "电源设置");
+  const main = page.getByRole("main", { name: "电源与档案", exact: true });
+  const infoButtons = () => main.locator('button:visible:has(> svg[data-icon="info"])');
+  await expect(main.getByRole("region", { name: "电池与充电", exact: true })).toBeVisible();
+  await expect(infoButtons()).toHaveCount(0);
+  await choose(page, "启动档案", "隔离档案");
+  await choose(page, "插电时", "隔离档案");
+  for (const [scope, title] of [["启动档案", "启动档案参数"], ["供电与唤醒档案", "查看「隔离档案」参数"]]) {
+    const review = await previewConfiguration(page, scope);
+    await expect(infoButtons()).toHaveCount(0);
+    await review.getByRole("button", { name: "查看档案参数", exact: true }).click();
+    const parameters = page.getByRole("dialog", { name: title, exact: true });
+    await expect(parameters).toBeVisible();
+    await expect(parameters.locator('button:visible:has(> svg[data-icon="info"])')).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(parameters).toHaveCount(0);
+  }
+  await openPowerArea(page, "配置档案");
+  await main.getByRole("region", { name: "档案列表", exact: true }).getByRole("button", { name: /隔离档案/ }).click();
+  await showProfileSettings(page);
+  await expect(infoButtons()).toHaveCount(0);
 });
 
 for (const savedPage of ["battery", "automation"]) {

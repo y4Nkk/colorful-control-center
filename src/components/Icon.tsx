@@ -5,7 +5,7 @@ import {
   Upload, Plus, Trash2, Play, Pause, SquarePen, Search, ShieldCheck, LoaderCircle,
   Cpu, Gpu, Fan, HardDrive, Keyboard, MousePointer2, Mic, Monitor, Battery, BatteryCharging, Activity, MemoryStick,
   PlugZap, Usb, Network, Palette, Thermometer, Gauge, Zap, Power, Sparkles, Moon,
-  SunMoon, PanelsTopLeft, ScrollText, Volume2, VolumeX, Plane, ArrowRight,
+  SunMoon, PanelsTopLeft, ScrollText, Volume2, VolumeX, Plane, ArrowRight, ArrowUpToLine,
   type LucideIcon,
 } from "lucide-react";
 import { SquaresFourIcon } from "@phosphor-icons/react/dist/csr/SquaresFour";
@@ -18,6 +18,7 @@ import { GearSixIcon } from "@phosphor-icons/react/dist/csr/GearSix";
 const ICONS = {
   airplane: Plane,
   "arrow-right": ArrowRight,
+  "back-to-top": ArrowUpToLine,
   volume: Volume2, "volume-off": VolumeX,
   profiles: Layers, settings: Settings,
   collapse: ChevronsLeft, "chevron-right": ChevronRight, "chevron-down": ChevronDown, "chevron-up": ChevronUp,

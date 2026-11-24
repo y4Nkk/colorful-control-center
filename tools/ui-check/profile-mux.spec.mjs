@@ -79,10 +79,10 @@ test("整组显示试用保留后才发送MUX", async ({ page }) => {
   expect(await page.evaluate(() => window.__uiFixture.graphicsMode.lastRequest.target)).toBe(2);
 });
 
-test("后续失败恢复已知选择并保留首次基线", async ({ page }) => {
+test("后续失败恢复已知选择", async ({ page }) => {
   await page.evaluate(() => {
     const data = window.__uiFixture;
-    data.graphicsMode.lastRequest = { initialMode: 3, target: 4, verification: "pendingReboot" };
+    data.graphicsMode.lastRequest = { target: 4, verification: "pendingReboot" };
     data.profileMuxAfterSendFault = "隔离接受记录保存失败";
   });
   await select(page);
@@ -90,8 +90,7 @@ test("后续失败恢复已知选择并保留首次基线", async ({ page }) => 
   await apply(page);
   const results = await openProfileResults(page);
   await expect(results).toContainText("恢复本次显卡选择");
-  const state = await page.evaluate(() => window.__uiFixture.graphicsMode.lastRequest);
-  expect(state.initialMode).toBe(3); expect(state.target).toBe(4);
+  expect(await page.evaluate(() => window.__uiFixture.graphicsMode.lastRequest.target)).toBe(4);
 });
 
 test("启动选择复用完整MUX预览且保存不执行硬件", async ({ page }) => {
@@ -110,7 +109,7 @@ test("启动选择复用完整MUX预览且保存不执行硬件", async ({ page 
 test("捕获保留当前已接受选择，不复制旧档案目标", async ({ page }) => {
   await page.evaluate(() => {
     const data = window.__uiFixture;
-    data.graphicsMode.lastRequest = { initialMode: 3, target: 4, verification: "pendingReboot" };
+    data.graphicsMode.lastRequest = { target: 4, verification: "pendingReboot" };
   });
   await select(page);
   await openProfileSave(page, "当前MUX", ["显示与显卡"]);

@@ -104,25 +104,27 @@ fn apply(hal: &Hal, controller: &Controller, enabled: bool) -> Result<()> {
     )
 }
 #[test]
-fn read_never_writes_and_restore_keeps_raw_unknown_preference() {
+fn read_never_writes_and_capture_refuses_unknown_preference() {
     let (hal, controller, io) = setup(77);
     let before = io.current();
     assert_eq!(controller.read(&hal).unwrap().current, before);
     assert_eq!(io.0.lock().unwrap().writes, 0);
     assert!(controller.scope().unwrap().capture(&hal).is_err());
     apply(&hal, &controller, false).unwrap();
-    let p = controller.read(&hal).unwrap();
-    assert_eq!(p.initial, Some(before.clone()));
-    controller.restore(&hal, &p.revision).unwrap();
-    assert_eq!(io.current(), before);
-    assert!(controller.read(&hal).unwrap().initial.is_none());
+    assert_eq!(
+        io.current(),
+        Snapshot {
+            devices: before.devices,
+            enabled: Some(false),
+            saved: 0,
+        }
+    );
 }
 #[test]
-fn no_change_has_no_writes_or_initial_baseline() {
+fn no_change_has_no_writes() {
     let (hal, controller, io) = setup(1);
     apply(&hal, &controller, true).unwrap();
     assert_eq!(io.0.lock().unwrap().writes, 0);
-    assert!(controller.read(&hal).unwrap().initial.is_none());
 }
 #[test]
 fn stale_preview_missing_or_replaced_device_and_owner_produce_no_output() {
@@ -169,28 +171,24 @@ fn every_partial_write_and_ignored_success_is_verified_and_compensated() {
             });
             assert!(apply(&hal, &controller, false).is_err());
             assert_eq!(io.current(), before, "step {step} ignored {ignored}");
-            assert!(controller.read(&hal).unwrap().can_restore);
         }
     }
 }
 #[test]
-fn failed_compensation_retains_original_for_explicit_retry() {
+fn failed_compensation_leaves_actual_state_and_control_can_retry() {
     let (hal, controller, io) = setup(1);
     let before = io.current();
     io.change(|s| s.fail.extend([2, 3]));
     assert!(apply(&hal, &controller, false).is_err());
-    assert_eq!(controller.read(&hal).unwrap().initial, Some(before.clone()));
     io.change(|s| s.fail.clear());
-    controller
-        .restore(&hal, &controller.read(&hal).unwrap().revision)
-        .unwrap();
+    apply(&hal, &controller, true).unwrap();
     assert_eq!(io.current(), before);
 }
 #[test]
 fn scope_plan_preserves_mixed_current_and_preference_and_rolls_back_once() {
     let (hal, controller, io) = setup(0);
     let before = io.current();
-    let mut scope = controller.scope().unwrap();
+    let scope = controller.scope().unwrap();
     let target = scope.capture(&hal).unwrap().unwrap();
     assert!(target.enabled && !target.saved_enabled);
     let plan = scope
@@ -213,23 +211,18 @@ fn scope_plan_preserves_mixed_current_and_preference_and_rolls_back_once() {
     assert_eq!(io.current(), before);
 }
 #[test]
-fn changed_devices_block_new_control_and_restore_until_original_returns() {
+fn changed_devices_do_not_block_control_and_hotkey_binds_new_identity() {
     let (hal, controller, io) = setup(1);
-    let before = io.current();
     apply(&hal, &controller, false).unwrap();
     io.change(|s| s.current.devices.push("ACPI\\I2C0002\\0".into()));
-    let writes = io.0.lock().unwrap().writes;
-    let p = controller.read(&hal).unwrap();
-    assert!(!p.can_restore && p.blocked_reason.is_some());
-    assert!(controller.hotkey_identity(&hal).is_err());
-    assert!(controller.restore(&hal, &p.revision).is_err());
-    assert!(apply(&hal, &controller, true).is_err());
-    assert_eq!(io.0.lock().unwrap().writes, writes);
-    io.change(|s| s.current.devices = before.devices.clone());
-    controller
-        .restore(&hal, &controller.read(&hal).unwrap().revision)
-        .unwrap();
-    assert_eq!(io.current(), before);
+    assert!(controller.read(&hal).unwrap().blocked_reason.is_none());
+    let identity = controller.hotkey_identity(&hal).unwrap();
+    assert!(controller.toggle(&hal, "stale").is_err());
+    assert!(controller.toggle(&hal, &identity).unwrap());
+    assert_eq!(io.current().enabled, Some(true));
+    assert_eq!(io.current().devices.len(), 2);
+    apply(&hal, &controller, false).unwrap();
+    assert_eq!(io.current().enabled, Some(false));
 }
 #[test]
 fn toggle_uses_real_current_not_saved_preference_and_requires_same_identity() {
@@ -240,9 +233,7 @@ fn toggle_uses_real_current_not_saved_preference_and_requires_same_identity() {
     assert_eq!(io.current().enabled, Some(false));
     assert!(controller.toggle(&hal, &identity).unwrap());
     assert_eq!(io.current().saved, 1);
-    controller
-        .restore(&hal, &controller.read(&hal).unwrap().revision)
-        .unwrap();
+    assert!(!controller.toggle(&hal, &identity).unwrap());
     assert_eq!(io.current().saved, 0);
 }
 #[test]

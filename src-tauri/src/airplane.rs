@@ -1,7 +1,6 @@
 use crate::hal::Hal;
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
 #[cfg(not(test))]
 #[path = "airplane/native.rs"]
 mod native;
@@ -36,9 +35,6 @@ pub struct Profile {
     pub current: Option<Snapshot>,
     pub error: Option<String>,
     pub blocked_reason: Option<String>,
-    pub initial: Option<Snapshot>,
-    pub restore_revision: Option<String>,
-    pub restore_error: Option<String>,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -47,9 +43,7 @@ pub struct Request {
     pub enabled: bool,
 }
 #[derive(Default)]
-pub struct Controller {
-    initial: Mutex<Option<Snapshot>>,
-}
+pub struct Controller;
 trait Io {
     fn current(&self) -> Result<Snapshot>;
     fn require_device(&self, source: &Snapshot) -> Result<()>;
@@ -67,29 +61,13 @@ fn digest(value: &impl Serialize) -> Result<String> {
     use sha2::{Digest, Sha256};
     Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(value)?)))
 }
-fn revision(current: &Snapshot, initial: &Option<Snapshot>) -> Result<String> {
-    digest(&("airplane-state-1", current, initial))
+fn revision(current: &Snapshot) -> Result<String> {
+    digest(&("airplane-state-1", current))
 }
-fn profile(io: &dyn Io, initial: Option<Snapshot>) -> Result<Profile> {
+fn profile(io: &dyn Io) -> Result<Profile> {
     let current = io.current();
     let identity = current.as_ref().ok().map(Snapshot::identity).transpose()?;
-    let revision = current
-        .as_ref()
-        .ok()
-        .map(|s| revision(s, &initial))
-        .transpose()?;
-    let restore = initial
-        .as_ref()
-        .map(|first| {
-            let now = current.as_ref().map_err(|error| anyhow!("{error:#}"))?;
-            now.require_device(first)?;
-            digest(&("restore-airplane-1", now, first))
-        })
-        .transpose();
-    let (restore_revision, restore_error) = match restore {
-        Ok(value) => (value, None),
-        Err(error) => (None, Some(format!("{error:#}"))),
-    };
+    let revision = current.as_ref().ok().map(revision).transpose()?;
     let blocked_reason = if current.is_ok() {
         io.ensure_writable().err().map(|error| format!("{error:#}"))
     } else {
@@ -101,35 +79,27 @@ fn profile(io: &dyn Io, initial: Option<Snapshot>) -> Result<Profile> {
         current: current.as_ref().ok().cloned(),
         error: current.err().map(|e| format!("{e:#}")),
         blocked_reason,
-        initial,
-        restore_revision,
-        restore_error,
     })
 }
 impl Controller {
     pub fn read(&self, hal: &Hal) -> Result<Profile> {
-        let initial = self
-            .initial
-            .lock()
-            .map_err(|_| anyhow!("飞行模式恢复状态异常"))?
-            .clone();
         #[cfg(test)]
         {
-            let _ = (hal, initial);
+            let _ = hal;
             bail!("隔离测试未注入飞行模式通道");
         }
         #[cfg(not(test))]
         {
-            profile(&native::Native(hal), initial)
+            profile(&native::Native(hal))
         }
     }
     pub fn apply(&self, hal: &Hal, request: &Request) -> Result<()> {
-        self.change(hal, |io, initial| {
+        self.change(hal, |io| {
             let before = io.current()?;
-            if revision(&before, initial)? != request.expected_revision {
+            if revision(&before)? != request.expected_revision {
                 bail!("飞行模式预览已变化，请重新确认");
             }
-            transaction::apply(io, initial, before, request.enabled, || Ok(()))
+            transaction::apply(io, before, request.enabled, || Ok(()))
         })
     }
     pub(crate) fn toggle(
@@ -138,47 +108,30 @@ impl Controller {
         expected: &str,
         mut permit: impl FnMut() -> Result<()>,
     ) -> Result<bool> {
-        self.change(hal, |io, initial| {
+        self.change(hal, |io| {
             permit()?;
             let before = io.current()?;
             if before.identity()? != expected {
                 bail!("飞行模式接管来源已变化，请重新确认");
             }
             let wanted = !before.enabled;
-            transaction::apply(io, initial, before, wanted, permit)?;
+            transaction::apply(io, before, wanted, permit)?;
             Ok(wanted)
-        })
-    }
-    pub fn restore(&self, hal: &Hal, expected: &str) -> Result<()> {
-        self.change(hal, |io, initial| {
-            let frame = profile(io, initial.clone())?;
-            if frame.restore_revision.as_deref() != Some(expected) {
-                bail!("飞行模式初始恢复预览已变化");
-            }
-            let before = frame.current.context("飞行模式当前状态未知")?;
-            let wanted = initial.as_ref().context("飞行模式没有初始记录")?.enabled;
-            transaction::apply(io, initial, before, wanted, || Ok(()))?;
-            *initial = None;
-            Ok(())
         })
     }
     fn change<T>(
         &self,
         hal: &Hal,
-        change: impl FnOnce(&dyn Io, &mut Option<Snapshot>) -> Result<T>,
+        change: impl FnOnce(&dyn Io) -> Result<T>,
     ) -> Result<T> {
-        let mut initial = self
-            .initial
-            .lock()
-            .map_err(|_| anyhow!("飞行模式恢复状态异常"))?;
         #[cfg(test)]
         {
-            let _ = (hal, change, &mut initial);
+            let _ = (hal, change);
             bail!("隔离测试未注入飞行模式写入通道");
         }
         #[cfg(not(test))]
         {
-            change(&native::Native(hal), &mut initial)
+            change(&native::Native(hal))
         }
     }
 }

@@ -2,8 +2,7 @@ import { Icon } from "../Icon";
 import type { ProfileSettings, LanWritableField, LanValue } from "../../api/client";
 import { Surface } from "../Surface";
 import { FactList } from "../FactList";
-import { DetailsDialog } from "../DetailsDialog";
-import { LAN_FIELDS, lanMeaning, lanValue } from "../control/lan-values";
+import { LAN_FIELDS, lanMeaning } from "../control/lan-values";
 
 export function ProfileLanPreview({ settings }: { settings: ProfileSettings }) {
   return settings.lanPolicy?.devices.map(device => {
@@ -13,14 +12,6 @@ export function ProfileLanPreview({ settings }: { settings: ProfileSettings }) {
       <div className="ccc-profile-values"><h3 className="ccc-icon-title"><Icon name="network" />网络驱动策略</h3><strong>{device.name}</strong>
         <span className="ccc-control-caption">需系统授权</span>
         {fields.some(([, value]) => value === null) && <p className="ccc-control-caption">未设置项会清除现有配置，恢复到未设置状态。</p>}
-        <DetailsDialog title="网卡身份与原始配置">
-          <FactList compact facts={[
-            { label: "设备实例", value: device.identity.instance },
-            { label: "驱动绑定", value: device.identity.driver },
-            { label: "驱动版本", value: lanValue(device.identity.driverVersion) },
-            ...fields.map(([field, value]) => ({ label: LAN_FIELDS[field], value: lanValue(value) })),
-          ]} />
-        </DetailsDialog>
       </div>
       <FactList compact facts={fields.map(([field, value]) => {
         const meaning = lanMeaning(field, value);

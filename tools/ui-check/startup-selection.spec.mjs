@@ -34,7 +34,7 @@ test("旧启动选择不可读时保留档案列表，重新预览后才保存�
   await panel(page).getByRole("combobox", { name: "启动档案", exact: true }).click();
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
   const review = await previewConfiguration(page, "启动档案");
-  await review.getByRole("button", { name: "启动档案参数", exact: true }).click();
+  await review.getByRole("button", { name: "查看档案参数", exact: true }).click();
   const details = page.getByRole("dialog", { name: "启动档案参数", exact: true });
   const acPreference = details.getByLabel("模式联动目标").locator(".ccc-fact-row").filter({ hasText: "插电模式偏好" });
   await expect(acPreference.locator("dd")).toHaveText("娱乐");

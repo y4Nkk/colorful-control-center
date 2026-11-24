@@ -47,7 +47,7 @@ impl Memory {
         }
         Ok(())
     }
-    fn plan(&self, initial: &Option<Snapshot>, muted: bool) -> Plan {
+    fn plan(&self, muted: bool) -> Plan {
         let before = transaction::capture(self).unwrap();
         let mut endpoints = before.endpoints.clone();
         for endpoint in &mut endpoints {
@@ -59,7 +59,7 @@ impl Memory {
                 saved_muted: muted,
             })
             .unwrap();
-        transaction::prepare(before, after, initial).unwrap()
+        transaction::prepare(before, after).unwrap()
     }
 }
 impl Io for Memory {
@@ -102,17 +102,14 @@ impl Io for Memory {
     }
 }
 #[test]
-fn mixed_endpoints_share_one_target_and_exact_first_baseline() {
+fn mixed_endpoints_share_one_target_and_plans_roll_back_in_reverse() {
     let io = Memory::new();
     let before = io.snapshot().unwrap();
-    let mut initial = None;
-    let first = io.plan(&initial, true);
-    transaction::execute(&io, &mut initial, &first, &mut false).unwrap();
-    assert_eq!(initial.as_ref(), Some(&before));
+    let first = io.plan(true);
+    transaction::execute(&io, &first, &mut false).unwrap();
     assert_eq!(*io.writes.lock().unwrap(), ["A:true", "C:true", "saved:1"]);
-    let second = io.plan(&initial, false);
-    transaction::execute(&io, &mut initial, &second, &mut false).unwrap();
-    assert_eq!(initial.as_ref(), Some(&before));
+    let second = io.plan(false);
+    transaction::execute(&io, &second, &mut false).unwrap();
     transaction::rollback(&io, &second).unwrap();
     transaction::rollback(&io, &first).unwrap();
     assert_eq!(io.snapshot().unwrap(), before);
@@ -123,24 +120,21 @@ fn every_endpoint_and_preference_failure_restores_only_attempted_state() {
         let io = Memory::new();
         let before = io.snapshot().unwrap();
         io.fail.lock().unwrap().push(failed);
-        let mut initial = None;
-        let plan = io.plan(&initial, true);
+        let plan = io.plan(true);
         let mut pending = false;
-        assert!(transaction::execute(&io, &mut initial, &plan, &mut pending).is_err());
+        assert!(transaction::execute(&io, &plan, &mut pending).is_err());
         assert!(!pending);
         assert_eq!(io.snapshot().unwrap(), before);
-        assert_eq!(initial, Some(before));
     }
 }
 #[test]
 fn failed_compensation_retry_preserves_unattempted_external_endpoint() {
     let io = Memory::new();
     *io.fail.lock().unwrap() = vec![1, 2];
-    let plan = io.plan(&None, true);
-    let mut initial = None;
+    let plan = io.plan(true);
     let mut pending = false;
-    assert!(transaction::execute(&io, &mut initial, &plan, &mut pending).is_err());
-    assert!(pending && initial.is_some());
+    assert!(transaction::execute(&io, &plan, &mut pending).is_err());
+    assert!(pending);
     io.state.lock().unwrap().endpoints[1].muted = false;
     io.fail.lock().unwrap().clear();
     transaction::rollback(&io, &plan).unwrap();
@@ -156,44 +150,39 @@ fn failed_compensation_retry_preserves_unattempted_external_endpoint() {
 #[test]
 fn device_appearance_is_not_taken_over_and_current_attempt_is_recovered() {
     let io = Memory::new();
-    let plan = io.plan(&None, true);
+    let plan = io.plan(true);
     *io.add_on_write.lock().unwrap() = true;
-    assert!(transaction::execute(&io, &mut None, &plan, &mut false).is_err());
+    assert!(transaction::execute(&io, &plan, &mut false).is_err());
     let current = io.snapshot().unwrap();
     assert!(!current.endpoints[0].muted && !current.endpoints[3].muted);
     assert_eq!(*io.writes.lock().unwrap(), ["A:true", "A:false"]);
 }
 #[test]
-fn stale_snapshot_owner_conflict_and_changed_baseline_never_write() {
+fn stale_snapshot_and_owner_conflict_never_write() {
     let io = Memory::new();
-    let plan = io.plan(&None, true);
+    let plan = io.plan(true);
     io.state.lock().unwrap().saved = 1;
-    assert!(transaction::execute(&io, &mut None, &plan, &mut false).is_err());
-    let plan = io.plan(&None, true);
+    assert!(transaction::execute(&io, &plan, &mut false).is_err());
+    let plan = io.plan(true);
     *io.blocked.lock().unwrap() = true;
-    assert!(transaction::execute(&io, &mut None, &plan, &mut false).is_err());
-    let mut initial = io.snapshot().unwrap();
-    initial.endpoints.pop();
-    assert!(
-        transaction::prepare(plan.before.clone(), plan.before.clone(), &Some(initial)).is_err()
-    );
+    assert!(transaction::execute(&io, &plan, &mut false).is_err());
     assert!(io.writes.lock().unwrap().is_empty());
 }
 #[test]
-fn unknown_original_preference_is_restored_exactly_without_defaulting() {
+fn unknown_original_preference_is_rolled_back_exactly_without_defaulting() {
     let io = Memory::new();
     io.state.lock().unwrap().saved = 77;
     let before = io.snapshot().unwrap();
-    let plan = io.plan(&None, true);
-    transaction::execute(&io, &mut None, &plan, &mut false).unwrap();
+    let plan = io.plan(true);
+    transaction::execute(&io, &plan, &mut false).unwrap();
     transaction::rollback(&io, &plan).unwrap();
     assert_eq!(io.snapshot().unwrap(), before);
 }
 #[test]
 fn external_saved_preference_is_not_overwritten_by_later_rollback() {
     let io = Memory::new();
-    let plan = io.plan(&None, true);
-    transaction::execute(&io, &mut None, &plan, &mut false).unwrap();
+    let plan = io.plan(true);
+    transaction::execute(&io, &plan, &mut false).unwrap();
     io.state.lock().unwrap().saved = 99;
     assert!(
         transaction::rollback(&io, &plan)
@@ -237,12 +226,11 @@ fn successful_but_ignored_endpoint_or_preference_writes_fail_readback_and_recove
         let before = io.snapshot().unwrap();
         *io.ignore_set.lock().unwrap() = ignored_set;
         *io.ignore_save.lock().unwrap() = !ignored_set;
-        let plan = io.plan(&None, true);
-        let mut initial = None;
+        let plan = io.plan(true);
         let mut pending = false;
-        let error = transaction::execute(&io, &mut initial, &plan, &mut pending).unwrap_err();
+        let error = transaction::execute(&io, &plan, &mut pending).unwrap_err();
         assert!(error.to_string().contains("回读不一致"));
-        assert!(!pending && initial == Some(before.clone()));
+        assert!(!pending);
         assert_eq!(io.snapshot().unwrap(), before);
         assert!(
             io.writes

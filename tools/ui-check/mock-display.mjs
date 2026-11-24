@@ -29,24 +29,20 @@ export async function invokeDisplay(data, command, args) {
     case "apply_display_refresh":
       if (JSON.stringify(args.expected) !== JSON.stringify(data.display.displays[0].current)) throw new Error("显示预览已变化");
       data.displayBefore = structuredClone(args.expected);
-      data.displayInitial ??= structuredClone(args.expected);
       data.display.displays[0].current.frequency = args.frequency;
       data.display.pending = { before: [structuredClone(args.expected)], targets: [{ ...args.expected, frequency: args.frequency }], rotation: false, automatic: false, trialId: (data.displayTrialId = (data.displayTrialId ?? 0) + 1), remainingMs: 15000, profileSession: null, error: null };
       data.displayExpiresAt = Date.now() + 15000;
-      data.display.canRestore = true;
       return null;
     case "apply_display_rotation": {
       const display = data.display.displays.find(item => item.current.device === args.expected.device);
       if (!display?.primary || data.display.displays.filter(item => item.primary).length !== 1 || data.display.pending || JSON.stringify(args.expected) !== JSON.stringify(display.current)) throw new Error("主显示器预览已变化");
       data.displayBefore = structuredClone(args.expected);
-      data.displayInitial ??= structuredClone(args.expected);
       const target = structuredClone(args.expected);
       if (target.orientation === 1 || target.orientation === 3) [target.width, target.height] = [target.height, target.width];
       target.orientation = target.orientation === 2 ? 0 : 2;
       display.current = target;
       data.display.pending = { before: [structuredClone(args.expected)], targets: [target], rotation: true, automatic: false, trialId: (data.displayTrialId = (data.displayTrialId ?? 0) + 1), remainingMs: 15000, profileSession: null, error: null };
       data.displayExpiresAt = Date.now() + 15000;
-      data.display.canRestore = true;
       return null;
     }
     case "keep_display_mode":
@@ -58,10 +54,6 @@ export async function invokeDisplay(data, command, args) {
       if (!data.display.pending || data.display.pending.trialId !== args.trialId || data.display.pending.profileSession != null) throw new Error("没有可取消的显示试用");
       if (data.display.pending.automatic) data.autoRefreshRevision += 1;
       data.display.displays.find(item => item.current.device === data.displayBefore.device).current = structuredClone(data.displayBefore);
-      data.display.pending = null;
-      return null;
-    case "restore_display_modes":
-      data.display.displays[0].current = structuredClone(data.displayInitial);
       data.display.pending = null;
       return null;
   }

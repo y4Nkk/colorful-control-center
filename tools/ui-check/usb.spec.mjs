@@ -82,17 +82,13 @@ test("旧修订拒绝写入，读取失败期间收起控制", async ({ page }) 
   expect(await writes(page)).toHaveLength(1);
 });
 
-test("缺失计划明确列出，未知字段只能保留，校准期间禁止修改", async ({ page }) => {
+test("未知字段只能保留，校准期间禁止修改", async ({ page }) => {
   await page.evaluate(() => {
     const usb = window.__uiFixture.usb;
-    usb.plans = usb.plans.filter(value => value.id !== "powerSaver"); usb.missing = ["powerSaver"];
+    usb.plans = usb.plans.filter(value => value.id !== "powerSaver");
     usb.plans[0].ac = null; usb.revision = "unknown";
   });
   await reload(page);
-  await panel(page).getByRole("button", { name: "详情", exact: true }).click();
-  const details = page.getByRole("dialog", { name: `${title}详情`, exact: true });
-  await expect(details).toContainText("未安装 · 节能");
-  await details.getByRole("button", { name: "关闭弹窗", exact: true }).click();
   await expect(field(page, ac)).toBeDisabled();
   await select(page, dc, "开启选择性暂停");
   await expect(field(page, dc)).toHaveText("开启选择性暂停");
@@ -125,18 +121,22 @@ test("无能力隐藏且不触发任何系统策略写入", async ({ page }) => 
   await expect(panel(page)).toHaveCount(0); expect(await writes(page)).toHaveLength(0);
 });
 
-test("供电控件与计划详情在宽窄窗口均可读", async ({ page }) => {
+test("恢复被阻止的原因显示在卡内", async ({ page }) => {
   const region = panel(page);
-  const details = page.getByRole("dialog", { name: `${title}详情`, exact: true });
+  await page.evaluate(() => { window.__uiFixture.usb.restoreBlockedReason = "隔离初始计划已不存在，不能恢复"; });
+  await reload(page);
+  await expect(region).toContainText("隔离初始计划已不存在，不能恢复");
+  await expect(region.getByRole("button", { name: `恢复${title}`, exact: true })).toHaveCount(0);
+  expect(await writes(page)).toHaveLength(0);
+});
+
+test("供电控件在宽窄窗口均可读", async ({ page }) => {
+  const region = panel(page);
   for (const width of [360, 760, 1440]) {
     await page.setViewportSize({ width, height: 1800 }); await region.scrollIntoViewIfNeeded();
     await expect(field(page, ac)).toBeVisible();
     await expect(field(page, dc)).toBeVisible();
     expect(await region.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
-    await region.getByRole("button", { name: "详情", exact: true }).click();
-    await expect(details.locator(".ccc-fact-row")).toHaveCount(3);
-    expect(await details.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
-    await details.getByRole("button", { name: "关闭弹窗", exact: true }).click();
   }
   await region.screenshot({ path: "target/ui-check/usb-policy.png", animations: "disabled" });
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);

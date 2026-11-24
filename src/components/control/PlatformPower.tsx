@@ -8,7 +8,6 @@ import { Surface } from "../Surface";
 import { useDeviceSettings } from "./useDeviceSettings";
 import { pdLevelText as levelText } from "./platform-values";
 import { PowerSourceVisual } from "./PowerSourceVisual";
-import { DetailsDialog } from "../DetailsDialog";
 
 export function PlatformPower({ active, revision }: { active: boolean; revision: number }) {
   const { profile, busy, error, run, reread } = useDeviceSettings(readPlatformPower, active, revision, 5000);
@@ -20,21 +19,16 @@ export function PlatformPower({ active, revision }: { active: boolean; revision:
   };
   return <Surface as="section" variant="group" className="ccc-panel" aria-label="平台电源">
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="plug" />平台电源</h2>
-      <div className="ccc-module-tools"><DetailsDialog title="平台电源说明" label="详情">
-        <p>适配器功率由固件报告。PD 档位与 CPU 功耗上限分别设置。</p>
-        {profile?.deepS5 != null && <p className="ccc-control-caption">关机节能 · {profile.deepS5 ? "已启用" : "未启用"}</p>}
-        {pd?.restoreBlockedReason && <p className="ccc-control-caption">{pd.restoreBlockedReason}</p>}
-        {profile?.warnings.map(warning => <p key={warning} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{warning}</p>)}
-      </DetailsDialog>
-      <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取平台电源" disabled={busy} onClick={reread} /></div></div>
+      <div className="ccc-module-tools"><Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取平台电源" disabled={busy} onClick={reread} /></div></div>
     {error && <p className="ccc-control-error" role="alert">{error}</p>}
     <OemConflictAction issues={[pd?.blockedReason, pd?.restoreBlockedReason, error]} disabled={busy} onClosed={reread} />
     {!profile ? <p className="ccc-control-caption">{error ? "无法读取，请重试。" : "正在读取平台电源。"}</p> : <>
-      {profile.warnings.length > 0 && <p className="ccc-control-caption">部分电源信息不可用 · 查看详情</p>}
+      {profile.warnings.map(warning => <p key={warning} className="ccc-control-caption">{warning}</p>)}
       {pd && <div className="ccc-platform-pd">
         <div className="ccc-platform-current">
         <PowerSourceVisual source="adapter" watts={pd.adapterWatts} label="PD 适配器报告功率" />
         {pd.blockedReason && <p className="ccc-control-caption">{pd.blockedReason}</p>}
+        {pd.restoreBlockedReason && <p className="ccc-control-caption">{pd.restoreBlockedReason}</p>}
         </div>
         <div className="ccc-display-controls">
         <label className="ccc-config-field">PD 档位

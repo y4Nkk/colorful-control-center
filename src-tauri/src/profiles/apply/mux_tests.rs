@@ -57,24 +57,19 @@ fn capture_uses_known_selection_without_creating_a_record() {
 }
 
 #[test]
-fn profile_selection_is_pending_reboot_and_shares_initial_restore() {
+fn profile_selection_is_pending_reboot() {
     let f = setup();
     request(&f, 2);
     let steps = apply_settings(&f.hal, &f.gpu, f.devices(), &target(&f, 4)).unwrap();
     assert!(steps.iter().all(|step| step.ok));
-    let state = selection(&f);
-    let previous = state.last_request.unwrap();
-    assert_eq!((previous.initial_mode, previous.target), (3, 4));
+    let previous = selection(&f).last_request.unwrap();
+    assert_eq!(previous.target, 4);
     assert_eq!(
         previous.verification,
         graphics_mode::Verification::PendingReboot
     );
-    f.graphics_mode
-        .controller
-        .restore(&f.hal, &f.display.controller, &state.revision)
-        .unwrap();
     let data = f.graphics_mode.io.0.lock().unwrap();
-    assert_eq!(data.sent, [2, 4, 3]);
+    assert_eq!(data.sent, [2, 4]);
     assert_eq!(data.reboots, 0);
 }
 
@@ -116,12 +111,12 @@ fn partial_mux_failure_restores_prior_choice_and_saved_cpu() {
     );
     assert_eq!(f.device.0.lock().unwrap().pages[6], before);
     let state = selection(&f).last_request.unwrap();
-    assert_eq!((state.initial_mode, state.target), (3, 2));
+    assert_eq!(state.target, 2);
     assert_eq!(f.graphics_mode.io.0.lock().unwrap().sent, [2, 4, 2]);
 }
 
 #[test]
-fn compensation_failure_is_reported_and_standalone_restore_can_retry() {
+fn compensation_failure_is_reported_and_new_selection_resolves() {
     let f = setup();
     f.graphics_mode.io.0.lock().unwrap().fail_send = vec![1, 2];
     let steps = apply_settings(&f.hal, &f.gpu, f.devices(), &target(&f, 2)).unwrap();
@@ -130,13 +125,14 @@ fn compensation_failure_is_reported_and_standalone_restore_can_retry() {
             .iter()
             .any(|step| !step.ok && step.step.contains("恢复本次显卡选择"))
     );
-    let state = selection(&f);
-    assert!(state.can_restore);
-    f.graphics_mode
-        .controller
-        .restore(&f.hal, &f.display.controller, &state.revision)
-        .unwrap();
+    assert_eq!(
+        selection(&f).last_request.unwrap().verification,
+        graphics_mode::Verification::Uncertain
+    );
+    f.graphics_mode.io.0.lock().unwrap().fail_send.clear();
+    request(&f, 3);
     assert_eq!(selection(&f).last_request.unwrap().target, 3);
+    assert_eq!(f.graphics_mode.io.0.lock().unwrap().sent, [2, 3, 3]);
 }
 
 #[test]

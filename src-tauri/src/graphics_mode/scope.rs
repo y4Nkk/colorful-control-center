@@ -61,7 +61,7 @@ impl Scope<'_> {
                 bail!("档案显卡模式所属Windows或固件候选已变化");
             }
             let before = describe(&p);
-            transaction::Plan::new(p, target.mode, false)?;
+            transaction::Plan::new(p, target.mode)?;
             Ok(profile::Review {
                 before,
                 target: target.mode,
@@ -76,7 +76,7 @@ impl Scope<'_> {
         let mut plan = self.with_io(hal, |io| {
             let p = preview(io, &self.controller.store)?.context("显卡模式接口已不可用")?;
             check_revision(&p, &review.before.revision)?;
-            transaction::Plan::new(p, review.target, false)
+            transaction::Plan::new(p, review.target)
         })?;
         let result = self.with_io(hal, |io| plan.execute(io, &self.controller.store));
         self.active = Some(plan);

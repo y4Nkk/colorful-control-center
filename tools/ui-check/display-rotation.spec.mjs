@@ -1,5 +1,4 @@
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { restoreDevice } from "./device-settings.mjs";
 import { openWorkspace, openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -21,7 +20,7 @@ test.beforeEach(async ({ page }) => {
   await expect(display(page)).toBeVisible();
 });
 
-test("旋转独立授权，热键定位主屏后由开关直接试用和恢复", async ({ page }) => {
+test("旋转独立授权，热键定位主屏后由开关直接试用、取消和保留", async ({ page }) => {
   await openWorkspace(page, "键盘与灯光");
   await hotkeys(page).getByRole("button", { name: "配置热键", exact: true }).click();
   const editor = page.getByRole("dialog", { name: "配置热键与屏显", exact: true });
@@ -47,8 +46,10 @@ test("旋转独立授权，热键定位主屏后由开关直接试用和恢复",
   await expect(display(page).getByRole("status")).toContainText("试用 横向 ·");
   await display(page).getByRole("button", { name: "取消本次试用", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.__uiFixture.display.displays[0].current.orientation)).toBe(2);
-  await restoreDevice(display(page));
+  await rotate.click();
+  await display(page).getByRole("button", { name: "保留屏幕方向", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.__uiFixture.display.displays[0].current.orientation)).toBe(0);
+  await expect(display(page).getByRole("button", { name: "恢复初始设置", exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });
 

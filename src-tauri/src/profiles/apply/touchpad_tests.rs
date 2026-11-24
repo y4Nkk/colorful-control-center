@@ -40,11 +40,12 @@ fn capture_and_strict_roundtrip_keep_system_and_preference_independent() {
     crate::profiles::validate(&only).unwrap();
 }
 #[test]
-fn later_gpu_failure_restores_this_operation_and_shares_single_and_hotkey_baseline() {
+fn later_gpu_failure_restores_this_operation_only() {
     let f = setup();
-    let before = f.touchpad.read(&f.hal).unwrap().current;
     let id = f.touchpad.hotkey_identity(&f.hal).unwrap();
     assert!(!f.touchpad.toggle(&f.hal, &id).unwrap());
+    let toggled = f.touchpad.read(&f.hal).unwrap().current;
+    assert_eq!(toggled.enabled, Some(false));
     let settings = ProfileSettings {
         touchpad: Some(target(&f, true)),
         gpu: Some(crate::gpuctl::GpuClockSettings {
@@ -57,11 +58,7 @@ fn later_gpu_failure_restores_this_operation_and_shares_single_and_hotkey_baseli
     let steps = apply_settings(&f.hal, &f.gpu, f.devices(), &settings).unwrap();
     assert!(steps.iter().any(|s| s.step == "GPU 偏移" && !s.ok));
     assert!(steps.iter().any(|s| s.step == "恢复本次触摸板状态" && s.ok));
-    let p = f.touchpad.read(&f.hal).unwrap();
-    assert_eq!(p.current.enabled, Some(false));
-    assert_eq!(p.initial.as_ref(), Some(&before));
-    f.touchpad.restore(&f.hal, &p.revision).unwrap();
-    assert_eq!(f.touchpad.read(&f.hal).unwrap().current, before);
+    assert_eq!(f.touchpad.read(&f.hal).unwrap().current, toggled);
 }
 #[test]
 fn replaced_device_and_unknown_state_reject_all_targets_before_cpu_writes() {

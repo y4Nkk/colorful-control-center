@@ -51,13 +51,35 @@ test("取消或到期后恢复本次模式，过期试用无法保留", async ({
   await expect.poll(() => page.evaluate(() => window.__uiFixture.display.displays[0].current.frequency)).toBe(60);
   const reads = (await calls(page, "read_automatic_refresh")).length;
   await expect.poll(async () => (await calls(page, "read_automatic_refresh")).length).toBeGreaterThan(reads);
-  await page.evaluate(() => { window.__uiFixture.autoRefresh.active = false; });
-  await card(page).getByRole("button", { name: "恢复启用前状态", exact: true }).click();
-  await expect(card(page).getByRole("switch", { name: "启用自动刷新率" })).toBeEnabled();
+  const toggle = card(page).getByRole("switch", { name: "启用自动刷新率" });
+  await expect(toggle).toBeChecked();
+  await toggle.click();
+  await expect(toggle).not.toBeChecked();
+  await expect(card(page).getByRole("button", { name: "恢复启用前状态", exact: true })).toHaveCount(0);
   await enable(page);
   await page.evaluate(() => { window.__uiFixture.displayExpiresAt = Date.now() - 1; });
   await expect(trial(page)).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.__uiFixture.display.displays[0].current.frequency)).toBe(60);
+});
+
+test("事务未完成时开关保持打开，关闭即恢复启用前状态", async ({ page }) => {
+  await enable(page);
+  await trial(page).getByRole("button", { name: "恢复本次试用" }).click();
+  await expect(trial(page)).toHaveCount(0);
+  await page.evaluate(() => { window.__uiFixture.autoRefresh.active = false; window.__uiFixture.autoRefresh.error = "自动刷新率事务未完成，请先恢复"; });
+  await card(page).getByRole("button", { name: "重新读取自动刷新率", exact: true }).click();
+  const toggle = card(page).getByRole("switch", { name: "启用自动刷新率" });
+  await expect(card(page).getByRole("status")).toHaveText("已暂停");
+  await expect(card(page).getByRole("alert")).toContainText("请先恢复");
+  await expect(toggle).toBeChecked();
+  await expect(toggle).toBeEnabled();
+  await expect(card(page).getByRole("button", { name: "恢复启用前状态", exact: true })).toHaveCount(0);
+  await toggle.click();
+  await expect(toggle).not.toBeChecked();
+  expect((await calls(page, "restore_automatic_refresh")).length).toBe(1);
+  await page.evaluate(() => { window.__uiFixture.autoRefresh.error = null; });
+  await expect(toggle).toBeEnabled();
+  expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });
 
 test("监听不可用时显示原因并禁止启用", async ({ page }) => {
@@ -110,4 +132,101 @@ test("模块边框和全局确认适配宽窄及深浅主题", async ({ page }) 
   expect(rect.x).toBeGreaterThanOrEqual(0);
   expect(rect.x + rect.width).toBeLessThanOrEqual(360);
   await trial(page).screenshot({ path: "target/ui-check/auto-refresh-trial-dark-360.png" });
+});
+
+const scanArt = page => card(page).locator("svg.ccc-refresh-scan");
+const scanFrame = (page, time) => scanArt(page).evaluate((svg, time) => {
+  const animations = svg.getAnimations({ subtree: true });
+  const frame = svg.getBoundingClientRect();
+  animations.forEach(animation => { animation.pause(); animation.currentTime = time; });
+  const edge = svg.querySelector(".ccc-refresh-scan-edge").getBoundingClientRect();
+  const state = {
+    height: frame.height, edgeTop: edge.top - frame.top, edgeBottom: edge.bottom - frame.top,
+    beamOpacity: Number(getComputedStyle(svg.querySelector(".ccc-refresh-scan-beam")).opacity),
+    edgeOpacity: Number(getComputedStyle(svg.querySelector(".ccc-refresh-scan-edge")).opacity),
+    inside: edge.left >= frame.left && edge.right <= frame.right && edge.top >= frame.top && edge.bottom <= frame.bottom,
+    pulses: [...svg.querySelectorAll(".ccc-refresh-scan-pulse")].map(pulse => ({
+      offset: getComputedStyle(pulse).strokeDashoffset, opacity: Number(getComputedStyle(pulse).opacity) })),
+  };
+  animations.forEach(animation => animation.play());
+  return state;
+}, time);
+const scanAnimations = page => scanArt(page).evaluate(svg =>
+  svg.getAnimations({ subtree: true }).map(motion => [motion.animationName, motion.effect.getTiming().iterations]).sort());
+
+test("扫描光束与光点在活动页循环，并始终留在纹理画幅内", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.evaluate(() => { window.__uiFixture.preferences.motion = "system"; document.documentElement.dataset.motion = "system"; });
+  const scan = scanArt(page);
+  await expect(scan).toHaveAttribute("data-active", "true");
+  expect(await scanAnimations(page)).toEqual([["ccc-refresh-scan-pulse", Infinity], ["ccc-refresh-scan-pulse", Infinity],
+    ["ccc-refresh-scan-pulse", Infinity], ["ccc-refresh-scan-sweep", Infinity]]);
+  const frames = [];
+  for (const time of [0, 216, 1440, 2376, 2592, 3240]) frames.push(await scanFrame(page, time));
+  const tops = frames.map(frame => frame.edgeTop);
+  expect(tops).toEqual([...tops].sort((a, b) => a - b));
+  expect(tops.at(-1) - tops[0]).toBeGreaterThan(frames[0].height - 3);
+  expect(frames.map(frame => frame.beamOpacity)).toEqual([0, 1, 1, 1, 1, 0]);
+  expect(frames.slice(1, 5).every(frame => frame.inside)).toBe(true);
+  for (let index = 0; index < 3; index += 1) {
+    expect(new Set(frames.map(frame => frame.pulses[index].offset)).size).toBeGreaterThan(2);
+    expect(Math.max(...frames.map(frame => frame.pulses[index].opacity))).toBeGreaterThan(0);
+  }
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
+    for (const width of [1440, 360]) {
+      await page.setViewportSize({ width, height: 900 });
+      await card(page).scrollIntoViewIfNeeded();
+      for (const time of [720, 1900]) {
+        await scan.evaluate((svg, time) => {
+          for (const motion of svg.getAnimations({ subtree: true })) { motion.pause(); motion.currentTime = time; }
+        }, time);
+        await card(page).screenshot({ path: `target/ui-check/auto-refresh-scan-${theme}-${width}-${time}.png` });
+      }
+      await scan.evaluate(svg => { for (const motion of svg.getAnimations({ subtree: true })) motion.play(); });
+    }
+  }
+});
+
+for (const [name, systemMotion, appMotion] of [["系统", "reduce", "system"], ["应用", "no-preference", "reduce"]]) {
+  test(`${name}减少动效时扫描纹理保持静态，恢复后继续循环`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: systemMotion });
+    await page.evaluate(motion => {
+      window.__uiFixture.preferences.motion = motion; document.documentElement.dataset.motion = motion;
+    }, appMotion);
+    const scan = scanArt(page);
+    await expect(scan).toHaveAttribute("data-active", "true");
+    expect(await scanAnimations(page)).toEqual([]);
+    const frame = await scanFrame(page, 0);
+    expect(frame.edgeTop).toBeGreaterThan(frame.height * .4);
+    expect(frame.edgeBottom).toBeLessThan(frame.height * .6);
+    expect(frame.edgeOpacity).toBe(.26);
+    expect(frame.pulses.map(pulse => pulse.opacity)).toEqual([0, 0, 0]);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.evaluate(() => { window.__uiFixture.preferences.motion = "system"; document.documentElement.dataset.motion = "system"; });
+    expect(await scanAnimations(page)).toHaveLength(4);
+  });
+}
+
+test("读数未知或离开活动页时扫描纹理静止", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.evaluate(() => { window.__uiFixture.preferences.motion = "system"; document.documentElement.dataset.motion = "system"; });
+  const scan = scanArt(page);
+  await expect(scan).toHaveAttribute("data-active", "true");
+  expect(await scanAnimations(page)).toHaveLength(4);
+  await openWorkspace(page, "设置");
+  const hiddenScan = page.locator('section[aria-label="自动刷新率"] svg.ccc-refresh-scan');
+  await expect(hiddenScan).not.toHaveAttribute("data-active", "true");
+  expect(await hiddenScan.evaluate(svg => svg.getAnimations({ subtree: true }).length)).toBe(0);
+  await openWorkspace(page, "设备配置");
+  await expect(scan).toHaveAttribute("data-active", "true");
+  await page.evaluate(() => {
+    const invoke = window.__TAURI_INTERNALS__.invoke;
+    window.__TAURI_INTERNALS__.invoke = (command, args) => command === "read_automatic_refresh"
+      ? Promise.reject(new Error("隔离读取失败")) : invoke(command, args);
+  });
+  await expect(card(page).getByRole("alert")).toContainText("隔离读取失败");
+  await expect(card(page).locator(".ccc-refresh-screen")).toContainText("—");
+  await expect(scan).not.toHaveAttribute("data-active", "true");
+  expect(await scanAnimations(page)).toEqual([]);
 });

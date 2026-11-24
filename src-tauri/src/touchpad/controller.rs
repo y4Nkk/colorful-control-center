@@ -2,13 +2,13 @@ use super::*;
 
 #[derive(Default)]
 pub struct Controller {
-    initial: Mutex<Option<Snapshot>>,
+    mutation: Mutex<()>,
     #[cfg(test)]
     test_io: Option<std::sync::Arc<dyn Io + Send + Sync>>,
 }
 pub(crate) struct Scope<'a> {
     controller: &'a Controller,
-    initial: MutexGuard<'a, Option<Snapshot>>,
+    _lock: MutexGuard<'a, ()>,
 }
 impl Controller {
     #[cfg(test)]
@@ -19,8 +19,8 @@ impl Controller {
     pub(crate) fn scope(&self) -> Result<Scope<'_>> {
         Ok(Scope {
             controller: self,
-            initial: self
-                .initial
+            _lock: self
+                .mutation
                 .lock()
                 .map_err(|_| anyhow!("触摸板控制状态异常"))?,
         })
@@ -47,7 +47,7 @@ impl Controller {
         scope.read(hal)
     }
     pub fn apply(&self, hal: &Hal, request: &Request) -> Result<()> {
-        let mut scope = self.scope()?;
+        let scope = self.scope()?;
         let _gate = hal.begin_write()?;
         let profile = scope.read(hal)?;
         if profile.revision != request.expected_revision {
@@ -66,23 +66,6 @@ impl Controller {
         }
         scope.execute(hal, &plan, &mut false)
     }
-    pub fn restore(&self, hal: &Hal, expected_revision: &str) -> Result<()> {
-        let mut scope = self.scope()?;
-        let _gate = hal.begin_write()?;
-        let profile = scope.read(hal)?;
-        if profile.revision != expected_revision {
-            bail!("触摸板恢复预览已变化，请重新读取");
-        }
-        let initial = scope
-            .initial
-            .as_ref()
-            .context("没有触摸板初始状态")?
-            .clone();
-        let plan = transaction::prepare(profile.current, initial, &None)?;
-        scope.execute(hal, &plan, &mut false)?;
-        *scope.initial = None;
-        Ok(())
-    }
     pub(crate) fn hotkey_identity(&self, hal: &Hal) -> Result<String> {
         let profile = self.read(hal)?;
         if let Some(reason) = profile.blocked_reason {
@@ -91,7 +74,7 @@ impl Controller {
         profile.current.identity()
     }
     pub(crate) fn toggle(&self, hal: &Hal, identity: &str) -> Result<bool> {
-        let mut scope = self.scope()?;
+        let scope = self.scope()?;
         let _gate = hal.begin_write()?;
         let current = scope.read(hal)?.current;
         if current.identity()? != identity {
@@ -117,24 +100,14 @@ impl Scope<'_> {
     pub(crate) fn read(&self, hal: &Hal) -> Result<Profile> {
         self.controller.with_io(hal, |io| {
             let current = transaction::capture(io)?;
-            let owner = io.ensure_available().err().map(|e| format!("{e:#}"));
-            let changed = self
-                .initial
-                .as_ref()
-                .and_then(|old| current.same_devices(old).err())
-                .map(|e| format!("{e:#}"));
             let blocked_reason = current
                 .available()
                 .err()
                 .map(|e| format!("{e:#}"))
-                .or(owner.clone())
-                .or(changed.clone());
+                .or_else(|| io.ensure_available().err().map(|e| format!("{e:#}")));
             Ok(Profile {
-                revision: current.revision(&self.initial)?,
+                revision: current.revision()?,
                 current,
-                initial: self.initial.clone(),
-                can_restore: self.initial.is_some() && changed.is_none() && owner.is_none(),
-                restore_blocked_reason: changed.or(owner),
                 blocked_reason,
             })
         })
@@ -163,13 +136,12 @@ impl Scope<'_> {
             if before != after {
                 io.ensure_available()?;
             }
-            transaction::prepare(before, after, &self.initial)
+            transaction::prepare(before, after)
         })
     }
-    pub(crate) fn execute(&mut self, hal: &Hal, plan: &Plan, needs: &mut bool) -> Result<()> {
-        self.controller.with_io(hal, |io| {
-            transaction::execute(io, &mut self.initial, plan, needs)
-        })
+    pub(crate) fn execute(&self, hal: &Hal, plan: &Plan, needs: &mut bool) -> Result<()> {
+        self.controller
+            .with_io(hal, |io| transaction::execute(io, plan, needs))
     }
     pub(crate) fn rollback(&self, hal: &Hal, plan: &Plan) -> Result<()> {
         self.controller

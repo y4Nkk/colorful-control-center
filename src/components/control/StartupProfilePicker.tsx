@@ -38,7 +38,7 @@ export function StartupProfilePicker({ active }: { active: boolean }) {
         disabled={busy || !ready || unchanged || !selected || !preview || Boolean(modeError || gpuPowerError || graphicsModeError || displayError)} onConfirm={apply}>
         <p>启动时应用「{selected}」</p>
         <ProfileModeAuthorization approval={selection?.modeAuthorization ?? null} />
-        {selected && settings && <DetailsDialog title="启动档案参数" wide>
+        {selected && settings && <DetailsDialog title="启动档案参数" label="查看档案参数" icon={null} wide>
           <ProfilePreview settings={settings} modeTarget={modeTarget} displayReview={displayReview} gpuPowerReview={gpuPowerReview} graphicsModeReview={graphicsModeReview} />
           <ProfileModeExecutionNotes approval={selection?.modeAuthorization ?? null} />
           {settings.oemPowerMode != null && <p>启动时保存插电偏好并应用模式的固件节能联动。</p>}

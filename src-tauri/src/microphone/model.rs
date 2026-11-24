@@ -62,21 +62,10 @@ impl Snapshot {
             )?)
         ))
     }
-    pub(crate) fn require_initial_devices(&self, initial: &Self) -> Result<()> {
-        if initial.endpoints.is_empty()
-            || initial
-                .endpoints
-                .iter()
-                .any(|old| !self.endpoints.iter().any(|current| current.id == old.id))
-        {
-            bail!("初始麦克风已断开；恢复记录保留，请连接原设备后重试");
-        }
-        Ok(())
-    }
-    pub(crate) fn revision(&self, initial: &Option<Snapshot>) -> Result<String> {
+    pub(crate) fn revision(&self) -> Result<String> {
         Ok(format!(
             "{:x}",
-            Sha256::digest(serde_json::to_vec(&(self, initial))?)
+            Sha256::digest(serde_json::to_vec(self)?)
         ))
     }
     pub(crate) fn target(&self, target: &Target) -> Result<Self> {
@@ -124,8 +113,5 @@ pub struct Request {
 pub struct Profile {
     pub revision: String,
     pub current: Snapshot,
-    pub initial: Option<Snapshot>,
-    pub can_restore: bool,
-    pub restore_blocked_reason: Option<String>,
     pub blocked_reason: Option<String>,
 }

@@ -1,4 +1,3 @@
-import { deviceRestoreButton, restoreDevice } from "./device-settings.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -6,7 +5,7 @@ import { MOCK_IPC } from "./mock-ipc.mjs";
 test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "设备配置"); });
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(c => c.command === "apply_keyboard_settings").map(c => c.args.request));
 
-test("键盘开关逐项提交，保留其他字段并可就地恢复", async ({ page }) => {
+test("键盘开关逐项提交，保留其他字段并可直接切回", async ({ page }) => {
   const panel = page.getByRole("region", { name: "键盘功能", exact: true });
   const fnLock = panel.getByRole("switch", { name: "Fn 锁", exact: true });
   const winLock = panel.getByRole("switch", { name: "Win 锁", exact: true });
@@ -24,10 +23,11 @@ test("键盘开关逐项提交，保留其他字段并可就地恢复", async ({
     { fnLocked: true, winLocked: true, fnWinSwap: null },
   ]);
   expect(requests[1].expectedRevision).not.toBe(requests[0].expectedRevision);
-  await restoreDevice(panel);
+  await expect(panel.getByRole("button", { name: "恢复初始设置", exact: true })).toHaveCount(0);
+  await fnLock.click();
+  await winLock.click();
   await expect(fnLock).not.toBeChecked();
   await expect(winLock).not.toBeChecked();
-  expect(await page.evaluate(() => window.__uiFixture.calls.filter(call => call.command === "restore_keyboard_settings").length)).toBe(1);
   await panel.screenshot({ path: "target/ui-check/keyboard-settings.png" });
   await page.setViewportSize({ width: 360, height: 720 });
   expect(await panel.evaluate(el => el.getBoundingClientRect().right <= innerWidth)).toBe(true);
@@ -42,7 +42,6 @@ test("键盘写入失败显示回读值，支持在原控件重试", async ({ pa
   await fnLock.click();
   await expect(panel.getByRole("alert")).toContainText("隔离保存失败");
   await expect(fnLock).not.toBeChecked();
-  await expect(deviceRestoreButton(panel)).toBeEnabled();
   expect(await page.evaluate(() => window.__uiFixture.keyboardSettings.current.fnLocked)).toBe(false);
   await fnLock.click();
   await expect(fnLock).toBeChecked();

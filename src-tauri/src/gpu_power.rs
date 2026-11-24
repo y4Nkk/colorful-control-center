@@ -1,7 +1,7 @@
 //! 原厂NVPCF控制节点、固件命令与自动关断策略的统一事务。
 use anyhow::{Result, anyhow, bail};
 use serde::Serialize;
-use std::{collections::BTreeMap, sync::Mutex};
+use std::sync::Mutex;
 #[path = "gpu_power/environment.rs"]
 mod environment;
 #[path = "gpu_power/execution.rs"]
@@ -53,24 +53,15 @@ pub trait Access {
 #[serde(rename_all = "camelCase")]
 pub struct Profile {
     pub devices: Vec<Device>,
-    pub can_restore: bool,
 }
 #[derive(Default)]
 pub struct Controller {
-    baseline: Mutex<BTreeMap<String, Target>>,
     mutation: Mutex<()>,
     environment: Option<std::sync::Arc<dyn environment::Environment>>,
 }
 impl Controller {
     pub fn read(&self, io: &impl Access) -> Result<Profile> {
-        let baseline = self
-            .baseline
-            .lock()
-            .map_err(|_| anyhow!("独显恢复状态异常"))?;
-        Ok(Profile {
-            devices: io.list()?,
-            can_restore: !baseline.is_empty(),
-        })
+        Ok(Profile { devices: io.list()? })
     }
     pub fn apply(
         &self,
@@ -79,10 +70,6 @@ impl Controller {
         target: Target,
         restore: bool,
     ) -> Result<()> {
-        let mut baseline = self
-            .baseline
-            .lock()
-            .map_err(|_| anyhow!("独显恢复状态异常"))?;
         let current = find(io, &expected.id)?;
         if current != *expected {
             bail!("原厂独显状态或策略已变化，请重新读取并确认");
@@ -91,9 +78,6 @@ impl Controller {
         if current.target() == target && !restore {
             return Ok(());
         }
-        baseline
-            .entry(current.id.clone())
-            .or_insert(current.target());
         if let Err(error) = io
             .set(&current, target)
             .and_then(|_| verify(io, &current.id, target))
@@ -105,7 +89,7 @@ impl Controller {
                 if restored {
                     "本次前态未变化或已补偿"
                 } else {
-                    "恢复未完成，请重试恢复初始状态"
+                    "恢复未完成，请重新读取后重试"
                 }
             );
         }

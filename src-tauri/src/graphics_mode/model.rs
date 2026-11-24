@@ -49,15 +49,16 @@ pub struct Record {
     pub version: u8,
     pub owner: String,
     pub boot: String,
-    pub initial_mode: u8,
     pub previous_mode: u8,
     pub target: u8,
     pub available_mask: u8,
     pub phase: Phase,
 }
+/// 版本1另含只为初始恢复服务的 `initialMode`；旧版本记录作废，由下一次写入替换。
+pub(super) const RECORD_VERSION: u8 = 2;
 impl Record {
     pub fn validate(&self) -> Result<()> {
-        if self.version != 1 {
+        if self.version != RECORD_VERSION {
             bail!("不支持的显卡选择记录版本");
         }
         Identity {
@@ -65,13 +66,13 @@ impl Record {
             boot: self.boot.clone(),
         }
         .validate()?;
-        let observed = Observed {
-            mode: self.initial_mode,
+        let modes = Observed {
+            mode: self.target,
             available_mask: self.available_mask,
         };
-        if ![self.initial_mode, self.previous_mode, self.target]
+        if ![self.previous_mode, self.target]
             .into_iter()
-            .all(|mode| observed.supports(mode))
+            .all(|mode| modes.supports(mode))
         {
             bail!("显卡选择记录含无效模式");
         }
@@ -107,7 +108,6 @@ pub enum Verification {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LastRequest {
-    pub initial_mode: u8,
     pub target: u8,
     pub verification: Verification,
 }
@@ -117,7 +117,6 @@ pub struct Profile {
     pub current: Option<Observed>,
     pub revision: String,
     pub last_request: Option<LastRequest>,
-    pub can_restore: bool,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

@@ -31,10 +31,8 @@ export function applyProfileMode(data, target) {
   if (requests.length) {
     if (data.gpuPowerFault) throw new Error(data.gpuPowerFault);
     data.profileGpuAuthorizations = (data.profileGpuAuthorizations ?? 0) + 1;
-    data.gpuPowerInitial ??= structuredClone(graph.before);
     data.modeInitial.gpu ??= { node: null, clocks: null, driverIdentity: null };
     data.modeInitial.gpu.node ??= { id: graph.before.id, name: graph.before.name, target: { enabled: graph.before.enabled, automaticPowerOff: graph.before.automaticPowerOff } };
-    data.gpuPower.canRestore = true;
   }
   const actual = structuredClone(target);
   const clocks = actual.gpu.value.clocks;

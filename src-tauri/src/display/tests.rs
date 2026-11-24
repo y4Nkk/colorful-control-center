@@ -80,10 +80,9 @@ fn stale_unsupported_and_driver_test_reject_before_writes() {
     io.0.lock().unwrap().test_fail = true;
     assert!(c.apply(&mode(), 144, 0).is_err());
     assert_eq!(io.0.lock().unwrap().writes, 0);
-    assert!(!c.read().unwrap().can_restore);
 }
 #[test]
-fn trial_requires_keep_and_timeout_restores_previous_without_losing_initial() {
+fn trial_requires_keep_and_timeout_restores_previous_mode() {
     let (c, io) = setup();
     c.apply(&mode(), 144, 100).unwrap();
     let first = c.read().unwrap().displays[0].current.clone();
@@ -94,8 +93,6 @@ fn trial_requires_keep_and_timeout_restores_previous_without_losing_initial() {
     assert_eq!(io.list().unwrap()[0].current.frequency, 60);
     c.tick(15_300).unwrap();
     assert_eq!(io.list().unwrap()[0].current.frequency, 144);
-    c.restore().unwrap();
-    assert_eq!(io.list().unwrap()[0].current, mode());
 }
 #[test]
 fn expired_or_unreviewed_keep_is_rejected() {
@@ -117,19 +114,10 @@ fn partial_failure_retains_snapshot_and_timeout_retries_recovery() {
             .to_string()
             .contains("恢复失败")
     );
-    assert!(c.read().unwrap().can_restore);
     assert!(c.read().unwrap().pending.is_some());
     c.tick(15_000).unwrap();
     assert!(c.read().unwrap().pending.is_none());
     assert_eq!(io.list().unwrap()[0].current, mode());
-}
-#[test]
-fn replacement_display_never_receives_original_snapshot() {
-    let (c, io) = setup();
-    c.apply(&mode(), 144, 0).unwrap();
-    io.0.lock().unwrap().modes[0].current.identity = "other-panel".into();
-    assert!(c.restore().is_err());
-    assert!(c.read().unwrap().can_restore);
 }
 #[derive(Clone, Copy)]
 enum GuardFault {
@@ -163,21 +151,19 @@ impl guardian::Monitor for FaultMonitor {
     }
 }
 #[test]
-fn guardian_start_failure_prevents_target_write_and_baseline() {
+fn guardian_start_failure_prevents_target_write() {
     let (_, io) = setup();
     let c = Controller::with_guards(io.clone(), FaultFactory(GuardFault::Start));
     assert!(c.apply(&mode(), 144, 0).is_err());
     assert_eq!(io.0.lock().unwrap().writes, 0);
-    assert!(!c.read().unwrap().can_restore);
 }
 #[test]
-fn expiry_during_write_compensates_target_and_preserves_initial() {
+fn expiry_during_write_compensates_target() {
     let (_, io) = setup();
     let c = Controller::with_guards(io.clone(), FaultFactory(GuardFault::ExpiredDuringWrite));
     assert!(c.apply(&mode(), 144, 0).is_err());
     assert_eq!(io.0.lock().unwrap().writes, 2);
     assert_eq!(io.list().unwrap()[0].current, mode());
-    assert!(c.read().unwrap().can_restore);
     assert!(c.read().unwrap().pending.is_none());
 }
 #[test]
@@ -223,7 +209,7 @@ fn oem_rotation_matches_all_four_original_direction_branches() {
 }
 
 #[test]
-fn rotation_trial_reuses_guard_timeout_and_original_baseline() {
+fn rotation_trial_reuses_guard_timeout() {
     let (controller, io) = setup();
     let preview = controller.read().unwrap().rotation.unwrap();
     assert_eq!(preview.before, mode());
@@ -237,8 +223,7 @@ fn rotation_trial_reuses_guard_timeout_and_original_baseline() {
     controller.apply_rotation(&mode(), 16_000).unwrap();
     controller.keep(2, &target, 16_001).unwrap();
     assert!(controller.read().unwrap().pending.is_none());
-    controller.restore().unwrap();
-    assert_eq!(io.list().unwrap()[0].current, mode());
+    assert_eq!(io.list().unwrap()[0].current, target);
 }
 
 #[test]
@@ -253,8 +238,6 @@ fn cancel_restores_last_kept_mode_and_rejects_old_trial_ids() {
     assert_eq!(io.list().unwrap()[0].current, mode());
     controller.cancel(2).unwrap();
     assert_eq!(io.list().unwrap()[0].current, rotated);
-    controller.restore().unwrap();
-    assert_eq!(io.list().unwrap()[0].current, mode());
 }
 
 #[test]

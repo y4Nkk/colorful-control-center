@@ -4,7 +4,6 @@ import { ENERGY_POLICY_LABEL, restoreBatteryCalibration, startBatteryCalibration
 import { Button } from "../Button";
 import { ConfirmButton } from "../ConfirmButton";
 import { ConfigurationAction } from "../ConfigurationAction";
-import { DetailsDialog } from "../DetailsDialog";
 import { FactList } from "../FactList";
 import { OemConflictAction } from "../OemConflictAction";
 import { Surface } from "../Surface";
@@ -28,7 +27,6 @@ export function BatteryCalibrationSettings({ active, locked, onChanged, onBusy, 
   useEffect(() => onLocked(ownsCharge), [ownsCharge, onLocked]);
   if (loaded && !profile && !error) return null;
   const task = profile?.task;
-  const taskPercent = model.stale ? null : task?.facts.percent;
   const disabled = busy || locked || model.stale;
   const revision = profile?.revision;
   const status = profile?.recoveryRequired ? profile.controlAcquired ? "上次校准尚需恢复" : "需要解除准备记录"
@@ -53,12 +51,6 @@ export function BatteryCalibrationSettings({ active, locked, onChanged, onBusy, 
         </ConfirmButton>}
         {profile.canStop && <ConfirmButton icon="pause" key={`stop-${revision}`} label="停止校准" confirmLabel="停止并恢复" busy={busy} disabled={disabled}
           onConfirm={() => revision ? model.run(() => stopBatteryCalibration(revision)) : undefined}><p>停止校准并恢复原充电策略。</p></ConfirmButton>}
-        <DetailsDialog title="校准阶段与恢复" label="详情">
-          <ol aria-label="校准阶段">{phases.map(phase => <li key={phase.id} aria-current={task?.phase === phase.id ? "step" : undefined}>{phase.label}</li>)}</ol>
-          {task && <p className="ccc-control-caption">本阶段已用 {elapsed(task.phaseElapsedMs)}</p>}
-          {profile.workerRunning && task && <p className="ccc-control-caption">任务采样电量 · {taskPercent != null && taskPercent >= 0 && taskPercent <= 100 ? `${taskPercent}%` : "—"}</p>}
-          <CalibrationRestoreFacts profile={profile} />
-        </DetailsDialog>
       </div>
       <ConfigurationAction revision={revision ?? ""} label="电池校准" restore
         disabled={disabled || !profile.recoveryRequired || profile.workerRunning}

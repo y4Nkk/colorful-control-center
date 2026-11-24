@@ -16,18 +16,14 @@ export function previewProfileGraphicsMode(data, settings) {
 export function applyProfileGraphicsMode(data, settings) {
   const target = settings.graphicsMode;
   if (!target || captureProfileGraphicsMode(data).mode === target.mode) return;
-  const initialMode = data.graphicsMode.lastRequest?.initialMode ?? data.graphicsMode.current.mode;
-  data.graphicsMode.lastRequest = { initialMode, target: target.mode, verification: "pendingReboot" };
-  data.graphicsMode.canRestore = initialMode !== target.mode;
+  data.graphicsMode.lastRequest = { target: target.mode, verification: "pendingReboot" };
   data.graphicsMode.revision = `graphics-${++data.graphicsRevision}`;
   if (data.profileMuxAfterSendFault) throw new Error(data.profileMuxAfterSendFault);
 }
 export function restoreProfileGraphicsMode(data, before) {
   if (before.revision === data.graphicsMode.revision) return;
   const target = before.lastRequest?.verification === "pendingReboot" ? before.lastRequest.target : before.current.mode;
-  const initialMode = before.lastRequest?.initialMode ?? before.current.mode;
-  data.graphicsMode.lastRequest = { initialMode, target, verification: "pendingReboot" };
-  data.graphicsMode.canRestore = initialMode !== target;
+  data.graphicsMode.lastRequest = { target, verification: "pendingReboot" };
   data.graphicsMode.revision = `graphics-${++data.graphicsRevision}`;
   data.profileApplication.steps.push({ step: "恢复本次显卡选择（重启后核对）", ok: true, message: "已发送此前选择的恢复请求" });
 }

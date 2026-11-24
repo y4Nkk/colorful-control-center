@@ -1,6 +1,5 @@
-import { applyMicrophones, readMicrophones, restoreMicrophones, type MicrophoneSnapshot } from "../../api/client";
+import { applyMicrophones, readMicrophones, type MicrophoneSnapshot } from "../../api/client";
 import { Button } from "../Button";
-import { ConfirmButton } from "../ConfirmButton";
 import { DetailsDialog } from "../DetailsDialog";
 import { FactList } from "../FactList";
 import { Icon } from "../Icon";
@@ -26,7 +25,7 @@ function microphoneFacts(snapshot: MicrophoneSnapshot) {
 
 export function MicrophoneSettings({ active, revision }: { active: boolean; revision: number }) {
   const { profile, busy, error, run, reread } = useDeviceSettings(readMicrophones, active, revision, 5000);
-  const current = profile?.current, initial = profile?.initial;
+  const current = profile?.current;
   const endpoints = current?.endpoints ?? [];
   const mutedCount = endpoints.filter(endpoint => endpoint.muted).length;
   const canChange = endpoints.length > 0 && !profile?.blockedReason;
@@ -45,7 +44,6 @@ export function MicrophoneSettings({ active, revision }: { active: boolean; revi
         <DetailsDialog title="麦克风详情" label="详情">
           {current && <FactList compact facts={microphoneFacts(current)} />}
           {profile?.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
-          {profile?.restoreBlockedReason && profile.restoreBlockedReason !== profile.blockedReason && <p className="ccc-control-caption">恢复暂不可用 · {profile.restoreBlockedReason}</p>}
           {error && <p className="ccc-control-error"><Icon name="error" size={16} />{error}</p>}
         </DetailsDialog>
         <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取麦克风" disabled={busy} onClick={reread} />
@@ -53,19 +51,11 @@ export function MicrophoneSettings({ active, revision }: { active: boolean; revi
     </div>
     <div className="ccc-device-status" aria-label="当前麦克风状态">
       <InputDeviceVisual kind="microphone" />
-      <div>{summary && <strong>{summary}</strong>}{endpoints.length > 0 && <p className="ccc-control-caption">{endpoints.length} 个设备</p>}
-        {profile?.blockedReason && profile.canRestore && <p className="ccc-control-caption">可先恢复初始设备</p>}</div>
+      <div>{summary && <strong>{summary}</strong>}{endpoints.length > 0 && <p className="ccc-control-caption">{endpoints.length} 个设备</p>}</div>
     </div>
     {profile?.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
-    <OemConflictAction issues={[error, profile?.blockedReason, profile?.restoreBlockedReason]} disabled={busy} onClosed={reread} />
+    <OemConflictAction issues={[error, profile?.blockedReason]} disabled={busy} onClosed={reread} />
     {error && <p role="alert" className="ccc-control-error">{error}</p>}
     <SegmentedControl className="ccc-module-control-end" label={TITLE} value={value} options={options} disabled={busy || !canChange} onChange={change} />
-    {profile?.canRestore && <div className="ccc-actions">
-      <ConfirmButton key={profile.revision} label="恢复初始设置" confirmLabel="确认恢复" size="compact" icon="undo" busy={busy}
-        onConfirm={() => run(() => restoreMicrophones(profile.revision), "麦克风初始状态已恢复")}>
-        {initial && <FactList compact facts={microphoneFacts(initial)} />}
-        {profile.blockedReason && <p className="ccc-control-caption">只恢复初始设备，新接入的设备保持当前状态。</p>}
-      </ConfirmButton>
-    </div>}
   </Surface>;
 }

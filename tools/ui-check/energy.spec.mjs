@@ -5,7 +5,6 @@ import { MOCK_IPC } from "./mock-ipc.mjs";
 test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openPowerArea(page, "电源设置"); });
 const panelOf = page => page.getByRole("region", { name: "电池节能计划", exact: true });
 const editorOf = page => page.getByRole("dialog", { name: "编辑节能时段", exact: true });
-const detailsOf = page => page.getByRole("dialog", { name: "计划来源与恢复目标", exact: true });
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(c => c.command === "apply_energy_policy").length);
 const choose = async (editor, label, value) => {
   await editor.getByRole("combobox", { name: label, exact: true }).click();
@@ -55,13 +54,7 @@ test("星期与时段仅修改草稿，确认绑定当前计划", async ({ page 
   expect(saved.weekdays).toBe(2); expect(saved.everyDay).toBe(false); expect(saved.slots[0]).toEqual({ start: 9, end: 18 });
   await panel.getByRole("switch", { name: "启用节能计划", exact: true }).check();
   await expect(page.getByRole("region", { name: "电池与充电", exact: true }).getByRole("switch", { name: "限制充电范围", exact: true })).toHaveAttribute("aria-disabled", "true");
-  await panel.getByRole("button", { name: "详情", exact: true }).click();
-  const resend = detailsOf(page).getByRole("button", { name: "重新发送保存计划", exact: true });
-  await resend.click();
-  await expect.poll(() => writes(page)).toBe(3);
-  await expect(page.getByRole("dialog")).toHaveCount(1);
-  await expect(resend).toBeEnabled();
-  await page.keyboard.press("Escape");
+  expect(await writes(page)).toBe(2);
   await page.setViewportSize({ width: 1000, height: 1100 });
   await panel.screenshot({ path: "target/ui-check/energy-policy.png" });
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
@@ -135,8 +128,7 @@ test("手动阈值与窄屏保留有效语义，无电池不能发送", async ({
   await done(editor);
   await page.evaluate(() => { window.__uiFixture.battery.power.present = false; });
   await panel.getByRole("button", { name: "重新读取节能计划", exact: true }).click();
-  await panel.getByRole("button", { name: "详情", exact: true }).click();
-  await expect(detailsOf(page).getByRole("button", { name: "重新发送保存计划", exact: true })).toBeDisabled();
+  await expect(panel.getByRole("switch", { name: "启用节能计划", exact: true })).toHaveAttribute("aria-disabled", "true");
   expect(await writes(page)).toBe(0);
 });
 
@@ -145,9 +137,6 @@ test("首次使用不伪造已有计划，恢复明确清除本应用时段", as
   await page.evaluate(() => { Object.assign(window.__uiFixture.energy, { saved: null, source: "unconfigured", hasInitialPlan: false }); });
   await panel.getByRole("button", { name: "重新读取节能计划", exact: true }).click();
   await expect(panel.getByRole("img")).toHaveCount(0);
-  await panel.getByRole("button", { name: "详情", exact: true }).click();
-  await expect(detailsOf(page)).toContainText("清除本应用时段");
-  await page.keyboard.press("Escape");
   const editor = await edit(page);
   await editor.getByRole("switch", { name: "启用节能时段 1", exact: true }).check();
   await saveButton(editor).click();
@@ -160,9 +149,6 @@ test("首次使用不伪造已有计划，恢复明确清除本应用时段", as
 
 test("未声明节能能力时不显示可操作入口", async ({ page }) => {
   const panel = panelOf(page);
-  await panel.getByRole("button", { name: "详情", exact: true }).click();
-  await expect(detailsOf(page).getByRole("button", { name: "重新发送保存计划", exact: true })).toBeVisible();
-  await page.keyboard.press("Escape");
   await expect(panel.getByRole("button", { name: "重新读取节能计划", exact: true })).toBeEnabled();
   await page.evaluate(() => { window.__uiFixture.energySupported = false; });
   await panel.getByRole("button", { name: "重新读取节能计划", exact: true }).click();

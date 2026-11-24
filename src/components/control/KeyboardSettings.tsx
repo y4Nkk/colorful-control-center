@@ -1,6 +1,5 @@
-import { applyKeyboardSettings, readKeyboardSettings, restoreKeyboardSettings, type KeyboardValues } from "../../api/client";
+import { applyKeyboardSettings, readKeyboardSettings, type KeyboardValues } from "../../api/client";
 import { Button } from "../Button";
-import { ConfirmButton } from "../ConfirmButton";
 import { DetailsDialog } from "../DetailsDialog";
 import { Icon } from "../Icon";
 import { Surface } from "../Surface";
@@ -29,11 +28,5 @@ export function KeyboardSettings({ active, revision }: { active: boolean; revisi
       <Switch label={title} checked={profile.current[key] ?? false}
         disabled={busy || profile.current[key] === null} onChange={value => change(key, value)} />
     </Surface>)}</div> : <p className="ccc-control-caption">{error ? "请重新读取键盘功能。" : "正在读取键盘功能。"}</p>}
-    {profile?.canRestore && <div className="ccc-actions">
-      <ConfirmButton key={profile.revision} label="恢复初始设置" confirmLabel="确认恢复" size="compact" icon="undo" busy={busy}
-        onConfirm={() => run(restoreKeyboardSettings, "键盘初始设置已恢复")}>
-        <p>恢复首次修改前的 Fn 锁、Win 锁和交换设置。</p>
-      </ConfirmButton>
-    </div>}
   </Surface>;
 }

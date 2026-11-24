@@ -44,8 +44,8 @@ impl Snapshot {
         self.available()?;
         digest(&self.devices)
     }
-    pub(crate) fn revision(&self, initial: &Option<Self>) -> Result<String> {
-        digest(&(self, initial))
+    pub(crate) fn revision(&self) -> Result<String> {
+        digest(self)
     }
     pub(crate) fn target(&self, target: &Target) -> Result<Self> {
         target.validate()?;
@@ -90,8 +90,5 @@ pub struct Request {
 pub struct Profile {
     pub revision: String,
     pub current: Snapshot,
-    pub initial: Option<Snapshot>,
-    pub can_restore: bool,
-    pub restore_blocked_reason: Option<String>,
     pub blocked_reason: Option<String>,
 }

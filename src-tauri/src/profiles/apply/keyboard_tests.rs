@@ -255,7 +255,7 @@ fn partial_peripheral_save_recovers_itself_then_rolls_back_earlier_keyboard_doma
 }
 
 #[test]
-fn standalone_and_profile_edits_share_initial_snapshots_without_clobbering_other_fields() {
+fn lighting_and_option_restores_do_not_clobber_keyboard_flags() {
     let f = Fixture::new();
     setup(&f, 2);
     let original = f.device.0.lock().unwrap().pages[2];
@@ -274,9 +274,9 @@ fn standalone_and_profile_edits_share_initial_snapshots_without_clobbering_other
         .restore(&f.hal, &profile.revision)
         .unwrap();
     assert!(f.lighting.restore(&f.hal).ok);
-    f.keyboard.restore(&f.hal).unwrap();
-    assert_eq!(f.device.0.lock().unwrap().pages[2], original);
-    assert_eq!(f.device.0.lock().unwrap().keyboard_live, [2, 1, 2, 7, 9]);
+    let state = f.device.0.lock().unwrap();
+    assert_eq!(state.pages[2], original);
+    assert_eq!(state.keyboard_live, [1, 2, 1, 7, 9]);
 }
 
 #[test]
@@ -349,6 +349,7 @@ fn profile_and_keyboard_or_peripheral_operations_follow_one_lock_order() {
             }
         });
     });
-    f.keyboard.restore(&f.hal).unwrap();
-    assert_eq!(f.device.0.lock().unwrap().keyboard_live, [2, 1, 2, 7, 9]);
+    let state = f.device.0.lock().unwrap();
+    assert_eq!(state.keyboard_live, [1, 2, 1, 7, 9]);
+    assert_eq!(&state.pages[1][36..39], &[1, 2, 1]);
 }

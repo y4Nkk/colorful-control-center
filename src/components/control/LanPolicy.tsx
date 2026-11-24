@@ -2,13 +2,12 @@ import { Icon } from "../Icon";
 import { applyLanPolicy, previewLanPolicy, readLanPolicy, restoreLanPolicy, type LanField, type LanRequest } from "../../api/client";
 import { useState } from "react";
 import { Button } from "../Button";
-import { DetailsDialog } from "../DetailsDialog";
 import { ConfigurationAction } from "../ConfigurationAction";
 import { FactList } from "../FactList";
 import { OemConflictAction } from "../OemConflictAction";
 import { Select } from "../Select";
 import { Surface } from "../Surface";
-import { LAN_FIELDS, lanString, lanValue, lanMeaning } from "./lan-values";
+import { LAN_FIELDS, lanString, lanMeaning } from "./lan-values";
 import { useDeviceSettings } from "./useDeviceSettings";
 import { useLanWakePreview } from "./useLanWakePreview";
 const OPTIONS = [{ value: "on", label: "开启网卡节能" }, { value: "off", label: "关闭网卡节能" }];
@@ -42,15 +41,6 @@ export function LanPolicy({ active, revision }: { active: boolean; revision: num
   return <Surface as="section" variant="group" className="ccc-panel" aria-label="网络驱动策略">
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="network" />网络驱动策略</h2>
       <div className="ccc-module-tools">
-        {profile && <DetailsDialog title="网卡设置详情" label="详情">
-          {device && <FactList compact facts={[
-            { label: "设备实例", value: device.identity.instance }, { label: "驱动绑定", value: device.identity.driver },
-            ...(Object.keys(LAN_FIELDS) as LanField[]).map(field => ({ label: LAN_FIELDS[field],
-              value: `当前 ${lanValue(device.values[field])} · 初始 ${lanValue(initial?.fields[field])}` })),
-          ]} />}
-          {preview.error && <p className="ccc-control-error"><Icon name="error" size={16} />{preview.error}</p>}
-          {profile.lastError && <p className="ccc-control-error"><Icon name="error" size={16} />{profile.lastError}</p>}
-        </DetailsDialog>}
         <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取网络策略" disabled={busy} onClick={reread} />
       </div>
     </div>

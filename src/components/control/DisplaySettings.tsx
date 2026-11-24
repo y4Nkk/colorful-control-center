@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { applyDisplayRefresh, applyDisplayRotation, cancelDisplayTrial, keepDisplayMode, readDisplayModes, restoreDisplayModes, type DisplayMode, type DisplayPending } from "../../api/client";
+import { applyDisplayRefresh, applyDisplayRotation, cancelDisplayTrial, keepDisplayMode, readDisplayModes, type DisplayMode, type DisplayPending } from "../../api/client";
 import { Button } from "../Button";
-import { ConfirmButton } from "../ConfirmButton";
 import { DetailsDialog } from "../DetailsDialog";
 import { Icon } from "../Icon";
 import { OemConflictAction } from "../OemConflictAction";
@@ -72,10 +71,6 @@ export function DisplaySettings({ active, revision, rotationRequest }: { active:
     </div>}
     {pending && <DisplayTrial pending={pending} current={selected?.current} busy={busy} run={run} />}
     {!selected && <Button icon="refresh" variant="ghost" size="compact" disabled={busy} onClick={reread}>重新读取屏幕</Button>}
-    {profile?.canRestore && !pending && <div className="ccc-actions">
-      <ConfirmButton key={JSON.stringify(profile.displays)} size="compact" icon="undo" label="恢复初始设置" confirmLabel="确认恢复"
-        busy={busy} disabled={!!blocked} onConfirm={() => run(restoreDisplayModes)}><p>恢复首次切换前的显示模式。</p></ConfirmButton>
-    </div>}
   </Surface>;
 }
 

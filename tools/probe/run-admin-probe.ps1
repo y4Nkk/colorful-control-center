@@ -1,7 +1,9 @@
 ﻿# 显式运行的探测批；默认只读，不安装/重启服务，不自动提权。
 # -ExecuteVoltageTest 才会测试一个电压编码步进并恢复；此操作会写硬件。
+# -ExecuteFanOffsetAb 才会切换风扇档位与偏移做同负载对照并恢复；此操作会写硬件。
 param(
     [switch]$ExecuteVoltageTest,
+    [switch]$ExecuteFanOffsetAb,
     [ValidateSet("cpu", "gpu", "cache", "uncore", "analogio")][string]$Plane = "cpu",
     [string]$OutputPath = (Join-Path $PSScriptRoot ("probe-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".txt"))
 )
@@ -29,6 +31,14 @@ try {
         Invoke-Probe -ProbeArgs @("uv-test", "--execute", "--plane", $Plane)
     } else {
         Write-Output "未执行电压 Mailbox 查询或写入。实际 PL/降压可写性仍未验证。"
+    }
+    if ($ExecuteFanOffsetAb) {
+        $writers = Get-Process -Name ColorfulControlCenter, FanSpeedSetting, ControlCenter30, CC3 -ErrorAction SilentlyContinue
+        if ($writers) { throw ("以下程序会同时写风扇状态，请先退出再运行：" + (($writers.ProcessName | Sort-Object -Unique) -join "、")) }
+        $csv = [IO.Path]::ChangeExtension($OutputPath, ".csv")
+        Invoke-Probe -ProbeArgs @("fan-offset-ab", "--execute", "--out", $csv)
+    } else {
+        Invoke-Probe -ProbeArgs @("fan-offset-ab")
     }
 } finally { Stop-Transcript }
 if ($probeFailed) { exit 1 }

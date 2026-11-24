@@ -164,10 +164,6 @@ impl Controller {
         let trial = state.trial.as_mut().expect("已武装监护");
         let started = std::time::Instant::now();
         for change in &trial.plan.changes {
-            state
-                .baseline
-                .entry(change.before.device.clone())
-                .or_insert_with(|| change.before.clone());
             self.io.set(&change.target)?;
             if !guardian::matches(self.io.as_ref(), std::slice::from_ref(&change.target))? {
                 bail!("显示切换回读与目标不一致");

@@ -1,6 +1,7 @@
 /** 应用外框唯一所有者：自定义标题栏、可折叠导航与保活工作区。 */
 import { useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { isDesktopWindow } from "../api/client";
+import { BackToTopButton } from "../components/BackToTopButton";
 import { BrandLogo } from "../components/BrandLogo";
 import { ScrollArea } from "../components/ScrollArea";
 import { toast } from "../components/use-toast";
@@ -30,7 +31,13 @@ export function AppShell({ location, onPageChange, globalInfo, preferences, chil
   const scrollKey = workspaceLocationKey(location);
   const viewport = useRef<HTMLDivElement>(null);
   const positions = useRef(new Map<string, number>());
-  useLayoutEffect(() => { if (viewport.current) viewport.current.scrollTop = positions.current.get(scrollKey) ?? 0; }, [scrollKey]);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  useLayoutEffect(() => {
+    const element = viewport.current;
+    if (!element) return;
+    element.scrollTo({ top: positions.current.get(scrollKey) ?? 0, behavior: "instant" });
+    setShowBackToTop(element.scrollTop > 0);
+  }, [scrollKey]);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true");
   const compact = useSyncExternalStore(subscribeCompact, getCompact);
   const folded = compact || collapsed;
@@ -57,7 +64,12 @@ export function AppShell({ location, onPageChange, globalInfo, preferences, chil
         {isDesktopWindow() && <WindowControls preferences={preferences} />}
       </header>
       <ScrollArea as="main" surface="workspace" className="ccc-workspace" aria-label={pageTitle(page)} viewportRef={viewport}
-        onScroll={event => positions.current.set(scrollKey, event.currentTarget.scrollTop)}>
+        overlay={showBackToTop && <BackToTopButton viewportRef={viewport} />}
+        onScroll={event => {
+          const top = event.currentTarget.scrollTop;
+          positions.current.set(scrollKey, top);
+          setShowBackToTop(top > 0);
+        }}>
         {children}
       </ScrollArea>
     </div>

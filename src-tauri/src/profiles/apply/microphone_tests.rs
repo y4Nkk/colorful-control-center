@@ -46,16 +46,13 @@ fn capture_and_strict_roundtrip_keep_mixed_endpoints_without_writes() {
     assert!(f.microphone_io.writes.lock().unwrap().is_empty());
 }
 #[test]
-fn single_hotkey_and_profile_share_first_mixed_baseline_and_later_gpu_rollback() {
+fn later_gpu_failure_restores_this_operation_only() {
     let f = setup();
-    let before = f.microphones.read(&f.hal).unwrap();
     let identity = f.microphones.hotkey_identity(&f.hal).unwrap();
     assert!(f.microphones.toggle(&f.hal, &identity).unwrap());
+    let toggled = f.microphones.read(&f.hal).unwrap().current;
     assert!(
-        f.microphones
-            .read(&f.hal)
-            .unwrap()
-            .current
+        toggled
             .endpoints
             .iter()
             .all(|e| e.muted)
@@ -72,13 +69,7 @@ fn single_hotkey_and_profile_share_first_mixed_baseline_and_later_gpu_rollback()
     let steps = apply_settings(&f.hal, &f.gpu, f.devices(), &settings).unwrap();
     assert!(steps.iter().any(|s| s.step == "GPU 偏移" && !s.ok));
     assert!(steps.iter().any(|s| s.step == "恢复本次麦克风状态" && s.ok));
-    let profile = f.microphones.read(&f.hal).unwrap();
-    assert!(profile.current.endpoints.iter().all(|e| e.muted));
-    assert_eq!(profile.initial.as_ref(), Some(&before.current));
-    f.microphones.restore(&f.hal, &profile.revision).unwrap();
-    let restored = f.microphones.read(&f.hal).unwrap();
-    assert_eq!(restored.current, before.current);
-    assert!(!restored.can_restore && restored.initial.is_none());
+    assert_eq!(f.microphones.read(&f.hal).unwrap().current, toggled);
 }
 #[test]
 fn changed_endpoint_set_rejects_all_domains_before_saved_cpu_writes() {
@@ -115,7 +106,7 @@ fn every_local_failure_stops_and_restores_cpu_without_duplicate_microphone_recov
     }
 }
 #[test]
-fn failed_local_compensation_is_retried_using_attempted_fields_and_keeps_user_restore() {
+fn failed_local_compensation_is_retried_using_attempted_fields() {
     let f = setup();
     let before = f.microphones.read(&f.hal).unwrap().current;
     let settings = ProfileSettings {
@@ -134,7 +125,6 @@ fn failed_local_compensation_is_retried_using_attempted_fields_and_keeps_user_re
             .iter()
             .all(|write| write.starts_with("A:"))
     );
-    assert!(f.microphones.read(&f.hal).unwrap().can_restore);
 }
 #[test]
 fn manual_and_startup_apply_the_same_microphone_file_target() {
@@ -226,20 +216,31 @@ fn old_preview_unknown_preference_and_invalid_target_do_not_write() {
 }
 
 #[test]
-fn changed_device_set_with_first_baseline_is_not_advertised_for_hotkey_takeover() {
+fn changed_device_set_binds_a_new_hotkey_identity_without_blocking_control() {
     let f = setup();
     let identity = f.microphones.hotkey_identity(&f.hal).unwrap();
     f.microphones.toggle(&f.hal, &identity).unwrap();
     f.microphone_io.endpoints.lock().unwrap()[1].id = "replacement".into();
     f.microphone_io.writes.lock().unwrap().clear();
-    let profile = f.microphones.read(&f.hal).unwrap();
-    assert!(profile.blocked_reason.is_some() && !profile.can_restore);
-    assert!(f.microphones.hotkey_identity(&f.hal).is_err());
+    assert!(f.microphones.read(&f.hal).unwrap().blocked_reason.is_none());
+    let current = f.microphones.hotkey_identity(&f.hal).unwrap();
+    assert_ne!(current, identity);
+    assert!(f.microphones.toggle(&f.hal, &identity).is_err());
     assert!(f.microphone_io.writes.lock().unwrap().is_empty());
+    assert!(!f.microphones.toggle(&f.hal, &current).unwrap());
+    assert!(
+        f.microphones
+            .read(&f.hal)
+            .unwrap()
+            .current
+            .endpoints
+            .iter()
+            .all(|e| !e.muted)
+    );
 }
 
 #[test]
-fn initial_restore_keeps_later_devices_untouched_and_releases_the_old_scope() {
+fn later_devices_join_manual_control_without_being_blocked() {
     let f = setup();
     let identity = f.microphones.hotkey_identity(&f.hal).unwrap();
     f.microphones.toggle(&f.hal, &identity).unwrap();
@@ -253,24 +254,25 @@ fn initial_restore_keeps_later_devices_untouched_and_releases_the_old_scope() {
             muted: true,
         });
     f.microphone_io.writes.lock().unwrap().clear();
-    let profile = f.microphones.read(&f.hal).unwrap();
-    assert!(profile.blocked_reason.is_some() && profile.can_restore);
-    assert!(f.microphones.hotkey_identity(&f.hal).is_err());
-    f.microphones.restore(&f.hal, &profile.revision).unwrap();
-    let after = f.microphones.read(&f.hal).unwrap();
-    assert!(
-        !after.current.endpoints[0].muted
-            && after.current.endpoints[1].muted
-            && after.current.endpoints[2].muted
-    );
-    assert!(after.initial.is_none() && after.blocked_reason.is_none());
-    assert!(
-        f.microphone_io
-            .writes
-            .lock()
-            .unwrap()
-            .iter()
-            .all(|write| !write.starts_with("C:"))
-    );
+    assert!(f.microphones.read(&f.hal).unwrap().blocked_reason.is_none());
     assert!(f.microphones.hotkey_identity(&f.hal).is_ok());
+    let revision = f.microphones.read(&f.hal).unwrap().revision;
+    f.microphones
+        .apply(
+            &f.hal,
+            &microphone::Request {
+                expected_revision: revision,
+                muted: false,
+            },
+        )
+        .unwrap();
+    assert!(
+        f.microphones
+            .read(&f.hal)
+            .unwrap()
+            .current
+            .endpoints
+            .iter()
+            .all(|endpoint| !endpoint.muted)
+    );
 }

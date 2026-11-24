@@ -57,7 +57,6 @@ pub struct Request {
 pub struct Profile {
     pub revision: String,
     pub current: Values,
-    pub can_restore: bool,
 }
 trait Io {
     fn live(&self) -> Result<[u8; 5]>;
@@ -160,12 +159,11 @@ fn target(before: &Snapshot, values: &Values) -> Result<Snapshot> {
     }
     Ok(result)
 }
-fn apply(io: &impl Io, baseline: &mut Option<Snapshot>, request: &Request) -> Result<()> {
-    apply_tracked(io, baseline, request, &mut false)
+fn apply(io: &impl Io, request: &Request) -> Result<()> {
+    apply_tracked(io, request, &mut false)
 }
 fn apply_tracked(
     io: &impl Io,
-    baseline: &mut Option<Snapshot>,
     request: &Request,
     needs_rollback: &mut bool,
 ) -> Result<()> {
@@ -173,14 +171,10 @@ fn apply_tracked(
     if before.revision() != request.expected_revision {
         bail!("键盘状态或保存值已变化，请重新读取并确认");
     }
-    if let Some(original) = baseline.as_ref() {
-        require_same_capabilities(&before, original)?;
-    }
     let next = target(&before, &request.values)?;
     if next == before {
         return Ok(());
     }
-    baseline.get_or_insert_with(|| before.clone());
     *needs_rollback = true;
     if let Err(error) = write(io, &next) {
         let recovery = restore(io, &before).map_err(|e| format!("{e:#}"));
@@ -196,33 +190,22 @@ fn apply_tracked(
 }
 #[derive(Default)]
 pub struct Controller {
-    baseline: Mutex<Option<Snapshot>>,
+    mutation: Mutex<()>,
 }
 impl Controller {
     pub fn read(&self, hal: &Hal) -> Result<Profile> {
-        let scope = self.scope()?;
         let _gate = hal.begin_write()?;
         hal.with_dchu(|io| {
             let snapshot = read(io)?;
             Ok(Profile {
                 revision: snapshot.revision(),
                 current: snapshot.values(),
-                can_restore: scope.baseline.is_some(),
             })
         })
     }
     pub fn apply(&self, hal: &Hal, request: &Request) -> Result<()> {
-        let mut scope = self.scope()?;
+        let _scope = self.scope()?;
         let _write = hal.begin_write()?;
-        hal.with_dchu(|io| apply(io, &mut scope.baseline, request))
-    }
-    pub fn restore(&self, hal: &Hal) -> Result<()> {
-        let scope = self.scope()?;
-        let _write = hal.begin_write()?;
-        let original = scope
-            .baseline
-            .as_ref()
-            .ok_or_else(|| anyhow!("没有键盘初始快照"))?;
-        hal.with_dchu(|io| restore(io, original))
+        hal.with_dchu(|io| apply(io, request))
     }
 }

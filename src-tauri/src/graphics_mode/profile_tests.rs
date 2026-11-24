@@ -20,28 +20,33 @@ fn capture_preserves_accepted_choice_instead_of_boot_report() {
 }
 
 #[test]
-fn uncertain_choice_is_not_captured_or_overwritten_by_new_target() {
+fn uncertain_choice_is_not_captured_but_new_selection_resolves() {
     let (_root, store, io) = setup();
     *io.fail_send.borrow_mut() = vec![1, 2];
     assert!(apply(&io, &store, &io.request(&store, 2)).is_err());
     let before = preview(&io, &store).unwrap().unwrap();
     assert!(profile::capture(&before).is_err());
-    let count = io.sent.borrow().len();
-    assert!(apply(&io, &store, &io.request(&store, 4)).is_err());
-    assert_eq!(io.sent.borrow().len(), count);
+    apply(&io, &store, &io.request(&store, 4)).unwrap();
+    assert_eq!(verification(&io, &store), Verification::PendingReboot);
+    assert_eq!(*io.sent.borrow(), vec![2, 3, 4]);
+    assert_eq!(
+        profile::capture(&preview(&io, &store).unwrap().unwrap())
+            .unwrap()
+            .mode,
+        4
+    );
 }
 
 #[test]
-fn completed_plan_restores_previous_choice_and_keeps_first_baseline() {
+fn completed_plan_rolls_back_to_previous_choice() {
     let (_root, store, io) = setup();
     apply(&io, &store, &io.request(&store, 2)).unwrap();
-    let mut plan =
-        transaction::Plan::new(preview(&io, &store).unwrap().unwrap(), 4, false).unwrap();
+    let mut plan = transaction::Plan::new(preview(&io, &store).unwrap().unwrap(), 4).unwrap();
     plan.execute(&io, &store).unwrap();
     assert_eq!(verification(&io, &store), Verification::PendingReboot);
     plan.rollback(&io, &store).unwrap();
     let record = store.load().unwrap().record.unwrap();
-    assert_eq!((record.initial_mode, record.target), (3, 2));
+    assert_eq!(record.target, 2);
     assert_eq!(*io.sent.borrow(), vec![2, 4, 2]);
     plan.rollback(&io, &store).unwrap();
     assert_eq!(io.sent.borrow().len(), 3);
@@ -51,8 +56,7 @@ fn completed_plan_restores_previous_choice_and_keeps_first_baseline() {
 #[test]
 fn failed_compensation_can_retry_without_discarding_ownership() {
     let (_root, store, io) = setup();
-    let mut plan =
-        transaction::Plan::new(preview(&io, &store).unwrap().unwrap(), 2, false).unwrap();
+    let mut plan = transaction::Plan::new(preview(&io, &store).unwrap().unwrap(), 2).unwrap();
     plan.execute(&io, &store).unwrap();
     *io.fail_send.borrow_mut() = vec![2];
     assert!(plan.rollback(&io, &store).is_err());
@@ -65,8 +69,7 @@ fn failed_compensation_can_retry_without_discarding_ownership() {
 fn rollback_does_not_overwrite_foreign_record_boot_or_mode() {
     for change in 0..3 {
         let (_root, store, io) = setup();
-        let mut plan =
-            transaction::Plan::new(preview(&io, &store).unwrap().unwrap(), 2, false).unwrap();
+        let mut plan = transaction::Plan::new(preview(&io, &store).unwrap().unwrap(), 2).unwrap();
         plan.execute(&io, &store).unwrap();
         match change {
             0 => {

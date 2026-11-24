@@ -61,10 +61,6 @@ fn a_three_stage_sequence_is_authorized_before_output_and_each_repeated_request_
     let outputs = environment.io.0.lock().unwrap().events.len();
     assert!(scope.execute(&hal, &clocks, &requests[0]).is_err());
     assert_eq!(environment.io.0.lock().unwrap().events.len(), outputs);
-    assert_eq!(
-        controller.baseline.lock().unwrap().get(&before.id),
-        Some(&before.target())
-    );
     scope.finish().unwrap();
 }
 
@@ -93,12 +89,11 @@ fn an_invalid_or_discontinuous_sequence_is_rejected_before_any_authorization() {
         assert!(controller.scope().unwrap().prepare(&requests).is_err());
     }
     assert_eq!(environment.authorizations.load(Ordering::SeqCst), 0);
-    assert!(controller.baseline.lock().unwrap().is_empty());
     assert!(environment.io.0.lock().unwrap().events.is_empty());
 }
 
 #[test]
-fn cancelling_the_complete_sequence_has_no_device_output_or_initial_snapshot() {
+fn cancelling_the_complete_sequence_has_no_device_output() {
     let environment = EnvironmentFixture::new();
     environment.io.0.lock().unwrap().deny = true;
     let controller = Controller::with_environment(environment.clone());
@@ -108,7 +103,6 @@ fn cancelling_the_complete_sequence_has_no_device_output_or_initial_snapshot() {
     assert_eq!(environment.authorizations.load(Ordering::SeqCst), 1);
     assert_eq!(environment.prepared.load(Ordering::SeqCst), 0);
     assert!(environment.io.0.lock().unwrap().events.is_empty());
-    assert!(controller.baseline.lock().unwrap().is_empty());
     scope.finish().unwrap();
 }
 

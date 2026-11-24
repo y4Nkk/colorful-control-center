@@ -30,22 +30,6 @@ pub(crate) async fn apply_graphics_mode(
     .map_err(|e| format!("{e:#}"))
 }
 #[tauri::command]
-pub(crate) async fn restore_graphics_mode(
-    app: tauri::AppHandle,
-    expected_revision: String,
-) -> Result<(), String> {
-    crate::shutdown::blocking(move || {
-        app.state::<graphics_mode::Controller>().restore(
-            &app.state::<Hal>(),
-            &app.state::<display::Controller>(),
-            &expected_revision,
-        )
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| format!("{e:#}"))
-}
-#[tauri::command]
 pub(crate) async fn reboot_for_graphics_mode(
     app: tauri::AppHandle,
     expected_revision: String,
@@ -66,8 +50,7 @@ pub(crate) async fn read_display_modes(app: tauri::AppHandle) -> Result<display:
     crate::shutdown::blocking(move || {
         let mut profile = app.state::<display::Controller>().read()?;
         if profile.pending.is_none()
-            && (profile.can_restore
-                || profile.rotation.is_some()
+            && (profile.rotation.is_some()
                 || profile
                     .displays
                     .iter()
@@ -193,16 +176,6 @@ pub(crate) async fn cancel_display_trial(
     .map_err(|e| format!("{e:#}"))
 }
 #[tauri::command]
-pub(crate) async fn restore_display_modes(app: tauri::AppHandle) -> Result<(), String> {
-    crate::shutdown::blocking(move || {
-        app.state::<display::Controller>()
-            .restore_runtime(&app.state::<Hal>())
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| format!("{e:#}"))
-}
-#[tauri::command]
 pub(crate) async fn read_gpu_power(app: tauri::AppHandle) -> Result<gpu_power::Profile, String> {
     crate::shutdown::blocking(move || {
         app.state::<gpu_power::Controller>().read_runtime(
@@ -228,20 +201,6 @@ pub(crate) async fn apply_gpu_power(
             &app.state::<display::Controller>(),
             &expected,
             enabled,
-        )
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| format!("{e:#}"))
-}
-#[tauri::command]
-pub(crate) async fn restore_gpu_power(app: tauri::AppHandle) -> Result<(), String> {
-    crate::shutdown::blocking(move || {
-        let hal = app.state::<Hal>();
-        app.state::<gpu_power::Controller>().restore_runtime(
-            &hal,
-            &app.state::<crate::gpuctl::GpuController>(),
-            &app.state::<display::Controller>(),
         )
     })
     .await

@@ -15,7 +15,7 @@ mod store;
 #[path = "graphics_mode/transaction.rs"]
 mod transaction;
 pub(crate) use model::Verification;
-use model::{Identity, LastRequest, Observed, Phase, Record};
+use model::{Identity, LastRequest, Observed, Phase, Record, RECORD_VERSION};
 pub use model::{Profile, Request};
 pub(crate) use scope::Scope;
 use store::{FileStore, Loaded, Store};
@@ -84,28 +84,19 @@ fn profile(io: &(impl Io + ?Sized), store: &impl Store) -> Result<Profile> {
             current: None,
             revision: "unsupported".into(),
             last_request: None,
-            can_restore: false,
         });
     };
     Ok(describe(&p))
 }
 fn describe(p: &Preview) -> Profile {
     let last_request = p.loaded.record.as_ref().map(|r| LastRequest {
-        initial_mode: r.initial_mode,
         target: r.target,
         verification: r.verification(&p.observed, &p.identity),
-    });
-    let can_restore = p.loaded.record.as_ref().is_some_and(|r| {
-        p.observed.supports(r.initial_mode)
-            && (r.target != r.initial_mode
-                || r.phase == Phase::Prepared
-                    && r.verification(&p.observed, &p.identity) != Verification::Confirmed)
     });
     Profile {
         current: Some(p.observed.clone()),
         revision: p.revision.clone(),
         last_request,
-        can_restore,
     }
 }
 fn check_revision(p: &Preview, expected: &str) -> Result<()> {
@@ -114,7 +105,7 @@ fn check_revision(p: &Preview, expected: &str) -> Result<()> {
     }
     Ok(())
 }
-fn pending(p: &Preview, target: u8, restoring: bool) -> Record {
+fn pending(p: &Preview, target: u8) -> Record {
     let previous_mode = p
         .loaded
         .record
@@ -122,18 +113,10 @@ fn pending(p: &Preview, target: u8, restoring: bool) -> Record {
         .filter(|r| r.boot == p.identity.boot)
         .map(Record::previous_known)
         .unwrap_or(p.observed.mode);
-    let initial_mode = p
-        .loaded
-        .record
-        .as_ref()
-        .filter(|r| restoring || r.boot == p.identity.boot)
-        .map(|r| r.initial_mode)
-        .unwrap_or(p.observed.mode);
     Record {
-        version: 1,
+        version: RECORD_VERSION,
         owner: p.identity.owner.clone(),
         boot: p.identity.boot.clone(),
-        initial_mode,
         previous_mode,
         target,
         available_mask: p.observed.available_mask,
@@ -163,9 +146,8 @@ fn commit(
     store: &impl Store,
     p: &Preview,
     target: u8,
-    restoring: bool,
 ) -> Result<()> {
-    let mut plan = transaction::Plan::new(p.clone(), target, restoring)?;
+    let mut plan = transaction::Plan::new(p.clone(), target)?;
     if let Err(error) = plan.execute(io, store) {
         if !plan.dirty() {
             return Err(error).context("显卡选择未执行");
@@ -173,7 +155,7 @@ fn commit(
         match plan.rollback(io, store) {
             Ok(()) => bail!("显卡选择未完成：{error:#}；已发送此前选择的恢复请求，重启后核对"),
             Err(restore) => bail!(
-                "显卡选择未完成：{error:#}；恢复未完成：{restore:#}。记录已保留，请重新读取后恢复"
+                "显卡选择未完成：{error:#}；恢复未完成：{restore:#}。记录已保留，请重新读取后重新选择"
             ),
         }
     }
@@ -192,18 +174,7 @@ fn apply(io: &(impl Io + ?Sized), store: &impl Store, request: &Request) -> Resu
     }) {
         return Ok(());
     }
-    commit(io, store, &p, request.target, false)
-}
-fn restore(io: &(impl Io + ?Sized), store: &impl Store, expected: &str) -> Result<()> {
-    let p = preview(io, store)?.context("本机未提供已确认的原厂显卡模式接口")?;
-    check_revision(&p, expected)?;
-    let target = p
-        .loaded
-        .record
-        .as_ref()
-        .context("没有可恢复的显卡选择记录")?
-        .initial_mode;
-    commit(io, store, &p, target, true)
+    commit(io, store, &p, request.target)
 }
 fn reboot(io: &(impl Io + ?Sized), store: &impl Store, expected: &str) -> Result<()> {
     let p = preview(io, store)?.context("本机未提供已确认的原厂显卡模式接口")?;
@@ -213,7 +184,7 @@ fn reboot(io: &(impl Io + ?Sized), store: &impl Store, expected: &str) -> Result
         bail!("请先确认并发送显卡选择，再请求重启");
     }
     io.reboot()
-        .context("Windows重启请求失败；选择记录仍保留，可重试或恢复")
+        .context("Windows重启请求失败；选择记录仍保留，可重试")
 }
 pub struct Controller {
     store: FileStore,
@@ -245,17 +216,6 @@ impl Controller {
         let _hardware = hal.begin_write()?;
         allowed(hal, display)?;
         scope.with_io(hal, |io| apply(io, &self.store, request))
-    }
-    pub fn restore(
-        &self,
-        hal: &crate::hal::Hal,
-        display: &crate::display::Controller,
-        expected: &str,
-    ) -> Result<()> {
-        let scope = self.scope()?;
-        let _hardware = hal.begin_write()?;
-        allowed(hal, display)?;
-        scope.with_io(hal, |io| restore(io, &self.store, expected))
     }
     pub fn reboot(
         &self,

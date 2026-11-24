@@ -41,9 +41,6 @@ test("未开放娱乐档应用的固件保存偏好，预览和导出保留开�
   await page.evaluate(() => window.__uiFixture.profile.settings.oemPowerMode = 3);
   await selectProfile(page);
   const panel = preview(page);
-  await panel.getByLabel("档案性能选项").getByRole("button", { name: "应用顺序", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "应用顺序", exact: true })).toContainText("娱乐与性能模式按固件能力应用性能选项");
-  await page.keyboard.press("Escape");
   await expect(panel.getByLabel("模式联动目标")).not.toContainText("动态调校 DTT");
   const download = page.waitForEvent("download");
   await (await showProfileMenu(page)).getByRole("button", { name: "导出档案", exact: true }).click();

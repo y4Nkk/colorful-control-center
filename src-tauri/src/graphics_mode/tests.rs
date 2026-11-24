@@ -112,14 +112,18 @@ fn accepted_selection_keeps_current_getter_and_requires_real_new_boot() {
     assert_eq!(verification(&io, &store), Verification::Confirmed);
 }
 #[test]
-fn application_reopen_retains_pending_and_original_restore() {
+fn application_reopen_retains_pending_choice() {
     let (_root, store, io) = setup();
     apply(&io, &store, &io.request(&store, 2)).unwrap();
     let reopened = FileStore(store.0.clone());
     assert_eq!(verification(&io, &reopened), Verification::PendingReboot);
-    restore(&io, &reopened, &profile(&io, &reopened).unwrap().revision).unwrap();
-    assert_eq!(*io.pending.borrow(), Some(3));
-    assert_eq!(*io.sent.borrow(), vec![2, 3]);
+    apply(&io, &reopened, &io.request(&reopened, 4)).unwrap();
+    assert_eq!(*io.sent.borrow(), vec![2, 4]);
+    assert_eq!(
+        store.load().unwrap().record.unwrap().previous_mode,
+        2,
+        "再次选择以已接受的选择为回退目标"
+    );
 }
 #[test]
 fn new_boot_reports_unapplied_target_instead_of_success() {
@@ -132,14 +136,13 @@ fn new_boot_reports_unapplied_target_instead_of_success() {
     assert_eq!(verification(&io, &store), Verification::PendingReboot);
 }
 #[test]
-fn new_change_after_boot_rebases_initial_to_actual_current_mode() {
+fn new_change_after_boot_records_reported_mode_as_previous_choice() {
     let (_root, store, io) = setup();
     apply(&io, &store, &io.request(&store, 2)).unwrap();
     io.boot_to('2', 2);
     apply(&io, &store, &io.request(&store, 4)).unwrap();
-    assert_eq!(store.load().unwrap().record.unwrap().initial_mode, 2);
-    restore(&io, &store, &profile(&io, &store).unwrap().revision).unwrap();
-    assert_eq!(*io.pending.borrow(), Some(2));
+    assert_eq!(store.load().unwrap().record.unwrap().previous_mode, 2);
+    assert_eq!(*io.sent.borrow(), vec![2, 4]);
 }
 #[test]
 fn stale_boot_mode_or_record_revision_refuses_before_hardware() {
@@ -210,11 +213,10 @@ fn partial_send_restores_last_known_pending_choice_not_old_boot_mode() {
     assert!(error.to_string().contains("重启后核对"));
     assert_eq!(*io.sent.borrow(), vec![2, 4, 2]);
     let record = store.load().unwrap().record.unwrap();
-    assert_eq!(record.initial_mode, 3);
     assert_eq!(record.target, 2);
 }
 #[test]
-fn compensation_failure_keeps_uncertain_record_and_restore_can_retry() {
+fn compensation_failure_keeps_uncertain_record_and_new_selection_resolves() {
     let (_root, store, io) = setup();
     *io.fail_send.borrow_mut() = vec![1, 2];
     assert!(
@@ -225,8 +227,10 @@ fn compensation_failure_keeps_uncertain_record_and_restore_can_retry() {
     );
     assert_eq!(verification(&io, &store), Verification::Uncertain);
     assert!(reboot(&io, &store, &profile(&io, &store).unwrap().revision).is_err());
-    restore(&io, &store, &profile(&io, &store).unwrap().revision).unwrap();
+    apply(&io, &store, &io.request(&store, 3)).unwrap();
     assert_eq!(store.load().unwrap().record.unwrap().target, 3);
+    assert_eq!(verification(&io, &store), Verification::PendingReboot);
+    assert_eq!(*io.sent.borrow(), vec![2, 3, 3]);
 }
 #[test]
 fn interrupted_after_send_retains_prepared_intent_and_new_boot_can_confirm() {
@@ -277,13 +281,13 @@ fn another_windows_install_and_changed_capabilities_do_not_overwrite_record() {
     }
 }
 #[test]
-fn new_boot_uses_its_current_mode_capabilities_for_restore() {
+fn new_boot_uses_its_current_mode_capabilities_for_new_selection() {
     let (_root, store, io) = setup();
     apply(&io, &store, &io.request(&store, 2)).unwrap();
     io.boot_to('2', 2);
     io.observed.borrow_mut().as_mut().unwrap().available_mask = 6;
     assert_eq!(verification(&io, &store), Verification::Confirmed);
-    restore(&io, &store, &profile(&io, &store).unwrap().revision).unwrap();
+    apply(&io, &store, &io.request(&store, 3)).unwrap();
     assert_eq!(store.load().unwrap().record.unwrap().available_mask, 6);
     assert_eq!(*io.pending.borrow(), Some(3));
 }
@@ -293,7 +297,7 @@ fn record_parser_rejects_unknown_version_fields_and_oversize_without_replacement
     apply(&io, &store, &io.request(&store, 2)).unwrap();
     let valid = fs::read(&store.0).unwrap();
     let mut future: serde_json::Value = serde_json::from_slice(&valid).unwrap();
-    future["version"] = 2.into();
+    future["version"] = (RECORD_VERSION + 1).into();
     for bad in [future, serde_json::json!({"unexpected":true})] {
         fs::write(&store.0, serde_json::to_vec(&bad).unwrap()).unwrap();
         assert!(store.load().is_err());
@@ -305,6 +309,24 @@ fn record_parser_rejects_unknown_version_fields_and_oversize_without_replacement
     fs::write(&store.0, vec![b' '; 4097]).unwrap();
     assert!(store.load().is_err());
     assert_eq!(fs::metadata(&store.0).unwrap().len(), 4097);
+}
+#[test]
+fn record_from_older_version_is_discarded_and_replaced_by_next_write() {
+    let (_root, store, io) = setup();
+    apply(&io, &store, &io.request(&store, 2)).unwrap();
+    let mut old: serde_json::Value =
+        serde_json::from_slice(&fs::read(&store.0).unwrap()).unwrap();
+    old["version"] = (RECORD_VERSION - 1).into();
+    old["initialMode"] = 3.into();
+    fs::write(&store.0, serde_json::to_vec(&old).unwrap()).unwrap();
+    assert!(store.load().unwrap().record.is_none());
+    assert!(profile(&io, &store).unwrap().last_request.is_none());
+    apply(&io, &store, &io.request(&store, 4)).unwrap();
+    assert_eq!(verification(&io, &store), Verification::PendingReboot);
+    let saved: serde_json::Value =
+        serde_json::from_slice(&fs::read(&store.0).unwrap()).unwrap();
+    assert_eq!(saved["version"].as_u64(), Some(u64::from(RECORD_VERSION)));
+    assert!(saved.get("initialMode").is_none());
 }
 #[test]
 fn file_compare_and_replace_rejects_external_revision_change() {

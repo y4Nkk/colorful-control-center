@@ -8,7 +8,7 @@ FnKey `Arg001_GetEvent` 的132只打开系统目录中的 `control.exe /name Mic
 
 本机 `powerlife.dll` 的ordinal31（RVA0x4690）已静态核对：参数2调用 `ExitWindowsEx(5,0)`，包含强制结束标志。自研入口明确请求Windows正常关机及断电，不带FORCE，保留应用结束协商；不复制原厂跳过未保存程序确认的行为。现有令牌的关机权限在调用后恢复，失败保留Win32错误。标志语义见[Microsoft ExitWindowsEx](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-exitwindowsex)，原生DLL未被执行。
 
-133飞行模式由 `airplane::Controller` 唯一拥有手动与热键的事务和本进程首次恢复基线。系统事实来自 `HKLM/SYSTEM/CurrentControlSet/Control/RadioManagement/SystemRadioState` 默认REG_DWORD，仅接受0/1；缺失或读取失败保留未知。原厂DLL的专属接口为 `6e59105f-34e7-4b3c-b676-c5c8233c008d`，IOCTL `0x00322804`输入1字节绝对状态，无输出。Windows成功枚举空列表时报告缺少该设备接口，并保持开关不可用。先发送DCHU121/sub26，再调用设备接口，回读系统报告；不以单独无线网卡开关替代。源设备、预览和许可逐段复核，首次前态在第一笔输出前保存，部分失败补偿固件与系统两条通道。状态回读不持有HAL锁，取消后仍完成本次前态补偿；恢复只接受同一设备。首次基线是本进程内状态，未宣称重开后恢复。
+133飞行模式由 `airplane::Controller` 唯一拥有手动与热键的事务。系统事实来自 `HKLM/SYSTEM/CurrentControlSet/Control/RadioManagement/SystemRadioState` 默认REG_DWORD，仅接受0/1；缺失或读取失败保留未知。原厂DLL的专属接口为 `6e59105f-34e7-4b3c-b676-c5c8233c008d`，IOCTL `0x00322804`输入1字节绝对状态，无输出。Windows成功枚举空列表时报告缺少该设备接口，并保持开关不可用。先发送DCHU121/sub26，再调用设备接口，回读系统报告；不以单独无线网卡开关替代。源设备、预览和许可逐段复核，本次前态在第一笔输出前保存，部分失败补偿固件与系统两条通道。状态回读不持有HAL锁，取消后仍完成本次前态补偿。软件不保存首次基线。
 
 84分为两条独立的一次性请求：OLED签名沿用面板清单所有者，发送DCHU94=1；NVSR采用 `NvsrPanelCheck` 的11个唯一EDID签名，并核对GetWMI84为非负且不等于1。未解析面板不推断可用。原厂 `cc30wk 0x0025 2`对应一次AuxSwitch请求，自研不启动助手或加载其DLL：在专用STA内创建CUI类 `7160a13d-73da-4cea-95b9-37356478588a`、查询接口 `f932c038-6484-45ca-8fa1-7c8c279f7aee`，slot12枚举固定DISPLAY1，slot44发送GUID `bfb9816c-aeb0-434b-99f3-0f94e6bebf0d`的148字节包，前四DWORD为UID/8/132/0x721，后132字节全零。HRESULT按原厂语义判定，未定义输出仅保留日志，不猜测状态码。接管激活后执行适用NVSR启动修复，84事件还独立唤醒OLED；取消与来源变化停止后续请求。恢复只撤销软件接管，不虚构一次性修复的反向命令。
 
@@ -153,10 +153,10 @@ LED使用Content的两个字节端点，不能把大键当成连续区间：a5a9
 - cmd4双向包sub24读取状态，响应前5字节为Fn锁、Win锁、Fn/Win交换及另外两项键盘状态。前三项0表示不支持，1/2表示状态；Fn锁和交换1为开启，Win锁2为开启。未知的前三项状态拒绝写入。
 - sub25请求byte1..5携带五项状态；只编辑前三项，后两项从本次实时快照保留。page1 offset36..38保存前三项，未修改项目保持原保存值（包括原厂默认0）。
 - `keyboard.rs`拥有实时/保存快照、修订与事务。请求绑定expectedRevision和三个nullable布尔值，null只用于固件未提供的项目；旧预览、能力变化及不支持的目标在写入前拒绝。
-- 首次快照与单次前态分别保留；即时与保存值均回读，失败补偿两者，补偿失败保留诊断与重试基线。初始恢复重新读取并保留另外两项的最新状态，不恢复它们的过时快照。
-- IPC为`read_keyboard_settings / apply_keyboard_settings / restore_keyboard_settings`，由`api/keyboard.ts`封装。设备配置的键盘功能开关逐项提交，其他字段取当前回读值。首次恢复在卡内确认。
+- 即时与保存值均回读，失败补偿两者，补偿失败保留诊断；档案回滚重新读取并保留另外两项的最新状态，不写入它们的过时快照。
+- IPC为`read_keyboard_settings / apply_keyboard_settings`，由`api/keyboard.ts`封装。设备配置的键盘功能开关逐项提交，其他字段取当前回读值。软件不保存首次基线，也不提供初始恢复入口。
 
-10项内存测试与2项构建页面隔离IPC检查通过，覆盖共享字段、保存默认值、旧预览、失败补偿、补偿失败重试、确认重置、草稿保留和初始恢复。未操作真实键盘；FlexiKey映射与宏见§10，OEM热键和OSD见§11。
+10项内存测试与2项构建页面隔离IPC检查通过，覆盖共享字段、保存默认值、旧预览、失败补偿、补偿失败重试、确认重置、草稿保留和档案回滚。未操作真实键盘；FlexiKey映射与宏见§10，OEM热键和OSD见§11。
 
 键盘功能已接入档案`keyboard`，普通RGB/白光使用`keyboardLighting`的型号/开关/原请求契约，外围策略使用`lightingOptions`。捕获与应用复用原控制器的首次基线；关闭时保留亮度档位，不通过归零伪造当前状态。档案执行与恢复合并各自所属字段，先恢复外围再恢复普通灯效，全局掩码从本次页面重组。11项新增档案专项、原键盘10项/普通灯效14项/策略11项及7项新增档案页面通过；包含型号与能力预检、部分失败、跨域回滚、三路并发和360–1440px卡片。逐键事件会话现已按下述二次预检生命周期整合进档案。
 

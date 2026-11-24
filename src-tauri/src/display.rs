@@ -1,7 +1,7 @@
-//! 显示域唯一状态：独立切换与档案共用试用、首次基线及恢复监护。
+//! 显示域唯一状态：独立切换与档案共用试用与恢复监护。
 use anyhow::{Result, anyhow, bail};
 use serde::Serialize;
-use std::{collections::BTreeMap, sync::Mutex};
+use std::sync::Mutex;
 #[path = "display/automatic/mod.rs"]
 pub(crate) mod automatic;
 #[path = "display/guardian/mod.rs"]
@@ -67,7 +67,6 @@ struct Retained {
 #[derive(Default)]
 struct State {
     sequence: u64,
-    baseline: BTreeMap<String, Mode>,
     trial: Option<Trial>,
     retained: Option<Retained>,
     automatic_outcome: Option<AutomaticOutcome>,
@@ -118,7 +117,6 @@ pub struct Profile {
     pub displays: Vec<Display>,
     pub rotation: Option<guardian::Change>,
     pub pending: Option<Pending>,
-    pub can_restore: bool,
     pub error: Option<String>,
     pub blocked_reason: Option<String>,
 }
@@ -149,11 +147,6 @@ impl Controller {
     }
     pub fn primary(&self) -> Result<Mode> {
         primary_mode(&self.io.list()?)
-    }
-    pub fn restore_runtime(&self, hal: &crate::hal::Hal) -> Result<()> {
-        let _write = hal.begin_write()?;
-        crate::hal::oem_owner::ensure_owner_absent()?;
-        self.restore()
     }
     pub fn keep_runtime(&self, hal: &crate::hal::Hal, id: u64, expected: &Mode) -> Result<()> {
         let _write = hal.begin_write()?;
@@ -212,53 +205,9 @@ impl Controller {
             displays,
             rotation,
             pending: state.pending(now_ms()),
-            can_restore: !state.baseline.is_empty(),
             error: state.error.clone(),
             blocked_reason: None,
         })
-    }
-    pub fn restore(&self) -> Result<()> {
-        let mut state = self.lock()?;
-        if state.retained.is_some()
-            || state
-                .trial
-                .as_ref()
-                .is_some_and(|trial| trial.owner != Owner::Manual)
-            || state.automatic_outcome.is_some()
-        {
-            bail!("先结束自动或档案显示试用并处理恢复结果");
-        }
-        if state.baseline.is_empty() {
-            bail!("没有初始显示模式快照");
-        }
-        let mut errors = Vec::new();
-        if let Some(mut trial) = state.trial.take() {
-            if let Err(error) = self.recover_trial(&mut trial) {
-                errors.push(format!("解除本次显示试用：{error:#}"));
-                state.trial = Some(trial);
-            }
-        }
-        for mode in state.baseline.values() {
-            if state.trial.as_ref().is_some_and(|trial| {
-                trial
-                    .plan
-                    .changes
-                    .iter()
-                    .any(|change| change.before.device == mode.device)
-            }) {
-                continue;
-            }
-            if let Err(error) = self.io.set(mode) {
-                errors.push(format!("{}：{error:#}", mode.name));
-            }
-        }
-        if !errors.is_empty() {
-            let message = errors.join("；");
-            state.error = Some(message.clone());
-            bail!(message);
-        }
-        state.error = None;
-        Ok(())
     }
 }
 fn primary_mode(displays: &[Display]) -> Result<Mode> {

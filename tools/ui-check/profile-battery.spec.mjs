@@ -40,13 +40,10 @@ test("电池档案以真实阈值环和时段预览，确认提交完整目标",
   await select(page);
   await expect(charge(page).getByRole("meter", { name: "开始充电阈值", exact: true })).toHaveAttribute("aria-valuenow", "70");
   await expect(charge(page).getByRole("meter", { name: "停止充电阈值", exact: true })).toHaveAttribute("aria-valuenow", "90");
-  await charge(page).getByRole("button", { name: "充电策略应用顺序", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "充电策略应用顺序", exact: true })).toContainText("先停止节能计划");
-  await page.keyboard.press("Escape");
   await expect(energy(page)).toContainText("周一、周二、周三、周四、周五");
   await expect(energy(page).getByRole("img", { name: "档案节能时段：08:00到18:00，20:00到22:00", exact: true })).toBeVisible();
   await expect(energy(page)).toContainText("计划关闭");
-  await expect(energy(page).locator('input,button:not([aria-haspopup="dialog"])')).toHaveCount(0);
+  await expect(energy(page).locator("input,button")).toHaveCount(0);
   expect(await writes(page)).toEqual([]);
   await apply(page).click();
   const calls = await writes(page); expect(calls).toHaveLength(1);
@@ -89,9 +86,6 @@ test("导入无手动阈值的节能档案，展示完整配置且不触发校�
   });
   await page.getByLabel("导入配置档案", { exact: true }).setInputFiles({ name: "节能.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
   await showProfileSettings(page);
-  await energy(page).getByRole("button", { name: "节能策略说明", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "节能策略说明", exact: true })).toContainText("计划管理充电阈值");
-  await page.keyboard.press("Escape");
   await expect(charge(page)).toHaveCount(0);
   await expect(energy(page)).toContainText("20:00–22:00"); expect(await writes(page)).toEqual([]);
 });

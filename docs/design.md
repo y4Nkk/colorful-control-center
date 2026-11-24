@@ -25,7 +25,7 @@ Windows模式恢复快照按计划保存首次ASPM值，后续模式事务只追
 | Windows显示 / 原厂NVPCF | 刷新率试用；ACPI控制节点、cmd4/sub34及自动关断策略 | 独立进程、活动输出保护、显式UAC、回读补偿及恢复，见oem-device-contract.md |
 | 原厂显卡模式 | cmd4/sub21候选与当前报告、sub22选择 | 模式选择直接发送，持久化意图，真实系统启动变化后核对。恢复和重启分别确认 |
 | 原厂充电保护 / Windows电源读数 | cmd4/sub30/sub31阈值、可用时cmd7诊断；GetSystemPowerStatus | 候选来自固件、写后回读、失败补偿与恢复，见battery-contract.md |
-| 原厂I2C触摸板 | Windows只读状态、Ctrl+Win+F24及page1[10]偏好 | touchpad唯一拥有集合绑定、预览、事务与首次恢复；不写系统状态注册表，见touchpad-contract.md |
+| 原厂I2C触摸板 | Windows只读状态、Ctrl+Win+F24及page1[10]偏好 | touchpad唯一拥有集合绑定、预览与事务；不写系统状态注册表，见touchpad-contract.md |
 | 原厂电池音频 | 零样本循环、PC Beep独立拓扑控件、186绝对亮度及121/44一次通知 | hotkeys/battery_alert拥有独立授权和会话，亮度沿用screen_brightness首次记录；取消清理与手动codec恢复均保留错误，见battery-contract.md |
 | 活动麦克风 | Core Audio录音端点静音及page1[41]偏好 | microphone唯一拥有集合绑定、逐字段补偿及本会话恢复，见microphone-contract.md |
 | 原厂平台电源 | cmd4/sub54、61报告PD等级，sub55设置；sub57读取Deep S5 | platform域按版本及适配器候选绑定预览、补偿与恢复；Deep S5没有已确认的写入口，见oem-device-contract.md |
@@ -70,7 +70,7 @@ EnergyStar由`powerctl/mode/energy`唯一拥有解码及WMI79写入，公共`Tar
 - `touchpad/`拥有完整识别节点集合、Windows实际开关和原始OEM偏好；单项、252/253授权热键与档案复用Scope/Plan。hal/touchpad只识别、读取和发送系统组合键，未知状态拒绝写入，见touchpad-contract.md。
 - `lighting/color_cycle`复用普通灯光基线，拥有57号事件的调色板与page2[127]序列位置；仅尝试写该字段时纳入首次恢复。HAL只读SMBIOS厂商，测试缺失明确注入时禁止回退系统查询；不建立第二个档案颜色字段。
 - `lighting/brightness_event`拥有138号的22型主动循环及1型报告同步。主动循环只改亮度/开关，复用唯一灯光首次基线和档案字段；白光报告仅同步缓存、不发送cmd39、不登记本软件硬件写入基线。型号、档位与共享开关能力绑定独立授权，61号整数回读必须通过状态/回声/范围检查，不从旧缓存伪造报告。
-- `microphone/`拥有活动录音端点目标和原厂静音偏好；单项、38号热键及完整档案复用Scope/Plan和首次基线，hal/audio仅执行Core Audio传输。读取不初始化保存偏好，详见microphone-contract.md。
+- `microphone/`拥有活动录音端点目标和原厂静音偏好；单项、38号热键及完整档案复用Scope/Plan，hal/audio仅执行Core Audio传输。读取不初始化保存偏好，详见microphone-contract.md。
 - `profiles/apply.rs` 拥有跨域预检、执行和逆序恢复；`startup/` 与托盘复用同一档案实现。
 - `controller_lease.rs` 拥有跨进程控制权：全局 Windows 对象由主进程独占建立，监护在 READY 前保留同一对象句柄；最后一个句柄关闭前不允许另一主进程接管。
 - `battery/calibration/power_plan.rs`拥有校准计划生命周期，native.rs仅导入/校验/删除本次私有计划，活动计划操作复用hal/power_plan；原始pow及其离线索引绑定SHA256。HAL绑定唯一校准记录路径，模式/档案在未恢复期间不得覆盖计划。
@@ -83,7 +83,7 @@ EnergyStar由`powerctl/mode/energy`唯一拥有解码及WMI79写入，公共`Tar
 
 ## 3. 写入流程
 
-滑杆和曲线拖动更新草稿，查看差异后由用户请求写入。设备配置由选择和开关直接提交，提交后回读。忙碌时禁止重复请求，初始恢复在所属模块执行。各硬件写入口通过 `Hal::begin_write()` 串行化。
+滑杆和曲线拖动更新草稿，查看差异后由用户请求写入。设备配置由选择和开关直接提交，提交后回读。忙碌时禁止重复请求；草稿型编辑的初始恢复在所属模块执行，设备配置的开关与选择不设恢复入口。各硬件写入口通过 `Hal::begin_write()` 串行化。
 
 托盘使用后台回读生成原生菜单和悬停状态。点选预设复用性能调校的完整事务及原厂 FnKey 确认。会交还软件风扇控制时先说明影响。风扇全速确认绑定当时的预设、风扇档位和软件曲线，应用前重新核对。交还固件控制沿用风扇域的安全释放与原厂自动策略。确认等待期间允许退出，硬件事务纳入退出准入和写锁。执行后回读当前值并通知主窗口刷新。
 
@@ -187,6 +187,6 @@ lanPolicy保存能力、逐设备完整驱动身份及适用的固定字段，�
 
 ## 6. 验证范围
 
-系统睡眠、休眠、显示关闭与关机的Win32原语由 `hal/system_action` 唯一拥有，低电量及合盖域只提供已核对目标。飞行模式专属设备协议归 `hal/airplane`，CUI固定面板请求归 `hal/panel_aux`；上层分别拥有预览、授权与恢复语义。手动飞行模式与133热键共用Controller及首次恢复基线，不建立第二套系统状态。原厂面板维护范围明确包含接管激活后的适用NVSR修复；浏览页面与准备监听不执行该请求，激活后与后续事件逐段检查已确认许可。
+系统睡眠、休眠、显示关闭与关机的Win32原语由 `hal/system_action` 唯一拥有，低电量及合盖域只提供已核对目标。飞行模式专属设备协议归 `hal/airplane`，CUI固定面板请求归 `hal/panel_aux`；上层分别拥有预览、授权与恢复语义。手动飞行模式与133热键共用Controller，不建立第二套系统状态。原厂面板维护范围明确包含接管激活后的适用NVSR修复；浏览页面与准备监听不执行该请求，激活后与后续事件逐段检查已确认许可。
 
 构建、原生聚焦单元测试、核心测试、生产模块模拟、隔离进程测试和浏览器模拟 IPC 均可离线执行。Windows 资源由 Tauri 生成图标/版本，windows.manifest.xml 唯一拥有 Common Controls v6 依赖，独立清单资源链接到应用和 lib 测试，避免仅 bin 带清单。本轮不执行硬件写入、驱动安装、提权或重启。尚待真机验收的项目由 [acceptance-checklist.md](acceptance-checklist.md) 维护；不因模拟成功宣布硬件已生效。

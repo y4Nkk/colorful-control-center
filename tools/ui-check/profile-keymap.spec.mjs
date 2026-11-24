@@ -30,21 +30,13 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/"); await openWorkspace(page, "键盘与灯光");
 });
 
-test("完整宏预览只读，全部动作可展开且确认携带监听意图", async ({ page }) => {
+test("宏预览只读，确认携带监听意图", async ({ page }) => {
   await select(page);
   const review = await previewConfiguration(page);
   const keymap = card(panel(page));
   await expect(keymap).toContainText("不启用程序宏监听，保留宏配置");
   await expect(keymap.getByRole("img", { name: "键盘映射范围" })).toBeVisible();
-  await expect(keymap.getByRole("button")).toHaveCount(1);
-  await keymap.getByRole("button", { name: "映射详情", exact: true }).click();
-  const details = page.getByRole("dialog", { name: "映射详情", exact: true });
-  await expect(details).toContainText("过滤器未提供映射表回读");
-  for (const [name, first, second] of [["键盘", "按下 D", "释放 D"], ["鼠标", "隔离宏内容", "F:\\isolated\\helper.exe"]]) {
-    const device = details.getByRole("region", { name, exact: true });
-    await expect(device).toContainText(first); await expect(device).toContainText(second);
-  }
-  await page.keyboard.press("Escape");
+  await expect(keymap.getByRole("button")).toHaveCount(0);
   await expect(keymap.locator("input")).toHaveCount(0);
   expect(await writes(page)).toEqual([]);
   await configurationView(page).getByRole("button", { name: "应用档案", exact: true }).click();
@@ -114,20 +106,17 @@ test("缺少来源或待恢复记录拒绝捕获，不生成空映射", async ({
   await expect(page.getByRole("alert")).toContainText("映射来源不可读"); expect(await writes(page)).toEqual([]);
 });
 
-test("映射卡片宽窄深浅布局可展开完整长内容且保持模块边框", async ({ page }) => {
+test("映射卡片宽窄深浅布局保持模块边框且不溢出", async ({ page }) => {
   await select(page);
   const keymap = card(profilePanel(page));
-  const name = "映射详情";
-  await keymap.getByRole("button", { name, exact: true }).click();
-  const details = page.getByRole("dialog", { name, exact: true });
   for (const theme of ["light", "dark"]) {
     await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
     for (const width of [360, 760, 1440]) {
       await page.setViewportSize({ width, height: 960 });
-      expect(await details.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
-      await expect(details).toContainText("F:\\isolated\\helper.exe");
+      await keymap.scrollIntoViewIfNeeded();
+      expect(await keymap.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
       await expect(keymap).toHaveAttribute("data-surface", "group");
-      await details.screenshot({ path: `target/ui-check/profile-keymap-${theme}-${width}.png` });
+      await keymap.screenshot({ path: `target/ui-check/profile-keymap-${theme}-${width}.png` });
     }
   }
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);

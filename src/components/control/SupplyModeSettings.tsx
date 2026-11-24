@@ -2,13 +2,10 @@ import { OEM_POWER_MODES } from "../../api/client";
 import { Icon } from "../Icon";
 import { Button } from "../Button";
 import { ConfigurationAction } from "../ConfigurationAction";
-import { DetailsDialog } from "../DetailsDialog";
 import { OemConflictAction } from "../OemConflictAction";
 import { Surface } from "../Surface";
 import { Switch } from "../Switch";
-import { SupplyModeCurrent } from "./SupplyModeCurrent";
 import { SupplyModeRecovery } from "./SupplyModeRecovery";
-import { SupplyModeScenarios } from "./SupplyModeScenarios";
 import { useSupplyMode } from "./useSupplyMode";
 
 export function SupplyModeSettings({ active, revision, onSettled }: { active: boolean; revision: number; onSettled: () => void }) {
@@ -27,17 +24,6 @@ export function SupplyModeSettings({ active, revision, onSettled }: { active: bo
   return <Surface as="section" variant="group" className="ccc-panel" aria-label="原厂供电模式">
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="plug" />原厂供电模式</h2>
       <div className="ccc-module-tools">
-        <DetailsDialog title="供电状态与切换规则" label="详情" wide>
-          <div className="ccc-detail-stack">
-            {view && <SupplyModeCurrent view={view} />}
-            {review && <SupplyModeScenarios review={review} />}
-            {issues.map(issue => <p key={issue} className="ccc-control-error"><Icon name="error" size={16} />{issue}</p>)}
-            {view?.recovery && !view.canRestore && <section className="ccc-detail-stack" aria-label="供电恢复详情">
-              <h3>供电恢复详情</h3>
-              <SupplyModeRecovery value={view.recovery} />
-            </section>}
-          </div>
-        </DetailsDialog>
         <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取供电模式" disabled={mutating} onClick={() => void p.reread()} />
       </div>
     </div>
@@ -47,7 +33,7 @@ export function SupplyModeSettings({ active, revision, onSettled }: { active: bo
       <Switch label="启用原厂自动切换" disabled={mutating || !view?.active && !canStart} checked={!!view?.active} onChange={toggle} />
     </div>
     {view && !view.listenerOnline && <p className="ccc-control-caption">供电监听未就绪</p>}
-    {issues.length > 0 && <p role="status" className="ccc-control-caption">{view?.blockedReason ?? "部分状态需要处理 · 查看详情"}</p>}
+    {issues.map(issue => <p key={issue} className="ccc-control-error" role="alert">{issue}</p>)}
     <OemConflictAction issues={issues} disabled={mutating} onClosed={p.reread} />
     {(p.busy || !view && p.error) && <div className="ccc-actions ccc-module-control-end">
       <Button icon="pause" variant="secondary" size="compact" disabled={p.pausing || (p.busy && p.pauseRequested)}

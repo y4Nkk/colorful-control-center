@@ -63,7 +63,7 @@ test("捕获与导出保留当前驱动身份、原始类型及缺失字段", as
   expect((await writes(page)).map(call => call.command)).toEqual(["save_profile"]);
 });
 
-test("导入只保存档案，字段删除含义与原始配置保持可查", async ({ page }) => {
+test("导入只保存档案，字段删除含义保持明确", async ({ page }) => {
   await selectProfile(page);
   const file = await page.evaluate(() => ({ ...structuredClone(window.__uiFixture.profile), name: "导入网络" }));
   await page.locator('input[type="file"]').setInputFiles({ name: "网络.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
@@ -74,9 +74,6 @@ test("导入只保存档案，字段删除含义与原始配置保持可查", as
   await showProfileSettings(page);
   const card = panel(page).getByRole("region", { name: "档案网络策略 · 隔离网卡 2", exact: true });
   await expect(card).toContainText("保存的驱动配置");
-  await card.getByRole("button", { name: "网卡身份与原始配置", exact: true }).click();
-  const raw = page.getByRole("dialog", { name: "网卡身份与原始配置", exact: true });
-  await expect(raw).toContainText("PCI\\ISOLATED\\2");
   expect((await writes(page)).map(call => call.command)).toEqual(["save_profile"]);
 });
 
@@ -140,7 +137,7 @@ test("未知节能值拒绝捕获，无能力时省略网络目标", async ({ pa
   expect((await writes(page))[0].args.args.settings.lanPolicy).toBeNull();
 });
 
-test("逐设备卡片深浅宽窄布局有边框间隔，原始配置展开也不溢出", async ({ page }) => {
+test("逐设备卡片深浅宽窄布局有边框间隔", async ({ page }) => {
   await selectProfile(page);
   const card = panel(page).getByRole("region", { name: "档案网络策略 · 隔离网卡 1", exact: true });
   for (const theme of ["light", "dark"]) {
@@ -151,11 +148,6 @@ test("逐设备卡片深浅宽窄布局有边框间隔，原始配置展开也�
       await expect(card).toHaveAttribute("data-surface", "group");
       expect(await card.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
       await card.screenshot({ path: `target/ui-check/profile-lan-${theme}-${width}.png` });
-      await card.getByRole("button", { name: "网卡身份与原始配置", exact: true }).click();
-      const raw = page.getByRole("dialog", { name: "网卡身份与原始配置", exact: true });
-      await expect(raw).toBeVisible();
-      expect(await raw.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
-      await page.keyboard.press("Escape");
     }
   }
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);

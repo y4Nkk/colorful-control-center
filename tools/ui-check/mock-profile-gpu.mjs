@@ -25,9 +25,7 @@ export function applyProfileGpuPower(data, settings) {
   if (review.before.enabled !== review.target.enabled || review.before.automaticPowerOff !== review.target.automaticPowerOff) {
     data.profileGpuAuthorizations = (data.profileGpuAuthorizations ?? 0) + 1;
     if (data.gpuPowerFault) throw new Error(data.gpuPowerFault);
-    data.gpuPowerInitial ??= structuredClone(current);
     Object.assign(current, review.target, { problem: review.target.enabled ? 0 : 22 });
-    data.gpuPower.canRestore = true;
   }
   if (!review.target.enabled) data.fan.software = null;
   data.gpu.available = review.target.enabled && data.profileGpuDriverReady !== false;

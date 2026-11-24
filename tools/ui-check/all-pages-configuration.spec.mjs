@@ -163,18 +163,8 @@ test("白光SVG区分保存值和草稿，跨页与外部读数更新不混同",
   expect(await writes(page)).toEqual([]);
 });
 
-test("供电SVG、适配器瓦数与除尘状态只取各自报告，未知不冒充零", async ({ page }) => {
+test("适配器瓦数与除尘状态只取各自报告，未知不冒充零", async ({ page }) => {
   await setup(page); await openPowerArea(page, "电源设置");
-  const supply = page.getByRole("region", { name: "原厂供电模式", exact: true });
-  const details = page.getByRole("dialog", { name: "供电状态与切换规则", exact: true });
-  await supply.getByRole("button", { name: "详情", exact: true }).click();
-  await expect(details.locator('[data-power-source="ac"]')).toBeVisible();
-  await details.getByRole("button", { name: "关闭弹窗", exact: true }).click();
-  await page.evaluate(() => { window.__uiFixture.supplyMode.review.onAc = null; });
-  await supply.getByRole("button", { name: "重新读取供电模式", exact: true }).click();
-  await supply.getByRole("button", { name: "详情", exact: true }).click();
-  await expect(details.locator('[data-power-source="unknown"]')).toBeVisible();
-  await details.getByRole("button", { name: "关闭弹窗", exact: true }).click();
   const pd = page.getByRole("region", { name: "平台电源", exact: true });
   await expect(pd.getByRole("img", { name: "PD 适配器报告功率 · 100 W", exact: true })).toBeVisible();
   await page.evaluate(() => { window.__uiFixture.platform.powerDelivery.adapterWatts = null; });

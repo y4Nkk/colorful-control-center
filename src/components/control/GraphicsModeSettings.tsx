@@ -1,4 +1,4 @@
-import { applyGraphicsMode, readGraphicsMode, rebootForGraphicsMode, restoreGraphicsMode } from "../../api/client";
+import { applyGraphicsMode, readGraphicsMode, rebootForGraphicsMode } from "../../api/client";
 import { Button } from "../Button";
 import { ConfirmButton } from "../ConfirmButton";
 import { Icon } from "../Icon";
@@ -40,7 +40,7 @@ export function GraphicsModeSettings({ active, revision }: { active: boolean; re
       {choices.length > 0 && <div className="ccc-graphics-choices" role="group" aria-label="切换显卡模式">
         {choices.map(({ value, label, route }) => <Button key={value} size="compact" variant="selection" disabled={busy}
           aria-pressed={selected === value} onClick={() => choose(value)}>
-          <GraphicsModeArtwork route={route} />
+          <GraphicsModeArtwork route={route} selected={selected === value} />
           <span>{label}</span>
         </Button>)}
       </div>}
@@ -56,13 +56,6 @@ export function GraphicsModeSettings({ active, revision }: { active: boolean; re
         {supports(current.availableMask, last.target) ? `可再次选择${modeName(last.target)}。` : "固件已不提供上次选择的模式。"}
       </p>}
       {last?.verification === "confirmed" && <p className="ccc-control-caption" role="status">重启后已确认</p>}
-      {last && !supports(current.availableMask, last.initialMode) && <p className="ccc-control-caption">当前固件未提供原模式，无法恢复。</p>}
-      {profile.canRestore && last && <div className="ccc-actions">
-        <ConfirmButton key={profile.revision} icon="undo" size="compact" label="恢复初始设置" confirmLabel="确认恢复" busy={busy}
-          onConfirm={() => run(() => restoreGraphicsMode(profile.revision))}>
-          <p>恢复{modeName(last.initialMode)}，重启 Windows 后生效。</p>
-        </ConfirmButton>
-      </div>}
     </> : <p className="ccc-control-caption">{profile ? "本机未提供模式切换接口。" : error ? "请重新读取显卡模式。" : "正在读取显卡模式。"}</p>}
   </Surface>;
 }

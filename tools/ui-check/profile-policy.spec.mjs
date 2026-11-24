@@ -5,10 +5,7 @@ import { MOCK_IPC } from "./mock-ipc.mjs";
 
 const panel = page => page.getByRole("region", { name: "供电与唤醒档案", exact: true });
 const calls = (page, command) => page.evaluate(command => window.__uiFixture.calls.filter(call => call.command === command), command);
-async function details(page) {
-  await panel(page).getByRole("button", { name: "详情", exact: true }).click();
-  return page.getByRole("dialog", { name: "供电档案状态与记录", exact: true });
-}
+const alert = (page, text) => panel(page).getByRole("alert").filter({ hasText: text });
 async function choose(page, label, value = "隔离档案") {
   await panel(page).getByRole("combobox", { name: label, exact: true }).click();
   await page.getByRole("option", { name: value, exact: true }).click();
@@ -35,7 +32,7 @@ test("规则只改草稿，应用绑定完整档案，启用不立即应用当�
   await expect(p.getByText(/^(已启用|未启用)$/)).toHaveCount(0);
   await choose(page, "插电时");
   const review = await previewConfiguration(page, "供电与唤醒档案");
-  await review.getByRole("button", { name: "查看「隔离档案」参数", exact: true }).click();
+  await review.getByRole("button", { name: "查看档案参数", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "查看「隔离档案」参数", exact: true })).toContainText("55 W");
   await page.keyboard.press("Escape");
   expect(await calls(page, "save_power_profile_policy")).toHaveLength(0);
@@ -94,22 +91,18 @@ test("确认后文件变化被后端拒绝，重读后重新预览新内容", as
   await previewConfiguration(page, "供电与唤醒档案");
   await page.evaluate(() => { window.__uiFixture.profile.settings.pl1W = 77; });
   await save(page);
-  const report = await details(page);
-  await expect(report).toContainText("内容已变化");
-  await report.getByRole("button", { name: "重新读取并暂停", exact: true }).click();
-  await page.keyboard.press("Escape");
+  await expect(alert(page, "内容已变化")).toBeVisible();
+  await p.getByRole("button", { name: "重新读取并暂停", exact: true }).click();
   await expect(p.getByRole("combobox", { name: "插电时", exact: true })).toHaveText("不应用档案");
   await enable(page);
   expect((await calls(page, "save_power_profile_policy")).at(-1).args.request.ac.file.settings.pl1W).toBe(77);
 });
 
-test("供电轮询更新事实并保留正在编辑的草稿", async ({ page }) => {
+test("供电轮询保留正在编辑的草稿", async ({ page }) => {
   await choose(page, "使用电池时");
-  const report = await details(page);
-  await expect(report.getByText("已插电", { exact: true })).toBeVisible();
+  const reads = (await calls(page, "read_power_profile_policy")).length;
   await page.evaluate(() => { window.__uiFixture.powerPolicy.source = "battery"; });
-  await expect(report.getByText("电池供电", { exact: true })).toBeVisible();
-  await report.getByRole("button", { name: "关闭弹窗", exact: true }).click();
+  await expect.poll(async () => (await calls(page, "read_power_profile_policy")).length).toBeGreaterThan(reads + 1);
   await expect(panel(page).getByRole("combobox", { name: "使用电池时", exact: true })).toHaveText("隔离档案");
   expect(await calls(page, "save_power_profile_policy")).toHaveLength(0);
 });
@@ -135,39 +128,24 @@ test("旧的状态请求晚返回不能覆盖已经保存的规则", async ({ pa
   await expect(panel(page).getByRole("combobox", { name: "插电时", exact: true })).toHaveText("隔离档案");
 });
 
-test("最近自动结果随全局应用更新，后续手动报告不抹掉它", async ({ page }) => {
-  await page.evaluate(() => {
-    const report = { id: 900, revision: 1, origin: "battery", name: "电池配置", targetsApplied: true, pending: null,
-      steps: [{ step: "功耗与电压已保存", ok: true, message: "已确认" }] };
-    window.__uiFixture.profileApplication = report;
-    window.__uiFixture.lastAutomaticProfileApplication = structuredClone(report);
-  });
-  const latest = (await details(page)).getByRole("region", { name: "最近自动应用", exact: true });
-  await expect(latest).toContainText("电池配置");
-  await expect(latest).toContainText("电池 · 已应用");
-  await page.evaluate(() => { window.__uiFixture.profileApplication = { id: 901, revision: 1, origin: "manual", name: "手动档案", targetsApplied: true, pending: null, steps: [] }; });
-  await expect(latest).toContainText("电池配置");
-  await expect(latest).not.toContainText("手动档案");
-});
-
 test("通知离线时禁用启用操作，仍可读取和暂停软件规则", async ({ page }) => {
   await choose(page, "插电时");
   await save(page);
   await page.evaluate(() => { window.__uiFixture.powerPolicy.listenerError = "隔离通知线程退出"; window.__uiFixture.powerPolicy.route = null; });
   await expect(panel(page).getByRole("switch", { name: "启用自动档案", exact: true })).toBeDisabled();
-  await expect(await details(page)).toContainText("通知线程退出");
+  await expect(alert(page, "通知线程退出")).toBeVisible();
+  await expect(panel(page).getByRole("button", { name: "重新读取并暂停", exact: true })).toBeEnabled();
 });
 
 test("外部策略变化需要重读，重读不自动接受其启用意图", async ({ page }) => {
   await enable(page);
+  await expect(panel(page).getByRole("button", { name: "重新读取并暂停", exact: true })).toHaveCount(0);
   await page.evaluate(() => {
     window.__uiFixture.powerPolicyExternalRecord = structuredClone(window.__uiFixture.powerPolicy.record);
     window.__uiFixture.powerPolicy.lastIssue = "自动档案策略已被外部修改，请重新读取";
   });
-  const report = await details(page);
-  await expect(report).toContainText("外部修改");
-  await report.getByRole("button", { name: "重新读取并暂停", exact: true }).click();
-  await page.keyboard.press("Escape");
+  await expect(alert(page, "外部修改")).toBeVisible();
+  await panel(page).getByRole("button", { name: "重新读取并暂停", exact: true }).click();
   await expect(panel(page).getByText("已暂停", { exact: true })).toBeVisible();
   await expect(panel(page).getByRole("switch", { name: "启用自动档案", exact: true })).toBeChecked();
   expect(await calls(page, "apply_profile")).toHaveLength(0);

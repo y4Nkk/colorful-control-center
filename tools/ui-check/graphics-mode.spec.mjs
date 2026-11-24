@@ -1,4 +1,3 @@
-import { deviceRestoreButton, restoreDevice } from "./device-settings.mjs";
 import { openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -9,13 +8,15 @@ const mode = (panel, label) => panel.getByRole("button", { name: label, exact: t
 
 test("四种显卡模式以不同的 SVG 通路示意，宽窄窗保留标签和选中态", async ({ page }) => {
   const panel = page.getByRole("region", { name: "显卡模式", exact: true });
-  for (const [label, count] of [["仅集显", 1], ["仅独显", 1], ["混合显卡", 2], ["动态切换", 2]]) {
+  for (const [label, count] of [["仅集显", 1], ["仅独显", 1], ["混合显卡", 2], ["动态切换", 3]]) {
     const art = mode(panel, label).locator(".ccc-graphics-choice-art");
     await expect(art).toHaveAttribute("aria-hidden", "true");
     await expect(art).toHaveAttribute("fill", "none");
-    const routes = art.locator(":scope > g").last();
-    await expect(routes.locator("path")).toHaveCount(count);
-    if (label === "动态切换") await expect(routes).toHaveAttribute("stroke-dasharray", "3 4");
+    const routes = art.locator("[data-routes]");
+    await expect(routes.locator(":scope > path")).toHaveCount(count);
+    if (label === "动态切换") await expect(routes).toHaveAttribute("stroke-dasharray", ".1 5.5");
+    // 实心挖空字形只属于选中项里位于通路上的 GPU。
+    await expect(art.locator("[data-solid]")).toHaveCount(label === "混合显卡" ? 2 : 0);
   }
   for (const [width, theme] of [[1440, "light"], [360, "dark"]]) {
     await page.setViewportSize({ width, height: 900 });
@@ -63,9 +64,10 @@ test("显卡按钮直接发送选择，固件旧报告与待重启目标分开�
   });
   await panel.getByRole("button", { name: "重新读取显卡模式", exact: true }).click();
   await expect(panel.getByRole("status")).toContainText("重启后已确认");
-  await restoreDevice(panel);
+  await mode(panel, "混合显卡").click();
   await expect(panel).toContainText(/固件报告\s*仅独显/);
   await expect(panel.getByRole("status")).toContainText("混合显卡 · 重启 Windows 后生效");
+  await expect(panel.getByRole("button", { name: "恢复初始设置", exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });
 
@@ -86,8 +88,7 @@ test("固件候选范围限制按钮，可直接重发未完成的选择", async
   await page.evaluate(() => {
     const profile = window.__uiFixture.graphicsMode;
     profile.current.availableMask = 6;
-    profile.lastRequest = { initialMode: 3, target: 2, verification: "uncertain" };
-    profile.canRestore = true;
+    profile.lastRequest = { target: 2, verification: "uncertain" };
   });
   const panel = page.getByRole("region", { name: "显卡模式", exact: true });
   await panel.getByRole("button", { name: "重新读取显卡模式", exact: true }).click();
@@ -95,7 +96,7 @@ test("固件候选范围限制按钮，可直接重发未完成的选择", async
   await expect(panel.getByRole("button", { name: "重启 Windows", exact: true })).toHaveCount(0);
   await expect(mode(panel, "仅集显")).toHaveCount(0);
   await expect(mode(panel, "动态切换")).toHaveCount(0);
-  await expect(deviceRestoreButton(panel)).toBeEnabled();
+  await expect(panel.getByRole("button", { name: "恢复初始设置", exact: true })).toHaveCount(0);
   await mode(panel, "仅独显").click();
   await expect(panel.getByRole("status")).toContainText("仅独显 · 重启 Windows 后生效");
   expect(await calls(page, "apply_graphics_mode")).toBe(1);

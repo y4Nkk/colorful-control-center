@@ -2,7 +2,7 @@
 #[allow(dead_code)]
 #[path = "../../../src-tauri/src/hal/oem_dchu.rs"]
 mod transport;
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 pub struct Dchu(transport::Dchu);
 impl Dchu {
@@ -20,6 +20,13 @@ impl Dchu {
     }
     pub fn read_settings(&self, page: i32, offset: i32, length: usize) -> Result<Vec<u8>> {
         self.0.read_settings(page, offset, length)
+    }
+    /// 仅放行风扇运行时命令（121/1 档位、121/14 偏移）；不写 AppSettings。
+    pub fn set_fan_runtime(&self, sub: u8, value: u32) -> Result<()> {
+        if !matches!(sub, 1 | 14) || value > 0xFF {
+            bail!("探测只允许风扇档位与偏移命令");
+        }
+        self.0.set_data_sub(121, sub, value)
     }
 }
 
