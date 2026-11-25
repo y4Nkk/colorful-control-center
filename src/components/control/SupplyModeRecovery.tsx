@@ -1,4 +1,4 @@
-import { FAN_MODES, OEM_POWER_MODES, PERFORMANCE_OPTION_LABELS, type OemEnergyState, type OemModeGpuState, type SupplyModeRecovery as Recovery } from "../../api/client";
+import { OEM_POWER_MODES, PERFORMANCE_OPTION_LABELS, fanModeLabel, type OemEnergyState, type OemModeGpuState, type SupplyModeRecovery as Recovery } from "../../api/client";
 import { FanRestoreParameters } from "./FanRestoreParameters";
 import { FactList } from "../FactList";
 import { Surface } from "../Surface";
@@ -8,7 +8,6 @@ import { energyValue } from "./energy-values";
 
 const onOff = (value: boolean) => value ? "开启" : "关闭";
 const offset = (value: number | null) => value === null ? "未上报" : value + "%";
-const fanMode = (value: number) => FAN_MODES.find(mode => mode.id === value)?.label ?? `未知模式 ${value}`;
 const modeName = (value: number) => OEM_POWER_MODES[value] ?? `未知模式 ${value}`;
 const aspm = (value: number) => ASPM_NAMES[value] ?? `未知值 ${value}`;
 function system(value: Recovery["currentSystem"]) {
@@ -29,7 +28,7 @@ export function SupplyModeRecovery({ value }: { value: Recovery }) {
       ...(value.initialAcMode === null ? [] : [{ label: "插电模式偏好", value: `${value.currentAcMode === null ? "未知" : modeName(value.currentAcMode)} → ${modeName(value.initialAcMode)}` }]),
       { label: `${PERFORMANCE_OPTION_LABELS.turboFan}偏好`, value: `${onOff(value.currentTurbo)} → ${onOff(value.initialTurbo)}` },
       { label: `${PERFORMANCE_OPTION_LABELS.dtt} 偏好`, value: `${onOff(value.currentDtt)} → ${onOff(value.initialDtt)}` },
-      { label: "风扇模式", value: `${fanMode(value.currentFanMode)} → ${fanMode(value.initialFanMode)}` },
+      { label: "风扇模式", value: `${fanModeLabel(value.currentFanMode)} → ${fanModeLabel(value.initialFanMode)}` },
       ...(value.initialFanOffset === null ? [] : [{ label: "风扇加速偏移",
         value: `${offset(value.currentFanOffset)} → ${offset(value.initialFanOffset)}` }]),
       { label: "软件曲线", value: `${onOff(value.currentSoftwareFan)} → ${onOff(value.initialSoftwareFan)}` },

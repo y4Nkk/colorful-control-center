@@ -46,7 +46,7 @@
 .ccc-range-tick {
   width: var(--ccc-space-1);
   height: var(--ccc-space-1);
-  background: color-mix(in srgb, var(--ccc-text) 42%, transparent);
+  background: color-mix(in srgb, var(--ccc-text) 20%, transparent);
   transition: opacity var(--ccc-motion-range) var(--ccc-easing), scale var(--ccc-motion-fast) var(--ccc-easing-press);
 }
 .ccc-range-tick[data-filled="true"] { opacity: 0; }

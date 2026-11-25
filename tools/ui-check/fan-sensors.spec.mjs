@@ -13,11 +13,11 @@ test("每个风扇页签读取各自的 EC 温度和转速，缺值保留空白"
       points: Array.from({ length: 10 }, (_, index) => ({ tempC: 30 + 7 * index, rpmPct: 28 + 8 * index })) }));
   });
   await openWorkspace(page, "性能与散热");
-  const panel = page.getByRole("region", { name: "风扇设置", exact: true });
+  const panel = page.getByRole("region", { name: "散热控制", exact: true });
   const readings = panel.locator(".ccc-fan-current:visible");
   await expect(readings).toContainText("1800 RPM");
   await page.evaluate(async () => {
-    const sample = await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot");
+    const sample = window.__uiHardwareSnapshot();
     sample.sampledAtMs += 50;
     sample.fan.gpu1.tempC = 57;
     sample.fan.gpu2 = { tempC: 62, rpm: 4321, dutyPct: 45 };
@@ -35,7 +35,7 @@ test("每个风扇页签读取各自的 EC 温度和转速，缺值保留空白"
   await expect(readings).toContainText("0 RPM");
 
   await page.evaluate(async () => {
-    const sample = await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot");
+    const sample = window.__uiHardwareSnapshot();
     sample.sampledAtMs += 100;
     window.__uiEmit("hardware-snapshot", sample);
   });

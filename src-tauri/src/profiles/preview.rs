@@ -44,12 +44,9 @@ pub(super) fn checkpoint_mode(
                     settings.gpu.is_some() || settings.fan_software_curves.is_some(),
                 )?,
             };
-            powerctl::mode::boost::validate_profile(
-                context.hal,
-                settings.performance_options.as_ref(),
-                Some(&plan.core),
-                model::fan_target(settings),
-            )?;
+            if let Some(fan) = model::fan_target(settings) {
+                powerctl::mode::boost::validate_active_fan(plan.target.turbo, fan)?;
+            }
             Ok(plan)
         })
         .transpose()

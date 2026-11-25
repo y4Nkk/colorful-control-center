@@ -2,6 +2,7 @@ import { OEM_POWER_MODES } from "../../api/client";
 import { Icon } from "../Icon";
 import { Button } from "../Button";
 import { ConfigurationAction } from "../ConfigurationAction";
+import { ConfirmButton } from "../ConfirmButton";
 import { OemConflictAction } from "../OemConflictAction";
 import { Surface } from "../Surface";
 import { Switch } from "../Switch";
@@ -15,6 +16,7 @@ export function SupplyModeSettings({ active, revision, onSettled }: { active: bo
   const issues = Array.from(new Set([view?.blockedReason, p.error, view?.error, view?.issue, view?.recoveryError].filter(Boolean)));
   const mutating = p.busy || p.pausing;
   const review = view?.review;
+  const archiveRevision = view?.archiveRevision;
   const canStart = !!review && !!view && (view.canEnable || view.canResume);
   const toggle = (enabled: boolean) => {
     if (!view || mutating) return;
@@ -35,6 +37,12 @@ export function SupplyModeSettings({ active, revision, onSettled }: { active: bo
     {view && !view.listenerOnline && <p className="ccc-control-caption">供电监听未就绪</p>}
     {issues.map(issue => <p key={issue} className="ccc-control-error" role="alert">{issue}</p>)}
     <OemConflictAction issues={issues} disabled={mutating} onClosed={p.reread} />
+    {archiveRevision && <div className="ccc-actions">
+      <ConfirmButton label="归档无效供电记录" confirmLabel="确认归档" revision={archiveRevision}
+        busy={mutating} onConfirm={() => p.archive(archiveRevision)}>
+        <p>确认后暂停自动切换，并把原文件移到同目录下的独立归档文件夹。当前设备设置将成为下次启用时的基线。</p>
+      </ConfirmButton>
+    </div>}
     {(p.busy || !view && p.error) && <div className="ccc-actions ccc-module-control-end">
       <Button icon="pause" variant="secondary" size="compact" disabled={p.pausing || (p.busy && p.pauseRequested)}
         aria-busy={p.pausing} onClick={() => void p.pause()}>{p.pausing ? "正在暂停…" : "暂停自动切换"}</Button>

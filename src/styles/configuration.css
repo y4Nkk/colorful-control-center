@@ -4,6 +4,10 @@
 .ccc-review-section > h3 { margin: 0; font-size: var(--ccc-text-lg); }
 .ccc-review-section > p { margin: 0; }
 .ccc-review-section + [role="alert"] { margin-top: var(--ccc-space-3); }
+.ccc-restore-options, .ccc-restore-option, .ccc-restore-preview { display: grid; gap: var(--ccc-space-2); min-width: 0; }
+.ccc-restore-options { gap: var(--ccc-space-3); }
+.ccc-restore-check { justify-self: start; }
+.ccc-restore-preview > p { margin: 0; }
 .ccc-detail-stack { display: grid; gap: var(--ccc-space-4); min-width: 0; }
 .ccc-module-tools { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-1); margin-inline-start: auto; }
 .ccc-module-summary { display: grid; gap: var(--ccc-space-1); align-content: start; min-width: 0; }

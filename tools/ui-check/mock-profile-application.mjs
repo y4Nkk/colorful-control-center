@@ -14,7 +14,7 @@ export async function previewManualProfile(data, settings) {
     graphicsModeReview: null, blocked: null };
   for (const group of profileGroups(settings).filter(group => group !== "display")) {
     try {
-      const current = captureProfileDevices(data, [group]).settings;
+      const current = captureProfileDevices(data, [group], true).settings;
       for (const key of profileFields()[group]) preview.before[key] = current[key];
     } catch { /* Unavailable settings carry no current value. */ }
   }
@@ -63,7 +63,6 @@ export function syncProfileApplication(data) {
   return structuredClone(report ?? null);
 }
 export async function beginProfileApplication(data, args) {
-  if (data.profileApplication && ["ac", "battery", "resume"].includes(data.profileApplication.origin)) data.lastAutomaticProfileApplication = structuredClone(data.profileApplication);
   if (syncProfileApplication(data)?.pending) throw new Error("先结束当前档案显示确认或恢复");
   if (JSON.stringify(args.expected) !== JSON.stringify(profileFiles(data).find(file => file.name === args.expected.name))) throw new Error("档案已变化，请重新预览后确认");
   if (JSON.stringify(args.expectedMode) !== JSON.stringify(await previewProfileMode(data, args.expected.settings))) throw new Error("模式联动已变化，请重新预览");

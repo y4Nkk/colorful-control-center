@@ -390,13 +390,25 @@ fn equivalent_after_own_change(before: &Review, after: &Review, applied: &Target
         }
         let same_slot = old.mode == applied.mode
             || [0, 4].contains(&old.mode) && [0, 4].contains(&applied.mode);
+        use crate::fanctl::{FAN_MODE_AUTO, FAN_MODE_FULL_SPEED, FAN_MODE_NOISELESS, ModePolicy};
         let mut adjusted = old.clone();
-        adjusted.fan_saved_mode = 0;
-        adjusted.fan_mode = new.fan_mode;
+        adjusted.fan = new.fan;
         same_slot
-            && old.fan_saved_mode == 1
-            && old.fan_mode == 1
-            && matches!(new.fan_mode, 0 | 8)
+            && old.fan
+                == ModePolicy::explicit(
+                    FAN_MODE_FULL_SPEED,
+                    FAN_MODE_FULL_SPEED,
+                    old.fan.offset_pct(),
+                )
+            && matches!(
+                new.fan,
+                ModePolicy::Explicit {
+                    mode: FAN_MODE_AUTO | FAN_MODE_NOISELESS,
+                    saved_mode: FAN_MODE_AUTO,
+                    ..
+                }
+            )
+            && new.fan.offset_pct() == old.fan.offset_pct()
             && *new == adjusted
     })
 }

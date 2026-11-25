@@ -1,4 +1,4 @@
-import { openWorkspace } from "./workspace.mjs";
+import { openHotkeyDetails, openWorkspace, previewHotkeyRestore } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 const panel = page => page.getByRole("region", { name: "原厂热键与屏显", exact: true });
@@ -21,7 +21,7 @@ async function initial(page) {
     window.__uiEmit("hardware-controls-changed", null);
   });
   await details(page);
-  await expect(facts(page).getByRole("button", { name: "恢复初始 GPU 状态", exact: true })).toBeEnabled();
+  await expect(facts(page)).toContainText("恢复接管前的值");
 }
 test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与灯光"); });
 
@@ -77,10 +77,11 @@ test("初始锁频和偏移预览后独立恢复，停止监听并保留策略",
   await initial(page);
   await expect(facts(page)).toContainText("图形锁频：1700 MHz → 900 MHz");
   await expect(facts(page)).toContainText("核心 100 MHz → 10 MHz · 显存 -1 MHz → 20 MHz");
-  await facts(page).getByRole("button", { name: "恢复初始 GPU 状态", exact: true }).click();
+  const restore = await previewHotkeyRestore(page, "初始 GPU 状态");
   expect(await calls(page, "restore_gpu_turbo")).toEqual([]);
-  await facts(page).getByRole("button", { name: "确认停止监听并恢复上述状态？", exact: true }).click();
+  await restore.getByRole("button", { name: "确认恢复", exact: true }).click();
   expect((await calls(page, "restore_gpu_turbo"))[0].args).toEqual({ expectedRevision: "gpu-restore-0" });
+  await openHotkeyDetails(page);
   await expect(facts(page)).toContainText("图形锁频：900 MHz");
   await page.keyboard.press("Escape");
   await expect(panel(page).getByRole("status")).toContainText("已停止监听");
@@ -99,12 +100,11 @@ test("来源失效仍可恢复已知基线；恢复失败保留目标并允许�
   });
   await expect(facts(page)).toContainText("固件目标不可读");
   for (let attempt = 0; attempt < 2; attempt++) {
-    await facts(page).getByRole("button", { name: "恢复初始 GPU 状态", exact: true }).click();
-    await facts(page).getByRole("button", { name: "确认停止监听并恢复上述状态？", exact: true }).click();
-    if (!attempt) await expect(page.getByText("锁频恢复失败", { exact: true }).first()).toBeVisible();
+    const restore = await previewHotkeyRestore(page, "初始 GPU 状态");
+    await restore.getByRole("button", { name: "确认恢复", exact: true }).click();
+    if (!attempt) await expect(await openHotkeyDetails(page)).toContainText("锁频恢复失败");
   }
   expect(await calls(page, "restore_gpu_turbo")).toHaveLength(2);
-  await page.keyboard.press("Escape");
   await edit(page);
   await expect(scope(page)).toBeChecked();
   await scope(page).click();

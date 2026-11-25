@@ -14,7 +14,7 @@ impl Hal {
         match self.software_fan_safety.lock() {
             Ok(journal) if journal.active() && !self.software_fan_supported() => {
                 format!(
-                    "软件风扇归还未证实。{}",
+                    "尚未确认风扇已退出软件调速。{}",
                     super::firmware::FAN_CONTROL_UNVERIFIED
                 )
             }

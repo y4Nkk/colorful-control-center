@@ -1,8 +1,7 @@
 import { useEffect, useRef } from "react";
-import { FanPanel } from "../components/control/FanPanel";
+import { CoolingPanel } from "../components/control/CoolingPanel";
 import { FanDust } from "../components/control/FanDust";
 import { PowerPanel } from "../components/control/PowerPanel";
-import { OemPerformanceOptions } from "../components/control/OemPerformanceOptions";
 import { OemPowerMode } from "../components/control/OemPowerMode";
 import { GpuTuning } from "../components/performance/GpuTuning";
 import type { HardwareWorkspaceProps } from "./useControlModel";
@@ -27,7 +26,7 @@ export function PerformanceWorkspace({ active, model, fanRequest }: HardwareWork
     const frame = requestAnimationFrame(() => {
       target.focus({ preventScroll: true });
       locate();
-      // 上方模块异步回读会改变风扇设置的纵向位置。
+      // 上方模块异步回读会改变散热控制的纵向位置。
       resize.observe(content);
       for (const event of ["pointerdown", "wheel", "keydown"]) {
         window.addEventListener(event, stop, { capture: true, signal: interaction.signal });
@@ -41,14 +40,12 @@ export function PerformanceWorkspace({ active, model, fanRequest }: HardwareWork
   }, [active, fanRequest]);
   return <div className="ccc-control" ref={workspace}>
     <OemPowerMode active={active} revision={revisions.mode} onSettled={() => model.refreshAfterControl("mode")} />
-    <OemPerformanceOptions active={active} revision={revisions.options} onSettled={() => model.refreshAfterControl("options")} />
     <div className="ccc-module-grid">
       <PowerPanel active={active} revision={revisions.power} />
       <GpuTuning active={active} revision={revisions.gpu} onSettled={() => model.refreshAfterControl("gpu")} />
     </div>
     <div ref={fanSettings} className="ccc-control" tabIndex={-1}>
-      <FanPanel active={active} revision={revisions.fan} onSettled={() => model.refreshAfterControl("fan")}
-        live={model.history.live} stale={model.history.stale} />
+      <CoolingPanel active={active} revision={revisions.cooling} onSettled={model.refreshAfterControl} />
       <FanDust active={active} revision={revisions.dust} onSettled={() => model.refreshAfterControl("dust")} />
     </div>
   </div>;

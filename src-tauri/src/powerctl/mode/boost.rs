@@ -8,8 +8,7 @@ use sha2::{Digest, Sha256};
 #[path = "boost/options.rs"]
 mod options;
 pub(crate) use options::{
-    Change, FanTarget, Plan, ensure_fan_allowed, ensure_fan_allowed_on, validate_fan,
-    validate_profile,
+    Change, FanTarget, Plan, ensure_fan_allowed, ensure_fan_allowed_on, validate_active_fan,
 };
 mod driver;
 #[cfg(test)]
@@ -42,6 +41,20 @@ impl Values {
         }
         Ok(result)
     }
+
+    fn select(&self, previous: Self) -> Self {
+        Self {
+            turbo_fan: self.turbo_fan.or(previous.turbo_fan),
+            dtt: self.dtt.or(previous.dtt),
+        }
+    }
+}
+#[derive(Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum QuietTarget {
+    Current,
+    EntertainmentOn,
+    EntertainmentOff,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -49,7 +62,7 @@ pub struct Request {
     pub expected_revision: String,
     pub values: Values,
     #[serde(deserialize_with = "Option::deserialize")]
-    pub quiet_fan: Option<bool>,
+    pub quiet_fan: Option<QuietTarget>,
     pub replace_custom_fan: bool,
 }
 #[derive(Debug, Serialize)]
@@ -66,9 +79,8 @@ pub struct Profile {
     pub quiet_fan: Option<QuietFan>,
     pub current_mode: u8,
     pub applies_in_current_mode: bool,
-    pub entertainment_options_pending: bool,
-    pub custom_fan: bool,
-    pub software_active: bool,
+    pub turbo_active: bool,
+    pub dtt_active: bool,
     pub dtt_driver_available: Option<bool>,
     pub revision: String,
     pub warnings: Vec<String>,
@@ -206,31 +218,33 @@ pub(crate) fn turbo_enabled(io: &impl ModeIo, mode: u8) -> Result<bool> {
     Ok(mode == 2 && byte(io, 4, 8)? != 0)
 }
 
-pub(super) fn prepare_recovery(hal: &Hal, target: CoreSnapshot) -> Result<()> {
+pub(super) fn prepare_recovery(
+    hal: &Hal,
+    target: CoreSnapshot,
+    fan_attempted: &mut bool,
+) -> Result<()> {
     if target.mode == 3 && target.command & 0xc0 != 0 {
         hal.with_dchu(|io| validate_entertainment_command(io, target.command))?;
         if target.command & 0x80 != 0 {
             require_driver(hal)?;
         }
     }
-    if target.command & 0x40 != 0
-        && hal.with_dchu(|io| {
-            let fan = ccc_core::fan::decode_oem_fan_mode(io.fan_info()?[14])
-                .map_err(anyhow::Error::msg)?;
-            Ok(current_mode(io)? == target.mode
-                && matches!(fan, FAN_MODE_NOISELESS | FAN_MODE_CUSTOM))
-        })?
-    {
-        fanctl::apply_mode_policy(hal, FAN_MODE_AUTO, FAN_MODE_AUTO)?;
+    if target.command & 0x40 != 0 {
+        *fan_attempted |= fanctl::software::active(hal)?;
+        fanctl::software::stop_safely(hal)?;
+        fanctl::handoff_for_turbo(hal, fan_attempted)?;
     }
     Ok(())
 }
 
 impl Preview {
     fn values(&self) -> Values {
+        self.values_for(self.core.preferences)
+    }
+    fn values_for(&self, preferences: [u8; 2]) -> Values {
         Values {
-            turbo_fan: self.caps[0].then_some(self.core.preferences[0] == 1),
-            dtt: self.caps[1].then_some(self.core.preferences[1] == 1),
+            turbo_fan: self.caps[0].then_some(preferences[0] == 1),
+            dtt: self.caps[1].then_some(preferences[1] == 1),
         }
     }
     fn target(&self, request: &Request) -> Result<(CoreSnapshot, Option<u8>)> {
@@ -245,8 +259,22 @@ impl Preview {
         }
         let preferences = request
             .values
+            .select(self.values())
             .preferences(self.core.preferences, self.caps)?;
-        let fan = self.fan_target(preferences, request.quiet_fan)?;
+        let command = option_command(
+            self.core.mode,
+            [
+                u8::from(
+                    request
+                        .values
+                        .turbo_fan
+                        .unwrap_or(self.core.command & 0x40 != 0),
+                ),
+                u8::from(request.values.dtt.unwrap_or(self.core.command & 0x80 != 0)),
+            ],
+            self.runtime_options,
+        );
+        let fan = self.fan_target(command, request.quiet_fan)?;
         if request.replace_custom_fan {
             let mut expected = self.core.preferences;
             let turbo_handoff = self.core.mode == 3
@@ -256,7 +284,7 @@ impl Preview {
                 && preferences[0] == 1;
             if turbo_handoff {
                 expected[0] = 1;
-            } else if self.runtime_options[0] && request.quiet_fan == Some(true) && self.caps[0] {
+            } else if self.core.command & 0x40 != 0 && fan == Some(FAN_MODE_NOISELESS) {
                 expected[0] = 0;
             }
             if self.fan != FAN_MODE_CUSTOM
@@ -270,9 +298,8 @@ impl Preview {
         if fan.is_some() && self.fan == FAN_MODE_CUSTOM && !request.replace_custom_fan {
             bail!("请先确认切换自定义固件风扇曲线");
         }
-        let command = option_command(self.core.mode, preferences, self.runtime_options);
         if self.runtime_options[1]
-            && preferences[1] == 1
+            && command & 0x80 != 0
             && (preferences != self.core.preferences || command != self.core.command)
             && self.driver != Some(true)
         {
@@ -285,18 +312,23 @@ impl Preview {
         };
         Ok((core, fan))
     }
-    fn fan_target(&self, preferences: [u8; 2], wanted: Option<bool>) -> Result<Option<u8>> {
-        let turbo_changed =
-            self.runtime_options[0] && (preferences[0] == 1) != (self.core.command & 0x40 != 0);
-        if let Some(enabled) = wanted {
+    fn fan_target(&self, command: u32, wanted: Option<QuietTarget>) -> Result<Option<u8>> {
+        let turbo = command & 0x40 != 0;
+        let turbo_changed = (command ^ self.core.command) & 0x40 != 0;
+        if let Some(wanted) = wanted {
             let current = self
                 .quiet_fan
                 .as_ref()
                 .ok_or_else(|| anyhow!("当前模式或固件未开放{NOISELESS_FAN_LABEL}"))?;
-            if self.runtime_options[0] && enabled && preferences[0] == 1 {
+            if wanted != QuietTarget::Current && self.core.mode != 3 {
+                bail!("仅娱乐模式可设置娱乐档寂静偏好");
+            }
+            let enabled = wanted != QuietTarget::EntertainmentOff;
+            if enabled && turbo {
                 bail!("Turbo 风扇与{NOISELESS_FAN_LABEL}不能同时开启");
             }
-            if enabled != current.enabled || turbo_changed || (enabled && !current.active) {
+            let preference_changed = wanted != QuietTarget::Current && enabled != current.enabled;
+            if preference_changed || turbo_changed || (enabled && !current.active) {
                 return Ok(Some(if enabled {
                     FAN_MODE_NOISELESS
                 } else {
@@ -320,8 +352,12 @@ pub(super) fn write_target(io: &impl ModeIo, target: CoreSnapshot) -> Result<()>
     Ok(())
 }
 pub(super) fn write_saved(io: &impl ModeIo, preferences: [u8; 2]) -> Result<()> {
-    settings::apply(io, 4, &[Patch::new(8, [preferences[0]])], None).map_err(|e| anyhow!(e))?;
-    settings::apply(io, 1, &[Patch::new(32, [preferences[1]])], None).map_err(|e| anyhow!(e))?;
+    for (page, offset, value) in [(4, 8, preferences[0]), (1, 32, preferences[1])] {
+        if byte(io, page, offset)? != value {
+            settings::apply(io, page, &[Patch::new(offset, [value])], None)
+                .map_err(|error| anyhow!(error))?;
+        }
+    }
     Ok(())
 }
 fn installed(hal: &Hal, reviewed: bool) -> Result<bool> {
@@ -388,24 +424,15 @@ pub(crate) fn capture_values(hal: &Hal) -> Result<Option<Values>> {
         }))
     })
 }
-pub(super) fn configure(
+pub(super) fn profile_preferences(
     io: &impl ModeIo,
-    before: CoreSnapshot,
-    target: &mut Target,
+    before: [u8; 2],
     values: Option<&Values>,
 ) -> Result<[u8; 2]> {
-    let Some(values) = values else {
-        return Ok(before.preferences);
-    };
-    let preferences = values.preferences(before.preferences, capabilities(io)?)?;
-    let [turbo, dtt] = runtime_options(io, target.mode)?;
-    target.turbo = turbo && preferences[0] == 1;
-    target.dtt = dtt && preferences[1] == 1;
-    if turbo && (preferences[0] != before.preferences[0] || target.mode == 3 && target.turbo) {
-        target.fan_mode = 0;
-        target.fan_saved_mode = 0;
+    match values {
+        Some(values) => values.preferences(before, capabilities(io)?),
+        None => Ok(before),
     }
-    Ok(preferences)
 }
 pub fn read(hal: &Hal) -> Result<Profile> {
     let support_issue = hal.with_dchu(|io| super::support::issue(io))?;
@@ -416,10 +443,8 @@ pub fn read(hal: &Hal) -> Result<Profile> {
         quiet_fan: p.quiet_fan,
         current_mode: p.core.mode,
         applies_in_current_mode: p.runtime_options != [false; 2],
-        entertainment_options_pending: p.core.mode == 3
-            && p.core.command != option_command(p.core.mode, p.core.preferences, p.runtime_options),
-        custom_fan: p.fan == FAN_MODE_CUSTOM,
-        software_active: fanctl::software::active(hal)?,
+        turbo_active: p.core.command & 0x40 != 0,
+        dtt_active: p.core.command & 0x80 != 0,
         dtt_driver_available: driver,
         revision: p.revision,
         warnings,
@@ -439,6 +464,7 @@ pub fn apply(hal: &Hal, request: &Request) -> Result<()> {
     if (current.runtime_options != [false; 2] || fan.is_some()) && fanctl::software::active(hal)? {
         bail!("请先退出软件风扇曲线，再应用性能选项");
     }
-    let plan = Plan::from_preview(hal, current, &request.values, next.preferences, fan)?;
+    let remember_quiet = request.quiet_fan != Some(QuietTarget::Current);
+    let plan = Plan::from_preview(hal, current, next, fan, remember_quiet)?;
     plan.execute(hal, false, &mut Change::default())
 }

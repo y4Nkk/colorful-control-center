@@ -69,7 +69,7 @@ test("GPU 提交后保持滑杆位置和恢复按钮，直到设备回读", asyn
 });
 
 test("风扇曲线调节跨相同事实回读保留草稿，提交后不跳回旧点位", async ({ page }) => {
-  const fan = panel(page, "风扇设置");
+  const fan = panel(page, "散热控制");
   const handle = fan.getByRole("slider", { name: /^T2\/D2 可调点/ });
   const duty = fan.getByRole("spinbutton", { name: "T2 占空比", exact: true });
   await expect(duty).toHaveValue("50");
@@ -95,7 +95,7 @@ test("风扇曲线调节跨相同事实回读保留草稿，提交后不跳回�
 
 test("CPU 独立调节不刷新其他卡片", async ({ page }) => {
   await expect(panel(page, "预设模式").locator(".ccc-preset-current")).toHaveText("性能模式");
-  await expect(panel(page, "性能选项").getByRole("switch", { name: "Turbo 风扇", exact: true })).toBeEnabled();
+  await expect(panel(page, "散热控制").getByRole("switch", { name: "Turbo 风扇", exact: true })).toBeEnabled();
   await expect(slider(page, "核心频率偏移")).toBeVisible();
   await expect(slider(page, "加速偏移")).toBeEnabled();
   const others = ["read_oem_power_mode", "read_oem_performance_options", "read_gpu_profile", "read_fan_profile"];
@@ -116,7 +116,7 @@ test("风扇换档触发后台回读时保留预设插画与布局", async ({ pa
   const location = () => artwork.evaluate(node => node.getBoundingClientRect().top - node.closest("section").getBoundingClientRect().top);
   const before = await location();
   await holdReadback(page, "set_fan_mode", "read_oem_power_mode");
-  await panel(page, "风扇设置").getByRole("radio", { name: "全速", exact: true }).click();
+  await panel(page, "散热控制").getByRole("radio", { name: "全速", exact: true }).click();
   await waitForReadback(page);
   await expect(modes.getByRole("status")).toHaveText("");
   await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
@@ -128,7 +128,7 @@ test("风扇换档触发后台回读时保留预设插画与布局", async ({ pa
 test("后台读取失败保留面板和实读值，恢复后解除写入锁", async ({ page }) => {
   const cpu = slider(page, "持续功耗上限");
   const gpu = slider(page, "核心频率偏移");
-  const turbo = panel(page, "性能选项").getByRole("switch", { name: "Turbo 风扇", exact: true });
+  const turbo = panel(page, "散热控制").getByRole("switch", { name: "Turbo 风扇", exact: true });
   for (const control of [cpu, gpu, turbo]) await expect(control).toBeEnabled();
   const handles = await Promise.all([cpu, gpu, turbo].map(control => control.elementHandle()));
   await page.evaluate(() => {
@@ -142,7 +142,7 @@ test("后台读取失败保留面板和实读值，恢复后解除写入锁", as
     window.__controlReadFault = true;
     window.__uiEmit("hardware-controls-changed", null);
   });
-  for (const name of ["CPU 功耗与电压", "GPU 频率", "性能选项"]) {
+  for (const name of ["CPU 功耗与电压", "GPU 频率", "散热控制"]) {
     await expect(panel(page, name).getByRole("alert")).toContainText("隔离后台回读失败");
   }
   for (const control of [cpu, gpu, turbo]) await expect(control).toBeDisabled();
@@ -157,13 +157,13 @@ test("后台读取失败保留面板和实读值，恢复后解除写入锁", as
 });
 
 test("传感器采样暂停时保留风扇读数并标记来源", async ({ page }) => {
-  const readings = panel(page, "风扇设置").locator(".ccc-fan-readings");
+  const readings = panel(page, "散热控制").locator(".ccc-fan-readings");
   await expect(readings).toContainText("°C");
   await expect(readings).toContainText("RPM");
   const values = await readings.locator("dd").allTextContents();
   await expect(readings.getByText("上次温度", { exact: true })).toBeVisible();
   await expect(readings.getByText("上次转速", { exact: true })).toBeVisible();
   expect(await readings.locator("dd").allTextContents()).toEqual(values);
-  await page.evaluate(async () => window.__uiEmit("hardware-snapshot", await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot")));
+  await page.evaluate(async () => window.__uiEmit("hardware-snapshot", window.__uiHardwareSnapshot()));
   await expect(readings.getByText("实测转速", { exact: true })).toBeVisible();
 });

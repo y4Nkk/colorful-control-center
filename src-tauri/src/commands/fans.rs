@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::fanctl::{self, FanProfile};
+use crate::fanctl;
 use crate::hal::Hal;
 
 /// 单风扇可调点（None 字段 = 保持现值）。
@@ -14,6 +14,13 @@ pub struct CurvePointsDto {
     pub d2_pct: f64,
     pub t3: f64,
     pub d3_pct: f64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct FanRestoreRequest {
+    target: fanctl::RestoreTarget,
+    expected_revision: String,
 }
 
 #[derive(Serialize)]
@@ -37,9 +44,9 @@ fn to_result<T>(result: anyhow::Result<T>) -> Result<OpResult, String> {
 }
 
 #[tauri::command]
-pub(crate) fn read_fan_profile(hal: State<'_, Hal>) -> Result<FanProfile, String> {
+pub(crate) fn read_fan_profile(hal: State<'_, Hal>) -> Result<fanctl::RestoreView, String> {
     let _write = hal.begin_write().map_err(|e| format!("{e:#}"))?;
-    fanctl::read_profile(&hal).map_err(|e| e.to_string())
+    fanctl::read_restore_view(&hal).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -92,13 +99,14 @@ pub(crate) fn set_fan_offset(
 }
 
 #[tauri::command]
-pub(crate) fn restore_fan_default(hal: State<'_, Hal>) -> Result<OpResult, String> {
+pub(crate) fn restore_fan_settings(
+    hal: State<'_, Hal>,
+    request: FanRestoreRequest,
+) -> Result<OpResult, String> {
     let _write = hal.begin_write().map_err(|e| e.to_string())?;
-    to_result(fanctl::restore_default(&hal))
-}
-
-#[tauri::command]
-pub(crate) fn restore_fan_profile(hal: State<'_, Hal>) -> Result<OpResult, String> {
-    let _write = hal.begin_write().map_err(|e| e.to_string())?;
-    to_result(fanctl::restore_initial(&hal))
+    to_result(fanctl::restore(
+        &hal,
+        request.target,
+        &request.expected_revision,
+    ))
 }

@@ -1,8 +1,13 @@
 use super::*;
-use crate::fanctl::{self, FAN_MODE_AUTO, FAN_MODE_NOISELESS, OffsetSource};
+use crate::fanctl::{self, FAN_MODE_AUTO, FAN_MODE_NOISELESS, OffsetSource, RestoreTarget};
 
 fn source(mode: u8, slot: Option<usize>) -> OffsetSource {
     OffsetSource { mode, slot }
+}
+
+fn restore(hal: &Hal, target: RestoreTarget) -> anyhow::Result<()> {
+    let expected = fanctl::read_restore_view(hal)?.restore_revision;
+    fanctl::restore(hal, target, &expected)
 }
 
 #[test]
@@ -228,7 +233,7 @@ fn partial_slot_save_failure_reissues_the_previous_offset_and_retains_first_base
         );
         w.writes.clear();
     });
-    fanctl::restore_initial(&hal).unwrap();
+    restore(&hal, RestoreTarget::Initial).unwrap();
     wire(|w| {
         assert_eq!((w.pages[4][5], w.pages[4][7], w.pages[4][76]), (8, 20, 20));
         assert_eq!(w.writes, [(121, vec![77, 0, 0, 14])]);
@@ -253,6 +258,79 @@ fn offset_compensation_failure_is_reported_alongside_the_save_error() {
         "{message}"
     );
     wire(|w| assert_eq!(w.pages[4][7], 20));
+}
+
+#[test]
+fn combined_restore_applies_initial_before_factory_and_reports_the_failed_stage() {
+    for fault in [None, Some(77), Some(0)] {
+        let hal = hal();
+        let _gate = hal.begin_write().unwrap();
+        wire(|w| {
+            w.offset_raw = 77;
+            w.pages[4][7] = 30;
+        });
+        fanctl::set_manual_offset(&hal, source(FAN_MODE_AUTO, None), 50).unwrap();
+        wire(|w| {
+            w.writes.clear();
+            w.offset_command_failure = fault;
+        });
+        let result = restore(&hal, RestoreTarget::InitialAndFirmwareDefault);
+        wire(|w| {
+            assert_eq!(w.writes[0], (121, vec![77, 0, 0, 14]));
+            let factory = w
+                .writes
+                .iter()
+                .position(|(command, payload)| *command == 121 && payload == &[1, 0, 0, 34]);
+            match fault {
+                None => {
+                    result.unwrap();
+                    assert_eq!(factory, Some(1));
+                    assert_eq!(w.offset_raw, 0);
+                }
+                Some(77) => {
+                    assert!(
+                        result
+                            .unwrap_err()
+                            .to_string()
+                            .contains("初始风扇设置恢复失败")
+                    );
+                    assert_eq!(factory, None);
+                    assert_eq!(w.offset_raw, 128);
+                }
+                Some(0) => {
+                    assert!(
+                        result
+                            .unwrap_err()
+                            .to_string()
+                            .contains("初始风扇设置已恢复，固件默认设置恢复失败")
+                    );
+                    assert_eq!(factory, Some(1));
+                    assert_eq!(w.offset_raw, 77);
+                }
+                _ => unreachable!(),
+            }
+        });
+        assert!(hal.recovery().unwrap().fan.is_some());
+    }
+}
+
+#[test]
+fn changed_initial_checkpoint_revokes_confirmation_before_writing() {
+    let hal = hal();
+    let _gate = hal.begin_write().unwrap();
+    wire(|w| w.offset_raw = 77);
+    fanctl::set_manual_offset(&hal, source(FAN_MODE_AUTO, None), 50).unwrap();
+    let expected = fanctl::read_restore_view(&hal).unwrap().restore_revision;
+    let replacement = fanctl::checkpoint(&hal, false).unwrap();
+    hal.recovery().unwrap().fan = Some(replacement);
+    wire(|w| w.writes.clear());
+    let error =
+        fanctl::restore(&hal, RestoreTarget::InitialAndFirmwareDefault, &expected).unwrap_err();
+    assert!(error.to_string().contains("风扇恢复目标已变化"));
+    wire(|w| {
+        assert!(w.writes.is_empty());
+        assert_eq!(w.offset_raw, 128);
+    });
 }
 
 #[test]
@@ -284,7 +362,7 @@ fn entertainment_turbo_restores_auto_without_erasing_quiet_preference() {
         Some(FAN_MODE_AUTO)
     );
     wire(|w| w.writes.clear());
-    fanctl::restore_initial(&hal).unwrap();
+    restore(&hal, RestoreTarget::Initial).unwrap();
     wire(|w| {
         assert_eq!(w.writes, [(121, vec![51, 0, 0, 14])]);
         assert_eq!(&w.pages[4][7..10], &[20, 1, 1]);

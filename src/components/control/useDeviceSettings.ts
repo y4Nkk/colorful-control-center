@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useOemConflict } from "../OemConflictHost";
+import { fnKeyConflict, useOemConflict } from "../OemConflictHost";
 import { toast } from "../use-toast";
 
 export function useDeviceSettings<T>(read: () => Promise<T>, active: boolean, revision: number | string, pollMs?: number) {
@@ -10,7 +10,7 @@ export function useDeviceSettings<T>(read: () => Promise<T>, active: boolean, re
   const [busy, setBusy] = useState(false);
   const generation = useRef(0), reading = useRef(false), writing = useRef(false);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (controlsChanged = false) => {
     const current = ++generation.current;
     reading.current = true;
     try {
@@ -18,6 +18,7 @@ export function useDeviceSettings<T>(read: () => Promise<T>, active: boolean, re
       if (current !== generation.current) return false;
       setProfile(next);
       setReadError(null);
+      if (controlsChanged) setActionError(previous => fnKeyConflict([previous]) ? null : previous);
       return true;
     } catch (error) {
       if (current === generation.current) {
@@ -31,7 +32,7 @@ export function useDeviceSettings<T>(read: () => Promise<T>, active: boolean, re
 
   useEffect(() => {
     if (!active) return;
-    if (!writing.current) void reload();
+    if (!writing.current) void reload(true);
     if (pollMs === undefined) return;
     const timer = setInterval(() => {
       if (!reading.current && !writing.current) void reload();
@@ -65,7 +66,9 @@ export function useDeviceSettings<T>(read: () => Promise<T>, active: boolean, re
     if (active && !writing.current) return reload();
   }, [active, reload]);
   const reread = () => {
-    void refresh()?.then(refreshed => { if (refreshed) setActionError(null); });
+    if (!active || writing.current) return;
+    setActionError(null);
+    void reload();
   };
   const error = [actionError, readError].filter(Boolean).join("。") || null;
   return { profile: readError === null ? profile ?? null : null, lastProfile: profile ?? null,

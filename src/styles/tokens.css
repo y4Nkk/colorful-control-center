@@ -17,6 +17,7 @@
   --ccc-safe-text: #1e8e3e;
   --ccc-warning: #b25000;
   --ccc-danger: #d70015;
+  --ccc-danger-fill: var(--ccc-danger);
 
   /* 语义色 —— 浅色主题 */
   --ccc-canvas: #f6f7fb;
@@ -235,6 +236,7 @@
   --ccc-safe-text: #4cd964;
   --ccc-warning: #ff9f0a;
   --ccc-danger: #ff453a;
+  --ccc-danger-fill: #cd332a;
 
   --ccc-canvas: #071725;
   --ccc-chrome-bg: rgba(17, 30, 43, 0.6);

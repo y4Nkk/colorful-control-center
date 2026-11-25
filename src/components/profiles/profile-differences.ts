@@ -1,5 +1,5 @@
 import {
-  ENERGY_POLICY_LABEL, FAN_MODES, OEM_POWER_MODES, offsetUnitsToMv,
+  ENERGY_POLICY_LABEL, OEM_POWER_MODES, fanModeLabel, offsetUnitsToMv,
   type DisplayMode, type ManualProfilePreview, type ProfileSettings,
 } from "../../api/client";
 import { formatParameter } from "../../lib/format-parameters";
@@ -13,7 +13,6 @@ export interface ProfileDifference {
 }
 
 const mode = (value: number) => OEM_POWER_MODES[value] ?? "未知模式";
-const fanMode = (value: number) => FAN_MODES.find(option => option.id === value)?.label ?? "未知模式";
 const graphicsMode = (value: number) => ({ 1: "集显", 2: "独显", 3: "混合", 4: "动态" })[value] ?? "未知模式";
 const onOff = (enabled: boolean) => enabled ? "开启" : "关闭";
 const readConfig = () => "已读取";
@@ -40,7 +39,7 @@ function performance(s: ProfileSettings, b: ProfileSettings | null, review: Manu
   return [
     ...entry("原厂模式", b?.oemPowerMode, s.oemPowerMode, mode, firmware),
     ...entry("风扇模式", b?.fanSoftwareCurves ? -1 : b?.fanMode, s.fanSoftwareCurves ? -1 : s.fanMode,
-      value => value === -1 ? "软件曲线" : fanMode(value)),
+      value => value === -1 ? "软件曲线" : fanModeLabel(value)),
     ...defaultConfig("性能选项", b?.performanceOptions, s.performanceOptions),
     ...entry("持续功耗上限 · 保存值", b?.pl1W, s.pl1W, measure("W")),
     ...entry("短时功耗上限 · 保存值", b?.pl2W, s.pl2W, measure("W")),

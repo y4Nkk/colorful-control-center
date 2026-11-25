@@ -1,4 +1,4 @@
-use super::{Controller, desktop};
+use super::{Controller, desktop, placement};
 use anyhow::Result;
 use tauri::{AppHandle, Manager, utils::config::WindowConfig};
 
@@ -27,7 +27,12 @@ pub fn create_window(app: &AppHandle, windows: &[WindowConfig]) -> Result<()> {
     let settings = controller.snapshot();
     for config in windows {
         let config = configure(config, controller.acceleration);
-        tauri::WebviewWindowBuilder::from_config(app, &config)?.build()?;
+        let window = tauri::WebviewWindowBuilder::from_config(app, &config)?.build()?;
+        if config.label == "main"
+            && let Err(error) = placement::bind(&window, &config)
+        {
+            log::warn!("[window] 初始化主窗口布局失败：{error:#}");
+        }
     }
     if let Ok(snapshot) = &settings {
         if let Err(error) = desktop::apply(app, &snapshot.settings) {

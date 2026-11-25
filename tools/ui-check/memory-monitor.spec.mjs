@@ -11,7 +11,7 @@ async function publish(page, reading, available = true) {
   await page.evaluate(async ({ reading, available }) => {
     const data = window.__uiFixture;
     data.oemMemory = reading;
-    const snapshot = await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot");
+    const snapshot = window.__uiHardwareSnapshot();
     snapshot.sampledAtMs = data.lastMemorySample = Math.max(Date.now(), data.lastMemorySample ?? 0) + 1000;
     snapshot.dchuAvailable = available;
     if (!available) {
@@ -58,7 +58,7 @@ test("系统配置速率缺失时保留未知，原厂报告仍独立显示", as
   await page.reload();
   await expect(memory(page).getByLabel("内存频率", { exact: true })).toHaveText("5200 MT/s");
   await page.evaluate(() => { window.__uiFixture.memorySpeedMts = null; });
-  await page.clock.fastForward(5100);
+  await page.clock.fastForward(30_100);
   await expect(memory(page).getByLabel("内存频率", { exact: true })).toHaveText("未知");
   await openDetails(page);
   await expect(fact(page, "内存频率")).toHaveText("未知");

@@ -54,7 +54,7 @@ export function ProfileApplicationHost() {
         <Button icon="undo" variant="secondary" disabled={busy} onClick={() => { void run(false); }}>恢复本次显示并停止</Button></div>
     </>}
     {problem && <p className="ccc-control-error" role="alert">{problem}</p>}
-    <OemConflictAction issues={[problem, ...failedSteps(report)]} disabled={busy} onClosed={reread} />
+    <OemConflictAction issues={[problem, ...(pending ? failedSteps(report) : [])]} disabled={busy} onClosed={reread} />
     {report?.steps.some(step => !step.ok) && <ul className="ccc-profile-steps" aria-label="档案显示执行结果">{report.steps.map((step, index) => <li key={index}><span className="ccc-step-status"><Icon name={step.ok ? "check-circle" : "error"} label={step.ok ? "成功" : "失败"} size={16} />{step.step}</span><span>{step.message}</span></li>)}</ul>}
     {!pending && error && <Button icon="refresh" variant="secondary" disabled={busy} onClick={() => { void refreshProfileApplication(true); }}>重新读取档案状态</Button>}
   </Surface>;

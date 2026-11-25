@@ -3,11 +3,11 @@ mod native;
 
 use crate::{preferences, shutdown};
 use anyhow::Result;
-use native::{Action, Tray};
+use native::{Action, MenuData, Tray};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
-pub(crate) use controls::sample;
+pub(crate) use controls::sample_tooltip;
 
 #[derive(Serialize, Clone)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -42,23 +42,26 @@ pub(crate) fn start(app: &AppHandle) -> Result<()> {
         }
         _ => (),
     };
+    let menu_handle = app.clone();
     app.manage(Tray::start(
         Some(tauri::utils::platform::WINDOWS_APP_ICON_RESOURCE_ID),
         dispatch,
+        move || menu_data(&menu_handle),
         shutdown::closing,
     )?);
     Ok(())
 }
 
-pub fn refresh_profiles(app: &AppHandle) {
-    if let Some(tray) = app.try_state::<Tray>() {
-        tray.set_profiles(match crate::profiles::list(app) {
+fn menu_data(app: &AppHandle) -> MenuData {
+    MenuData {
+        controls: controls::menu_controls(app),
+        profiles: match crate::profiles::list(app) {
             Ok(list) => Some(list.into_iter().map(|profile| profile.name).collect()),
             Err(error) => {
                 log::error!("[tray] 档案列表：{error:#}");
                 None
             }
-        });
+        },
     }
 }
 

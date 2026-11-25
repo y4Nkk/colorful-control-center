@@ -57,7 +57,7 @@ fn driver_change_after_options_or_mode_preparation_refuses_all_target_outputs() 
             available.store(false, std::sync::atomic::Ordering::SeqCst);
             assert!(plan.execute(&f.hal).is_err());
         } else {
-            let plan = boost::Plan::prepare(&f.hal, &values(false, true)).unwrap();
+            let plan = boost::Plan::prepare(&f.hal, &values(false, true), None).unwrap();
             available.store(false, std::sync::atomic::Ordering::SeqCst);
             assert!(
                 plan.execute(&f.hal, false, &mut boost::Change::default())
@@ -92,7 +92,7 @@ fn changed_context_cannot_be_captured_as_an_old_initial_restore_state() {
             f.device.0.lock().unwrap().active_plan = crate::hal::power_plan::SCHEMES[1];
             assert!(plan.execute(&f.hal).is_err());
         } else {
-            let plan = boost::Plan::prepare(&f.hal, &values(false, true)).unwrap();
+            let plan = boost::Plan::prepare(&f.hal, &values(false, true), None).unwrap();
             f.device.0.lock().unwrap().active_plan = crate::hal::power_plan::SCHEMES[1];
             assert!(
                 plan.execute(&f.hal, false, &mut boost::Change::default())
@@ -145,4 +145,23 @@ fn active_turbo_conflict_is_mode_dependent_and_zero_write_for_software_curves() 
     assert!(f.device.0.lock().unwrap().events.is_empty());
     settings.oem_power_mode = Some(3);
     assert!(crate::profiles::validate(&settings).is_ok());
+    let _gate = f.hal.begin_write().unwrap();
+    let context = f.devices().mode_context(&f.hal, &f.gpu).unwrap();
+    assert!(
+        !crate::profiles::preview_mode(&context, &settings)
+            .unwrap()
+            .unwrap()
+            .turbo
+    );
+    f.hal
+        .with_dchu(|io| {
+            io.test_entertainment_options
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+            Ok(())
+        })
+        .unwrap();
+    f.device.0.lock().unwrap().bios[10] |= 4;
+    let error = crate::profiles::preview_mode(&context, &settings).unwrap_err();
+    assert!(error.to_string().contains("Turbo 风扇不能与"));
+    assert!(f.device.0.lock().unwrap().events.is_empty());
 }

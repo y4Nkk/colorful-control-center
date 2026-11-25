@@ -99,7 +99,7 @@ impl Hal {
             self.latch_software_fan_fault();
         }
         *self.safety.lock().map_err(|_| anyhow!("监护状态不可用"))? = match &result {
-            Ok(()) => "固件控制".into(),
+            Ok(()) => SOFTWARE_FAN_IDLE_STATUS.into(),
             Err(error) => format!("风扇监护退出异常：{error:#}"),
         };
         result

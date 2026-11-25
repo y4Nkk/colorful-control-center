@@ -229,7 +229,7 @@ fn allowed(hal: &crate::hal::Hal, display: &crate::display::Controller) -> Resul
         bail!("请先保留或恢复刷新率试用，再修改显卡模式");
     }
     if crate::fanctl::software::active(hal)? {
-        bail!("请先确认软件风扇已归还，再修改显卡模式");
+        bail!("请先确认风扇已退出软件调速，再修改显卡模式");
     }
     Ok(())
 }

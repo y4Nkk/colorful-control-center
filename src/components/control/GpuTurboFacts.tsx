@@ -1,12 +1,9 @@
-import { OEM_POWER_MODES, restoreGpuTurbo, type GpuTurboProfile } from "../../api/client";
-import { ConfirmButton } from "../ConfirmButton";
+import { OEM_POWER_MODES, type GpuTurboProfile } from "../../api/client";
 import { Surface } from "../Surface";
 import { DetailsDialog } from "../DetailsDialog";
 import { gpuLock, gpuOffsets, gpuRestoredOffset, gpuTarget } from "./gpu-values";
 
-type Props = { profile: GpuTurboProfile; busy: boolean; run: (action: () => Promise<void>, message: string, reset: boolean) => Promise<void> };
-
-export function GpuTurboFacts({ profile, busy, run }: Props) {
+export function GpuTurboFacts({ profile }: { profile: GpuTurboProfile }) {
   const { current, initial } = profile;
   return <section className="ccc-gpu-turbo-facts" aria-label="原厂 GPU Turbo 事实与预览">
     <strong>原厂 GPU Turbo</strong>
@@ -24,15 +21,7 @@ export function GpuTurboFacts({ profile, busy, run }: Props) {
         {profile.error && <p className="ccc-control-error">{profile.error}</p>}
         {initial && <>
           <strong>恢复接管前的值</strong>
-          <p className="ccc-control-caption">图形锁频：{initial.locks ? `${profile.restoreCurrent?.locks ? gpuLock(profile.restoreCurrent.locks[0]) : "未知"} → ${gpuLock(initial.locks[0])}` : "未接管"}</p>
-          {initial.locks && <p className="ccc-control-caption">第二锁频域：{profile.restoreCurrent?.locks ? gpuLock(profile.restoreCurrent.locks[1]) : "未知"} → {gpuLock(initial.locks[1])}</p>}
-          {initial.offsets.map((value, index) => <p className="ccc-control-caption" key={index}>
-            GPU {index + 1} · 核心 {gpuRestoredOffset(profile.restoreCurrent?.offsets[index]?.coreKhz, value.coreKhz)} · 显存 {gpuRestoredOffset(profile.restoreCurrent?.offsets[index]?.memKhz, value.memKhz)}
-          </p>)}
-          {profile.restoreError && <p className="ccc-control-error">{profile.restoreError}</p>}
-          <ConfirmButton icon="undo" key={profile.restoreRevision ?? "gpu-turbo-unavailable"} variant="secondary"
-            label="恢复初始 GPU 状态" confirmLabel="确认停止监听并恢复上述状态？" busy={busy} disabled={!profile.restoreRevision}
-            onConfirm={() => run(() => restoreGpuTurbo(profile.restoreRevision!), "初始 GPU 状态已恢复", false)} />
+          <GpuTurboRestorePreview profile={profile} />
         </>}
       </Surface>
       <Surface variant="inset" className="ccc-gpu-turbo-part">
@@ -53,4 +42,17 @@ export function GpuTurboFacts({ profile, busy, run }: Props) {
       </Surface>
     </div>
   </section>;
+}
+
+export function GpuTurboRestorePreview({ profile }: { profile: GpuTurboProfile }) {
+  const { initial, restoreCurrent, restoreError } = profile;
+  if (!initial) return null;
+  return <>
+    <p className="ccc-control-caption">图形锁频：{initial.locks ? `${restoreCurrent?.locks ? gpuLock(restoreCurrent.locks[0]) : "未知"} → ${gpuLock(initial.locks[0])}` : "未接管"}</p>
+    {initial.locks && <p className="ccc-control-caption">第二锁频域：{restoreCurrent?.locks ? gpuLock(restoreCurrent.locks[1]) : "未知"} → {gpuLock(initial.locks[1])}</p>}
+    {initial.offsets.map((value, index) => <p className="ccc-control-caption" key={index}>
+      GPU {index + 1} · 核心 {gpuRestoredOffset(restoreCurrent?.offsets[index]?.coreKhz, value.coreKhz)} · 显存 {gpuRestoredOffset(restoreCurrent?.offsets[index]?.memKhz, value.memKhz)}
+    </p>)}
+    {restoreError && <p className="ccc-control-error">{restoreError}</p>}
+  </>;
 }

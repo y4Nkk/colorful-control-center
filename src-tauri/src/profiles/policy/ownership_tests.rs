@@ -4,7 +4,7 @@ use crate::hal::power_events::Route;
 fn mode_policy(h: &mut Harness) -> std::path::PathBuf {
     let path = h.dir.path().join("oem-supply-mode.json");
     h.f.hal.bind_automatic_mode_record(path.clone());
-    let record = serde_json::json!({"version":3,"enabled":true,
+    let record = serde_json::json!({"version":5,"enabled":true,
         "deviceIdentity":"a".repeat(64),"identity":"b".repeat(64),
         "clockApproval":{"policyIdentity":"c".repeat(64),"driverIdentity":null},
         "captureTarget":null,"initial":null,"last":null,"attempt":null,"trackClocks":false});

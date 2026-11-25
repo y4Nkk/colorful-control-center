@@ -1,6 +1,6 @@
 [package]
 name = "colorful-control-center"
-version = "1.2.1"
+version = "1.3.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2024"
@@ -36,7 +36,7 @@ anyhow = "1.0.104"
 sha2 = "0.10"
 roxmltree = "0.20.0"
 windows = { version = "0.62.2", features = ["Win32_Devices_FunctionDiscovery", "Win32_Foundation", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_TaskScheduler", "Win32_System_Variant", "Win32_System_Ole", "Win32_System_Rpc", "Win32_System_Wmi", "Win32_UI_Shell_PropertiesSystem"] }
-windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Globalization", "Win32_Security", "Win32_Security_Authentication_Identity", "Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_Storage_Packaging_Appx", "Win32_System_LibraryLoader", "Win32_System_IO", "Win32_System_Registry", "Win32_System_Power", "Win32_System_Shutdown", "Win32_System_Performance", "Win32_System_Com", "Win32_System_EventLog", "Win32_System_Services", "Win32_System_Diagnostics_ToolHelp", "Win32_System_SystemInformation", "Win32_System_SystemServices", "Win32_System_WindowsProgramming", "Win32_System_Threading", "Win32_System_RemoteDesktop", "Win32_System_JobObjects", "Win32_Graphics_Gdi", "Win32_UI_Shell", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging", "Win32_Devices_DeviceAndDriverInstallation", "Win32_Devices_HumanInterfaceDevice", "Win32_Devices_Properties"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Globalization", "Win32_Security", "Win32_Security_Authentication_Identity", "Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_Storage_Packaging_Appx", "Win32_System_LibraryLoader", "Win32_System_IO", "Win32_System_Registry", "Win32_System_Power", "Win32_System_Shutdown", "Win32_System_Performance", "Win32_System_Com", "Win32_System_EventLog", "Win32_System_Services", "Win32_System_Diagnostics_ToolHelp", "Win32_System_SystemInformation", "Win32_System_SystemServices", "Win32_System_WindowsProgramming", "Win32_System_Threading", "Win32_System_RemoteDesktop", "Win32_System_JobObjects", "Win32_Graphics_Gdi", "Win32_UI_HiDpi", "Win32_UI_Shell", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging", "Win32_Devices_DeviceAndDriverInstallation", "Win32_Devices_HumanInterfaceDevice", "Win32_Devices_Properties"] }
 
 # profile.release 在工作区根统一配置
 

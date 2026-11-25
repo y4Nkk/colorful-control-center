@@ -7,6 +7,8 @@
   border-block-end: 1px solid var(--ccc-hairline);
 }
 
+.ccc-tabs-list[data-no-divider] { border-block-end: 0; }
+
 .ccc-tabs-tab {
   position: relative;
   min-height: var(--ccc-control-height);

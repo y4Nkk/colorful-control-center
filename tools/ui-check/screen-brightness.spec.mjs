@@ -1,5 +1,5 @@
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { editHotkeys, finishHotkeyEdit, openHotkeyDetails, openWorkspace } from "./workspace.mjs";
+import { editHotkeys, finishHotkeyEdit, hotkeyRestoreButton, hotkeyRestoreDialog, openHotkeyDetails, openWorkspace, previewHotkeyRestore } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 const panel = page => page.getByRole("region", { name: "原厂热键与屏显", exact: true });
@@ -17,7 +17,7 @@ async function initial(page) {
     window.__uiEmit("hardware-controls-changed", null);
   });
   const details = await openHotkeyDetails(page);
-  await expect(facts(page).getByRole("button", { name: "恢复初始屏幕计划亮度", exact: true })).toBeEnabled();
+  await expect(facts(page)).toContainText("恢复接管前的值");
   return details;
 }
 test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与灯光"); });
@@ -59,13 +59,15 @@ test("屏幕策略独立授权并确认，键盘亮度和原厂反馈不会自�
 });
 
 test("初始亮度逐字段预览并独立恢复，停止监听但保留已保存的软件范围", async ({ page }) => {
-  const details = await initial(page);
+  await initial(page);
   await expect(facts(page)).toContainText("80% → 90%");
   await expect(facts(page)).toContainText("60% → 55%");
-  await facts(page).getByRole("button", { name: "恢复初始屏幕计划亮度", exact: true }).click();
+  const restore = await previewHotkeyRestore(page, "初始屏幕计划亮度");
+  await expect(restore).toContainText("60% → 55%");
   expect(await calls(page, "restore_screen_brightness")).toEqual([]);
-  await facts(page).getByRole("button", { name: "确认停止监听并恢复上述亮度？", exact: true }).click();
+  await restore.getByRole("button", { name: "确认恢复", exact: true }).click();
   expect((await calls(page, "restore_screen_brightness"))[0].args).toEqual({ expectedRevision: "screen-restore-0" });
+  const details = await openHotkeyDetails(page);
   await expect(details).toContainText("热键监听已停止");
   await expect(facts(page)).toContainText("计划插电亮度90%");
   await expect(facts(page).getByRole("meter", { name: "实际亮度", exact: true })).toHaveAttribute("aria-valuenow", "70");
@@ -85,27 +87,28 @@ test("目标报告失败不冒充零亮度，已知初始值仍能独立恢复",
   });
   await expect(facts(page)).toContainText("本次屏幕亮度报告不可用");
   await expect(facts(page).getByRole("meter", { name: "实际亮度", exact: true })).toHaveCount(0);
-  await expect(facts(page).getByRole("button", { name: "恢复初始屏幕计划亮度", exact: true })).toBeEnabled();
-  await facts(page).getByRole("button", { name: "恢复初始屏幕计划亮度", exact: true }).click();
-  await facts(page).getByRole("button", { name: "确认停止监听并恢复上述亮度？", exact: true }).click();
+  const restore = await previewHotkeyRestore(page, "初始屏幕计划亮度");
+  await restore.getByRole("button", { name: "确认恢复", exact: true }).click();
   expect(await calls(page, "restore_screen_brightness")).toHaveLength(1);
 });
 
 test("来源或初始恢复预览变化撤销旧确认，失败后保留记录并可重试", async ({ page }) => {
   await initial(page);
-  await facts(page).getByRole("button", { name: "恢复初始屏幕计划亮度", exact: true }).click();
+  await previewHotkeyRestore(page, "初始屏幕计划亮度");
   await page.evaluate(() => {
     const h = window.__uiFixture.hotkeys;
     h.facts.screenBrightness.restoreRevision = "screen-restore-new"; h.revision = "changed-screen";
     window.__uiEmit("hardware-controls-changed", null);
   });
-  await expect(facts(page).getByRole("button", { name: "确认停止监听并恢复上述亮度？", exact: true })).toHaveCount(0);
+  await expect(hotkeyRestoreDialog(page)).toHaveCount(0);
+  await expect(hotkeyRestoreButton(page)).toBeFocused();
   await page.evaluate(() => { window.__uiFixture.screenBrightnessRestoreFault = "初始亮度电池字段恢复失败"; });
   for (let attempt = 0; attempt < 2; attempt++) {
-    await facts(page).getByRole("button", { name: "恢复初始屏幕计划亮度", exact: true }).click();
-    await facts(page).getByRole("button", { name: "确认停止监听并恢复上述亮度？", exact: true }).click();
-    if (attempt === 0) await expect(page.getByText("初始亮度电池字段恢复失败", { exact: true }).first()).toBeVisible();
+    const restore = await previewHotkeyRestore(page, "初始屏幕计划亮度");
+    await restore.getByRole("button", { name: "确认恢复", exact: true }).click();
+    if (attempt === 0) await expect(await openHotkeyDetails(page)).toContainText("初始亮度电池字段恢复失败");
   }
+  await openHotkeyDetails(page);
   await expect(facts(page)).toContainText("90% → 90%");
 });
 

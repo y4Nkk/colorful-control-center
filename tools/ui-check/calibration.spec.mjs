@@ -114,7 +114,7 @@ test("未接管的中断只解除准备记录，确认不声称硬件恢复", as
 
 test("校准取得和释放控制时，同步锁定模式与性能选项", async ({ page }) => {
   const panel = panelOf(page), modes = page.getByRole("region", { name: "预设模式", exact: true });
-  const options = page.getByRole("region", { name: "性能选项", exact: true });
+  const options = page.getByRole("region", { name: "散热控制", exact: true });
   await start(panel);
   await openWorkspace(page, "性能与散热");
   await expect(modes).toContainText("电池校准正在接管或尚需恢复");

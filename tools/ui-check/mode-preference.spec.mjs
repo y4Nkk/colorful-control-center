@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
 const modes = page => page.getByRole("region", { name: "预设模式", exact: true });
-const options = page => page.getByRole("region", { name: "性能选项", exact: true });
+const options = page => page.getByRole("region", { name: "散热控制", exact: true });
 const calls = (page, command) => page.evaluate(command => window.__uiFixture.calls.filter(call => call.command === command), command);
 async function setup(page, mode = 2, ac = 3) {
   await page.addInitScript({ content: MOCK_IPC });
@@ -36,7 +36,7 @@ test("电池场景读取不写入，点击当前模式即保存插电偏好", as
   expect(await calls(page, "apply_oem_power_mode")).toHaveLength(1);
   expect((await calls(page, "apply_oem_power_mode"))[0].args.expected.acMode).toBe(0);
   expect(await page.evaluate(() => window.__uiFixture.acMode)).toBe(0);
-  await expect(options(page)).toContainText("在娱乐或性能模式下可修改性能选项");
+  await expect(options(page)).toContainText("在娱乐或性能模式下可修改 Turbo 风扇和动态调校 DTT");
   await expect(await modeDetails(page)).toContainText("插电偏好 · 安静");
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });

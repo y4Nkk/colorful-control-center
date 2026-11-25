@@ -29,9 +29,7 @@ pub(super) fn target(mode: u8) -> Target {
         mode,
         turbo: false,
         dtt: false,
-        fan_mode: 0,
-        fan_saved_mode: 0,
-        fan_offset_pct: Some(0),
+        fan: crate::fanctl::ModePolicy::explicit(0, 0, Some(0)),
         aspm: None,
         power_plan: None,
     }
@@ -180,7 +178,7 @@ impl Io for Memory {
         data.plans[index].aspm = [u32::from(target.mode), u32::from(target.mode)];
         data.snapshot = snapshot(
             target.mode,
-            target.fan_offset_pct.unwrap(),
+            target.fan.offset_pct().unwrap(),
             before.mode.energy()?,
         );
         data.review.current_mode = target.mode;

@@ -1,32 +1,117 @@
-import { useEffect, useRef, useState } from "react";
-import { getHardwareSnapshot, onHardwareSnapshot, type HardwareSnapshot } from "../api/client";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { onHardwareSnapshot, updateHardwareMonitoring, toCommandError, type HardwareSnapshot } from "../api/client";
 
 export const HARDWARE_HISTORY_MS = 5 * 60_000;
-export function useHardwareHistory(active: boolean) {
-  const [live, setLive] = useState<HardwareSnapshot | null>(null);
-  const [samples, setSamples] = useState<HardwareSnapshot[]>([]);
-  const history = useRef<HardwareSnapshot[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState(Date.now);
-  const [retry, setRetry] = useState(0);
+const STALE_MS = 3_000;
+
+interface History {
+  live: HardwareSnapshot | null;
+  samples: readonly HardwareSnapshot[];
+}
+const emptyHistory: History = { live: null, samples: [] };
+const emptyStatus = { connected: false, mode: null as number | null, fanOffline: false, gpuPaused: false,
+  stale: false, error: null as string | null };
+let history = emptyHistory;
+let status = emptyStatus;
+let previousArrival: number | undefined;
+let request = Promise.resolve();
+const listeners = new Set<() => void>();
+let reconnect: (() => void) | undefined;
+
+function publish() {
+  for (const listener of listeners) listener();
+}
+
+function updateStatus(changes: Partial<typeof status>) {
+  const changed = Object.keys(changes) as (keyof typeof status)[];
+  if (changed.some(key => status[key] !== changes[key])) status = { ...status, ...changes };
+}
+
+function accept(live: HardwareSnapshot) {
+  const previous = history.live?.sampledAtMs;
+  const samples = previous !== undefined && live.sampledAtMs < previous ? [] : history.samples;
+  history = { live, samples: [...samples.filter(sample => sample.sampledAtMs < live.sampledAtMs &&
+    sample.sampledAtMs >= live.sampledAtMs - HARDWARE_HISTORY_MS), live].slice(-301) };
+  previousArrival = performance.now();
+  updateStatus({ connected: true, mode: live.oemPowerMode, fanOffline: !live.dchuAvailable,
+    gpuPaused: live.nvidiaSuspended, stale: false, error: null });
+  publish();
+}
+
+function setDemand(active: boolean) {
+  const next = request.then(() => updateHardwareMonitoring(active));
+  request = next.catch(() => undefined);
+  return next;
+}
+
+function connect() {
+  let disposed = false, requested = false, off: (() => void) | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const fail = (error: unknown) => {
+    if (disposed) return;
+    clearTimeout(timer);
+    updateStatus({ error: toCommandError(error).message });
+    publish();
+  };
+  const expire = () => {
+    if (disposed) return;
+    if (history.live) {
+      updateStatus({ stale: true });
+      publish();
+    } else fail("硬件采样未响应");
+  };
+  const arm = () => {
+    clearTimeout(timer);
+    const age = previousArrival === undefined ? 0 : performance.now() - previousArrival;
+    if (age >= STALE_MS) expire();
+    else timer = setTimeout(expire, STALE_MS - age);
+  };
+  void onHardwareSnapshot(snapshot => {
+    if (disposed) return;
+    accept(snapshot);
+    arm();
+  }).then(stop => {
+    if (disposed) { stop(); return; }
+    off = stop;
+    requested = true;
+    return setDemand(true);
+  }).catch(fail);
+  arm();
+  return () => {
+    disposed = true;
+    off?.();
+    clearTimeout(timer);
+    if (requested) void setDemand(false).catch(error => console.error("停止硬件监控失败", error));
+  };
+}
+
+export function useHardwareMonitoring(active: boolean) {
   useEffect(() => {
     if (!active) return;
-    let disposed = false;
-    let off: (() => void) | undefined;
-    const fail = (cause: unknown) => { if (!disposed) setError(String(cause)); };
-    const accept = (snapshot: HardwareSnapshot) => {
-      if (disposed || snapshot.sampledAtMs <= (history.current[history.current.length - 1]?.sampledAtMs ?? 0)) return;
-      setLive(snapshot); setError(null);
-      history.current = [...history.current, snapshot]
-        .filter((item) => item.sampledAtMs >= snapshot.sampledAtMs - HARDWARE_HISTORY_MS).slice(-301);
-      setSamples(history.current);
+    let stop: (() => void) | undefined;
+    const syncVisibility = () => {
+      if (document.visibilityState !== "visible") { stop?.(); stop = undefined; }
+      else stop ??= connect();
     };
-    void onHardwareSnapshot(accept).then((unlisten) => { if (disposed) unlisten(); else off = unlisten; }).catch(fail);
-    void getHardwareSnapshot().then(accept).catch(fail);
-    setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => { disposed = true; off?.(); clearInterval(timer); };
-  }, [active, retry]);
-  return { live, samples, error, stale: live != null && now - live.sampledAtMs > 3000,
-    retry: () => setRetry((tick) => tick + 1) };
+    reconnect = () => { stop?.(); stop = undefined; syncVisibility(); };
+    document.addEventListener("visibilitychange", syncVisibility);
+    syncVisibility();
+    return () => {
+      document.removeEventListener("visibilitychange", syncVisibility);
+      reconnect = undefined;
+      stop?.();
+    };
+  }, [active]);
 }
+
+function useMonitoring<T>(active: boolean, snapshot: () => T, empty: T) {
+  const subscribe = useCallback((listener: () => void) => {
+    if (active) listeners.add(listener);
+    return () => { listeners.delete(listener); };
+  }, [active]);
+  return useSyncExternalStore(subscribe, () => active ? snapshot() : empty);
+}
+
+export const useHardwareHistory = (active: boolean) => useMonitoring(active, () => history, emptyHistory);
+export const useHardwareStatus = (active: boolean) => useMonitoring(active, () => status, emptyStatus);
+export const retryHardwareMonitoring = () => reconnect?.();

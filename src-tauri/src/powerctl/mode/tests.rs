@@ -1,4 +1,5 @@
 use super::*;
+use crate::fanctl;
 use std::cell::{Cell, RefCell};
 
 #[test]
@@ -190,14 +191,12 @@ fn policy_uses_distinct_quiet_plus_aspm_and_power_plan_slots() {
     io.tables.borrow_mut().insert(15, aspm);
     io.tables.borrow_mut().insert(29, plan);
     let target = policy::target(&io, 4, hardware_energy()).unwrap();
-    assert_eq!(target.fan_mode, 8);
-    assert_eq!(target.fan_offset_pct, Some(12));
+    assert_eq!(target.fan, fanctl::ModePolicy::explicit(8, 8, Some(12)));
     assert_eq!(target.aspm, Some([1, 2]));
     assert_eq!(target.power_plan, Some(2));
     assert_eq!(target.command(), 0);
     let perf = policy::target(&io, 2, hardware_energy()).unwrap();
-    assert_eq!(perf.fan_mode, 1);
-    assert_eq!(perf.fan_offset_pct, Some(34));
+    assert_eq!(perf.fan, fanctl::ModePolicy::explicit(1, 1, Some(34)));
     assert_eq!(perf.aspm, Some([0, 1]));
     assert_eq!(perf.power_plan, Some(1));
     assert!(io.commands.borrow().is_empty());
@@ -217,6 +216,27 @@ fn invalid_linked_policy_and_unknown_target_fields_are_rejected() {
     value["command"] = 123.into();
     assert!(serde_json::from_value::<Target>(value).is_err());
     assert!(io.commands.borrow().is_empty());
+}
+
+#[test]
+fn firmware_fan_target_uses_initial_maxq_and_rejects_an_offset() {
+    let io = Memory::new(3);
+    io.pages.borrow_mut()[4][4] = 5;
+    io.pages.borrow_mut()[4][7] = 40;
+    let target = policy::target(&io, 3, hardware_energy()).unwrap();
+    assert_eq!(target.fan, fanctl::ModePolicy::Firmware { saved_mode: 5 });
+    let mut json = serde_json::to_value(&target).unwrap();
+    assert_eq!(
+        serde_json::from_value::<Target>(json.clone()).unwrap(),
+        target
+    );
+    json["fan"]["offsetPct"] = 40.into();
+    assert!(serde_json::from_value::<Target>(json).is_err());
+
+    io.pages.borrow_mut()[7][20] = 1;
+    io.pages.borrow_mut()[4][9] = 1;
+    let target = policy::target(&io, 3, hardware_energy()).unwrap();
+    assert_eq!(target.fan, fanctl::ModePolicy::explicit(8, 5, None));
 }
 
 #[test]
@@ -277,5 +297,5 @@ fn legacy_header_never_infers_new_companion_or_quiet_plus_bits() {
     let target = policy::target(&io, 3, hardware_energy()).unwrap();
     assert!(target.aspm.is_none());
     assert!(target.power_plan.is_none());
-    assert_eq!(target.fan_mode, 0);
+    assert_eq!(target.fan, fanctl::ModePolicy::Firmware { saved_mode: 0 });
 }

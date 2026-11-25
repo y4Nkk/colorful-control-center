@@ -1,13 +1,12 @@
-import { restoreLowBatteryBrightness, type LowBatteryBrightnessProfile } from "../../api/client";
-import { ConfirmButton } from "../ConfirmButton";
+import type { LowBatteryBrightnessProfile } from "../../api/client";
 import { Icon } from "../Icon";
 import { Surface } from "../Surface";
 import { MetricReadout } from "./MetricReadout";
 
-type Props = { absolute?: boolean; lowControl?: boolean; profile: LowBatteryBrightnessProfile; powerSummary: string | null; busy: boolean; run: (action: () => Promise<void>, message: string, reset: boolean) => Promise<void> };
+type Props = { absolute?: boolean; lowControl?: boolean; profile: LowBatteryBrightnessProfile; powerSummary: string | null };
 const labels = ["插电计划亮度", "电池计划亮度"];
 
-export function BatteryLowBrightnessFacts({ profile, powerSummary, busy, run, absolute = false, lowControl = true }: Props) {
+export function BatteryLowBrightnessFacts({ profile, powerSummary, absolute = false, lowControl = true }: Props) {
   const { current, recovery } = profile;
   return <section className="ccc-battery-low-facts" aria-label="原厂低电量亮度事实与预览">
     <strong>{absolute ? "电池事件亮度" : "原厂低电量亮度"}</strong>
@@ -36,16 +35,20 @@ export function BatteryLowBrightnessFacts({ profile, powerSummary, busy, run, ab
     </div>
     {(recovery || profile.restoreError) && <Surface variant="inset" className="ccc-battery-low-part">
       <strong>首次接管前的设置</strong>
-      {recovery && <>
-        <p>{labels.map((label, index) => recovery.record.levelsOwned[index]
-          ? `${label} ${recovery.levels[index]}% → ${recovery.record.baseline.levels[index]}%`
-          : `${label}保留`).join(" · ")}</p>
-        <span className="ccc-control-caption">只恢复本软件接管时改过的亮度和电脑记录的值</span>
-      </>}
-      {profile.restoreError && <p className="ccc-control-error"><Icon name="error" size={16} />{profile.restoreError}</p>}
-      {recovery && <ConfirmButton icon="undo" key={profile.restoreRevision ?? "low-brightness-unavailable"} variant="secondary"
-        label="恢复低电量前亮度" confirmLabel="确认停止监听并恢复上述亮度？" busy={busy} disabled={!profile.restoreRevision}
-        onConfirm={() => run(() => restoreLowBatteryBrightness(profile.restoreRevision!), "低电量前亮度已恢复", false)} />}
+      <LowBatteryBrightnessRestorePreview profile={profile} />
     </Surface>}
   </section>;
+}
+
+export function LowBatteryBrightnessRestorePreview({ profile }: { profile: LowBatteryBrightnessProfile }) {
+  const { recovery, restoreError } = profile;
+  return <>
+    {recovery && <>
+      <p>{labels.map((label, index) => recovery.record.levelsOwned[index]
+        ? `${label} ${recovery.levels[index]}% → ${recovery.record.baseline.levels[index]}%`
+        : `${label}保留`).join(" · ")}</p>
+      <span className="ccc-control-caption">只恢复本软件接管时改过的亮度和电脑记录的值</span>
+    </>}
+    {restoreError && <p className="ccc-control-error"><Icon name="error" size={16} />{restoreError}</p>}
+  </>;
 }

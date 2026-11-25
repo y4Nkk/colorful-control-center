@@ -1,7 +1,7 @@
 import { useContext, useRef, useState, type ReactNode } from "react";
 import { Button } from "./Button";
-import { ConfirmButton } from "./ConfirmButton";
 import { WorkspaceActivity } from "./Dialog";
+import { RestoreSettings } from "./RestoreSettings";
 import { toast } from "./use-toast";
 
 type Result = boolean | void;
@@ -17,7 +17,13 @@ type ActionOptions = {
   onConfirm: Commit;
 };
 
-export function ConfigurationAction({ label, applyLabel = "应用更改", revision, disabled, blocked, restore, children, onConfirm }: ActionOptions) {
+export function ConfigurationAction({ restore, ...props }: ActionOptions) {
+  if (restore) return props.disabled ? null : <RestoreSettings label={props.label} blocked={props.blocked}
+    options={[{ label: props.label, revision: props.revision, preview: props.children }]} onRestore={props.onConfirm} />;
+  return <ConfigurationApply {...props} />;
+}
+
+function ConfigurationApply({ label, applyLabel = "应用更改", disabled, blocked, children, onConfirm }: ActionOptions) {
   const active = useContext(WorkspaceActivity);
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
@@ -31,10 +37,6 @@ export function ConfigurationAction({ label, applyLabel = "应用更改", revisi
     finally { running.current = false; setBusy(false); }
   };
   if (!active || (disabled && !busy)) return null;
-  if (restore) return <div className="ccc-actions" data-module-restore={label}>
-    <ConfirmButton key={revision} label={`恢复${label}`} confirmLabel="确认恢复" icon="undo" size="compact"
-      busy={busy} disabled={unavailable} onConfirm={submit}>{children}</ConfirmButton>
-  </div>;
   return <section className="ccc-module-action ccc-review-section" aria-label={`${label} · ${applyLabel}`} data-module-action={label} aria-busy={busy}>
     {children}
     <div className="ccc-actions"><Button icon={busy ? "loading" : "check"} data-configuration-apply="" aria-busy={busy || undefined}

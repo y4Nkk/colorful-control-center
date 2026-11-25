@@ -15,6 +15,7 @@ fn setup() -> Fixture {
         state.bios[11] |= 16;
         state.bios[16] |= 8;
         state.bios[19] |= 2;
+        state.bios[20] |= 0x40;
         let mut aspm = [0; 256];
         aspm[3..5].copy_from_slice(&[2, 1]);
         state.policy_tables.insert(15, aspm);
@@ -74,6 +75,48 @@ fn linked_effects_run_after_mode_and_before_fan_and_system_policy() {
             .iter()
             .any(|e| e == "LINK_ROLLBACK")
     );
+}
+
+#[test]
+fn preset_without_fan_memory_leaves_mode_and_offset_to_firmware() {
+    let f = setup();
+    {
+        let mut state = f.device.0.lock().unwrap();
+        state.bios[20] = 1;
+        state.pages[1][1] = 3;
+        state.pages[4][7] = 40;
+        state.pages[4][9] = 1;
+        state.fan_mode = 8;
+        state.offset_raw = 0x4c;
+        state.ignore_fan_write = true;
+    }
+    let _gate = f.hal.begin_write().unwrap();
+    let plan = checkpoint(&f.hal, 0).unwrap();
+    assert_eq!(plan.target.fan, fanctl::ModePolicy::Firmware { saved_mode: 0 });
+    plan.execute_linked(
+        &f.hal,
+        &mut || Ok(()),
+        &mut |_| {
+            f.device.0.lock().unwrap().fan_mode = 2;
+            Ok(())
+        },
+        &mut |_| Ok(()),
+        &mut || Ok(()),
+    )
+    .unwrap();
+    {
+        let mut state = f.device.0.lock().unwrap();
+        assert_eq!(state.pages[1][1], 0);
+        assert_eq!(state.fan_mode, 2);
+        assert_eq!(state.fan_command, None);
+        assert_eq!(state.offset_raw, 0x4c);
+        assert_eq!((state.pages[4][5], state.pages[4][7]), (0, 40));
+        state.ignore_fan_write = false;
+    }
+    let entertainment = checkpoint(&f.hal, 3).unwrap();
+    assert_eq!(entertainment.target.fan, fanctl::ModePolicy::explicit(8, 0, None));
+    entertainment.execute(&f.hal).unwrap();
+    assert_eq!(f.device.0.lock().unwrap().fan_command, Some(8));
 }
 
 #[test]

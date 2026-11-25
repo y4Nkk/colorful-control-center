@@ -43,6 +43,7 @@ export interface FanProfile {
   offsetBlockedReason: string | null;
   fans: FanPointSet[];
   canRestore: boolean;
+  restoreRevision: string;
   warnings: string[];
   safetyStatus: string;
   blockedReason: string | null;
@@ -57,7 +58,7 @@ export interface CurvePointsDto {
 
 
 export const NOISELESS_FAN_LABEL = "寂静模式";
-const FAN_MODE_NOISELESS = 8;
+export const FAN_MODE_NOISELESS = 8;
 export const CUSTOM_FAN_MODE = 6;
 export const FAN_MODES: ReadonlyArray<{ id: number; label: string }> = [
   { id: 0, label: "自动" },
@@ -68,6 +69,8 @@ export const FAN_MODES: ReadonlyArray<{ id: number; label: string }> = [
 ];
 
 export function fanModeLabel(id: number) {
+  if (id === 2) return "静音";
+  if (id === 7) return "固件档位 7";
   return FAN_MODES.find(mode => mode.id === id)?.label ?? "模式未知";
 }
 
@@ -82,8 +85,9 @@ export const applyFanCurve = (
 export const setFanMode = (mode: number): Promise<OpResult> => invoke("set_fan_mode", { mode });
 export const setFanOffset = (expected: { mode: number; slot: number | null }, pct: number): Promise<OpResult> =>
   invoke("set_fan_offset", { expected, pct });
-export const restoreFanDefault = (): Promise<OpResult> => invoke("restore_fan_default");
-export const restoreFanProfile = (): Promise<OpResult> => invoke("restore_fan_profile");
+export type FanRestoreTarget = "initial" | "firmwareDefault" | "initialAndFirmwareDefault";
+export const restoreFanSettings = (target: FanRestoreTarget, expectedRevision: string): Promise<OpResult> =>
+  invoke("restore_fan_settings", { request: { target, expectedRevision } });
 
 export interface DustSchedule { weekdays: number; hour: number; onResume: boolean }
 export interface FanDustProfile {

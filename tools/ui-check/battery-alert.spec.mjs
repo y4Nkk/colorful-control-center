@@ -1,5 +1,5 @@
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { editHotkeys, finishHotkeyEdit, openHotkeyDetails, openWorkspace } from "./workspace.mjs";
+import { editHotkeys, finishHotkeyEdit, hotkeyRestoreButton, openHotkeyDetails, openWorkspace, previewHotkeyRestore } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 const panel = page => page.getByRole("region", { name: "原厂热键与屏显", exact: true });
@@ -19,7 +19,7 @@ async function applied(page) {
     h.status.running = true; h.revision = "alert-active"; window.__uiEmit("hardware-controls-changed", null);
   });
   const details = await openHotkeyDetails(page);
-  await expect(facts(page).getByRole("button", { name: "恢复初始电池音频", exact: true })).toBeEnabled();
+  await expect(facts(page)).toContainText("接管前：静音");
   return details;
 }
 test("独立范围预览与应用，绝对亮度保留真实目标", async ({ page }) => {
@@ -44,17 +44,18 @@ test("初始codec恢复保留二次确认，失败后记录仍可重试", async 
   await expect(facts(page)).toContainText("接管前：静音");
   await page.evaluate(() => { window.__uiFixture.batteryAlertRestoreFault = "隔离音频恢复失败"; });
   for (let attempt = 0; attempt < 2; attempt++) {
-    await facts(page).getByRole("button", { name: "恢复初始电池音频", exact: true }).click();
+    const restore = await previewHotkeyRestore(page, "初始电池音频");
     if (!attempt) expect(await calls(page, "restore_battery_alert_audio")).toEqual([]);
-    await facts(page).getByRole("button", { name: "停止监听并恢复初始电池音频？", exact: true }).click();
-    if (!attempt) await expect(page.getByText("隔离音频恢复失败", { exact: true }).first()).toBeVisible();
+    await restore.getByRole("button", { name: "确认恢复", exact: true }).click();
+    if (!attempt) await expect(await openHotkeyDetails(page)).toContainText("隔离音频恢复失败");
   }
   expect(await calls(page, "restore_battery_alert_audio")).toHaveLength(2);
+  await expect(hotkeyRestoreButton(page)).toHaveCount(0);
+  await openHotkeyDetails(page);
   await expect(facts(page)).toContainText("已停止");
-  await expect(facts(page).getByRole("button", { name: "恢复初始电池音频", exact: true })).toHaveCount(0);
 });
 test("设备变化保留原控件恢复信息并禁止覆盖", async ({ page }) => {
-  await applied(page);
+  const details = await applied(page);
   await page.evaluate(() => {
     const h = window.__uiFixture.hotkeys, alert = h.facts.batteryAlert;
     alert.identity = null; alert.error = "PC Beep设备已变化";
@@ -63,7 +64,8 @@ test("设备变化保留原控件恢复信息并禁止覆盖", async ({ page }) 
     h.revision = "alert-replaced"; window.__uiEmit("hardware-controls-changed", null);
   });
   await expect(facts(page)).toContainText("保留原设备恢复值");
-  await expect(facts(page).getByRole("button", { name: "恢复初始电池音频", exact: true })).toBeDisabled();
+  await details.getByRole("button", { name: "关闭弹窗", exact: true }).click();
+  await expect(hotkeyRestoreButton(page)).toBeDisabled();
   expect(await calls(page, "restore_battery_alert_audio")).toEqual([]);
 });
 test("两个范围共用亮度事实与恢复，音频离散状态不画比例", async ({ page }) => {
@@ -132,6 +134,6 @@ test("监听已结束但循环停止失败时仍能重试清理", async ({ page 
   await expect(facts(page)).toContainText("运行中");
   await stop.click();
   await expect(facts(page)).toContainText("已停止");
-  await expect(facts(page).getByRole("button", { name: "恢复初始电池音频", exact: true })).toHaveCount(0);
+  await expect(facts(page)).not.toContainText("接管前：静音");
   expect(await calls(page, "stop_hotkeys")).toHaveLength(2);
 });

@@ -1,18 +1,34 @@
-//! 硬件监控命令层（薄委托 → hal::Hal）。快照结构见 hal::HardwareSnapshot。
+//! 硬件监控与系统概览命令层。
 
-use tauri::State;
+use tauri::{State, WebviewWindow};
 
-use crate::hal::{Hal, HardwareSnapshot};
+use crate::hal::overview::{self, Capacity, SystemInventory};
+use crate::monitoring::Controller;
 
-/// 一次性采样（前端初始渲染用；持续更新走 hardware-snapshot 事件）。
 #[tauri::command]
-pub(crate) fn read_hardware_snapshot(hal: State<'_, Hal>) -> HardwareSnapshot {
-    hal.display_snapshot()
+pub(crate) fn update_hardware_monitoring(
+    window: WebviewWindow,
+    controller: State<'_, Controller>,
+    active: bool,
+) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("只有主窗口可以订阅硬件监控".into());
+    }
+    controller.set_active(active);
+    Ok(())
 }
 
 #[tauri::command]
-pub(crate) async fn read_system_overview() -> Result<crate::hal::overview::SystemOverview, String> {
-    crate::shutdown::blocking(crate::hal::overview::read)
+pub(crate) fn read_memory_capacity() -> Result<Capacity, String> {
+    overview::read_memory().map_err(|error| format!("内存容量读取失败：{error}"))
+}
+
+#[tauri::command]
+pub(crate) async fn read_system_inventory(
+    refresh_volume_metadata: bool,
+) -> Result<SystemInventory, String> {
+    crate::shutdown::blocking(move || overview::read_inventory(refresh_volume_metadata))
         .await
-        .map_err(|error| format!("系统概览读取失败：{error}"))
+        .and_then(|result| result)
+        .map_err(|error| format!("系统设备资料读取失败：{error}"))
 }

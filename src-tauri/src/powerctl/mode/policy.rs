@@ -1,4 +1,7 @@
 use super::*;
+use crate::fanctl::{
+    self, FAN_MODE_AUTO, FAN_MODE_CUSTOM, FAN_MODE_MAXQ, FAN_MODE_NOISELESS, ModePolicy,
+};
 use serde::Deserialize;
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -19,10 +22,7 @@ pub struct Target {
     pub energy: Option<EnergyState>,
     pub turbo: bool,
     pub dtt: bool,
-    pub fan_mode: u8,
-    pub fan_saved_mode: u8,
-    #[serde(deserialize_with = "Option::deserialize")]
-    pub fan_offset_pct: Option<u8>,
+    pub(crate) fan: ModePolicy,
     pub aspm: Option<[u8; 2]>,
     pub power_plan: Option<u8>,
 }
@@ -33,7 +33,7 @@ impl Target {
 }
 
 pub(super) fn target(io: &impl ModeIo, mode: u8, energy: energy::State) -> Result<Target> {
-    let mut target = target_for(io, mode, true, Some(energy))?;
+    let mut target = target_for(io, mode, true, Some(energy), read_option_preferences(io)?)?;
     target.ac_mode = Some(mode);
     Ok(target)
 }
@@ -42,6 +42,7 @@ pub(super) fn target_for(
     mode: u8,
     activate_plan: bool,
     energy: Option<energy::State>,
+    selected_options: [u8; 2],
 ) -> Result<Target> {
     super::support::ensure(io)?;
     if !available(io)?.contains(&mode) {
@@ -51,32 +52,9 @@ pub(super) fn target_for(
     if caps.len() != 22 {
         bail!("能力页长度不足");
     }
-    let info = io.fan_info()?;
-    let keep_fan = crate::fanctl::saved::keeps_mode(&caps);
-    let slot = if mode == 4 { 0 } else { mode as usize };
     let [turbo_supported, dtt_supported] = super::boost::runtime_options(io, mode)?;
-    let turbo = turbo_supported && byte(io, 4, 8)? == 1;
-    let mut fan_mode = crate::fanctl::saved::remembered_mode(io, &caps, mode)?
-        .unwrap_or(if mode == 3 && info[14] == 0x01 { 5 } else { 0 });
-    let fan_offset_pct = crate::fanctl::offset_supported(io, &caps)?
-        .then(|| byte(io, 4, if keep_fan { 74 + slot } else { 7 }))
-        .transpose()?;
-    if turbo && (mode == 3 || fan_mode == crate::fanctl::FAN_MODE_NOISELESS) {
-        fan_mode = crate::fanctl::FAN_MODE_AUTO;
-    }
-    let fan_saved_mode = fan_mode;
-    if mode == 3
-        && !turbo
-        && fan_mode == 0
-        && crate::fanctl::supports_noiseless(&caps)
-        && crate::fanctl::saved::entertainment_quiet(io)?
-    {
-        fan_mode = crate::fanctl::FAN_MODE_NOISELESS;
-    }
-    crate::fanctl::validate_mode(fan_mode)?;
-    if fan_offset_pct.is_some_and(|pct| pct > 100) {
-        bail!("原厂分模式风扇偏移超出范围");
-    }
+    let turbo = turbo_supported && selected_options[0] == 1;
+    let fan = fan_policy(io, mode, &caps, turbo)?;
     let (aspm, power_plan) = if energy.is_some() || turbo_supported || dtt_supported {
         system_policy(io, mode, &caps, activate_plan)?
     } else {
@@ -93,13 +71,50 @@ pub(super) fn target_for(
             .map(|state| super::energy::desired(mode, state))
             .transpose()?,
         turbo,
-        dtt: dtt_supported && byte(io, 1, 32)? == 1,
-        fan_mode,
-        fan_saved_mode,
-        fan_offset_pct,
+        dtt: dtt_supported && selected_options[1] == 1,
+        fan,
         aspm,
         power_plan,
     })
+}
+
+fn fan_policy(io: &impl ModeIo, mode: u8, caps: &[u8], turbo: bool) -> Result<ModePolicy> {
+    let remembered = fanctl::saved::remembered_mode(io, caps, mode)?;
+    let offset_pct = (remembered.is_some() && fanctl::offset_supported(io, caps)?)
+        .then(|| byte(io, 4, 74 + fanctl::saved::mode_slot(mode)?))
+        .transpose()?;
+    let fan = if turbo
+        && (mode == 3
+            || remembered.is_none_or(|saved| matches!(saved, FAN_MODE_NOISELESS | FAN_MODE_CUSTOM)))
+    {
+        ModePolicy::explicit(FAN_MODE_AUTO, FAN_MODE_AUTO, offset_pct)
+    } else if mode == 3
+        && !turbo
+        && remembered.is_none_or(|saved| saved == FAN_MODE_AUTO)
+        && fanctl::supports_noiseless(caps)
+        && fanctl::saved::entertainment_quiet(io)?
+    {
+        let saved = match remembered {
+            Some(saved) => saved,
+            None => default_fan_mode(io, mode)?,
+        };
+        ModePolicy::explicit(FAN_MODE_NOISELESS, saved, offset_pct)
+    } else if let Some(saved) = remembered {
+        ModePolicy::explicit(saved, saved, offset_pct)
+    } else {
+        ModePolicy::Firmware {
+            saved_mode: default_fan_mode(io, mode)?,
+        }
+    };
+    fan.validate()?;
+    Ok(fan)
+}
+
+fn default_fan_mode(io: &impl ModeIo, mode: u8) -> Result<u8> {
+    if mode == 3 && byte(io, 4, 4)? == FAN_MODE_MAXQ {
+        return Ok(FAN_MODE_MAXQ);
+    }
+    Ok(FAN_MODE_AUTO)
 }
 
 fn system_policy(

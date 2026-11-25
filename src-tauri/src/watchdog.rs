@@ -44,7 +44,7 @@ pub(crate) fn restore_auto(dchu: &Dchu, reader: Option<firmware::ReadDirectContr
         errors.push(format!("C1 自动恢复：{error:#}"));
     }
     if let Err(error) = dchu.set_fan_mode_verified(0) {
-        errors.push(format!("固件自动模式：{error:#}"));
+        errors.push(format!("切换风扇到「自动」失败：{error:#}"));
     }
     let saved = dchu.write_settings(4, 5, &[0]).and_then(|_| {
         if dchu.read_settings(4, 5, 1)? != [0] {
@@ -56,7 +56,7 @@ pub(crate) fn restore_auto(dchu: &Dchu, reader: Option<firmware::ReadDirectContr
         errors.push(format!("自动模式保存：{error:#}"));
     }
     if let Err(error) = firmware::verify_direct_release(dchu, reader) {
-        errors.push(format!("逐通道风扇归还未证实：{error:#}"));
+        errors.push(format!("尚未确认所有风扇已退出软件调速：{error:#}"));
     }
     if !errors.is_empty() {
         bail!(errors.join("；"));

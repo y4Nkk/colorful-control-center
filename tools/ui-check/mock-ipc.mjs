@@ -3,7 +3,7 @@ import { invokeAirplane } from "./mock-airplane.mjs";
 import { invokeAutoRefresh } from "./mock-auto-refresh.mjs";
 import { invokeSupplyMode } from "./mock-supply-mode.mjs";
 import { applyPerformanceOptions, fanProfile, invokePerformance } from "./mock-performance.mjs";
-import { modeGpuReview, appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, rememberMode, applyModeGpu } from "./mock-mode-state.mjs";
+import { modeGpuReview, appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, rememberMode, applyModeFan, applyModeGpu } from "./mock-mode-state.mjs";
 import { initPowerPolicy, savePowerPolicy, invokePowerPolicy } from "./mock-profile-policy.mjs";
 import { invokeLightingOptions, applyProfileLightingOptions } from "./mock-lighting-options.mjs";
 import { invokeTouchpad, applyTouchpadTarget, applyProfileTouchpad } from "./mock-touchpad.mjs";
@@ -73,7 +73,7 @@ function fixtureData() {
       capability: { factory: { floor: 95, ceiling: 100 }, factoryDefaulted: false }, revision: "energy-0", source: "oemSaved", canRestore: false,
       recoveryRequired: false, chargeOnStop: { current: { enabled: false, start: 95, stop: 100 }, startValues: [40, 50, 60, 70, 80, 95], stopValues: [60, 70, 80, 90, 100] },
       chargeReported: { enabled: false, start: 95, stop: 100 }, hasInitialPlan: true, initialCharge: { enabled: false, start: 95, stop: 100 }, error: null, canWrite: true }, energySupported: true, energyRevision: 0, energyFault: null, energyRecoveryFault: false,
-    performanceOptions: { current: { turboFan: false, dtt: false }, currentMode: 2, customFan: false, softwareActive: false, blockedReason: null,
+    performanceOptions: { current: { turboFan: false, dtt: false }, currentMode: 2, blockedReason: null,
       dttDriverAvailable: true, revision: "options-0", warnings: [] }, performanceRevision: 0, performanceFault: null, performanceFanMode: null, entertainmentQuiet: false,
     perkey: { revision: "perkey-0", current: { brightness: 3, enabled: true, speed: 1,
       pattern: { kind: "static", colors: Array.from({ length: 120 }, () => ({ r: 20, g: 80, b: 160 })) } },
@@ -91,12 +91,18 @@ function fixtureData() {
 
 function installIpc() {
   const data = window.__uiFixture, callbacks = new Map(), listeners = new Map();
+  const fanView = () => {
+    const profile = fanProfile(data);
+    return { ...profile, restoreRevision: JSON.stringify([profile, data.fanRestoreGeneration ?? 0]) };
+  };
   const emit = window.__uiEmit = (event, payload) => {
     for (const [id, listener] of listeners) if (listener.event === event) callbacks.get(listener.handler)?.({ event, id, payload: structuredClone(payload) });
   };
   let nextId = 1;
   window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: (_event, id) => listeners.delete(id) };
-  const emitSnapshot = () => emit("hardware-snapshot", hardwareSnapshot(data));
+  const snapshot = window.__uiHardwareSnapshot = () => hardwareSnapshot(data);
+  let monitoring = false;
+  const emitSnapshot = () => { if (monitoring) emit("hardware-snapshot", snapshot()); };
   window.__TAURI_INTERNALS__ = {
     transformCallback: callback => { const id = nextId++; callbacks.set(id, callback); return id; },
     unregisterCallback: id => callbacks.delete(id),
@@ -104,7 +110,8 @@ function installIpc() {
       data.calls.push({ command, args });
       switch (command) {
         case "read_oem_supply_mode": case "enable_oem_supply_mode": case "resume_oem_supply_mode":
-        case "pause_oem_supply_mode": case "restore_oem_supply_mode": return invokeSupplyMode(data, command, args);
+        case "pause_oem_supply_mode": case "restore_oem_supply_mode":
+        case "archive_invalid_oem_supply_record": return invokeSupplyMode(data, command, args);
         case "read_lan_policy": case "preview_lan_policy": case "apply_lan_policy": case "restore_lan_policy": return invokeLan(data, command, args);
         case "read_usb_policy": case "apply_usb_policy": case "restore_usb_policy": return invokeUsb(data, command, args);
         case "read_light_bar": case "apply_light_bar": case "restore_light_bar": return invokeLightBar(data, command, args);
@@ -112,11 +119,15 @@ function installIpc() {
         case "plugin:event|listen": { const id = nextId++; listeners.set(id, args); return id; }
         case "plugin:event|unlisten": return null;
         case "read_power_profile_policy": case "save_power_profile_policy": case "set_power_profile_policy_enabled": case "pause_power_profile_policy":
-        case "restore_power_profile_policy": case "reload_power_profile_policy": case "reset_power_profile_policy": case "read_automatic_profile_application": return invokePowerPolicy(data, command, args);
-        case "read_hardware_snapshot": return hardwareSnapshot(data);
-        case "read_system_overview": return { cpu: { vendor: "intel", name: "Isolated CPU" }, memory: { totalBytes: 17179869184, availableBytes: 8589934592 },
+        case "restore_power_profile_policy": case "reload_power_profile_policy": case "reset_power_profile_policy": return invokePowerPolicy(data, command, args);
+        case "update_hardware_monitoring":
+          monitoring = args.active;
+          if (!data.pauseHardwareSnapshots) emitSnapshot();
+          return null;
+        case "read_memory_capacity": return { totalBytes: 17179869184, availableBytes: 8589934592 };
+        case "read_system_inventory": return { cpu: { vendor: "intel", name: "Isolated CPU" },
           memorySpeedMts: data.memorySpeedMts === undefined ? 5200 : data.memorySpeedMts, volumes: [], warnings: [] };
-        case "read_fan_profile": return structuredClone(fanProfile(data));
+        case "read_fan_profile": return structuredClone(fanView());
         case "apply_fan_curve": {
           if (data.fanWriteFault === command || data.dust?.running) return { ok: false, message: "隔离风扇写入失败" };
           for (const fan of data.fan.fans) if (args[fan.id]) Object.assign(fan, args[fan.id]);
@@ -134,10 +145,12 @@ function installIpc() {
           if (data.dust?.running || !data.fan.availableModes.includes(args.mode)) return { ok: false, message: "风扇模式不可用" };
           const fan = fanProfile(data);
           if (args.mode === 6 && fan.customBlockedReason) return { ok: false, message: fan.customBlockedReason };
+          if (args.mode === 8 && fan.customBlockedReason) return { ok: false, message: "Turbo 风扇与寂静模式不能同时开启" };
           const quiet = args.mode === 0 && data.performanceOptions.currentMode === 3 && data.entertainmentQuiet &&
             fan.availableModes.includes(8) && !(entertainmentCommand(data) & 64);
           data.fan.currentMode = quiet ? 8 : args.mode;
           data.fan.software = null;
+          if (data.performanceOptions.currentMode === 2 && data.performanceFanMode !== null) data.performanceFanMode = args.mode === 1 ? 0 : args.mode;
           return { ok: true, message: "风扇模式已写入" };
         }
         case "set_fan_offset": {
@@ -167,7 +180,12 @@ function installIpc() {
         case "read_touchpad": case "apply_touchpad": return invokeTouchpad(data, command, args);
         case "read_microphones": case "apply_microphones": return invokeMicrophones(data, command, args);
         case "read_airplane": case "apply_airplane": return invokeAirplane(data, command, args);
-        case "restore_fan_default": return { ok: true, message: "隔离恢复完成" };
+        case "restore_fan_settings": {
+          const { target, expectedRevision } = args.request ?? {};
+          if (!["initial", "firmwareDefault", "initialAndFirmwareDefault"].includes(target)) throw new Error("未知风扇恢复目标");
+          if (expectedRevision !== fanView().restoreRevision) return { ok: false, message: "风扇恢复目标已变化，请重新查看后确认" };
+          return { ok: true, message: "隔离恢复完成" };
+        }
         case "read_multi_zone_lighting": case "apply_multi_zone_lighting": case "restore_multi_zone_lighting": case "read_lighting_options":
         case "read_keyboard_lighting": case "apply_keyboard_lighting": case "restore_keyboard_lighting":
         case "apply_lighting_options": case "restore_lighting_options":
@@ -474,5 +492,5 @@ async function invokeDust(data, command, args) {
   if (data.dustFault) { const error = data.dustFault; data.dustFault = null; if (command === "start_fan_dust") dust.lastStart = "uncertain"; throw new Error(error); }
   return null;
 }
-export const MOCK_IPC = `(() => {${[invokeAirplane, modeGpuReview, appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, rememberMode, applyModeGpu, invokeSupplyMode, profileDigest, backgroundProfileBinding, previewProfileAuthorization, invokeStartup, initPowerPolicy, savePowerPolicy, invokePowerPolicy, fixtureData, installIpc, invokeTouchpad, applyTouchpadTarget, applyProfileTouchpad, invokeMicrophones, applyMicrophoneTarget, applyProfileMicrophones, invokeLightingOptions, applyProfileLightingOptions, invokeLighting, invokeCalibration, invokeEnergy, invokeBattery, applyPerformanceOptions, invokePerformance, invokeDisplay, invokeAutoRefresh, invokeGraphics, invokeGpuPower, invokeSoftware, invokePlatform, hardwareSnapshot, fanProfile, dustProfile, invokeDust, invokeKeymap, batteryThresholdFixture, restoreBatteryThresholdFixture, lowBatteryBrightnessFixture, restoreLowBatteryBrightnessFixture, restorePdEventFixture, dismissColdWarningFixture, acknowledgeNavigationFixture, gpuTurboFixture, initializeHotkeys, invokeHotkeys, invokeLightBar, invokeUsb, invokeLan, invokeMultiZone, captureMultiZone, applyProfileMultiZone, profileFields, profileGroups, emptyProfileSettings, captureProfileDevices, captureProfilePower, captureProfileLighting, captureProfileInputs, profileFiles, invokeProfileStorage, captureProfileGraphicsMode, previewProfileGraphicsMode, applyProfileGraphicsMode, restoreProfileGraphicsMode, captureProfileGpuPower, previewProfileGpuPower, applyProfileGpuPower, commitProfileTargets, profileNodeStages, previewProfileMode, applyProfileMode, captureProfileLan, reviewProfileLan, previewProfileDisplay, previewManualProfile, profileApplicationSteps, recoverProfileDisplay, syncProfileApplication, beginProfileApplication, invokeProfileApplication, restoreBatteryAlertFixture, stopHotkeysFixture].map(fn => fn.toString()).join("\n")}; fixtureData(); installIpc();})();`;
+export const MOCK_IPC = `(() => {${[invokeAirplane, modeGpuReview, appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, rememberMode, applyModeFan, applyModeGpu, invokeSupplyMode, profileDigest, backgroundProfileBinding, previewProfileAuthorization, invokeStartup, initPowerPolicy, savePowerPolicy, invokePowerPolicy, fixtureData, installIpc, invokeTouchpad, applyTouchpadTarget, applyProfileTouchpad, invokeMicrophones, applyMicrophoneTarget, applyProfileMicrophones, invokeLightingOptions, applyProfileLightingOptions, invokeLighting, invokeCalibration, invokeEnergy, invokeBattery, applyPerformanceOptions, invokePerformance, invokeDisplay, invokeAutoRefresh, invokeGraphics, invokeGpuPower, invokeSoftware, invokePlatform, hardwareSnapshot, fanProfile, dustProfile, invokeDust, invokeKeymap, batteryThresholdFixture, restoreBatteryThresholdFixture, lowBatteryBrightnessFixture, restoreLowBatteryBrightnessFixture, restorePdEventFixture, dismissColdWarningFixture, acknowledgeNavigationFixture, gpuTurboFixture, initializeHotkeys, invokeHotkeys, invokeLightBar, invokeUsb, invokeLan, invokeMultiZone, captureMultiZone, applyProfileMultiZone, profileFields, profileGroups, emptyProfileSettings, captureProfileDevices, captureProfilePower, captureProfileLighting, captureProfileInputs, profileFiles, invokeProfileStorage, captureProfileGraphicsMode, previewProfileGraphicsMode, applyProfileGraphicsMode, restoreProfileGraphicsMode, captureProfileGpuPower, previewProfileGpuPower, applyProfileGpuPower, commitProfileTargets, profileNodeStages, previewProfileMode, applyProfileMode, captureProfileLan, reviewProfileLan, previewProfileDisplay, previewManualProfile, profileApplicationSteps, recoverProfileDisplay, syncProfileApplication, beginProfileApplication, invokeProfileApplication, restoreBatteryAlertFixture, stopHotkeysFixture].map(fn => fn.toString()).join("\n")}; fixtureData(); installIpc();})();`;
 

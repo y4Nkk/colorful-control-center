@@ -12,18 +12,65 @@ use anyhow::{Context, Result, anyhow, ensure};
 use ccc_core::software_fan::Curves;
 use tauri::{AppHandle, Emitter, Manager};
 
-pub(crate) fn sample(app: &AppHandle, hal: &Hal, hardware: &HardwareSnapshot) {
+pub(crate) fn sample_tooltip(app: &AppHandle, hal: &Hal, hardware: Option<&HardwareSnapshot>) {
     let Some(tray) = app.try_state::<Tray>() else {
         return;
     };
     let Some(_operation) = shutdown::enter() else {
         return;
     };
+    let (cpu, gpu) = hardware.map_or_else(
+        || hal.tray_temperatures(),
+        |hardware| {
+            let gpu = (!hal.gpu_suspended())
+                .then_some(hardware.nvidia.as_ref())
+                .flatten()
+                .and_then(|gpu| gpu.temp_c);
+            (hardware.fan.cpu.temp_c, gpu)
+        },
+    );
+    let temperatures = temperatures(cpu, gpu);
     let gate = hal.control_gate();
-    if let Ok(_gate) = gate.try_lock() {
-        // 在控制锁内发布，保证采样与写入后的回读按顺序更新。
-        tray.set_controls(read_controls(app, hal), Some(temperatures(hardware)));
+    let Ok(_gate) = gate.try_lock() else {
+        tray.set_temperatures(temperatures);
+        return;
+    };
+    let preset = hal
+        .with_dchu(mode::current_mode)
+        .ok()
+        .and_then(|mode| MODE_LABELS.get(usize::from(mode)).copied())
+        .unwrap_or("不可用");
+    let fan = tooltip_fan(hal).unwrap_or("不可用");
+    tray.set_telemetry(preset, fan, temperatures);
+}
+
+fn tooltip_fan(hal: &Hal) -> Result<&'static str> {
+    let mode = hal.with_dchu(|io| io.read_fan_mode())?;
+    if hal.fan_recovery_pending() {
+        Ok("正在恢复")
+    } else if fanctl::software::read(hal)?.is_some() {
+        Ok("软件曲线接管")
+    } else {
+        Ok(fan_label(mode))
     }
+}
+
+pub(super) fn menu_controls(app: &AppHandle) -> Controls {
+    let read = || -> Result<Controls> {
+        let _operation = shutdown::enter().context(shutdown::CLOSING)?;
+        let hal = app.try_state::<Hal>().context("硬件状态尚未初始化")?;
+        app.try_state::<crate::display::Controller>()
+            .context("显示控制尚未初始化")?;
+        let gate = hal.control_gate();
+        let _gate = gate
+            .try_lock()
+            .map_err(|error| anyhow!("控制事务暂不可读：{error}"))?;
+        Ok(read_controls(app, &hal))
+    };
+    read().unwrap_or_else(|error| Controls {
+        presets: Err(format!("{error:#}")),
+        fans: Err(format!("{error:#}")),
+    })
 }
 
 fn read_controls(app: &AppHandle, hal: &Hal) -> Controls {
@@ -69,16 +116,16 @@ fn read_fans(hal: &Hal, blocked: Option<String>) -> Result<Fans> {
     let software = fanctl::software::read(hal)?.is_some();
     let recovering = hal.fan_recovery_pending();
     let active = match (software || recovering, profile.current_mode) {
-        (false, FAN_MODE_AUTO) => Some(FanAction::Firmware),
+        (false, FAN_MODE_AUTO) => Some(FanAction::Auto),
         (false, FAN_MODE_NOISELESS)
             if fanctl::automatic_mode(hal).ok() == Some(FAN_MODE_NOISELESS) =>
         {
-            Some(FanAction::Firmware)
+            Some(FanAction::Auto)
         }
         (false, FAN_MODE_FULL_SPEED) => Some(FanAction::FullSpeed),
         _ => None,
     };
-    let choices = [FanAction::Firmware, FanAction::FullSpeed]
+    let choices = [FanAction::Auto, FanAction::FullSpeed]
         .into_iter()
         .filter(|action| profile.available_modes.contains(&fan_target(*action)))
         .collect();
@@ -98,9 +145,8 @@ fn read_fans(hal: &Hal, blocked: Option<String>) -> Result<Fans> {
     })
 }
 
-fn temperatures(hardware: &HardwareSnapshot) -> String {
-    let gpu = hardware.nvidia.as_ref().and_then(|value| value.temp_c);
-    let readings = [("CPU", hardware.fan.cpu.temp_c), ("GPU", gpu)]
+fn temperatures(cpu: Option<f64>, gpu: Option<f64>) -> String {
+    let readings = [("CPU", cpu), ("GPU", gpu)]
         .into_iter()
         .filter_map(|(name, value)| {
             value
@@ -227,7 +273,7 @@ fn switch_fan(
     confirm: impl FnOnce(&str, &str) -> Result<bool>,
 ) -> Result<Option<u8>> {
     let target = fan_target(action);
-    if action == FanAction::Firmware {
+    if action == FanAction::Auto {
         return admitted(|| {
             let _gate = hal.begin_write()?;
             fan_access(hal)?;
@@ -242,9 +288,9 @@ fn switch_fan(
         return Ok(None);
     }
     let detail = if before.software.is_some() {
-        "当前软件风扇曲线会停止。将风扇切换至全速后，可从托盘交还固件控制。是否继续？"
+        "切换到「全速」会停止当前的软件风扇曲线。之后可在托盘选择「自动」。是否继续？"
     } else {
-        "将风扇切换至全速。可从托盘交还固件控制。是否继续？"
+        "将风扇切换到「全速」。之后可在托盘选择「自动」。是否继续？"
     };
     if !confirm("确认风扇全速", detail)? {
         return Ok(None);
@@ -261,17 +307,17 @@ fn switch_fan(
 
 fn fan_target(action: FanAction) -> u8 {
     match action {
-        FanAction::Firmware => FAN_MODE_AUTO,
+        FanAction::Auto => FAN_MODE_AUTO,
         FanAction::FullSpeed => FAN_MODE_FULL_SPEED,
     }
 }
 
 fn fan_label(mode: u8) -> &'static str {
     match mode {
-        FAN_MODE_AUTO => "固件自动",
+        FAN_MODE_AUTO => "自动",
         FAN_MODE_FULL_SPEED => "全速",
         5 => "能效优先",
-        FAN_MODE_CUSTOM => "固件自定义",
+        FAN_MODE_CUSTOM => "自定义",
         FAN_MODE_NOISELESS => fanctl::NOISELESS_FAN_LABEL,
         _ => "模式未识别",
     }
@@ -289,7 +335,7 @@ fn read_back(
         let controls = read_controls(app, &hal);
         let outcome =
             outcome.and_then(|mode| verify(control, mode.context("缺少应用目标")?, &controls));
-        tray.set_controls(controls, None);
+        tray.set_control_labels(&controls);
         outcome
     })
 }

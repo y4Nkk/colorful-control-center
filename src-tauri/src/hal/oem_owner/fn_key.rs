@@ -1,6 +1,5 @@
 use std::{
-    os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle},
-    path::Path,
+    os::windows::io::{AsRawHandle, OwnedHandle},
     ptr::null_mut,
 };
 
@@ -8,20 +7,8 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use windows_sys::{
     Win32::{
-        Foundation::{
-            ERROR_INSUFFICIENT_BUFFER, FILETIME, HANDLE, HWND, LPARAM, WAIT_OBJECT_0, WAIT_TIMEOUT,
-        },
-        Storage::Packaging::Appx::{
-            GetApplicationUserModelId, GetPackageFullName, GetPackagePathByFullName,
-        },
-        System::{
-            RemoteDesktop::ProcessIdToSessionId,
-            Threading::{
-                GetProcessTimes, OpenProcess, PROCESS_NAME_WIN32,
-                PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
-                QueryFullProcessImageNameW, TerminateProcess, WaitForSingleObject,
-            },
-        },
+        Foundation::{FILETIME, HANDLE, HWND, LPARAM},
+        System::Threading::GetProcessTimes,
         UI::WindowsAndMessaging::{
             EnumWindows, GetClassNameW, GetWindowTextW, GetWindowThreadProcessId, PostMessageW,
             WM_CLOSE,
@@ -30,9 +17,10 @@ use windows_sys::{
     core::BOOL,
 };
 
-use super::{EXECUTABLES, FN_KEY, owners};
-
-const APP_ID: &str = "CLEVOCO.FnhotkeysandOSD_6h6z29zh29qx0!App";
+use super::{
+    FN_KEY, control_owners,
+    process::{FN_KEY_TARGET, open_verified, wait_for_exit},
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -49,7 +37,7 @@ pub(crate) struct FnKeyProcess {
 
 impl FnKeyProcess {
     pub(crate) fn blocking() -> Result<Option<Self>> {
-        let active = owners(&EXECUTABLES)?;
+        let active = control_owners()?;
         match active.as_slice() {
             [] => Ok(None),
             [owner] if owner.executable == FN_KEY => Self::open(owner.pid)
@@ -68,7 +56,7 @@ impl FnKeyProcess {
     }
 
     fn open(pid: u32) -> Result<Self> {
-        let handle = open_verified(pid, 0)?;
+        let handle = open_verified(pid, &FN_KEY_TARGET, 0)?;
         let identity = FnKeyIdentity {
             pid,
             creation_time: creation_time(handle.as_raw_handle())?,
@@ -93,7 +81,7 @@ impl FnKeyProcess {
             return Ok(());
         }
         ensure!(
-            matches!(owners(&EXECUTABLES)?.as_slice(), [owner] if owner.executable == FN_KEY && owner.pid == self.identity.pid),
+            matches!(control_owners()?.as_slice(), [owner] if owner.executable == FN_KEY && owner.pid == self.identity.pid),
             "原厂控制进程已变化，请重新核对"
         );
         ensure!(
@@ -111,57 +99,6 @@ impl FnKeyProcess {
     }
 }
 
-pub(super) fn terminate_verified(pid: u32) -> Result<()> {
-    let handle = open_verified(pid, PROCESS_TERMINATE)?;
-    if wait_for_exit(&handle, 0)? {
-        return Ok(());
-    }
-    if unsafe { TerminateProcess(handle.as_raw_handle(), 1) } == 0 {
-        let error = std::io::Error::last_os_error();
-        if !wait_for_exit(&handle, 0)? {
-            return Err(error).context("未能结束原厂 FnKey");
-        }
-    }
-    ensure!(wait_for_exit(&handle, 2000)?, "等待原厂 FnKey 退出超时");
-    Ok(())
-}
-
-fn open_verified(pid: u32, extra_access: u32) -> Result<OwnedHandle> {
-    let handle = unsafe {
-        OpenProcess(
-            PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE | extra_access,
-            0,
-            pid,
-        )
-    };
-    if handle.is_null() {
-        return Err(std::io::Error::last_os_error()).context("无法打开原厂 FnKey 进程");
-    }
-    let handle = unsafe { OwnedHandle::from_raw_handle(handle) };
-    ensure!(
-        session_id(pid)? == session_id(std::process::id())?,
-        "FnKey 位于其他 Windows 会话"
-    );
-    verify_image(handle.as_raw_handle())?;
-    Ok(handle)
-}
-
-fn wait_for_exit(handle: &OwnedHandle, milliseconds: u32) -> Result<bool> {
-    match unsafe { WaitForSingleObject(handle.as_raw_handle(), milliseconds) } {
-        WAIT_OBJECT_0 => Ok(true),
-        WAIT_TIMEOUT => Ok(false),
-        _ => Err(std::io::Error::last_os_error()).context("未能确认原厂 FnKey 已退出"),
-    }
-}
-
-fn session_id(pid: u32) -> Result<u32> {
-    let mut session = 0;
-    if unsafe { ProcessIdToSessionId(pid, &mut session) } == 0 {
-        return Err(std::io::Error::last_os_error().into());
-    }
-    Ok(session)
-}
-
 fn creation_time(handle: HANDLE) -> Result<[u32; 2]> {
     let (mut created, mut exited, mut kernel, mut user) =
         <(FILETIME, FILETIME, FILETIME, FILETIME)>::default();
@@ -169,53 +106,6 @@ fn creation_time(handle: HANDLE) -> Result<[u32; 2]> {
         return Err(std::io::Error::last_os_error().into());
     }
     Ok([created.dwLowDateTime, created.dwHighDateTime])
-}
-
-fn verify_image(handle: HANDLE) -> Result<()> {
-    let app =
-        package_string(|length, text| unsafe { GetApplicationUserModelId(handle, length, text) })?;
-    ensure!(
-        app.eq_ignore_ascii_case(APP_ID),
-        "FnKey 不属于已核对的 CLEVO 应用包"
-    );
-    let name = package_string(|length, text| unsafe { GetPackageFullName(handle, length, text) })?;
-    let name = name.encode_utf16().chain([0]).collect::<Vec<_>>();
-    let directory = package_string(|length, text| unsafe {
-        GetPackagePathByFullName(name.as_ptr(), length, text)
-    })?;
-    let expected = Path::new(&directory).join("FnKey").join(FN_KEY);
-    let mut image = vec![0_u16; 32768];
-    let mut length = image.len() as u32;
-    if unsafe {
-        QueryFullProcessImageNameW(handle, PROCESS_NAME_WIN32, image.as_mut_ptr(), &mut length)
-    } == 0
-    {
-        return Err(std::io::Error::last_os_error().into());
-    }
-    let image = String::from_utf16(&image[..length as usize])?;
-    ensure!(
-        image.eq_ignore_ascii_case(&expected.to_string_lossy()),
-        "FnKey 映像与应用包不匹配"
-    );
-    Ok(())
-}
-
-fn package_string(read: impl Fn(*mut u32, *mut u16) -> u32) -> Result<String> {
-    let mut length = 0;
-    let code = read(&mut length, null_mut());
-    if code != ERROR_INSUFFICIENT_BUFFER {
-        return Err(std::io::Error::from_raw_os_error(code as i32).into());
-    }
-    let mut text = vec![0_u16; length as usize];
-    let code = read(&mut length, text.as_mut_ptr());
-    if code != 0 {
-        return Err(std::io::Error::from_raw_os_error(code as i32).into());
-    }
-    Ok(String::from_utf16(
-        text.split(|character| *character == 0)
-            .next()
-            .unwrap_or_default(),
-    )?)
 }
 
 struct WindowSearch {

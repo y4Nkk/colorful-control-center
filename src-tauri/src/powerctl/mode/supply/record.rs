@@ -6,11 +6,12 @@ use crate::gpu_power::mode as gpu;
 use crate::powerctl::mode::workflow::StoredModeSnapshot;
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
-use std::{io::Read, path::PathBuf};
 
-const RECORD_VERSION: u8 = 4;
+const RECORD_VERSION: u8 = 5;
 #[path = "record/clocks.rs"]
 mod clocks;
+#[path = "record/file.rs"]
+mod file;
 #[path = "record/initial.rs"]
 mod initial;
 use crate::gpuctl::turbo::mode::{
@@ -18,6 +19,7 @@ use crate::gpuctl::turbo::mode::{
 };
 pub(crate) use clocks::ClockApproval;
 pub(super) use clocks::ClockRead;
+pub(super) use file::{FileStore, Inspection};
 pub(super) use initial::Initial;
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -122,15 +124,19 @@ impl Record {
         Ok(record)
     }
     fn validate(&self) -> Result<()> {
+        if self.version != RECORD_VERSION {
+            bail!(
+                "供电模式恢复记录版本为 {}，当前版本为 {RECORD_VERSION}",
+                self.version
+            );
+        }
         self.clock_approval.validate()?;
-        if self.version != RECORD_VERSION
-            || [&self.identity, &self.device_identity].iter().any(|value| {
-                value.len() != 64
-                    || !value
-                        .bytes()
-                        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-            })
-            || self.initial.is_none() != self.capture_target.is_none()
+        if [&self.identity, &self.device_identity].iter().any(|value| {
+            value.len() != 64
+                || !value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        }) || self.initial.is_none() != self.capture_target.is_none()
             || self.initial.is_none() && (self.last.is_some() || self.attempt.is_some())
         {
             bail!("供电模式恢复记录无效");
@@ -278,7 +284,6 @@ fn validate_target(target: &Target) -> Result<()> {
         || target.revision.is_some()
         || target.unavailable_reason.is_some()
         || target.mode > 4
-        || target.fan_offset_pct.is_some_and(|value| value > 100)
         || target
             .aspm
             .is_some_and(|values| values.iter().any(|value| *value > 2))
@@ -286,49 +291,8 @@ fn validate_target(target: &Target) -> Result<()> {
     {
         bail!("供电模式目标无效");
     }
-    crate::fanctl::validate_mode(target.fan_mode)?;
-    crate::fanctl::validate_mode(target.fan_saved_mode)?;
-    if target.fan_mode != target.fan_saved_mode
-        && (target.fan_saved_mode != 0 || target.fan_mode != 8)
-    {
-        bail!("供电模式风扇目标不一致");
-    }
-    Ok(())
-}
-#[derive(Clone)]
-pub(super) struct FileStore(pub PathBuf);
-impl FileStore {
-    pub fn load(&self) -> Result<Option<Record>> {
-        let file = match std::fs::File::open(&self.0) {
-            Ok(file) => file,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(error).context("读取供电模式恢复记录"),
-        };
-        let mut bytes = Vec::new();
-        file.take(262_145).read_to_end(&mut bytes)?;
-        if bytes.len() > 262_144 {
-            bail!("供电模式恢复记录过大");
-        }
-        let record: Record = serde_json::from_slice(&bytes)
-            .with_context(|| format!("供电模式恢复记录不符合当前版本 {RECORD_VERSION}"))?;
-        record.validate()?;
-        Ok(Some(record))
-    }
-    pub fn save(&self, expected: Option<&Record>, next: &Record) -> Result<()> {
-        next.validate()?;
-        if self.load()?.as_ref() != expected {
-            bail!("供电模式恢复记录已变化");
-        }
-        std::fs::create_dir_all(self.0.parent().context("供电模式记录目录无效")?)?;
-        crate::storage::write(&self.0, &serde_json::to_vec_pretty(next)?)?;
-        Ok(())
-    }
-    pub fn clear(&self, expected: &Record) -> Result<()> {
-        if self.load()?.as_ref() != Some(expected) {
-            bail!("供电模式恢复记录已变化");
-        }
-        std::fs::remove_file(&self.0).context("删除供电模式恢复记录")
-    }
+    target.fan.validate()?;
+    target.fan.validate_turbo(target.turbo)
 }
 pub(super) fn update(
     store: &FileStore,

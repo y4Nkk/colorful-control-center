@@ -32,7 +32,7 @@ fn cpu_curve_uses_verified_ack_and_leaves_gpu_live_and_saved_bytes_independent()
         assert_eq!(state.pages[4][gpu_temperature + 1], 65);
         assert_eq!(state.fan_mode, 6);
     }
-    fanctl::restore_initial(&f.hal).unwrap();
+    f.restore_fan(fanctl::RestoreTarget::Initial).unwrap();
     let state = f.device.0.lock().unwrap();
     assert_eq!(state.fan_curves[0], old_cpu);
     assert_eq!(state.fan_curves[1], gpu);
@@ -131,7 +131,7 @@ fn panel_preset_and_profile_activate_existing_rpm_stop_level_as_is() {
         fanctl::set_mode(&f.hal, 0).unwrap();
         f.device.0.lock().unwrap().pages[4][73] = 6;
         let preset = powerctl::mode::checkpoint(&f.hal, 3).unwrap();
-        assert_eq!(preset.target.fan_mode, 6);
+        assert_eq!(preset.target.fan.mode(), Some(6));
         preset.execute(&f.hal).unwrap();
         assert_eq!(f.device.0.lock().unwrap().fan_mode, 6);
         fanctl::set_mode(&f.hal, 0).unwrap();
@@ -161,7 +161,7 @@ fn failed_rpm_default_cannot_override_a_verified_full_speed_rollback() {
         state.fail_rpm_write = true;
     }
     let _write = f.hal.begin_write().unwrap();
-    let error = fanctl::restore_default(&f.hal).unwrap_err();
+    let error = f.restore_fan(fanctl::RestoreTarget::FirmwareDefault).unwrap_err();
     assert!(format!("{error:#}").contains("已恢复写入前状态"));
     let state = f.device.0.lock().unwrap();
     assert_eq!((state.fan_mode, state.fan_command), (1, Some(1)));

@@ -57,12 +57,13 @@ export interface OemModeTarget {
   energy: OemEnergyState | null;
   turbo: boolean;
   dtt: boolean;
-  fanMode: number;
-  fanSavedMode: number;
-  fanOffsetPct: number | null;
+  fan: OemModeFanPolicy;
   aspm: [number, number] | null;
   powerPlan: number | null;
 }
+export type OemModeFanPolicy =
+  | { control: "firmware"; savedMode: number }
+  | { control: "explicit"; mode: number; savedMode: number; offsetPct: number | null };
 export type OemModeGpuReview = { status: "ready"; value: OemModeGpuTarget } | { status: "unavailable"; value: string };
 export interface OemModeGpuTarget { nodeSupported: boolean; node: GpuPowerDevice | null; action: OemModeGpuAction | null; onAc: boolean | null; clocks: GpuModeSelection; stages: import("./devices").GpuPowerStages | null }
 export interface OemModeCycleProfile {
@@ -79,18 +80,22 @@ export const applyOemPowerMode = (expected: OemModeTarget, confirmedFnKey: FnKey
   Promise<OpResult | { confirmFnKey: FnKeyModeConfirmation }> => invoke("apply_oem_power_mode", { expected, confirmedFnKey });
 export interface OemPerformanceValues { turboFan: boolean | null; dtt: boolean | null }
 export const PERFORMANCE_OPTION_LABELS = { turboFan: "Turbo 风扇", dtt: "动态调校 DTT" } as const satisfies Record<keyof OemPerformanceValues, string>;
-export interface OemPerformanceDraft extends OemPerformanceValues { quietFan: boolean | null }
+export interface OemPerformanceChange {
+  values: OemPerformanceValues;
+  quietFan: "current" | "entertainmentOn" | "entertainmentOff" | null;
+  replaceCustomFan: boolean;
+}
 export interface OemPerformanceOptions {
   blockedReason: string | null;
-  current: OemPerformanceValues; currentMode: number; customFan: boolean; softwareActive: boolean;
+  current: OemPerformanceValues; currentMode: number;
+  turboActive: boolean; dttActive: boolean;
   appliesInCurrentMode: boolean;
-  entertainmentOptionsPending: boolean;
   quietFan: { enabled: boolean; active: boolean; remembered: boolean } | null;
   dttDriverAvailable: boolean | null; revision: string; warnings: string[];
 }
 export const readOemPerformanceOptions = () => invoke<OemPerformanceOptions>("read_oem_performance_options");
-export const applyOemPerformanceOptions = (expectedRevision: string, { quietFan, ...values }: OemPerformanceDraft, replaceCustomFan = false) =>
-  invoke<OpResult>("apply_oem_performance_options", { request: { expectedRevision, values, quietFan, replaceCustomFan } });
+export const applyOemPerformanceOptions = (expectedRevision: string, change: OemPerformanceChange) =>
+  invoke<OpResult>("apply_oem_performance_options", { request: { expectedRevision, ...change } });
 export interface CpuControls {
   pl1W: number | null;
   pl2W: number | null;

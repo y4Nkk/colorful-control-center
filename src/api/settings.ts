@@ -11,5 +11,7 @@ export const exportProfile = (name: string): Promise<string> => invoke("export_p
 export interface StartupProfile { selection: import("./profiles").BackgroundProfileBinding | null; bindingIssue: string | null; lastRun: string | null }
 export const getStartupProfile = (): Promise<StartupProfile> => invoke("get_startup_profile");
 export const setStartupProfile = (expected: import("./profiles").ProfileFile | null, expectedMode: import("./profiles").ProfileModeApproval | null): Promise<import("./profiles").BackgroundProfileBinding | null> => invoke("set_startup_profile", { expected, expectedMode });
-export type OemStartupNotice = { kind: "closed" } | { kind: "failed"; detail: string };
+export type OemStartupNotice =
+  | { kind: "closed"; executables: string[] }
+  | { kind: "failed"; detail: string; closed: string[] };
 export const getOemStartupNotice = (): Promise<OemStartupNotice | null> => invoke("get_oem_startup_notice");

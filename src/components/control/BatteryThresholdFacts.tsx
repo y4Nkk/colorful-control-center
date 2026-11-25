@@ -1,17 +1,15 @@
-import { restoreBatteryThresholds, type BatteryThresholdPlan, type BatteryThresholdProfile } from "../../api/client";
-import { ConfirmButton } from "../ConfirmButton";
+import type { BatteryThresholdPlan, BatteryThresholdProfile } from "../../api/client";
 import { Icon } from "../Icon";
 import { Surface } from "../Surface";
 import { DetailsDialog } from "../DetailsDialog";
 import { MetricReadout } from "./MetricReadout";
 import { powerPlanName } from "./power-plan-values";
 
-type Props = { profile: BatteryThresholdProfile; busy: boolean; run: (action: () => Promise<void>, message: string, reset: boolean) => Promise<void> };
 const names = ["低电量", "严重电量", "预留电量"];
 const targets = [25, 20, 22];
 const values = (plan: BatteryThresholdPlan) => plan.values.map((value, i) => `${names[i]} ${value[0]} / ${value[1]}%`).join(" · ");
 
-export function BatteryThresholdFacts({ profile, busy, run }: Props) {
+export function BatteryThresholdFacts({ profile }: { profile: BatteryThresholdProfile }) {
   const { current, recovery } = profile;
   return <section className="ccc-battery-threshold-facts" aria-label="原厂低电量阈值事实与预览">
     <strong>原厂低电量阈值</strong>
@@ -36,17 +34,21 @@ export function BatteryThresholdFacts({ profile, busy, run }: Props) {
     </div>
     {(recovery || profile.restoreError) && <Surface variant="inset" className="ccc-battery-threshold-part">
       <strong>恢复接管前的值</strong>
-      {recovery && <>
-        <div className="ccc-battery-threshold-recovery-plans">{recovery.baseline.plans.map((plan, index) => <div key={plan.id} className="ccc-battery-threshold-plan">
-          <span>{powerPlanName(plan.id)}</span>
-          <span className="ccc-control-caption">{plan.values.map((pair, level) => `${names[level]} ${pair.map((value, supply) => recovery.owned[index][level][supply] ? `${recovery.current[index].values[level][supply]}→${value}%` : "保留").join(" / ")}`).join(" · ")}</span>
-        </div>)}</div>
-        <p className="ccc-control-caption">恢复只改回本软件接管过的阈值和电脑记录的值，其他电源计划和其他设置保持不变。</p>
-      </>}
-      {profile.restoreError && <p className="ccc-control-error"><Icon name="error" size={16} />{profile.restoreError}</p>}
-      {recovery && <ConfirmButton icon="undo" key={profile.restoreRevision ?? "battery-restore-unavailable"} variant="secondary"
-        label="恢复初始电池阈值" confirmLabel="确认停止监听并恢复上述阈值？" busy={busy} disabled={!profile.restoreRevision}
-        onConfirm={() => run(() => restoreBatteryThresholds(profile.restoreRevision!), "初始电池阈值已恢复", false)} />}
+      <BatteryThresholdRestorePreview profile={profile} />
     </Surface>}
   </section>;
+}
+
+export function BatteryThresholdRestorePreview({ profile }: { profile: BatteryThresholdProfile }) {
+  const { recovery, restoreError } = profile;
+  return <>
+    {recovery && <>
+      <div className="ccc-battery-threshold-recovery-plans">{recovery.baseline.plans.map((plan, index) => <div key={plan.id} className="ccc-battery-threshold-plan">
+        <span>{powerPlanName(plan.id)}</span>
+        <span className="ccc-control-caption">{plan.values.map((pair, level) => `${names[level]} ${pair.map((value, supply) => recovery.owned[index][level][supply] ? `${recovery.current[index].values[level][supply]}→${value}%` : "保留").join(" / ")}`).join(" · ")}</span>
+      </div>)}</div>
+      <p className="ccc-control-caption">恢复本软件接管过的阈值和电脑记录的值。</p>
+    </>}
+    {restoreError && <p className="ccc-control-error"><Icon name="error" size={16} />{restoreError}</p>}
+  </>;
 }

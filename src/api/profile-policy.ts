@@ -1,5 +1,5 @@
 import { invoke } from "./client";
-import type { ProfileApplication, ProfileFile, BackgroundProfileBinding, ProfileModeApproval } from "./profiles";
+import type { ProfileFile, BackgroundProfileBinding, ProfileModeApproval } from "./profiles";
 
 export type PowerPolicyTrigger = "ac" | "battery" | "resume";
 export interface PowerPolicyRecord { version: 2; enabled: boolean; ac: BackgroundProfileBinding | null; battery: BackgroundProfileBinding | null; resume: BackgroundProfileBinding | null }
@@ -19,4 +19,3 @@ export const pausePowerProfilePolicy = () => invoke<void>("pause_power_profile_p
 export const restorePowerProfilePolicy = (expected: PowerPolicyRecord) => invoke<void>("restore_power_profile_policy", { expected });
 export const reloadPowerProfilePolicy = () => invoke<void>("reload_power_profile_policy");
 export const resetPowerProfilePolicy = (expectedRevision: string) => invoke<void>("reset_power_profile_policy", { expectedRevision });
-export const readAutomaticProfileApplication = () => invoke<ProfileApplication | null>("read_automatic_profile_application");

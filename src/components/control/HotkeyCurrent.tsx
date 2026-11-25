@@ -23,11 +23,11 @@ export function HotkeyCurrent({ profile, busy, run, screenSelected, panelSelecte
       <Button icon="pause" variant="secondary" disabled={busy} onClick={() => run(stopHotkeys, "本次热键监听已停止", false)}>临时停止监听</Button>
       <Button icon="search" variant="ghost" disabled={busy} onClick={() => run(previewOsd, "已请求屏显预览", false)}>预览桌面屏显</Button>
     </div>
-    {screen && (screenSelected || screen.initial.length > 0) && <ScreenBrightnessFacts profile={screen} busy={busy} run={run} />}
+    {screen && (screenSelected || screen.initial.length > 0) && <ScreenBrightnessFacts profile={screen} />}
     {panel && (panelSelected || panel.session !== null) && <PanelHotkeyFacts profile={panel} busy={busy} run={run} />}
     <section className="ccc-detail-stack" aria-label="监听与恢复说明">
       {profile?.current && <p>当前接管的动作：{summary(profile.current)}</p>}
-      <p>临时停止会保留已保存的热键设置。下次打开应用时，如果接管条件仍然有效，就会继续监听。需要还原某项设置时，可用该项提供的恢复按钮查看会改回哪些值。</p>
+      <p>临时停止会保留已保存的热键设置。下次打开应用时，如果接管条件仍然有效，就会继续监听。</p>
       {profile?.initial && <p>接管前的设置：{profile.initial.enabled ? "启用" : "关闭"} · {summary(profile.initial)}</p>}
     </section>
   </Surface>;

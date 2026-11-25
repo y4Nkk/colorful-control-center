@@ -30,8 +30,8 @@ export function WindowSettings({ model, active }: { model: PreferencesModel; act
           if (await patch({ startMinimized: value === "tray" })) toast({ kind: "success", title: "已保存启动显示方式" });
         }} />
     </SettingRow>
-    <SettingRow label="启动时关闭原厂软件" detail="结束已核验的 FnKey。原厂热键和屏显会随它退出。">
-      <Switch label="启动时关闭原厂软件" checked={settings.closeOemOnStartup} disabled={busy}
+    <SettingRow label="自动关闭原厂软件" detail="启动时和运行期间关闭已核验的原厂控制中心、Flexikey 与 FnKey，最小化到托盘时也生效。关闭 FnKey 会停止原厂热键和屏显。">
+      <Switch label="自动关闭原厂软件" checked={settings.closeOemOnStartup} disabled={busy}
         onChange={closeOemOnStartup => void patch({ closeOemOnStartup })} />
     </SettingRow>
     <SettingRow label="启动页面"><SegmentedControl label="启动页面" value={settings.startupPage} disabled={busy}

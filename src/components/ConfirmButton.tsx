@@ -4,37 +4,43 @@ import type { IconName } from "./Icon";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "./use-toast";
 
-export function ConfirmButton({ label, confirmLabel, onConfirm, disabled = false, busy = false, variant = "secondary", size, icon = "apply", children }: {
+export function ConfirmButton({ label, confirmLabel, onConfirm, onOpen, revision, disabled = false, confirmDisabled = false,
+  busy = false, variant = "secondary", tone, size, icon = "apply", children }: {
   label: string;
   confirmLabel: string;
   onConfirm: () => void | boolean | Promise<void | boolean>;
+  onOpen?: () => void;
+  revision?: string;
   disabled?: boolean;
+  confirmDisabled?: boolean;
   busy?: boolean;
   variant?: "primary" | "secondary";
+  tone?: "danger";
   size?: "compact";
   icon?: IconName;
   children?: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [opened, setOpened] = useState<{ revision?: string } | null>(null);
+  const open = opened !== null && opened.revision === revision;
   const [pending, setPending] = useState(false);
   const executing = useRef(false);
-  useEffect(() => { setOpen(false); }, [label, confirmLabel, disabled, busy]);
+  useEffect(() => { setOpened(null); }, [label, confirmLabel, disabled, busy, revision]);
   const confirm = async () => {
-    if (!open || disabled || busy || executing.current) return;
+    if (!open || disabled || confirmDisabled || busy || executing.current) return;
     executing.current = true;
     setPending(true);
-    setOpen(false);
+    setOpened(null);
     try { await onConfirm(); }
     catch (error) { toast({ kind: "error", title: "操作失败", description: String(error) }); }
     finally { executing.current = false; setPending(false); }
   };
-  const close = () => setOpen(false);
+  const close = () => setOpened(null);
   return <>
-    <Button variant={variant} size={size} icon={pending ? "loading" : icon} disabled={disabled || busy || pending} aria-haspopup="dialog"
-      aria-busy={pending || undefined} onClick={() => setOpen(true)}>{label}</Button>
+    <Button variant={variant} tone={tone} size={size} icon={pending ? "loading" : icon} disabled={disabled || busy || pending}
+      aria-haspopup="dialog" aria-busy={pending || undefined} onClick={() => { onOpen?.(); setOpened({ revision }); }}>{label}</Button>
     <Dialog title={label} width="narrow" open={open} onClose={close}
       actions={<><Button variant="secondary" onClick={close}>取消</Button>
-        <Button icon={icon} disabled={disabled || busy} onClick={() => void confirm()}>{confirmLabel}</Button></>}>
+        <Button icon={icon} tone={tone} disabled={disabled || confirmDisabled || busy} onClick={() => void confirm()}>{confirmLabel}</Button></>}>
       {children}
     </Dialog>
   </>;

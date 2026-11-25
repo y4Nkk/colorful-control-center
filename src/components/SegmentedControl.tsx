@@ -8,14 +8,16 @@ interface SegmentedControlProps {
   disabled?: boolean;
   busy?: boolean;
   pendingValue?: string;
+  balancedWrap?: boolean;
   className?: string;
   onChange: (value: string) => void;
   onReselect?: (value: string) => void;
 }
 
-export function SegmentedControl({ label, value, options, disabled, busy, pendingValue, className, onChange, onReselect }: SegmentedControlProps) {
+export function SegmentedControl({ label, value, options, disabled, busy, pendingValue, balancedWrap, className, onChange, onReselect }: SegmentedControlProps) {
   const group = useId();
-  return <div className={["ccc-segmented", className].filter(Boolean).join(" ")} role="radiogroup" aria-label={label} aria-busy={busy}>
+  return <div className={["ccc-segmented", className].filter(Boolean).join(" ")} role="radiogroup" aria-label={label} aria-busy={busy}
+    data-balanced-wrap={balancedWrap || undefined}>
     {options.map(option => {
       const checked = value === option.value;
       return <label className="ccc-segmented-option" key={option.value} data-pending={pendingValue === option.value || undefined}>

@@ -40,7 +40,7 @@ pub(super) enum Action {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum FanAction {
-    Firmware,
+    Auto,
     FullSpeed,
 }
 
@@ -50,7 +50,6 @@ pub(super) enum Control {
     Fan(FanAction),
 }
 
-#[derive(Clone)]
 pub(super) struct Presets {
     pub current: u8,
     pub label: &'static str,
@@ -58,7 +57,6 @@ pub(super) struct Presets {
     pub blocked: Option<String>,
 }
 
-#[derive(Clone)]
 pub(super) struct Fans {
     pub current: u8,
     pub label: &'static str,
@@ -67,30 +65,28 @@ pub(super) struct Fans {
     pub blocked: Option<String>,
 }
 
-#[derive(Clone)]
 pub(super) struct Controls {
     pub presets: Result<Presets, String>,
     pub fans: Result<Fans, String>,
 }
 
-#[derive(Clone, Default)]
+pub(super) struct MenuData {
+    pub controls: Controls,
+    pub profiles: Option<Vec<String>>,
+}
+
+#[derive(Default)]
 struct State {
-    profiles: Option<Arc<[String]>>,
-    controls: Option<Controls>,
+    control_labels: Option<(&'static str, &'static str)>,
     temperatures: String,
     busy: bool,
 }
 
 impl State {
     fn tooltip(&self) -> String {
-        let Some(controls) = &self.controls else {
+        let Some((preset, fan)) = self.control_labels else {
             return "Colorful Control Center\n正在读取硬件状态…".into();
         };
-        let preset = controls
-            .presets
-            .as_ref()
-            .map_or("不可用", |state| state.label);
-        let fan = controls.fans.as_ref().map_or("不可用", |state| state.label);
         format!(
             "Colorful Control Center\n预设 {preset} · 风扇 {fan}{}",
             self.temperatures
@@ -103,6 +99,7 @@ type SharedState = Arc<Mutex<State>>;
 struct Context {
     state: SharedState,
     dispatch: Box<dyn Fn(Action) + Send>,
+    read_menu: Box<dyn Fn() -> MenuData + Send>,
     closing: fn() -> bool,
     taskbar_created: u32,
     icon: HICON,
@@ -122,19 +119,23 @@ impl Tray {
     pub(super) fn start(
         resource: Option<u16>,
         dispatch: impl Fn(Action) + Send + 'static,
+        read_menu: impl Fn() -> MenuData + Send + 'static,
         closing: fn() -> bool,
     ) -> Result<Self> {
-        let state = Arc::new(Mutex::new(State {
-            profiles: Some(Arc::from([])),
-            ..State::default()
-        }));
+        let state = Arc::new(Mutex::new(State::default()));
         let shared = state.clone();
         let (ready, wait) = mpsc::sync_channel(1);
         let worker =
             thread::Builder::new()
                 .name("windows-tray".into())
-                .spawn(
-                    move || match create(shared, Box::new(dispatch), closing, resource) {
+                .spawn(move || {
+                    match create(
+                        shared,
+                        Box::new(dispatch),
+                        Box::new(read_menu),
+                        closing,
+                        resource,
+                    ) {
                         Ok(hwnd) => {
                             if ready.send(Ok(hwnd as usize)).is_err() {
                                 unsafe { DestroyWindow(hwnd) };
@@ -146,8 +147,8 @@ impl Tray {
                             let _ = ready.send(Err(error));
                             Ok(())
                         }
-                    },
-                )?;
+                    }
+                })?;
         Ok(Self {
             state,
             hwnd: wait.recv().context("托盘线程未就绪")??,
@@ -155,20 +156,35 @@ impl Tray {
         })
     }
 
-    pub(super) fn set_profiles(&self, profiles: Option<Vec<String>>) {
-        self.state
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .profiles = profiles.map(Arc::from);
+    pub(super) fn set_control_labels(&self, controls: &Controls) {
+        let preset = controls
+            .presets
+            .as_ref()
+            .map_or("不可用", |state| state.label);
+        let fan = controls.fans.as_ref().map_or("不可用", |state| state.label);
+        self.update_tooltip(|state| state.control_labels = Some((preset, fan)));
     }
 
-    pub(super) fn set_controls(&self, controls: Controls, temperatures: Option<String>) {
+    pub(super) fn set_telemetry(
+        &self,
+        preset: &'static str,
+        fan: &'static str,
+        temperatures: String,
+    ) {
+        self.update_tooltip(|state| {
+            state.control_labels = Some((preset, fan));
+            state.temperatures = temperatures;
+        });
+    }
+
+    pub(super) fn set_temperatures(&self, temperatures: String) {
+        self.update_tooltip(|state| state.temperatures = temperatures);
+    }
+
+    fn update_tooltip(&self, update: impl FnOnce(&mut State)) {
         let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
         let previous = state.tooltip();
-        state.controls = Some(controls);
-        if let Some(value) = temperatures {
-            state.temperatures = value;
-        }
+        update(&mut state);
         if state.tooltip() != previous {
             unsafe { PostMessageW(self.window(), REFRESH_TIP, 0, 0) };
         }
@@ -215,6 +231,7 @@ impl Tray {
 fn create(
     state: SharedState,
     dispatch: Box<dyn Fn(Action) + Send>,
+    read_menu: Box<dyn Fn() -> MenuData + Send>,
     closing: fn() -> bool,
     resource: Option<u16>,
 ) -> Result<HWND> {
@@ -236,6 +253,7 @@ fn create(
         let _ = slot.set(Context {
             state,
             dispatch,
+            read_menu,
             closing,
             taskbar_created,
             icon,
@@ -393,14 +411,7 @@ fn notify(hwnd: HWND, event: LPARAM, context: &Context) {
     let action = match (event as u32) & 0xffff {
         NIN_SELECT | NIN_KEYSELECT => Some(Action::Show),
         WM_CONTEXTMENU => {
-            let state = context
-                .state
-                .lock()
-                .unwrap_or_else(|error| error.into_inner())
-                .clone();
-            let selected = menu::popup(hwnd, menu_anchor(hwnd), &state, (context.closing)())
-                .ok()
-                .flatten();
+            let selected = popup(hwnd, context);
             if selected.is_none() {
                 unsafe { Shell_NotifyIconW(NIM_SETFOCUS, &icon_data(hwnd, context)) };
             }
@@ -410,6 +421,31 @@ fn notify(hwnd: HWND, event: LPARAM, context: &Context) {
     };
     if let Some(action) = action {
         (context.dispatch)(action);
+    }
+}
+
+fn popup(hwnd: HWND, context: &Context) -> Option<Action> {
+    let state = if (context.closing)() {
+        menu::MenuState::default()
+    } else {
+        let MenuData { controls, profiles } = (context.read_menu)();
+        let busy = context
+            .state
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .busy;
+        menu::MenuState {
+            profiles,
+            controls: Some(controls),
+            busy,
+        }
+    };
+    match menu::popup(hwnd, menu_anchor(hwnd), &state, (context.closing)()) {
+        Ok(action) => action,
+        Err(error) => {
+            log::error!("[tray] 打开菜单：{error:#}");
+            None
+        }
     }
 }
 

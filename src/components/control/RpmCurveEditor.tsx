@@ -2,7 +2,7 @@ import { Select } from "../Select";
 import { useRef, useState } from "react";
 import type { RpmPoint } from "../../api/client";
 import { PointNumber } from "./CurvePointInputs";
-import { FanCurveLegend, FanCurvePlot } from "./FanCurvePlot";
+import { FanCurvePlot } from "./FanCurvePlot";
 import { FanCurveSection } from "./FanCurveSection";
 import { FirmwareCurveHandle } from "./FirmwareCurveHandle";
 import { useFanEdit } from "./useFanEdit";
@@ -28,27 +28,22 @@ export function RpmCurveEditor({ status, fanName, source, current, maximumRpm, e
   const changeTemp = (value: number) => (before: RpmPoint[]) => moveRpmPoint(before, selected, value, before[selected].rpmPct);
   const changeRpm = (value: number) => (before: RpmPoint[]) => moveRpmPoint(before, selected, before[selected].tempC, value);
   const differs = !sameRpmCurve(current, draft);
-  const chart = <div className="ccc-plot-wrap">
-    <FanCurvePlot label="十级温度与目标转速曲线" measure="目标转速" minTemp={0} maxTemp={100} startTemp={0}
-      plotRef={plot} draftPath={rpmStepPath(draft)} currentPath={differs ? rpmStepPath(current) : undefined}>
-      {draft.map((p, index) => {
-        const bounds = rpmLimits(draft, index).temp;
-        return <FirmwareCurveHandle key={index} source={source} plotRef={plot} plotMin={0} rpmIndex={index}
-          selected={selected === index} disabled={!editable} busy={busy} onSelect={() => select(index)}
-          x={p.tempC} y={100 - p.rpmPct} temp={p.tempC} minTemp={bounds.min} maxTemp={bounds.max}
-          label={`第 ${index + 1} 级温度与转速`} valueText={`${p.tempC}°C，最大转速的 ${p.rpmPct}%`}
-          onMove={(temp, rpm) => edit.update(before => moveRpmPoint(before, index, temp, rpm))}
-          onStep={(dt, dr) => edit.update(before => moveRpmPoint(before, index, before[index].tempC + dt, before[index].rpmPct + dr))}
-          onCommit={() => edit.commit()} onCancel={edit.cancel} />;
-      })}
-    </FanCurvePlot>
-    <FanCurveLegend hasReference={differs} mainLabel={differs ? "草稿" : "当前设置"}>
-      <span>100% = {maximumRpm} RPM</span>
-      <span className="ccc-plot-hint">十级阈值 · 新目标 ≥20%</span>
-    </FanCurveLegend>
-  </div>;
+  const chart = <FanCurvePlot label="十级温度与目标转速曲线" measure="目标转速" minTemp={0} maxTemp={100} startTemp={0}
+    plotRef={plot} draftPath={rpmStepPath(draft)} currentPath={differs ? rpmStepPath(current) : undefined}>
+    {draft.map((p, index) => {
+      const bounds = rpmLimits(draft, index);
+      return <FirmwareCurveHandle key={index} source={source} plotRef={plot} plotMin={0} rpmIndex={index}
+        selected={selected === index} disabled={!editable} busy={busy} onSelect={() => select(index)}
+        x={p.tempC} y={100 - p.rpmPct} temp={p.tempC} tempLimits={bounds.temp} targetLimits={bounds.rpm}
+        label={`第 ${index + 1} 级温度与转速`} valueText={`${p.tempC}°C，最大转速的 ${p.rpmPct}%`}
+        onMove={(temp, rpm) => edit.update(before => moveRpmPoint(before, index, temp, rpm))}
+        onStep={(dt, dr) => edit.update(before => moveRpmPoint(before, index, before[index].tempC + dt, before[index].rpmPct + dr))}
+        onCommit={() => edit.commit()} onCancel={edit.cancel} />;
+    })}
+  </FanCurvePlot>;
   return <FanCurveSection status={status} plot={chart} fields={<>
-    <h4>{fanName} 曲线点</h4>
+    <h5>{fanName} 曲线点</h5>
+    <p className="ccc-control-caption">最大转速 {maximumRpm} RPM</p>
     <div className="ccc-curve-point ccc-rpm-inputs" role="group" aria-label="RPM 曲线数值">
       <label className="ccc-curve-number">级别<Select size="compact" value={String(selected)} label="选择 RPM 级别"
         disabled={!editable} busy={busy}

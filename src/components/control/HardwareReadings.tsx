@@ -1,22 +1,26 @@
 import { Surface } from "../Surface";
-import type { HardwareSnapshot, SystemOverview } from "../../api/client";
+import type { HardwareSnapshot } from "../../api/client";
 import { MetricReadout } from "./MetricReadout";
 import { SensorTemperature } from "./SensorTemperature";
-import type { MemorySample } from "../../app/useSystemOverview";
+import type { MemorySample, SystemOverview } from "../../app/useSystemOverview";
 import { BrandMark, HardwareArtwork } from "./HardwareArtwork";
 import { CapacityOverview } from "./CapacityOverview";
 import { CpuParameters, GpuParameters } from "./HardwareParameters";
 import { BYTES_PER_MB } from "../../lib/format-parameters";
 
+const cpuTemperature = (sample: HardwareSnapshot) => sample.fan.cpu.tempC;
+const gpuTemperature = (sample: HardwareSnapshot) => sample.nvidia?.tempC ?? null;
+
 export function HardwareReadings({ live, samples, overview, memoryHistory }: {
   live: HardwareSnapshot | null; samples: readonly HardwareSnapshot[];
-  overview: SystemOverview | null; memoryHistory: MemorySample[];
+  overview: SystemOverview; memoryHistory: MemorySample[];
 }) {
   const cpu = "var(--ccc-action)", gpu = "var(--ccc-safe)";
   const utility = live?.cpuUtility;
   const cpuUsage = utility && live.sampledAtMs >= utility.sampledAtMs && live.sampledAtMs - utility.sampledAtMs <= 2500 ? utility.valuePct : null;
   const memory = live?.nvidia?.memUsedMb, total = live?.nvidia?.memTotalMb;
-  const vendor = overview?.cpu.vendor;
+  const cpuIdentity = overview.inventory?.cpu;
+  const vendor = cpuIdentity?.vendor;
   const cpuBrand = vendor === "intel" || vendor === "amd" ? vendor : null;
   return <div className="ccc-module-grid">
     <div className="ccc-module-grid" data-module-layout="readings">
@@ -29,11 +33,11 @@ export function HardwareReadings({ live, samples, overview, memoryHistory }: {
           <div className="ccc-hardware-description">
             <h3>CPU</h3>
             <p className="ccc-hardware-subtitle">处理器</p>
-            <p>{overview?.cpu.name ?? "处理器型号未识别"}</p>
-            <CpuParameters overview={overview} live={live} />
+            <p>{cpuIdentity?.name ?? "处理器型号未识别"}</p>
+            <CpuParameters cpu={cpuIdentity} live={live} />
           </div>
         </div>
-        <SensorTemperature label="CPU" samples={samples} read={sample => sample.fan.cpu.tempC} colorVar={cpu} />
+        <SensorTemperature label="CPU" samples={samples} read={cpuTemperature} colorVar={cpu} />
         <div className="ccc-sensor-metrics">
           <div className="ccc-sensor-metric-grid">
             <MetricReadout icon="activity" label="当前频率" value={utility?.clockMhz ?? null} unit="MHz" colorVar={cpu} />
@@ -55,7 +59,7 @@ export function HardwareReadings({ live, samples, overview, memoryHistory }: {
             <GpuParameters live={live} />
           </div>
         </div>
-        <SensorTemperature label="GPU" samples={samples} read={sample => sample.nvidia?.tempC ?? null} colorVar={gpu} />
+        <SensorTemperature label="GPU" samples={samples} read={gpuTemperature} colorVar={gpu} />
         <div className="ccc-sensor-metrics">
           <div className="ccc-sensor-metric-grid">
             <MetricReadout icon="activity" label="当前频率" value={live?.nvidia?.graphicsClockMhz ?? null} unit="MHz" colorVar={gpu} />
@@ -67,6 +71,7 @@ export function HardwareReadings({ live, samples, overview, memoryHistory }: {
         </div>
       </Surface>
     </div>
-    <CapacityOverview overview={overview} oemMemory={live?.oemMemory ?? null} memoryHistory={memoryHistory} />
+    <CapacityOverview inventory={overview.inventory} capacity={overview.memory} memoryHistory={memoryHistory}
+      reportedClockMhz={live?.oemMemory?.reportedClockMhz ?? null} referenceClockMhz={live?.oemMemory?.referenceClockMhz ?? null} />
   </div>;
 }

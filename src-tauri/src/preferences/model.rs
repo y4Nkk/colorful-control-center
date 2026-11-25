@@ -49,8 +49,8 @@ pub struct Preferences {
     pub close_behavior: CloseBehavior,
     pub always_on_top: bool,
     pub start_minimized: bool,
-    #[serde(default = "default_close_oem_on_startup")]
-    pub close_oem_on_startup: bool,
+    #[serde(rename = "closeOemOnStartup", default = "default_auto_close_oem")]
+    pub auto_close_oem: bool,
     pub startup_page: StartupPage,
     pub global_shortcut: String,
     pub runtime_log_level: LogLevel,
@@ -86,7 +86,7 @@ impl Default for Preferences {
             close_behavior: CloseBehavior::HideToTray,
             always_on_top: false,
             start_minimized: false,
-            close_oem_on_startup: default_close_oem_on_startup(),
+            auto_close_oem: default_auto_close_oem(),
             startup_page: StartupPage::Dashboard,
             global_shortcut: String::new(),
             runtime_log_level: LogLevel::Info,
@@ -95,7 +95,7 @@ impl Default for Preferences {
     }
 }
 
-fn default_close_oem_on_startup() -> bool {
+fn default_auto_close_oem() -> bool {
     true
 }
 

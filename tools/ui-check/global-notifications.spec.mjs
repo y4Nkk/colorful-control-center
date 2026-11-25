@@ -11,9 +11,10 @@ test("启动显示选项和原厂退出开关使用同一软件偏好", async ({
   const display = page.getByRole("radiogroup", { name: "启动时显示", exact: true });
   const window = display.getByRole("radio", { name: "显示主界面" });
   const tray = display.getByRole("radio", { name: "最小化到托盘" });
-  const close = page.getByRole("switch", { name: "启动时关闭原厂软件" });
+  const close = page.getByRole("switch", { name: "自动关闭原厂软件" });
   await expect(window).toBeChecked();
   await expect(close).toBeChecked();
+  await expect(page.getByText(/最小化到托盘时也生效/)).toBeVisible();
   await tray.check();
   await expect(tray).toBeChecked();
   await close.uncheck();
@@ -21,9 +22,11 @@ test("启动显示选项和原厂退出开关使用同一软件偏好", async ({
   await expect(trigger(page)).toContainText("已保存启动显示方式");
   await window.check();
   await expect(window).toBeChecked();
+  await close.check();
+  await expect(close).toBeChecked();
   const saved = await page.evaluate(() => window.__uiFixture.calls.filter(call => call.command === "set_app_preferences")
     .map(({ args: { settings } }) => [settings.startMinimized, settings.closeOemOnStartup]));
-  expect(saved).toEqual([[true, true], [true, false], [false, false]]);
+  expect(saved).toEqual([[true, true], [true, false], [false, false], [false, true]]);
   await page.setViewportSize({ width: 360, height: 720 });
   await display.scrollIntoViewIfNeeded();
   const bounds = await display.boundingBox();
@@ -33,7 +36,7 @@ test("启动显示选项和原厂退出开关使用同一软件偏好", async ({
 test("标题栏保留原厂启动结果，支持键盘展开、逐条关闭和清空", async ({ page }) => {
   await page.clock.install();
   await page.addInitScript({ content: `${MOCK_IPC}\nwindow.__uiFixture.oemStartupNotice = {
-    kind: "failed", detail: "原厂 FnKey 位于其他 Windows 会话"
+    kind: "failed", detail: "CC40.exe 位于其他 Windows 会话", closed: ["FnKey.exe", "ControlCenter30.exe"]
   };` });
   await page.goto("/");
   await expect(trigger(page)).toContainText("启动时未完全退出原厂软件");
@@ -48,6 +51,7 @@ test("标题栏保留原厂启动结果，支持键盘展开、逐条关闭和�
   await page.clock.fastForward(12_000);
   await expect(notices(page)).toContainText("已保存启动显示方式");
   await expect(notices(page)).toContainText("位于其他 Windows 会话");
+  await expect(notices(page)).toContainText("已关闭 FnKey.exe、ControlCenter30.exe");
   await page.keyboard.press("Escape");
   await expect(notices(page)).toBeHidden();
   await expect(trigger(page)).toBeFocused();

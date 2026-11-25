@@ -44,7 +44,7 @@ fn available(hal: &Hal, display: &display::Controller, allow_software: bool) -> 
         bail!("请先保留或恢复刷新率试用，再请求独显系统授权");
     }
     if !allow_software && crate::fanctl::software::active(hal)? {
-        bail!("请先确认软件风扇已归还，再请求独显系统授权");
+        bail!("请先确认风扇已退出软件调速，再请求独显系统授权");
     }
     Ok(())
 }

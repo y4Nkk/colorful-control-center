@@ -10,13 +10,13 @@ import { ConfirmButton } from "../ConfirmButton";
 import { Select } from "../Select";
 import { ProfilePreview } from "../profiles/ProfilePreview";
 import { POWER_RULES, usePowerProfilePolicy } from "./usePowerProfilePolicy";
-import { useAutomaticProfileReport } from "./useAutomaticProfileReport";
 
 export function PowerProfilePolicy({ active, revision }: { active: boolean; revision: number }) {
-  const p = usePowerProfilePolicy(active, revision), latest = useAutomaticProfileReport(active);
+  const p = usePowerProfilePolicy(active, revision);
   const { view } = p;
   const status = view?.paused && view.record?.enabled ? "已暂停" : !view && !p.error ? "读取中…" : null;
-  const issues = Array.from(new Set([p.error, view?.configurationError, view?.listenerError, view?.lastIssue, latest.error].filter(Boolean)));
+  const currentIssues = [p.error, view?.configurationError, view?.listenerError];
+  const issues = Array.from(new Set([...currentIssues, view?.lastIssue].filter(Boolean)));
   const unavailableRules = POWER_RULES.map(rule => {
     const { error, selection } = p.choices[rule.key];
     return { ...rule, issues: [error, selection?.modeError, selection?.displayError, selection?.gpuPowerError, selection?.graphicsModeError].filter((issue): issue is string => !!issue) };
@@ -40,8 +40,7 @@ export function PowerProfilePolicy({ active, revision }: { active: boolean; revi
     {issues.length > 0 && <div className="ccc-actions">
       <Button icon="refresh" variant="secondary" size="compact" disabled={p.busy} onClick={() => void p.reread()}>重新读取并暂停</Button>
     </div>}
-    <OemConflictAction issues={[...issues, ...unavailableRules.flatMap(rule => rule.issues),
-      ...(latest.report?.steps.filter(step => !step.ok).map(step => step.message) ?? [])]}
+    <OemConflictAction issues={[...currentIssues, ...unavailableRules.flatMap(rule => rule.issues)]}
       disabled={p.busy} onClosed={p.refreshAfterExit} />
     {view?.record && !savedRules && <p className="ccc-control-caption">保存一条规则后可开启自动档案。</p>}
     <PolicyFields model={p} unavailable={unavailableRules} />

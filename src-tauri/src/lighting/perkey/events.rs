@@ -13,6 +13,10 @@ pub struct Engine {
     chord: [bool; 3],
 }
 impl Engine {
+    pub(super) fn deadline(&self) -> Option<Duration> {
+        self.win_due
+    }
+
     pub fn event(
         &mut self,
         event: KeyEvent,
@@ -154,15 +158,18 @@ mod tests {
             color: None,
         };
         let mut e = Engine::default();
+        assert_eq!(e.deadline(), None);
         assert!(
             e.event(key(0xE05B, true), Duration::ZERO, &p, &device)
                 .is_empty()
         );
+        assert_eq!(e.deadline(), Some(Duration::from_millis(50)));
         assert!(e.tick(Duration::from_millis(49), &p).is_empty());
         assert_eq!(
             e.tick(Duration::from_millis(50), &p),
             vec![[8, 255, 0xDB, 0, 0]]
         );
+        assert_eq!(e.deadline(), None);
         let mut e = Engine::default();
         e.event(key(0xE05B, true), Duration::ZERO, &p, &device);
         assert!(
@@ -173,6 +180,7 @@ mod tests {
             e.event(key(0x6E, true), Duration::ZERO, &p, &device),
             vec![[8, 255, 0xDD, 0, 0]]
         );
+        assert_eq!(e.deadline(), None);
         assert!(e.tick(Duration::from_secs(1), &p).is_empty());
     }
     #[test]

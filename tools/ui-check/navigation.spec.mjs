@@ -65,7 +65,7 @@ test("概览与性能散热独立，电源下的档案预览在切页后保留",
   await expect(page.getByRole("region", { name: "概览", exact: true })).toBeHidden();
   await expect(page.getByRole("region", { name: "预设模式", exact: true })).toBeVisible();
   await expect(page.getByRole("slider", { name: "持续功耗上限", exact: true })).toBeVisible();
-  await expect(page.getByRole("region", { name: "风扇设置", exact: true })).toContainText("1800 RPM");
+  await expect(page.getByRole("region", { name: "散热控制", exact: true })).toContainText("1800 RPM");
   const offset = page.getByRole("slider", { name: "加速偏移", exact: true });
   await offset.fill("38");
   await expect.poll(() => page.evaluate(() => window.__uiFixture.fan.offsetPct)).toBe(38);
@@ -104,9 +104,9 @@ test("托盘风扇设置定位散热，硬件回读事件更新已打开的页�
   await navigate(page, "设备配置");
   await page.evaluate(() => window.__uiEmit("tray-navigation-request", { kind: "cooling" }));
   const performance = page.getByRole("main", { name: "性能与散热", exact: true });
-  const cooling = performance.getByRole("region", { name: "风扇设置", exact: true });
+  const cooling = performance.getByRole("region", { name: "散热控制", exact: true });
   await expect(cooling.getByRole("radio", { name: "自动", exact: true })).toBeChecked();
-  await expect(cooling.getByRole("heading", { name: "风扇设置", exact: true })).toBeInViewport();
+  await expect(cooling.getByRole("heading", { name: "散热控制", exact: true })).toBeInViewport();
   await page.evaluate(() => {
     window.__uiFixture.fan.currentMode = 1;
     window.__uiEmit("hardware-controls-changed", null);

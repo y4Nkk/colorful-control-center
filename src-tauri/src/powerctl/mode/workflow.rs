@@ -23,8 +23,14 @@ pub struct Plan {
 #[derive(Clone, Copy)]
 enum Entry {
     Selection,
-    Supply { activate_plan: bool },
-    Options { fan: Option<u8> },
+    Supply {
+        activate_plan: bool,
+    },
+    Options {
+        target: CoreSnapshot,
+        fan: Option<fanctl::ModePolicy>,
+        remember_quiet: bool,
+    },
 }
 impl Entry {
     fn remembers_ac(self) -> bool {
@@ -59,11 +65,28 @@ pub(crate) fn checkpoint_for_supply(hal: &Hal, wanted: u8, activate_plan: bool) 
 }
 pub(super) fn checkpoint_options(
     hal: &Hal,
-    wanted: u8,
-    values: &boost::Values,
+    target: CoreSnapshot,
     fan: Option<u8>,
+    remember_quiet: bool,
 ) -> Result<Plan> {
-    prepare(hal, wanted, Some(values), Entry::Options { fan })
+    let fan = fan.map(|mode| {
+        let saved = if target.mode == 3 && mode == fanctl::FAN_MODE_NOISELESS {
+            fanctl::FAN_MODE_AUTO
+        } else {
+            mode
+        };
+        fanctl::ModePolicy::explicit(mode, saved, None)
+    });
+    prepare(
+        hal,
+        target.mode,
+        None,
+        Entry::Options {
+            target,
+            fan,
+            remember_quiet,
+        },
+    )
 }
 fn prepare(hal: &Hal, wanted: u8, options: Option<&boost::Values>, entry: Entry) -> Result<Plan> {
     hal.ensure_mode_change_allowed()?;
@@ -77,21 +100,12 @@ fn prepare(hal: &Hal, wanted: u8, options: Option<&boost::Values>, entry: Entry)
         boost::require_driver(hal)?;
     }
     let options_revision = options.map(|_| boost::revision(hal)).transpose()?;
-    let fan_profile = fanctl::read_profile(hal)?;
-    if !fan_profile.available_modes.contains(&target.fan_mode) {
-        bail!("原厂分模式风扇策略未被当前固件声明支持");
-    }
-    boost::validate_fan(
-        target.mode,
-        target.turbo,
-        boost::FanTarget::Firmware(target.fan_mode),
-    )?;
-    if target.fan_mode == fanctl::FAN_MODE_CUSTOM {
-        fanctl::validate_custom_table(hal, &fan_profile)?;
+    if !matches!(entry, Entry::Options { fan: None, .. }) {
+        validate_fan_policy(hal, target.fan, target.turbo)?;
     }
     let fan = fan_checkpoint(hal, core.mode, entry)?;
     if !matches!(entry, Entry::Options { .. })
-        && target.fan_offset_pct.is_some()
+        && target.fan.offset_pct().is_some()
         && fan.offset().is_none()
     {
         bail!("无法确认切换前的 EC 风扇偏移");
@@ -114,9 +128,33 @@ fn prepare(hal: &Hal, wanted: u8, options: Option<&boost::Values>, entry: Entry)
     })
 }
 
+fn validate_fan_policy(hal: &Hal, fan: fanctl::ModePolicy, turbo: bool) -> Result<()> {
+    fan.validate()?;
+    fan.validate_turbo(turbo)?;
+    if let Some(mode) = fan.mode() {
+        let profile = fanctl::read_profile(hal)?;
+        if !profile.available_modes.contains(&mode) {
+            bail!("原厂预设风扇档位未被当前固件声明支持");
+        }
+        if mode == fanctl::FAN_MODE_CUSTOM {
+            fanctl::validate_custom_table(hal, &profile)?;
+        }
+    }
+    Ok(())
+}
+
 fn fan_checkpoint(hal: &Hal, mode: u8, entry: Entry) -> Result<fanctl::FanCheckpoint> {
     let mut checkpoint = fanctl::checkpoint(hal, true)?;
-    if mode == 3 && matches!(entry, Entry::Options { fan: Some(_) }) {
+    if mode == 3
+        && matches!(
+            entry,
+            Entry::Options {
+                fan: Some(_),
+                remember_quiet: true,
+                ..
+            }
+        )
+    {
         let quiet = hal.with_dchu(|io| {
             let caps = io.read_bios_capabilities(0, 22)?;
             fanctl::supports_noiseless(&caps)
@@ -131,6 +169,13 @@ fn fan_checkpoint(hal: &Hal, mode: u8, entry: Entry) -> Result<fanctl::FanCheckp
 }
 
 impl Plan {
+    pub(super) fn option_fan(&self) -> Option<fanctl::ModePolicy> {
+        match self.entry {
+            Entry::Options { fan, .. } => fan,
+            _ => None,
+        }
+    }
+
     pub(super) fn remember(&self, hal: &Hal) -> Result<()> {
         let mut recovery = hal.recovery()?;
         let initial = recovery.oem_mode.get_or_insert_with(|| self.before.clone());
@@ -259,6 +304,10 @@ impl Plan {
         permit()?;
         progress.wrote = self.before.fan.software_curves().is_some();
         fanctl::software::stop_safely(hal)?;
+        if self.target.turbo {
+            permit()?;
+            fanctl::handoff_for_turbo(hal, &mut progress.wrote)?;
+        }
         if self.preferences != self.before.core.preferences {
             permit()?;
             hal.with_dchu(|io| {
@@ -279,8 +328,8 @@ impl Plan {
             permit,
         )?;
         permit()?;
-        fanctl::apply_mode_policy(hal, self.target.fan_saved_mode, self.target.fan_mode)?;
-        if let Some(offset) = self.target.fan_offset_pct {
+        fanctl::apply_mode_policy(hal, self.target.fan)?;
+        if let Some(offset) = self.target.fan.offset_pct() {
             permit()?;
             fanctl::set_mode_offset(hal, u32::from(offset))?;
         }
@@ -314,16 +363,27 @@ fn configured(
         } else {
             Some(energy::read(io, hal.reviewed_dsdt)?)
         };
-        let mut target = policy::target_for(io, wanted, entry.activates_plan(), energy)?;
+        let (preferences, selected_options, fan) = match entry {
+            Entry::Options { target, fan, .. } => {
+                if core.mode != target.mode {
+                    bail!("当前模式已变化，请重新预览");
+                }
+                let bits = [
+                    u8::from(target.command & 0x40 != 0),
+                    u8::from(target.command & 0x80 != 0),
+                ];
+                (target.preferences, bits, fan)
+            }
+            _ => {
+                let preferences = boost::profile_preferences(io, core.preferences, options)?;
+                (preferences, preferences, None)
+            }
+        };
+        let mut target =
+            policy::target_for(io, wanted, entry.activates_plan(), energy, selected_options)?;
         target.ac_mode = entry.remembers_ac().then_some(wanted);
-        let preferences = boost::configure(io, core, &mut target, options)?;
-        if let Entry::Options { fan: Some(fan) } = entry {
-            target.fan_mode = fan;
-            target.fan_saved_mode = if wanted == 3 {
-                fanctl::FAN_MODE_AUTO
-            } else {
-                fan
-            };
+        if let Some(fan) = fan {
+            target.fan = fan;
         }
         Ok((core, target, preferences, energy))
     })
@@ -339,7 +399,7 @@ fn recover_snapshot(hal: &Hal, before: &Snapshot) -> Result<()> {
     let current_energy = energy::review_restore(hal, before.energy);
     // 模式先恢复，风扇快照最后恢复；系统恢复的失败不跳过其他域。
     let mut errors = Vec::new();
-    let core = boost::prepare_recovery(hal, before.core)
+    let core = boost::prepare_recovery(hal, before.core, &mut false)
         .and_then(|()| hal.with_dchu(|io| recover(io, before.core)));
     for (name, result) in [
         ("OEM 模式", core),

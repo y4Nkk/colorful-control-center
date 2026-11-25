@@ -13,6 +13,9 @@ pub(super) trait Io {
 pub(super) fn revision(loaded: &Loaded, facts: &Facts) -> Result<String> {
     digest(&(&loaded.revision, facts))
 }
+pub(super) fn restore_revision(loaded: &Loaded, initial: &Record) -> Result<String> {
+    digest(&(&loaded.revision, initial))
+}
 pub(super) fn change(
     io: &impl Io,
     expected: &str,
@@ -25,6 +28,27 @@ pub(super) fn change(
         bail!("热键策略或设备预览已变化，请重新读取确认");
     }
     let next = target(&loaded.record, &facts)?;
+    commit(io, loaded, facts, next, baseline)
+}
+
+pub(super) fn restore(io: &impl Io, expected: &str, baseline: &mut Option<Record>) -> Result<()> {
+    let loaded = io.load()?;
+    let Some(initial) = baseline.as_ref() else {
+        bail!("尚未修改热键软件策略");
+    };
+    if restore_revision(&loaded, initial)? != expected {
+        bail!("热键策略恢复目标已变化，请重新读取确认");
+    }
+    commit(io, loaded, io.facts(), initial.clone(), baseline)
+}
+
+fn commit(
+    io: &impl Io,
+    loaded: Loaded,
+    facts: Facts,
+    next: Record,
+    baseline: &mut Option<Record>,
+) -> Result<()> {
     next.validate()?;
     if next.settings.enabled {
         next.verify(&facts)?;

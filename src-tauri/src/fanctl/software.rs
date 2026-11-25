@@ -142,7 +142,7 @@ pub(crate) fn read_for_handoff(hal: &Hal) -> Result<Option<Curves>> {
     let curves = read(hal)?;
     ensure!(
         !hal.fan_recovery_pending() && (curves.is_some() || !active(hal)?),
-        "软件风扇归还未证实，请等待恢复"
+        "尚未确认风扇已退出软件调速，请等待恢复"
     );
     Ok(curves)
 }
@@ -195,7 +195,7 @@ fn release(hal: &Hal) -> Result<()> {
         } else {
             stop_progress(hal)?;
         }
-        return Err(error).context("风扇归还未证实");
+        return Err(error).context("尚未确认风扇已退出软件调速");
     }
     stop_progress(hal)?;
     ensure!(!hal.fan_recovery_pending(), "独立风扇监护正在恢复");
@@ -212,7 +212,7 @@ pub(crate) fn stop_safely(hal: &Hal) -> Result<()> {
     release(hal)?;
     hal.disarm_fan_guard()?;
     hal.record_software_fan_stopped()
-        .context("风扇已交还，恢复记录未提交")
+        .context("风扇已退出软件调速，未能保存恢复记录")
 }
 
 fn recover(hal: &Hal, error: anyhow::Error) -> anyhow::Error {

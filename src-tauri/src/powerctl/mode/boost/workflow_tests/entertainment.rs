@@ -87,11 +87,71 @@ fn deferred_entertainment_preferences_do_not_become_the_initial_command() {
     reviewed_entertainment(&f);
     f.device.0.lock().unwrap().pages[1][32] = 1;
     let _gate = f.hal.begin_write().unwrap();
-    assert!(read(&f.hal).unwrap().entertainment_options_pending);
+    let saved = read(&f.hal).unwrap();
+    assert_eq!(saved.current.dtt, Some(true));
+    assert!(!saved.dtt_active);
     apply(&f.hal, &request(&f, false, true)).unwrap();
     let active = read(&f.hal).unwrap();
-    assert!(!active.entertainment_options_pending);
+    assert!(active.dtt_active);
     assert_eq!(f.device.0.lock().unwrap().pages[1][32], 1);
+}
+
+#[test]
+fn changing_dtt_keeps_pending_turbo_saved_and_preserves_the_current_fan() {
+    let f = setup();
+    reviewed_entertainment(&f);
+    {
+        let mut state = f.device.0.lock().unwrap();
+        state.pages[4][8] = 1;
+        state.fan_mode = FAN_MODE_CUSTOM;
+    }
+    let _gate = f.hal.begin_write().unwrap();
+    let mut dtt = request(&f, true, true);
+    dtt.values.turbo_fan = None;
+    apply(&f.hal, &dtt).unwrap();
+    let active = read(&f.hal).unwrap();
+    assert!(!active.turbo_active && active.dtt_active);
+    assert_eq!(active.current.turbo_fan, Some(true));
+    let state = f.device.0.lock().unwrap();
+    assert_eq!(state.fan_mode, FAN_MODE_CUSTOM);
+    assert!(state.events.iter().any(|event| event == "MODE:131"));
+    assert!(!state.events.iter().any(|event| event == "DCHU:121"));
+    assert!(
+        !state
+            .events
+            .iter()
+            .any(|event| event.starts_with("PAGE4:8:"))
+    );
+}
+
+#[test]
+fn temporary_entertainment_quiet_keeps_the_saved_preference_and_uses_auto_as_base() {
+    let f = setup();
+    reviewed_entertainment(&f);
+    {
+        let mut state = f.device.0.lock().unwrap();
+        state.bios[20] |= 1;
+        state.bios[21] |= 1;
+    }
+    let _gate = f.hal.begin_write().unwrap();
+    fanctl::set_mode(&f.hal, FAN_MODE_NOISELESS).unwrap();
+    {
+        let state = f.device.0.lock().unwrap();
+        assert_eq!(state.fan_mode, FAN_MODE_NOISELESS);
+        assert_eq!(
+            [state.pages[4][5], state.pages[4][9], state.pages[4][73]],
+            [0, 0, 0]
+        );
+    }
+    apply(&f.hal, &request(&f, true, false)).unwrap();
+    let mut quiet = request(&f, false, false);
+    quiet.values.dtt = None;
+    quiet.quiet_fan = Some(QuietTarget::Current);
+    apply(&f.hal, &quiet).unwrap();
+    let profile = read(&f.hal).unwrap();
+    assert!(!profile.turbo_active);
+    let quiet = profile.quiet_fan.unwrap();
+    assert!(quiet.active && !quiet.enabled);
 }
 
 #[test]

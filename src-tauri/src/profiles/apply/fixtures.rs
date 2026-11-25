@@ -261,6 +261,14 @@ impl Device {
     }
 }
 impl Fixture {
+    pub(super) fn restore_fan(
+        &self,
+        target: crate::fanctl::RestoreTarget,
+    ) -> anyhow::Result<()> {
+        let expected = crate::fanctl::read_restore_view(&self.hal)?.restore_revision;
+        crate::fanctl::restore(&self.hal, target, &expected)
+    }
+
     pub fn with_energy(mut self, value: u8) -> Self {
         self.hal.reviewed_dsdt = true;
         let mut state = self.device.0.lock().unwrap();

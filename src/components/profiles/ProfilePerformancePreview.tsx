@@ -2,7 +2,8 @@ import { Icon } from "../Icon";
 import type { ProfileSettings } from "../../api/profiles";
 import { Surface } from "../Surface";
 import { FactList } from "../FactList";
-import { PERFORMANCE_FIELDS, performanceState } from "../control/OemPerformanceOptions";
+import { PERFORMANCE_OPTION_LABELS } from "../../api/power";
+import { performanceState } from "../control/format";
 
 export function ProfilePerformancePreview({ settings }: { settings: ProfileSettings }) {
   const values = settings.performanceOptions;
@@ -13,8 +14,8 @@ export function ProfilePerformancePreview({ settings }: { settings: ProfileSetti
     <div className="ccc-profile-values"><h3 className="ccc-icon-title"><Icon name="performance" />性能选项</h3>
       <strong>{summary}</strong>
     </div>
-    <FactList compact layout="tiles" facts={PERFORMANCE_FIELDS.filter(field => values[field.key] !== null).map(field => ({
-      label: field.label, value: performanceState(values[field.key]),
+    <FactList compact layout="tiles" facts={(["turboFan", "dtt"] as const).filter(key => values[key] !== null).map(key => ({
+      label: PERFORMANCE_OPTION_LABELS[key], value: performanceState(values[key]),
     }))} />
   </Surface>;
 }

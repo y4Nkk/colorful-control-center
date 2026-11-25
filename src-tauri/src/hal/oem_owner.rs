@@ -1,8 +1,10 @@
 mod fn_key;
+mod process;
 
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
+use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow};
 use windows_sys::Win32::{
     Foundation::{ERROR_NO_MORE_FILES, HANDLE, INVALID_HANDLE_VALUE},
     System::Diagnostics::ToolHelp::{
@@ -15,13 +17,19 @@ pub(crate) use fn_key::{FnKeyIdentity, FnKeyProcess};
 
 const FN_KEY: &str = "FnKey.exe";
 const BATTERY_EXECUTABLES: [&str; 2] = ["BatteryPackUtility.exe", FN_KEY];
-const EXECUTABLES: [&str; 5] = [
-    FN_KEY,
-    "LaunchFlexikey.exe",
-    "Flexikey.exe",
-    "CC40.exe",
-    "CC.exe",
-];
+
+fn control_executables() -> impl Iterator<Item = &'static str> {
+    process::TARGETS
+        .iter()
+        .map(|target| target.executable)
+        .chain(["Flexikey.exe"])
+}
+
+#[derive(Default)]
+pub(crate) struct CloseReport {
+    pub closed: Vec<&'static str>,
+    pub failures: Vec<String>,
+}
 
 struct Owner {
     executable: &'static str,
@@ -39,31 +47,48 @@ fn blocked_message(executable: &str) -> String {
 }
 
 pub(crate) fn is_blocked_reason(reason: &str) -> bool {
-    EXECUTABLES
-        .iter()
-        .any(|executable| blocked_message(executable) == reason)
+    control_executables().any(|executable| blocked_message(executable) == reason)
 }
 
 pub(crate) fn ensure_owner_absent() -> Result<()> {
-    ensure_absent(&EXECUTABLES)
+    ensure_absent(control_owners()?)
 }
 
-pub(crate) fn close_at_startup() -> Result<bool> {
-    let active = owners(&EXECUTABLES)?;
-    let mut fn_keys = active.iter().filter(|owner| owner.executable == FN_KEY);
-    if let Some(owner) = fn_keys.next() {
-        ensure!(
-            fn_keys.next().is_none(),
-            "检测到多个 FnKey.exe，请手动退出原厂软件后重试"
-        );
-        fn_key::terminate_verified(owner.pid).context("结束原厂 FnKey 失败")?;
-        ensure_owner_absent().context("已结束原厂 FnKey，复查原厂控制进程失败")?;
-        return Ok(true);
+pub(crate) fn close_running() -> Result<CloseReport> {
+    let mut report = CloseReport::default();
+    let mut pending = Vec::new();
+    for owner in control_owners()? {
+        let Some(target) = process::TARGETS
+            .iter()
+            .find(|target| target.executable == owner.executable)
+        else {
+            report.failures.push(blocked_message(owner.executable));
+            continue;
+        };
+        match process::request_exit(owner.pid, target) {
+            Ok(Some(handle)) => pending.push((target.executable, handle)),
+            Ok(None) => (),
+            Err(error) => report
+                .failures
+                .push(format!("关闭 {} 失败：{error:#}", target.executable)),
+        }
     }
-    if let Some(owner) = active.first() {
-        return Err(owner.blocked());
+    let deadline = Instant::now() + Duration::from_secs(2);
+    for (executable, handle) in pending {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        match process::wait_for_exit(&handle, remaining.as_millis() as u32) {
+            Ok(true) => report.closed.push(executable),
+            Ok(false) => report.failures.push(format!("等待 {executable} 退出超时")),
+            Err(error) => report
+                .failures
+                .push(format!("确认 {executable} 退出失败：{error:#}")),
+        }
     }
-    Ok(false)
+    report.closed.sort_unstable();
+    report.closed.dedup();
+    report.failures.sort_unstable();
+    report.failures.dedup();
+    Ok(report)
 }
 
 pub(crate) fn blocked_reason() -> Option<String> {
@@ -73,26 +98,42 @@ pub(crate) fn blocked_reason() -> Option<String> {
 }
 
 pub(crate) fn ensure_battery_owner_absent() -> Result<()> {
-    ensure_absent(&BATTERY_EXECUTABLES)
+    ensure_absent(owners(|name| {
+        matching_executable(name, BATTERY_EXECUTABLES.into_iter())
+    })?)
 }
 
-fn ensure_absent(executables: &[&'static str]) -> Result<()> {
-    match owners(executables)?.first() {
+fn ensure_absent(owners: Vec<Owner>) -> Result<()> {
+    match owners.first() {
         Some(owner) => Err(owner.blocked()),
         None => Ok(()),
     }
 }
 
-fn owners(executables: &[&'static str]) -> Result<Vec<Owner>> {
+fn control_owners() -> Result<Vec<Owner>> {
+    owners(|name| matching_executable(name, control_executables()))
+}
+
+fn matching_executable(
+    name: &str,
+    mut candidates: impl Iterator<Item = &'static str>,
+) -> Option<&'static str> {
+    candidates.find(|candidate| name.eq_ignore_ascii_case(candidate))
+}
+
+fn owners(recognize: impl Fn(&str) -> Option<&'static str>) -> Result<Vec<Owner>> {
     let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
     if snapshot == INVALID_HANDLE_VALUE {
         return Err(std::io::Error::last_os_error().into());
     }
     let snapshot = unsafe { OwnedHandle::from_raw_handle(snapshot) };
-    inspect(snapshot.as_raw_handle(), executables)
+    inspect(snapshot.as_raw_handle(), recognize)
 }
 
-fn inspect(snapshot: HANDLE, executables: &[&'static str]) -> Result<Vec<Owner>> {
+fn inspect(
+    snapshot: HANDLE,
+    recognize: impl Fn(&str) -> Option<&'static str>,
+) -> Result<Vec<Owner>> {
     let mut owners = Vec::new();
     let mut entry = PROCESSENTRY32W {
         dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
@@ -105,12 +146,8 @@ fn inspect(snapshot: HANDLE, executables: &[&'static str]) -> Result<Vec<Owner>>
             .iter()
             .position(|v| *v == 0)
             .unwrap_or(entry.szExeFile.len());
-        let name = String::from_utf16(&entry.szExeFile[..end])?;
-        if let Some(executable) = executables
-            .iter()
-            .copied()
-            .find(|owner| name.eq_ignore_ascii_case(owner))
-        {
+        let name = String::from_utf16_lossy(&entry.szExeFile[..end]);
+        if let Some(executable) = recognize(&name) {
             owners.push(Owner {
                 executable,
                 pid: entry.th32ProcessID,
@@ -120,7 +157,7 @@ fn inspect(snapshot: HANDLE, executables: &[&'static str]) -> Result<Vec<Owner>>
     }
     let error = std::io::Error::last_os_error();
     if error.raw_os_error() != Some(ERROR_NO_MORE_FILES as i32) {
-        return Err(error.into());
+        return Err(error).context("无法枚举 Windows 进程");
     }
     Ok(owners)
 }

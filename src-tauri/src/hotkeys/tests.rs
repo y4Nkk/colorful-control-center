@@ -149,6 +149,9 @@ impl Memory {
     fn revision(&self) -> String {
         transaction::revision(&self.loaded.borrow(), &self.facts.borrow()).unwrap()
     }
+    fn restore_revision(&self, initial: &Record) -> String {
+        transaction::restore_revision(&self.loaded.borrow(), initial).unwrap()
+    }
 }
 impl Io for Memory {
     type Prepared = Record;
@@ -204,7 +207,8 @@ fn successful_apply_captures_initial_policy_and_disabled_target_stops_runtime() 
     .unwrap();
     assert!(io.running.get());
     assert_eq!(initial, Some(Record::default()));
-    transaction::change(&io, &io.revision(), |_, _| Ok(Record::default()), &mut initial).unwrap();
+    let revision = io.restore_revision(initial.as_ref().unwrap());
+    transaction::restore(&io, &revision, &mut initial).unwrap();
     assert!(!io.running.get());
     assert_eq!(initial, Some(Record::default()));
 }
@@ -252,13 +256,8 @@ fn failed_compensation_keeps_initial_policy_for_explicit_retry() {
     assert_eq!(initial, Some(Record::default()));
     assert!(!io.running.get());
     assert!(io.loaded.borrow().record.settings.enabled);
-    transaction::change(
-        &io,
-        &io.revision(),
-        |_, _| Ok(initial.clone().unwrap()),
-        &mut None,
-    )
-    .unwrap();
+    let revision = io.restore_revision(initial.as_ref().unwrap());
+    transaction::restore(&io, &revision, &mut initial).unwrap();
     assert_eq!(io.loaded.borrow().record, Record::default());
 }
 #[test]
@@ -266,13 +265,30 @@ fn stale_preview_and_changed_initial_authorization_do_not_stop_existing_listener
     let io = Memory::new(true);
     let revision = io.revision();
     let initial = io.loaded.borrow().record.clone();
+    let restore_revision = io.restore_revision(&initial);
     io.facts.borrow_mut().capabilities[0].identity = Some("new".into());
     assert!(transaction::change(&io, &revision, |_, _| Ok(Record::default()), &mut None).is_err());
     assert!(io.running.get());
     assert_eq!(io.saves.get(), 0);
-    assert!(transaction::change(&io, &io.revision(), |_, _| Ok(initial), &mut None).is_err());
+    assert!(transaction::restore(&io, &restore_revision, &mut Some(initial)).is_err());
     assert!(io.running.get());
     assert_eq!(io.saves.get(), 0);
+}
+#[test]
+fn software_restore_revision_survives_hardware_changes_but_rejects_new_policy() {
+    let io = Memory::new(true);
+    let mut initial = Some(Record::default());
+    let expected = io.restore_revision(initial.as_ref().unwrap());
+    let apply_revision = io.revision();
+    io.facts.borrow_mut().capabilities[0].identity = Some("changed-device".into());
+    assert_ne!(apply_revision, io.revision());
+    assert!(transaction::restore(&io, &apply_revision, &mut initial).is_err());
+    assert!(io.running.get());
+    transaction::restore(&io, &expected, &mut initial).unwrap();
+    assert_eq!(io.loaded.borrow().record, Record::default());
+    assert!(!io.running.get());
+    assert!(transaction::restore(&io, &expected, &mut initial).is_err());
+    assert_eq!(io.saves.get(), 1);
 }
 #[test]
 fn strict_store_preserves_damaged_and_externally_changed_files() {

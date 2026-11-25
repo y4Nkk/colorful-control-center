@@ -78,6 +78,28 @@ test("切换开关直接发送", async ({ page }) => {
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });
 
+test("无效供电记录需确认归档，归档后可重新启用", async ({ page }) => {
+  const view = supplyModeFixture();
+  view.error = "供电模式恢复记录版本为 4，当前版本为 5";
+  view.archiveRevision = "invalid-record-digest";
+  view.canEnable = false;
+  await setup(page, view);
+  await expect(toggle(page)).toBeDisabled();
+  const open = card(page).getByRole("button", { name: "归档无效供电记录", exact: true });
+  const dialog = page.getByRole("dialog", { name: "归档无效供电记录", exact: true });
+  await open.click();
+  await expect(dialog).toContainText("原文件移到同目录下的独立归档文件夹");
+  await dialog.getByRole("button", { name: "取消", exact: true }).click();
+  expect(await calls(page, "archive_invalid_oem_supply_record")).toEqual([]);
+  await open.click();
+  await dialog.getByRole("button", { name: "确认归档", exact: true }).click();
+  await expect(open).toHaveCount(0);
+  await expect(toggle(page)).toBeEnabled();
+  expect((await calls(page, "archive_invalid_oem_supply_record")).map(call => call.args))
+    .toEqual([{ expectedRevision: "invalid-record-digest" }]);
+  expect(await calls(page, "restore_oem_supply_mode")).toEqual([]);
+});
+
 test("关闭暂停并保留已保存策略，重新打开直接继续，未执行时恢复仅撤销软件规则", async ({ page }) => {
   await setup(page); await enable(page);
   await toggle(page).click();
@@ -165,19 +187,23 @@ test("启用正在等待授权时也可暂停，不重复发送启用", async ({
 test("恢复完整预览展示稀疏风扇模式、计划、独显与原始精度频率", async ({ page }) => {
   const view = supplyModeFixture();
   view.enabled = true; view.active = true; view.canEnable = false; view.canRestore = true; view.recovery = supplyRecoveryFixture();
+  view.recovery.currentFan.mode = view.recovery.currentFanMode = 2;
   await setup(page, view);
   const review = await previewConfiguration(page, "原厂供电模式", true);
   const recovery = review.getByLabel("原厂模式初始恢复预览", { exact: true });
-  for (const text of ["性能 → 娱乐", "自动 → 寂静模式", "5% → 0%", "高性能计划", "平衡计划", "节能计划", "电脑节能等级 0 → 电脑节能等级 2", "自动关断允许", "开启独显后取得", "-12.5 MHz", "987.654 MHz"]) {
+  for (const text of ["性能 → 娱乐", "静音 → 寂静模式", "5% → 0%", "高性能计划", "平衡计划", "节能计划", "电脑节能等级 0 → 电脑节能等级 2", "自动关断允许", "开启独显后取得", "-12.5 MHz", "987.654 MHz"]) {
     await expect(recovery).toContainText(text);
   }
   await expect(recovery).toContainText("读取不到当前频率，也没有用保存值代替");
-  await recovery.getByRole("button", { name: "查看完整风扇恢复参数", exact: true }).click();
-  const raw = recovery.locator("pre").last();
+  const parameters = recovery.getByRole("button", { name: "查看完整风扇恢复参数", exact: true });
+  await parameters.click();
+  const details = page.getByRole("dialog", { name: "完整风扇恢复参数", exact: true });
+  const raw = details.locator("pre").last();
   await expect(raw).toContainText('"query": 40');
   await expect(raw).toContainText('"mode": 8');
-  await recovery.getByRole("button", { name: "查看完整风扇恢复参数", exact: true }).click();
+  await page.keyboard.press("Escape");
   await expect(raw).toHaveCount(0);
+  await expect(parameters).toBeFocused();
   expect(await calls(page, "restore_oem_supply_mode")).toEqual([]);
   await configurationView(page, true).getByRole("button", { name: "确认恢复", exact: true }).click();
   expect((await calls(page, "restore_oem_supply_mode"))[0].args.expectedRevision).toBe("supply-0");

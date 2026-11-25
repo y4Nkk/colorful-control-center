@@ -2,6 +2,7 @@
 mod checkpoint;
 pub mod dust;
 mod profile;
+mod policy;
 pub mod rpm;
 pub(crate) mod saved;
 pub mod software;
@@ -15,13 +16,16 @@ use ccc_core::{
     fan::{OemCurvePoints, oem_duty_byte, oem_duty_percent, oem_fan_mode_bits},
     settings,
 };
+use sha2::{Digest, Sha256};
 pub(crate) use checkpoint::StoredCheckpoint;
 pub use checkpoint::{FanCheckpoint, checkpoint, restore_checkpoint};
+pub(crate) use policy::ModePolicy;
 pub use profile::{CurveKind, FanProfile};
 pub(crate) use profile::{OffsetSource, supports_noiseless};
 
 pub const FAN_MODE_AUTO: u8 = 0;
 pub(crate) const FAN_MODE_FULL_SPEED: u8 = 1;
+pub(crate) const FAN_MODE_MAXQ: u8 = 5;
 pub const FAN_MODE_CUSTOM: u8 = 6;
 pub(crate) const FAN_MODE_NOISELESS: u8 = 8;
 pub(crate) const NOISELESS_FAN_LABEL: &str = "寂静模式";
@@ -30,7 +34,7 @@ pub(crate) fn ensure_manual_allowed(hal: &Hal) -> Result<()> {
     ensure!(
         !hal.fan_recovery_pending()
             && (!hal.software_fan_release_unverified()? || software::read(hal)?.is_some()),
-        "风扇控制权尚未确认交还，暂不能写入"
+        "尚未确认风扇已退出软件调速，暂不能修改风扇设置"
     );
     dust::ensure_manual_allowed(hal)
 }
@@ -180,31 +184,51 @@ pub fn set_mode(hal: &Hal, mode: u8) -> Result<u8> {
     } else {
         mode
     };
-    apply_mode_policy(hal, mode, effective)?;
+    let saved = if mode == FAN_MODE_NOISELESS
+        && hal.with_dchu(|io| crate::powerctl::mode::current_mode(io))? == 3
+    {
+        FAN_MODE_AUTO
+    } else {
+        mode
+    };
+    apply_mode_policy(hal, ModePolicy::explicit(effective, saved, None))?;
     Ok(effective)
 }
 
-pub fn apply_mode_policy(hal: &Hal, saved_mode: u8, mode: u8) -> Result<()> {
+pub(crate) fn apply_mode_policy(hal: &Hal, policy: ModePolicy) -> Result<()> {
     ensure_manual_allowed(hal)?;
-    validate_mode(mode)?;
-    validate_mode(saved_mode)?;
-    if saved_mode != mode && (saved_mode != FAN_MODE_AUTO || mode != FAN_MODE_NOISELESS) {
-        bail!("风扇保存策略与即时模式不一致");
-    }
+    policy.validate()?;
+    let mode = policy.mode();
     let current = read_profile(hal)?;
-    ensure!(
-        current.available_modes.contains(&mode),
-        "固件未声明支持此风扇模式"
-    );
-    boost::ensure_fan_allowed(hal, FanTarget::Firmware(mode))?;
-    if mode == FAN_MODE_CUSTOM {
-        validate_custom_table(hal, &current)?;
+    boost::ensure_fan_allowed(hal, FanTarget::Firmware(mode.unwrap_or(current.current_mode)))?;
+    if let Some(mode) = mode {
+        ensure!(
+            current.available_modes.contains(&mode),
+            "固件未声明支持此风扇模式"
+        );
+        if mode == FAN_MODE_CUSTOM {
+            validate_custom_table(hal, &current)?;
+        }
     }
     let before = checkpoint::capture(hal, &current, false)?;
-    let patches = hal.with_dchu(|io| saved::mode(io, saved_mode))?;
+    let patches = hal.with_dchu(|io| saved::mode(io, policy.saved_mode()))?;
     checkpoint::transact(hal, &before, |io| {
-        io.set_fan_mode_verified(mode)?;
+        if let Some(mode) = mode {
+            io.set_fan_mode_verified(mode)?;
+        }
         settings::apply(io, 4, &patches, None).map_err(anyhow::Error::msg)?;
+        Ok(())
+    })
+}
+
+pub(crate) fn handoff_for_turbo(hal: &Hal, attempted: &mut bool) -> Result<()> {
+    ensure_manual_allowed(hal)?;
+    hal.with_dchu(|io| {
+        if matches!(io.read_fan_mode()?, FAN_MODE_CUSTOM | FAN_MODE_NOISELESS) {
+            // 先交接即时档位，目标预设随后提交自己的记忆槽。
+            *attempted = true;
+            io.set_fan_mode_verified(FAN_MODE_AUTO)?;
+        }
         Ok(())
     })
 }
@@ -243,10 +267,10 @@ fn write_offset(hal: &Hal, current: &FanProfile, pct: u32) -> Result<()> {
     })
 }
 
-pub fn restore_initial(hal: &Hal) -> Result<()> {
+fn restore_initial(hal: &Hal) -> Result<()> {
     ensure_manual_allowed(hal)?;
     let Some(initial) = hal.recovery()?.fan.clone() else {
-        return Ok(());
+        bail!("尚无初始风扇恢复记录，请重新读取");
     };
     boost::ensure_fan_allowed(hal, FanTarget::Firmware(initial.mode()))?;
     let before = checkpoint(hal, initial.has_tables())?;
@@ -256,7 +280,51 @@ pub fn restore_initial(hal: &Hal) -> Result<()> {
     Ok(())
 }
 
-pub fn restore_default(hal: &Hal) -> Result<()> {
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum RestoreTarget {
+    Initial,
+    FirmwareDefault,
+    InitialAndFirmwareDefault,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RestoreView {
+    #[serde(flatten)]
+    profile: FanProfile,
+    pub(crate) restore_revision: String,
+}
+
+pub(crate) fn read_restore_view(hal: &Hal) -> Result<RestoreView> {
+    let profile = read_profile(hal)?;
+    let initial = hal.recovery()?.fan.as_ref().map(FanCheckpoint::stored);
+    let state = serde_json::to_vec(&(&profile, profile.offset_raw, initial))?;
+    Ok(RestoreView {
+        profile,
+        restore_revision: format!("{:x}", Sha256::digest(state)),
+    })
+}
+
+pub(crate) fn restore(hal: &Hal, target: RestoreTarget, expected_revision: &str) -> Result<()> {
+    ensure_manual_allowed(hal)?;
+    ensure!(
+        read_restore_view(hal)?.restore_revision == expected_revision,
+        "风扇恢复目标已变化，请重新查看后确认"
+    );
+    match target {
+        RestoreTarget::Initial => restore_initial(hal),
+        RestoreTarget::FirmwareDefault => restore_default(hal),
+        RestoreTarget::InitialAndFirmwareDefault => {
+            restore_initial(hal)
+                .map_err(|error| anyhow::anyhow!("初始风扇设置恢复失败：{error:#}"))?;
+            restore_default(hal)
+                .map_err(|error| anyhow::anyhow!("初始风扇设置已恢复，固件默认设置恢复失败：{error:#}"))
+        }
+    }
+}
+
+fn restore_default(hal: &Hal) -> Result<()> {
     ensure_manual_allowed(hal)?;
     let current = read_profile(hal)?;
     if current.curve_kind == CurveKind::RpmTable {

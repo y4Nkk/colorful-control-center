@@ -6,7 +6,7 @@ import { openWorkspace, openPowerArea } from "./workspace.mjs";
 const owner = { pid: 4301, creationTime: [20, 4] };
 const diagnostic = executable => `原厂 ${executable} 正在运行，可能同时修改硬件设置。请退出后重试。`;
 const region = (page, name) => page.getByRole("region", { name, exact: true });
-const openConflict = card => card.getByRole("button", { name: "关闭原厂软件", exact: true });
+const openConflict = card => card.getByRole("button", { name: "关闭 FnKey", exact: true });
 const prompt = page => page.getByRole("dialog", { name: "关闭原厂 FnKey", exact: true });
 const calls = (page, command) => page.evaluate(command => window.__uiFixture.calls.filter(call => call.command === command), command);
 
@@ -50,6 +50,9 @@ async function setup(page, scenario) {
         throw new Error(`自动刷新率保留预检：${issue}`);
       }
       const result = await invoke(command, args);
+      if (scenario === "keyboard" && command === "read_hotkeys") {
+        return { ...result, facts: { ...result.facts, blockedReason: issue } };
+      }
       if (scenario === "devices" && command === "read_airplane") {
         return { ...result, current: null, revision: null, error: "Windows 未发现原厂飞行模式设备接口" };
       }
@@ -69,7 +72,8 @@ async function setup(page, scenario) {
       if (scenario === "profile" && command === "preview_profile_application") return { ...result, blocked: issue };
       return result;
     };
-  }, { owner, issue: diagnostic("FnKey.exe"), scenario, supply: scenario === "power" ? supplyModeFixture() : null });
+  }, { owner, issue: diagnostic(scenario === "keyboard" ? "ControlCenter30.exe" : "FnKey.exe"),
+    scenario, supply: scenario === "power" ? supplyModeFixture() : null });
 }
 
 test("自动刷新率写入冲突打开确认，可取消并重新核验，退出后由用户重试", async ({ page }) => {
@@ -132,6 +136,21 @@ test("触摸板与麦克风直接显示占用原因，退出后恢复编辑资�
   expect(await calls(page, "apply_microphones")).toHaveLength(0);
 });
 
+test("后台关闭 FnKey 并刷新控制状态后清除旧的写入冲突入口", async ({ page }) => {
+  await setup(page, "write");
+  await openWorkspace(page, "设备配置");
+  const refresh = region(page, "自动刷新率");
+  await refresh.getByRole("switch", { name: "启用自动刷新率" }).click();
+  await prompt(page).getByRole("button", { name: "取消", exact: true }).click();
+  await expect(openConflict(refresh)).toBeEnabled();
+  await page.evaluate(() => {
+    window.__uiFixture.fnKey = null;
+    window.__uiEmit("hardware-controls-changed", null);
+  });
+  await expect(openConflict(refresh)).toHaveCount(0);
+  expect(await calls(page, "close_fn_key")).toHaveLength(0);
+});
+
 test("进程重启后拒绝旧确认，重新打开才获取新进程身份", async ({ page }) => {
   await setup(page, "status");
   await openWorkspace(page, "设备配置");
@@ -159,11 +178,10 @@ test("电池校准遇到 BatteryPackUtility 时提供手动处理提示", async 
     Object.assign(data.calibration, { canStart: false, unavailableReason: issue });
   }, diagnostic("BatteryPackUtility.exe"));
   await openPowerArea(page, "电源设置");
-  await region(page, "电池校准").getByRole("button", { name: "处理原厂软件冲突", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "原厂软件冲突", exact: true });
-  await expect(dialog).toContainText("BatteryPackUtility.exe");
-  await expect(dialog.getByRole("button", { name: "关闭 FnKey", exact: true })).toHaveCount(0);
-  await dialog.getByRole("button", { name: "知道了" }).click();
+  const calibration = region(page, "电池校准");
+  await expect(calibration).toContainText(diagnostic("BatteryPackUtility.exe"));
+  await expect(calibration.getByRole("button", { name: /关闭 FnKey|处理原厂软件冲突/ })).toHaveCount(0);
+  await expect(prompt(page)).toHaveCount(0);
   expect(await calls(page, "read_fn_key_close_target")).toEqual([]);
   expect(await calls(page, "close_fn_key")).toEqual([]);
   expect(await calls(page, "start_battery_calibration")).toEqual([]);
@@ -183,6 +201,14 @@ test("无法核验 FnKey 时保留占用并提示手动退出", async ({ page })
   expect(await calls(page, "close_fn_key")).toEqual([]);
 });
 
+test("原厂热键直接显示其他原厂进程的退出指引", async ({ page }) => {
+  await setup(page, "keyboard");
+  await openWorkspace(page, "键盘与灯光");
+  const hotkeys = region(page, "原厂热键与屏显");
+  await expect(hotkeys.getByText(diagnostic("ControlCenter30.exe"), { exact: true })).toBeVisible();
+  await expect(hotkeys.getByRole("button", { name: /关闭 FnKey|处理原厂软件冲突/ })).toHaveCount(0);
+});
+
 test("档案退出冲突后重做预览，等待单独确认应用", async ({ page }) => {
   await setup(page, "profile");
   await openPowerArea(page, "配置档案");
@@ -192,6 +218,30 @@ test("档案退出冲突后重做预览，等待单独确认应用", async ({ pa
   await prompt(page).getByRole("button", { name: "关闭 FnKey", exact: true }).click();
   await expect(profile.getByRole("button", { name: "应用档案", exact: true })).toBeEnabled();
   expect(await calls(page, "apply_profile")).toHaveLength(0);
+});
+
+test("档案历史里的原厂占用只显示结果", async ({ page }) => {
+  await setup(page, "history");
+  const issue = diagnostic("FnKey.exe");
+  await page.evaluate(async issue => {
+    const data = window.__uiFixture;
+    data.fnKey = null;
+    data.startupLastRun = issue;
+    await window.__TAURI_INTERNALS__.invoke("read_power_profile_policy");
+    data.powerPolicy.lastIssue = issue;
+    data.profileApplication = { id: 42, revision: 1, origin: "manual", targetsApplied: false,
+      name: data.profile.name, steps: [{ step: "档案预检", ok: false, message: issue }], pending: null };
+  }, issue);
+  await openPowerArea(page, "电源设置");
+  for (const card of [region(page, "启动档案"), region(page, "供电与唤醒档案")]) {
+    await expect(card).toContainText(issue);
+    await expect(openConflict(card)).toHaveCount(0);
+  }
+  await openPowerArea(page, "配置档案");
+  const report = region(page, "最近应用记录");
+  await expect(report).toContainText(issue);
+  await expect(openConflict(report)).toHaveCount(0);
+  expect(await calls(page, "read_fn_key_close_target")).toHaveLength(0);
 });
 
 test("设备页读到占用后可直接关闭原厂软件，设置开关保持锁定直至回读", async ({ page }) => {
@@ -216,7 +266,7 @@ test("设备页读到占用后可直接关闭原厂软件，设置开关保持�
 test("供电占用时仍能暂停，PD 与性能选项复用关闭弹窗", async ({ page }) => {
   await setup(page, "power");
   await openWorkspace(page, "性能与散热");
-  await expect(openConflict(region(page, "性能选项"))).toBeEnabled();
+  await expect(openConflict(region(page, "散热控制"))).toBeEnabled();
   await openPowerArea(page, "电源设置");
   const supply = region(page, "原厂供电模式"), pd = region(page, "平台电源");
   const toggle = supply.getByRole("switch", { name: "启用原厂自动切换" });

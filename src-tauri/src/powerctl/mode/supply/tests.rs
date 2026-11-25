@@ -20,9 +20,7 @@ fn evidence() -> Evidence {
             mode,
             turbo: mode == 2,
             dtt: false,
-            fan_mode: 0,
-            fan_saved_mode: 0,
-            fan_offset_pct: Some(0),
+            fan: crate::fanctl::ModePolicy::explicit(0, 0, Some(0)),
             aspm: None,
             power_plan: None,
         })

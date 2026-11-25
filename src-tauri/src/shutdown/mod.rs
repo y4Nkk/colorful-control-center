@@ -1,7 +1,9 @@
 pub(crate) mod deadline;
 mod lifecycle;
 
-use crate::{battery, display, fanctl, hal::Hal, hotkeys, osd, profiles, startup, tray};
+use crate::{
+    battery, display, fanctl, hal::Hal, hotkeys, osd, preferences, profiles, startup, tray,
+};
 use anyhow::{Result, anyhow, ensure};
 use lifecycle::{Lifecycle, Operation};
 use std::{process::Command, sync::OnceLock, thread, time::Duration};
@@ -127,6 +129,7 @@ fn clean_up(app: &AppHandle) -> i32 {
         record("停止软件风扇接管", hal.close_software_fan_session());
     }
     LIFECYCLE.drain();
+    preferences::save_window_placement(app);
 
     #[cfg(not(test))]
     if let Some(worker) = supply {

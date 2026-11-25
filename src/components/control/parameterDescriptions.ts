@@ -36,13 +36,16 @@ export const GPU_TUNING_HELP: readonly ParameterDescription[] = [
   { name: "恢复初始", description: "把核心和显存偏移恢复成这次打开软件后、第一次修改之前的数值。显卡当前不允许调节，或偏移读数未知时，无法恢复。" },
 ];
 export const FAN_HELP: readonly ParameterDescription[] = [
+  { name: PERFORMANCE_OPTION_LABELS.turboFan, description: "提高风扇转速来加强散热。Turbo 的应用状态改变后，风扇切到自动档。Turbo 与寂静、自定义固件曲线和软件曲线互斥。" },
+  { name: PERFORMANCE_OPTION_LABELS.dtt, description: "由 Intel Dynamic Tuning 驱动自动调节功耗和散热。驱动就绪后才能在支持的预设里应用。" },
+  { name: "娱乐档寂静偏好", description: "设定娱乐档自动风扇策略是否使用寂静。手动选择寂静只切换当前档位。" },
   { name: "温度阈值 · °C", description: "风扇曲线的横轴是温度（°C），纵轴是想让风扇达到的转速。不同机型能调的方式不同：有的只能设两个温度点和对应的占空比，有的可以分十档温度分别设定目标转速。" },
   { name: "占空比与目标转速 · %", description: "占空比是送给风扇的控制信号比例；目标转速是相对该风扇最大转速的百分比。两者都是目标值，和实际转速（RPM）不一定成正比。" },
   { name: "加速偏移 · %", description: "在电脑自带风扇方案的基础上额外加速风扇的幅度。调好后松开滑杆或结束键盘调整就会生效。" },
 ];
 export const MODE_HELP: readonly ParameterDescription[] = [
   { name: "预设模式与风扇、电源", description: "每个预设模式都会一起切换这台电脑保存的风扇和电源设置。具体会改动哪些设置，以预览里列出的内容为准。" },
-  { name: `${PERFORMANCE_OPTION_LABELS.turboFan}与${PERFORMANCE_OPTION_LABELS.dtt}`, description: "Turbo 风扇提高转速来加强散热，运行时可能更吵。动态调校 DTT 交给 Intel Dynamic Tuning 驱动自动调节功耗和散热。两项在「性能选项」里单独设置，切换预设模式时会按保存的开关状态一起应用。" },
+  { name: `${PERFORMANCE_OPTION_LABELS.turboFan}与${PERFORMANCE_OPTION_LABELS.dtt}`, description: "两项可在「散热控制」分别设置。切换到支持的预设模式时，会应用已保存的选项。" },
   { name: "链路节能", description: "控制电脑内部设备连接通道（PCIe）的省电程度。省电越多，设备从省电状态恢复时可能略有延迟；插电和用电池时的设置分别预览。" },
   { name: "电源计划", description: "切换 Windows 的电源计划：平衡、高性能或节能。预设模式的名字只表示使用倾向，实际功耗以当前功耗上限和读数为准。" },
 ];

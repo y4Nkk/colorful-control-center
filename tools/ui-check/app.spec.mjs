@@ -27,14 +27,12 @@ test("设备下拉直接试用，固件风扇模式点选后应用", async ({ pa
   await page.evaluate(() => window.__uiFixture.fan.availableModes.push(8));
   await openWorkspace(page, "性能与散热");
   const fanModes = page.getByRole("radiogroup", { name: "风扇模式", exact: true });
-  const current = page.getByRole("status", { name: "当前控制", exact: true });
   await fanModes.getByRole("radio", { name: "寂静模式", exact: true }).click();
-  await expect(current).toHaveText("固件 · 寂静模式");
   await expect(fanModes.getByRole("radio", { name: "寂静模式", exact: true })).toBeChecked();
+  await expect(page.getByText("固件 · 寂静模式", { exact: true })).toHaveCount(0);
   await fanModes.getByRole("radio", { name: "自动", exact: true }).click();
-  await expect(current).toHaveText("固件 · 自动");
   await expect(fanModes.getByRole("radio", { name: "自动", exact: true })).toBeChecked();
-  await expect(page.getByRole("region", { name: "风扇设置", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("region", { name: "散热控制", exact: true })).toHaveCount(1);
   await page.evaluate(() => window.__uiFixture.fanKind = "rpmTable");
   await navigate(page, "设置"); await openWorkspace(page, "性能与散热");
   await choose(page, "选择 RPM 级别", "第 4 级");

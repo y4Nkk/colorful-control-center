@@ -1,7 +1,7 @@
 import { Icon } from "../Icon";
 import { OemConflictAction } from "../OemConflictAction";
 import { useState } from "react";
-import { applyKeymap, restoreKeymap, retryKeymapPrograms, type KeymapBinding, type KeymapDevice } from "../../api/client";
+import { applyKeymap, findOemConflict, restoreKeymap, retryKeymapPrograms, type KeymapBinding, type KeymapDevice } from "../../api/client";
 import { changedDevices, configurationError, keymapChanges } from "../../lib/keymap";
 import { Button } from "../Button";
 import { DetailsDialog } from "../DetailsDialog";
@@ -25,6 +25,8 @@ export function KeymapSettings({ active, revision = 0 }: { active: boolean; revi
   const locked = busy || recording || !profile?.configuration || !!profile.blockedReason || profile.recoveryRequired;
   const invalid = draft ? configurationError(draft) : null, changes = profile && draft ? keymapChanges(profile, draft) : [];
   const target = profile && draft ? changedDevices(profile, draft) : null;
+  const conflictIssues = [profile?.blockedReason, error];
+  const conflictMessage = findOemConflict(conflictIssues);
   return <Surface as="section" variant="group" className="ccc-panel" aria-label="按键映射与宏">
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="keyboard" />按键映射与宏</h2>
       <div className="ccc-module-tools">
@@ -46,12 +48,13 @@ export function KeymapSettings({ active, revision = 0 }: { active: boolean; revi
       <div className="ccc-module-summary" role="status">
         <strong>{error ? "操作失败 · 查看详情" : !profile ? "读取中…" : !hasDraft ? "缺少可恢复的原配置"
           : `${draft.devices.reduce((count, item) => count + item.bindings.length, 0)} 项映射`}</strong>
-        {profile?.blockedReason && draft && <span className="ccc-control-caption">暂不可修改 · 查看详情</span>}
+        {conflictMessage && <span className="ccc-control-error">{conflictMessage}</span>}
+        {!conflictMessage && profile?.blockedReason && draft && <span className="ccc-control-caption">暂不可修改 · 查看详情</span>}
         {profile?.recoveryRequired && <span className="ccc-control-error">请先恢复初始配置</span>}
       </div>
       <KeymapEditor model={model} active={active} locked={locked} recording={recording} onRecordingChange={setRecording} />
     </div>
-    <OemConflictAction issues={[error, profile?.blockedReason, profile?.programs.error]} disabled={busy || recording} onClosed={model.reread} />
+    <OemConflictAction issues={conflictIssues} disabled={busy || recording} onClosed={model.reread} />
     {hasDraft && <>
       {invalid && <p className="ccc-control-error" role="status">{invalid}</p>}
       <ConfigurationAction revision={JSON.stringify([profile.revision, target])} label="按键映射与宏" applyLabel="应用按键映射"

@@ -1,6 +1,8 @@
 use super::*;
 use crate::powerctl::mode::boost;
 use serde_json::json;
+#[path = "options_preset_tests.rs"]
+mod preset;
 #[path = "options_source_tests.rs"]
 mod source;
 
@@ -31,6 +33,7 @@ fn wanted(turbo: bool, dtt: bool) -> ProfileSettings {
 fn apply(f: &Fixture, target: &ProfileSettings) -> Vec<ApplyStep> {
     apply_settings(&f.hal, &f.gpu, f.devices(), target).unwrap()
 }
+
 fn gpu_failure(f: &Fixture, target: &mut ProfileSettings) {
     f.device.0.lock().unwrap().fail_gpu = true;
     target.gpu = Some(crate::gpuctl::GpuClockSettings {
@@ -54,7 +57,13 @@ fn options_capture_keeps_inactive_preferences_without_querying_native_drivers() 
         state.pages[4][8] = 1;
         state.pages[1][32] = 1;
     }
-    let settings = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
+    let settings = crate::profiles::capture_current(
+        &f.hal,
+        &f.gpu,
+        f.devices(),
+        &crate::profiles::ProfileGroup::ALL,
+    )
+    .unwrap();
     assert_eq!(
         settings.performance_options.as_ref().unwrap(),
         &values(true, true)
@@ -123,7 +132,7 @@ fn combined_mode_preview_and_execution_use_desired_options_in_the_first_command(
         .unwrap()
     };
     assert!(preview.turbo && preview.dtt);
-    assert_eq!(preview.fan_mode, 0);
+    assert_eq!(preview.fan.mode(), Some(0));
     assert!(f.device.0.lock().unwrap().events.is_empty());
     assert!(apply(&f, &settings).iter().all(|step| step.ok));
     let state = f.device.0.lock().unwrap();
@@ -286,7 +295,7 @@ fn partial_flag_save_recovers_locally_and_retains_shared_initial_restore() {
 fn partial_restore_continues_other_flags_and_can_retry_the_same_checkpoint() {
     let f = setup();
     let _gate = f.hal.begin_write().unwrap();
-    let plan = boost::Plan::prepare(&f.hal, &values(true, true)).unwrap();
+    let plan = boost::Plan::prepare(&f.hal, &values(true, true), None).unwrap();
     let mut change = boost::Change::default();
     plan.execute(&f.hal, false, &mut change).unwrap();
     f.device.0.lock().unwrap().fail_option_save = Some((4, 8));
@@ -317,10 +326,7 @@ fn single_and_profile_options_share_the_earliest_mode_baseline() {
     assert!(apply(&f, &wanted(true, false)).iter().all(|step| step.ok));
     let stored = f.hal.recovery().unwrap().oem_mode.clone().unwrap().stored();
     let preview = stored.recovery_preview(&stored).unwrap();
-    assert_eq!(
-        (preview.initial_mode, preview.initial_dtt),
-        (2, false)
-    );
+    assert_eq!((preview.initial_mode, preview.initial_dtt), (2, false));
 }
 
 #[test]

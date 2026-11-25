@@ -5,7 +5,7 @@ import { MOCK_IPC } from "./mock-ipc.mjs";
 import { openProfileResults, openStartupParameters, showProfileSettings } from "./profile-review.mjs";
 
 const modes = page => page.getByRole("region", { name: "预设模式", exact: true });
-const options = page => page.getByRole("region", { name: "性能选项", exact: true });
+const options = page => page.getByRole("region", { name: "散热控制", exact: true });
 const calls = (page, command) => page.evaluate(command => window.__uiFixture.calls.filter(call => call.command === command), command);
 const energy = page => page.evaluate(() => window.__uiFixture.modeEnergy);
 async function setup(page, managed = false) {
@@ -26,6 +26,7 @@ async function select(page, name = "省电") {
 }
 async function enableTurbo(page) {
   await options(page).getByRole("switch", { name: "Turbo 风扇", exact: true }).click();
+  await page.getByRole("dialog", { name: "确认散热策略", exact: true }).getByRole("button", { name: "确认应用", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.__uiFixture.performanceOptions.current.turboFan)).toBe(true);
 }
 async function selectProfile(page) {

@@ -95,9 +95,7 @@ fn fixture() -> (Memory, Target) {
         mode: 4,
         turbo: false,
         dtt: false,
-        fan_mode: 0,
-        fan_saved_mode: 0,
-        fan_offset_pct: Some(0),
+        fan: crate::fanctl::ModePolicy::explicit(0, 0, Some(0)),
         aspm: Some([2, 2]),
         power_plan: Some(2),
     };

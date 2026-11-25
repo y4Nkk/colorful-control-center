@@ -47,7 +47,7 @@ impl Scope<'_> {
     fn available(&self, hal: &Hal, allow_software: bool) -> Result<()> {
         hal.ensure_mode_change_allowed()?;
         if !allow_software && crate::fanctl::software::active(hal)? {
-            bail!("请先确认软件风扇已归还，再请求网络策略系统授权");
+            bail!("请先确认风扇已退出软件调速，再请求网络策略系统授权");
         }
         self.environment()?.ensure_owner_absent()
     }

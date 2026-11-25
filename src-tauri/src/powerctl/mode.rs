@@ -104,15 +104,20 @@ pub(crate) fn current_mode(io: &impl SettingsAccess) -> Result<u8> {
     byte(io, 1, 1)
 }
 
+fn read_option_preferences(io: &impl SettingsAccess) -> Result<[u8; 2]> {
+    let preferences = [byte(io, 4, 8)?, byte(io, 1, 32)?];
+    if preferences.iter().any(|value| *value > 1) {
+        bail!("Turbo 风扇或动态调校 DTT 的保存值未知");
+    }
+    Ok(preferences)
+}
+
 fn capture(io: &impl ModeIo, remember_ac: bool) -> Result<CoreSnapshot> {
     let mode = current_mode(io)?;
     if mode > 4 {
         bail!("当前 OEM 模式 {mode} 不在已核对的 0–4 范围");
     }
-    let preferences = [byte(io, 4, 8)?, byte(io, 1, 32)?];
-    if preferences.iter().any(|value| *value > 1) {
-        bail!("Turbo 风扇或动态调校 DTT 的保存值未知");
-    }
+    let preferences = read_option_preferences(io)?;
     let configured = boost::command_for_current_preferences(io, mode, preferences)?;
     let command = if mode == 3 {
         io.acknowledged_entertainment_command()

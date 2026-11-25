@@ -24,7 +24,7 @@ test("除尘启动预览确认，只报告请求和固件状态，不伪造停�
   await page.evaluate(() => { window.__uiFixture.dust.running = true; window.__uiFixture.dust.lastStart = "running"; });
   await panel.getByRole("button", { name: "重新读取除尘状态" }).click();
   await expect(panel.getByRole("button", { name: "立即除尘", exact: true })).toBeDisabled();
-  const fan = page.getByRole("region", { name: "风扇设置", exact: true });
+  const fan = page.getByRole("region", { name: "散热控制", exact: true });
   await expect(fan).toContainText("固件正在除尘");
   await expect(fan.getByRole("radio", { name: "全速", exact: true })).toBeDisabled();
   await expect(fan.getByRole("slider", { name: "加速偏移", exact: true })).toBeDisabled();

@@ -9,9 +9,9 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
 
-for (const { name, leftNeighbor, rightNeighbor, switchCount, systemArea } of [
+for (const { name, leftNeighbor, rightNeighbor, switchCount, systemArea, wideColumns = switchCount } of [
   { name: "键盘功能", leftNeighbor: "显卡模式", rightNeighbor: "飞行模式", switchCount: 3 },
-  { name: "性能选项", leftNeighbor: "CPU 功耗与电压", rightNeighbor: "GPU 频率", switchCount: 2, systemArea: "性能与散热" },
+  { name: "散热控制", leftNeighbor: "CPU 功耗与电压", rightNeighbor: "GPU 频率", switchCount: 2, systemArea: "性能与散热", wideColumns: 1 },
 ]) {
   test(`${name}在宽窄窗口下与相邻模块对齐`, async ({ page }) => {
     await openWorkspace(page, systemArea ?? "设备配置");
@@ -28,7 +28,7 @@ for (const { name, leftNeighbor, rightNeighbor, switchCount, systemArea } of [
       expect(panelBox.x + panelBox.width, `${width}px 右边缘`).toBeCloseTo(rightBox.x + rightBox.width, 0);
 
       const columns = await switches.evaluateAll(items => new Set(items.map(item => Math.round(item.getBoundingClientRect().left))).size);
-      expect(columns).toBe(width === 1440 ? switchCount : 1);
+      expect(columns).toBe(width === 1440 ? wideColumns : 1);
     }
   });
 }
@@ -47,7 +47,7 @@ test("配置主位保留控件与状态，详情弹窗且浏览不写硬件", as
   await expect(artwork).toHaveAttribute("viewBox", "0 0 480 204");
   await expect(artwork).toHaveCSS("pointer-events", "none");
   await expect(modes.locator(".ccc-preset-current")).toHaveText("性能模式");
-  const fan = page.getByRole("region", { name: "风扇设置", exact: true });
+  const fan = page.getByRole("region", { name: "散热控制", exact: true });
   const fanInfo = fan.getByRole("button", { name: "说明与诊断", exact: true });
   await expect(fanInfo).toHaveText("说明与诊断");
   await expect(fanInfo.locator("svg")).toHaveCount(0);
@@ -254,7 +254,7 @@ test("性能调校可用键盘切换预设，概览只展示回读后的模式",
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await modes.screenshot({ path: "target/ui-check/preset-direct-light-1440.png" });
   await page.evaluate(async () => {
-    window.__uiEmit("hardware-snapshot", await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot"));
+    window.__uiEmit("hardware-snapshot", window.__uiHardwareSnapshot());
   });
   await openWorkspace(page, "概览");
   const currentMode = page.getByRole("region", { name: "当前模式", exact: true });

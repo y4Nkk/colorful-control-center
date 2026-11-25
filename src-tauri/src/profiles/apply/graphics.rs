@@ -196,7 +196,7 @@ impl Plan {
                 bail!("档案独显最终状态或显示用途已变化");
             }
             if !graph.final_device().enabled && fanctl::software::active(hal)? {
-                bail!("独显关闭后仍有软件风扇控制或归还未证实");
+                bail!("独显关闭后，软件调速仍在运行或尚未确认退出");
             }
         }
         Ok(())

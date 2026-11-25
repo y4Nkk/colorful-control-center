@@ -33,7 +33,7 @@ test("档案组合预览包含目标选项，两次确认携带同一目标", as
   const results = await openProfileResults(page);
   await expect(results.getByRole("listitem").filter({ hasText: "性能选项" }).getByRole("img", { name: "成功", exact: true })).toBeVisible();
   const [call] = await writes(page);
-  expect(call.args.expectedMode).toMatchObject({ mode: 2, turbo: true, dtt: true, fanMode: 0 });
+  expect(call.args.expectedMode).toMatchObject({ mode: 2, turbo: true, dtt: true, fan: { control: "explicit", mode: 0 } });
   expect(call.args.expected.settings.performanceOptions).toEqual({ turboFan: true, dtt: true });
 });
 
@@ -41,6 +41,7 @@ test("未开放娱乐档应用的固件保存偏好，预览和导出保留开�
   await page.evaluate(() => window.__uiFixture.profile.settings.oemPowerMode = 3);
   await selectProfile(page);
   const panel = preview(page);
+  await expect(panel.getByLabel("模式联动目标")).toContainText("由固件管理");
   await expect(panel.getByLabel("模式联动目标")).not.toContainText("动态调校 DTT");
   const download = page.waitForEvent("download");
   await (await showProfileMenu(page)).getByRole("button", { name: "导出档案", exact: true }).click();
@@ -109,12 +110,12 @@ test("启动选择展示组合联动，保存完整文件且不发送应用", as
 });
 
 test("保留开启DTT但驱动未知时，先关闭DTT才能应用其他选项", async ({ page }) => {
-  const panel = page.getByRole("region", { name: "性能选项", exact: true });
+  const panel = page.getByRole("region", { name: "散热控制", exact: true });
   await page.evaluate(() => {
     const options = window.__uiFixture.performanceOptions;
     options.current.dtt = true; options.dttDriverAvailable = null;
   });
-  await panel.getByRole("button", { name: "重新读取性能选项", exact: true }).click();
+  await panel.getByRole("button", { name: "重新读取散热控制", exact: true }).click();
   const turbo = panel.getByRole("switch", { name: "Turbo 风扇", exact: true });
   const dtt = panel.getByRole("switch", { name: "动态调校 DTT", exact: true });
   await expect(turbo).toHaveAttribute("aria-disabled", "true");
@@ -124,10 +125,11 @@ test("保留开启DTT但驱动未知时，先关闭DTT才能应用其他选项",
   await expect(dtt).not.toBeChecked();
   await expect(turbo).toBeEnabled();
   await turbo.click();
+  await page.getByRole("dialog", { name: "确认散热策略", exact: true }).getByRole("button", { name: "确认应用", exact: true }).click();
   await expect(turbo).toBeChecked();
   expect(await writes(page)).toMatchObject([
-    { command: "apply_oem_performance_options", args: { request: { values: { turboFan: false, dtt: false } } } },
-    { command: "apply_oem_performance_options", args: { request: { values: { turboFan: true, dtt: false } } } },
+    { command: "apply_oem_performance_options", args: { request: { values: { turboFan: null, dtt: false } } } },
+    { command: "apply_oem_performance_options", args: { request: { values: { turboFan: true, dtt: null } } } },
   ]);
 });
 

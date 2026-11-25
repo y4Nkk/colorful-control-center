@@ -28,9 +28,12 @@ async function setup(page) {
     const original = window.__TAURI_INTERNALS__.invoke;
     window.__TAURI_INTERNALS__.invoke = async (command, args) => {
       const reply = await original(command, args);
-      return command === "read_system_overview" ? {
-        ...reply, volumes, memory: window.__overviewMemory === undefined ? reply.memory : window.__overviewMemory,
-      } : reply;
+      if (command === "read_system_inventory") return { ...reply, volumes };
+      if (command === "read_memory_capacity" && window.__overviewMemory !== undefined) {
+        if (window.__overviewMemory === null) throw new Error("隔离内存读取失败");
+        return window.__overviewMemory;
+      }
+      return reply;
     };
   }, volumes);
   await page.goto("/");
@@ -45,7 +48,7 @@ async function sampleMemory(page, availableBytes) {
 
 function publishMode(page, value) {
   return page.evaluate(async value => {
-    const sample = await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot");
+    const sample = window.__uiHardwareSnapshot();
     window.__uiEmit("hardware-snapshot", { ...sample, oemPowerMode: value });
   }, value);
 }
@@ -151,7 +154,7 @@ test("温度趋势与图标读数分区，规格与详情使用可键盘操作�
     [memory(page), "内存详情", "内存详细信息"], [storage(page), "存储详情", "存储详细信息"]];
   await expect(cpu.getByRole("meter", { name: "CPU 利用率" })).toBeVisible();
   const sampleLayout = () => page.evaluate(async () => {
-    const sample = await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot");
+    const sample = window.__uiHardwareSnapshot();
     window.__uiEmit("hardware-snapshot", { ...sample, oemPowerMode: 3, fan: { ...sample.fan, cpu: { ...sample.fan.cpu, dutyPct: 100 } },
       nvidia: { ...sample.nvidia, memUsedMb: 2171, memTotalMb: 8192 } });
   });
@@ -234,7 +237,7 @@ test("温度趋势按采样时刻定位，标出高温且缺测时断开折线�
   await expect(cpuPlot.locator(".ccc-trend-marker")).toHaveCount(1);
   await expect(cpuPlot.locator(".ccc-trend-area")).toHaveCount(0);
   await page.evaluate(async () => {
-    const sample = await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot");
+    const sample = window.__uiHardwareSnapshot();
     const start = sample.sampledAtMs + 301_000;
     window.__overviewSnapshot = { ...sample, sampledAtMs: start };
     for (const [offset, cpu, gpu] of [[0, 45, 49], [500, 0, null], [1500, null, 54], [2500, 60.5, 55],
@@ -359,7 +362,7 @@ test("多磁盘时内存与存储上下排列，磁盘卷随宽度排布", async
   }
   await expect(memoryChart(page).locator(".ccc-trend-area")).toHaveAttribute("d", /Z M/);
   await page.evaluate(async () => {
-    const sample = await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot");
+    const sample = window.__uiHardwareSnapshot();
     for (let index = 1; index <= 300; index++) {
       if (index >= 122 && index <= 137) continue;
       const cpuTemp = Math.round(48 + Math.min(index, 210) * 0.238 + Math.sin(index / 6) * 2);

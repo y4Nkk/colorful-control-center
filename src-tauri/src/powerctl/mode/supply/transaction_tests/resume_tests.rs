@@ -166,7 +166,7 @@ fn obsolete_record_and_nullable_frequency_shapes_are_rejected_without_rewriting(
     enable(&io, &store);
     transaction::execute(&io, &store, Trigger::SupplyChange, &mut || Ok(())).unwrap();
     let valid = serde_json::to_value(store.load().unwrap().unwrap()).unwrap();
-    for case in 0..10 {
+    for case in 0..12 {
         let mut bad = valid.clone();
         match case {
             0 => bad["version"] = 1.into(),
@@ -196,11 +196,19 @@ fn obsolete_record_and_nullable_frequency_shapes_are_rejected_without_rewriting(
                 bad["initial"]["energy"] =
                     serde_json::json!({"hardwarePState":false,"energyStar":0})
             }
-            _ => {
+            9 => {
                 bad["initial"]["mode"]
                     .as_object_mut()
                     .unwrap()
                     .remove("energy");
+            }
+            10 => bad["version"] = 4.into(),
+            _ => {
+                let target = bad["captureTarget"].as_object_mut().unwrap();
+                target.remove("fan");
+                target.insert("fanMode".into(), 0.into());
+                target.insert("fanSavedMode".into(), 0.into());
+                target.insert("fanOffsetPct".into(), 0.into());
             }
         }
         let bytes = serde_json::to_vec(&bad).unwrap();

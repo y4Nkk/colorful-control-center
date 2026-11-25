@@ -14,6 +14,7 @@ export interface AppPreferences {
   closeBehavior: CloseBehavior;
   alwaysOnTop: boolean;
   startMinimized: boolean;
+  /** 已有的保存字段，控制启动和运行期间的自动关闭。 */
   closeOemOnStartup: boolean;
   startupPage: StartupPage;
   globalShortcut: string;

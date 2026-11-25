@@ -1,43 +1,39 @@
 import { Icon } from "../components/Icon";
 import { Button } from "../components/Button";
 import { Surface } from "../components/Surface";
-import { OEM_POWER_MODES, type HardwareSnapshot } from "../api/client";
-import type { HardwareWorkspaceProps } from "./useControlModel";
+import { OEM_POWER_MODES } from "../api/client";
 import { HardwareReadings } from "../components/control/HardwareReadings";
 import { PresetArtwork, presetPalette } from "../components/control/PresetArtwork";
 import { useSystemOverview } from "./useSystemOverview";
+import { retryHardwareMonitoring, useHardwareHistory, useHardwareStatus } from "./useHardwareHistory";
 
-function ControlStatus({
-  live, error, stale, onRetry,
-}: {
-  live: HardwareSnapshot | null;
-  error: string | null;
-  stale: boolean;
-  onRetry: () => void;
-}) {
-  const state = stale ? "读数停滞" : live ? null : error ? "监控不可用" : "连接中…";
-  const tone = stale ? "ccc-control-caption is-warn" : error && !live ? "ccc-control-error" : "ccc-control-caption";
-  const fanOffline = live && !live.dchuAvailable;
-  const gpuPaused = live?.nvidiaSuspended;
-  if (!state && !error && !fanOffline && !gpuPaused) return null;
-  return (
+function MonitoringStatus({ active }: { active: boolean }) {
+  const { connected, error, stale, fanOffline, gpuPaused, mode } = useHardwareStatus(active);
+  const state = stale ? "读数停滞" : connected ? null : error ? "监控不可用" : "连接中…";
+  const tone = stale ? "ccc-control-caption is-warn" : error && !connected ? "ccc-control-error" : "ccc-control-caption";
+  return <>
+    <CurrentMode mode={stale ? null : mode} reading={!connected && !error} active={active} />
+    {(state || error || fanOffline || gpuPaused) && (
     <div className="ccc-control-status">
       {state && <span className={tone}>{state}</span>}
-      {error && <Button icon="refresh" variant="ghost" size="compact" type="button" onClick={onRetry}>重试</Button>}
+      {(error || stale) && <Button icon="refresh" variant="ghost" size="compact" type="button" onClick={retryHardwareMonitoring}>重试</Button>}
       {fanOffline && <span className="ccc-control-caption is-warn">风扇通道离线</span>}
       {gpuPaused && <span className="ccc-control-caption">独显监控暂停</span>}
-    </div>
-  );
+    </div>)}
+  </>;
 }
 
-export function ControlWorkspace({ active, model }: HardwareWorkspaceProps) {
-  const { live, samples, error, stale, retry } = model.history;
-  const { overview, memoryHistory } = useSystemOverview(active);
+export function ControlWorkspace({ active }: { active: boolean }) {
   return <div className="ccc-control" role="region" aria-label="概览">
-    <CurrentMode mode={stale ? null : live?.oemPowerMode ?? null} reading={!live && !error} active={active} />
-    <ControlStatus live={live} error={error} stale={stale} onRetry={retry} />
-    <HardwareReadings live={live} samples={samples} overview={overview} memoryHistory={memoryHistory} />
+    <MonitoringStatus active={active} />
+    <OverviewReadings active={active} />
   </div>;
+}
+
+function OverviewReadings({ active }: { active: boolean }) {
+  const { live, samples } = useHardwareHistory(active);
+  const { overview, memoryHistory } = useSystemOverview(active);
+  return <HardwareReadings live={live} samples={samples} overview={overview} memoryHistory={memoryHistory} />;
 }
 
 function CurrentMode({ mode, reading, active }: { mode: number | null; reading: boolean; active: boolean }) {

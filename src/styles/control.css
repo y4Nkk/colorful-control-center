@@ -84,13 +84,6 @@
 
 /* ---- 风扇曲线编辑器 ---- */
 
-.ccc-plot-wrap {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--ccc-space-2);
-  user-select: none;
-}
-
 .ccc-plot-frame {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -99,6 +92,7 @@
   padding-inline-end: calc(var(--ccc-handle-target) / 2);
   color: var(--ccc-text-muted);
   font-size: var(--ccc-text-xs);
+  user-select: none;
 }
 
 .ccc-plot-measure { grid-area: measure; padding-block-end: var(--ccc-space-2); }
@@ -151,22 +145,6 @@
 .ccc-plot-axis { grid-area: x; position: relative; height: 1lh; }
 .ccc-plot-axis span { position: absolute; transform: translateX(-50%); }
 .ccc-plot-unit { grid-area: unit; justify-self: end; }
-
-.ccc-plot-key {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ccc-space-2);
-  font-size: var(--ccc-text-xs);
-  color: var(--ccc-text-muted);
-}
-
-.ccc-key-item { display: inline-flex; align-items: center; gap: var(--ccc-space-2); white-space: nowrap; }
-.ccc-key-swatch { width: var(--ccc-space-3); border-block-start: 2px solid var(--ccc-action); }
-
-.ccc-key-swatch.is-current { border-block-start: 2px dashed var(--ccc-text-muted); }
-
-.ccc-plot-hint { margin-inline-start: auto; }
 
 /* ---- 数值滑杆 ---- */
 

@@ -1,7 +1,20 @@
 import { useRef, useState, type PointerEvent, type RefObject } from "react";
+import { magnetAt } from "../../lib/range-magnet";
 import { Button } from "../Button";
+import { CURVE_TEMP_MAX } from "./curve";
 
 const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
+const MAGNET_INTERVAL = 10;
+
+interface CurveDrag {
+  id: number;
+  source: string;
+  x: number;
+  y: number;
+  moved: boolean;
+  tempMagnet?: number;
+  targetMagnet?: number;
+}
 
 interface Props {
   source: string;
@@ -12,8 +25,8 @@ interface Props {
   x: number;
   y: number;
   temp: number;
-  minTemp: number;
-  maxTemp: number;
+  tempLimits: { min: number; max: number };
+  targetLimits: { min: number; max: number };
   label: string;
   valueText: string;
   disabled: boolean;
@@ -26,18 +39,23 @@ interface Props {
   onCancel: () => void;
 }
 
-export function FirmwareCurveHandle({ source, plotRef, plotMin, point, rpmIndex, x, y, temp, minTemp, maxTemp, label, valueText,
+export function FirmwareCurveHandle({ source, plotRef, plotMin, point, rpmIndex, x, y, temp, tempLimits, targetLimits, label, valueText,
   disabled, busy, selected, onSelect, onMove, onStep, onCommit, onCancel }: Props) {
-  const pointer = useRef<{ id: number; source: string; x: number; y: number; moved: boolean } | null>(null);
+  const pointer = useRef<CurveDrag | null>(null);
   const keys = useRef<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const locked = disabled || busy;
 
-  const movePointer = (event: PointerEvent<HTMLButtonElement>) => {
+  const movePointer = (event: PointerEvent<HTMLButtonElement>, gesture: CurveDrag) => {
     const box = plotRef.current?.getBoundingClientRect();
     if (!box?.width || !box.height) return;
-    const ratio = (event.clientX - box.left) / box.width;
-    onMove(plotMin + ratio * (100 - plotMin), 100 - (event.clientY - box.top) / box.height * 100);
+    const tempScale = box.width / (CURVE_TEMP_MAX - plotMin);
+    const targetScale = box.height / 100;
+    const rawTemp = plotMin + (event.clientX - box.left) / tempScale;
+    const rawTarget = (box.bottom - event.clientY) / targetScale;
+    gesture.tempMagnet = magnetAt(rawTemp, tempScale, gesture.tempMagnet, tempLimits.min, tempLimits.max, MAGNET_INTERVAL);
+    gesture.targetMagnet = magnetAt(rawTarget, targetScale, gesture.targetMagnet, targetLimits.min, targetLimits.max, MAGNET_INTERVAL);
+    onMove(gesture.tempMagnet ?? rawTemp, gesture.targetMagnet ?? rawTarget);
   };
   const endPointer = (id: number, apply: boolean) => {
     const gesture = pointer.current;
@@ -52,7 +70,7 @@ export function FirmwareCurveHandle({ source, plotRef, plotMin, point, rpmIndex,
     className={`ccc-plot-handle${selected ? " is-selected" : ""}${dragging ? " is-dragging" : ""}`}
     style={{ left: `${x}%`, top: `${y}%` }} disabled={disabled}
     aria-disabled={busy && !disabled || undefined} aria-busy={busy && !disabled || undefined}
-    aria-label={label} aria-valuemin={minTemp} aria-valuemax={maxTemp} aria-valuenow={temp} aria-valuetext={valueText} aria-orientation="vertical"
+    aria-label={label} aria-valuemin={tempLimits.min} aria-valuemax={tempLimits.max} aria-valuenow={temp} aria-valuetext={valueText} aria-orientation="vertical"
     onFocus={onSelect} onBlur={() => { if (keys.current) { keys.current = null; onCancel(); } }}
     onKeyDown={event => {
       const delta = ARROWS[event.key];
@@ -77,7 +95,7 @@ export function FirmwareCurveHandle({ source, plotRef, plotMin, point, rpmIndex,
       if (locked || gesture?.id !== event.pointerId || gesture.source !== source) return;
       if (!gesture.moved && gesture.x === event.clientX && gesture.y === event.clientY) return;
       gesture.moved = true;
-      movePointer(event);
+      movePointer(event, gesture);
     }} onPointerUp={event => endPointer(event.pointerId, true)}
     onPointerCancel={event => endPointer(event.pointerId, false)} onLostPointerCapture={event => endPointer(event.pointerId, false)} />;
 }

@@ -75,7 +75,7 @@ impl Scope<'_> {
             bail!("档案显卡选择已执行");
         }
         if review.changes() && crate::fanctl::software::active(hal)? {
-            bail!("软件风扇归还未证实，无法修改显卡模式");
+            bail!("尚未确认风扇已退出软件调速，无法修改显卡模式");
         }
         let mut plan = self.with_io(hal, |io| {
             let p = preview(io, &self.controller.store)?.context("显卡模式接口已不可用")?;

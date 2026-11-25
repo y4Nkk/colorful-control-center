@@ -57,14 +57,7 @@ impl TestRuntime {
     }
     pub(crate) fn event(&self, scan: u16, down: bool) {
         for (control, tx) in self.records.lock().unwrap().iter() {
-            let epoch = control.epoch.load(Ordering::SeqCst);
-            if control.accepts(epoch) {
-                tx.try_send(Envelope {
-                    epoch,
-                    event: KeyEvent { scan, down },
-                })
-                .unwrap();
-            }
+            control.enqueue(tx, KeyEvent { scan, down });
         }
     }
     pub(crate) fn active(&self) -> usize {

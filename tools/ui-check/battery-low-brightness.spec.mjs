@@ -1,15 +1,15 @@
 import { configurationView, previewConfiguration } from "./configuration-review.mjs";
-import { openWorkspace } from "./workspace.mjs";
+import { editHotkeys, finishHotkeyEdit, hotkeyRestoreButton, openHotkeyDetails, openWorkspace, previewHotkeyRestore } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
 const panel = page => page.getByRole("region", { name: "原厂热键与屏显", exact: true });
 const facts = page => page.getByRole("region", { name: "原厂低电量亮度事实与预览", exact: true });
-const scope = page => panel(page).getByRole("checkbox", { name: "原厂低电量亮度", exact: true });
+const scope = page => page.getByRole("dialog", { name: "配置热键与屏显", exact: true })
+  .getByRole("checkbox", { name: "原厂低电量亮度", exact: true });
 const calls = (page, command) => page.evaluate(command => window.__uiFixture.calls.filter(call => call.command === command), command);
 async function applied(page) {
-  await scope(page).check();
-  await expect(facts(page)).toBeVisible();
+  await expect(panel(page).getByRole("button", { name: "配置热键", exact: true })).toBeEnabled();
   await page.evaluate(() => {
     const h = window.__uiFixture.hotkeys, low = h.facts.batteryLowBrightness;
     const baseline = structuredClone(low.current);
@@ -21,26 +21,32 @@ async function applied(page) {
     h.current = { enabled: true, actions: ["batteryLowBrightness"], osd: true }; h.authorized = true; h.status.running = true;
     h.revision = "low-brightness-applied"; window.__uiEmit("hardware-controls-changed", null);
   });
-  await expect(facts(page).getByRole("button", { name: "恢复低电量前亮度", exact: true })).toBeEnabled();
+  const details = await openHotkeyDetails(page);
+  await expect(facts(page)).toContainText("首次接管前的设置");
+  return details;
 }
 test.beforeEach(async ({ page }) => { await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openWorkspace(page, "键盘与灯光"); });
 
 test("计划亮度与事件目标使用有分母的比例环，草稿不写入", async ({ page }) => {
+  const editor = await editHotkeys(page);
   await scope(page).check();
+  await finishHotkeyEdit(editor);
+  await openHotkeyDetails(page);
   const current = facts(page).locator(".ccc-battery-low-columns > *").first();
   const target = facts(page).locator(".ccc-battery-low-columns > *").last();
   for (const [label, value] of [["插电计划亮度", "80"], ["电池计划亮度", "60"]]) {
     await expect(current.getByRole("meter", { name: label, exact: true })).toHaveAttribute("aria-valuenow", value);
     await expect(target.getByRole("meter", { name: label, exact: true })).toHaveAttribute("aria-valuenow", "0");
   }
-  await scope(page).check();
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
   expect(await calls(page, "restore_low_battery_brightness")).toEqual([]);
 });
 
 test("低电量亮度独立授权，确认前不应用", async ({ page }) => {
-  await panel(page).getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
+  const editor = await editHotkeys(page);
+  await editor.getByRole("switch", { name: "启用原厂热键接管", exact: true }).check();
   await scope(page).check();
+  await finishHotkeyEdit(editor);
   await previewConfiguration(page, "原厂热键与屏显");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
   await configurationView(page).getByRole("button", { name: "保存热键接管范围", exact: true }).click();
@@ -53,19 +59,22 @@ test("分别预览两种原值，确认恢复失败后可重试", async ({ page 
   await expect(facts(page)).toContainText("电池计划亮度 0% → 60%");
   await page.evaluate(() => { window.__uiFixture.lowBatteryRestoreFault = "恢复计划失败"; });
   for (let attempt = 0; attempt < 2; attempt++) {
-    await facts(page).getByRole("button", { name: "恢复低电量前亮度", exact: true }).click();
+    const restore = await previewHotkeyRestore(page, "低电量前亮度");
     if (!attempt) expect(await calls(page, "restore_low_battery_brightness")).toEqual([]);
-    await facts(page).getByRole("button", { name: "确认停止监听并恢复上述亮度？", exact: true }).click();
-    if (!attempt) await expect(page.getByText("恢复计划失败", { exact: true }).first()).toBeVisible();
+    await restore.getByRole("button", { name: "确认恢复", exact: true }).click();
+    if (!attempt) await expect(await openHotkeyDetails(page)).toContainText("恢复计划失败");
   }
   expect(await calls(page, "restore_low_battery_brightness")).toHaveLength(2);
-  await expect(panel(page)).toContainText("热键监听已停止");
-  await expect(scope(page)).toBeChecked();
+  const details = await openHotkeyDetails(page);
+  await expect(details).toContainText("热键监听已停止");
   await expect(facts(page).getByRole("meter", { name: "插电计划亮度", exact: true }).first()).toHaveAttribute("aria-valuenow", "80");
+  await details.getByRole("button", { name: "关闭弹窗", exact: true }).click();
+  await editHotkeys(page);
+  await expect(scope(page)).toBeChecked();
 });
 
 test("来源变化时保留诊断并禁止恢复", async ({ page }) => {
-  await applied(page);
+  const details = await applied(page);
   await page.evaluate(() => {
     const h = window.__uiFixture.hotkeys, low = h.facts.batteryLowBrightness;
     low.identity = null; low.error = "活动计划已变化"; low.restoreRevision = null; low.restoreError = "计划亮度已被其他程序修改";
@@ -73,7 +82,8 @@ test("来源变化时保留诊断并禁止恢复", async ({ page }) => {
     h.revision = "low-conflict"; window.__uiEmit("hardware-controls-changed", null);
   });
   await expect(facts(page)).toContainText("计划亮度已被其他程序修改");
-  await expect(facts(page).getByRole("button", { name: "恢复低电量前亮度", exact: true })).toBeDisabled();
+  await details.getByRole("button", { name: "关闭弹窗", exact: true }).click();
+  await expect(hotkeyRestoreButton(page)).toBeDisabled();
   expect(await calls(page, "restore_low_battery_brightness")).toEqual([]);
 });
 
@@ -109,11 +119,11 @@ test("自然结束后仍能预览并确认恢复首次不同的插电电池亮�
     h.revision = "natural-end"; window.__uiEmit("hardware-controls-changed", null);
   });
   await expect(facts(page)).toContainText("电池计划亮度 80% → 60%");
-  const restore = facts(page).getByRole("button", { name: "恢复低电量前亮度", exact: true });
-  await restore.click();
+  const restore = await previewHotkeyRestore(page, "低电量前亮度");
   expect(await calls(page, "restore_low_battery_brightness")).toEqual([]);
-  await facts(page).getByRole("button", { name: "确认停止监听并恢复上述亮度？", exact: true }).click();
+  await restore.getByRole("button", { name: "确认恢复", exact: true }).click();
   expect((await calls(page, "restore_low_battery_brightness"))[0].args.expectedRevision).toBe("natural-end-initial-restore");
+  await openHotkeyDetails(page);
   await expect(facts(page).getByRole("meter", { name: "电池计划亮度", exact: true }).first()).toHaveAttribute("aria-valuenow", "60");
 });
 

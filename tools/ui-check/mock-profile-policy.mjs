@@ -29,11 +29,6 @@ export async function savePowerPolicy(data, request) {
 
 export async function invokePowerPolicy(data, command, args) {
   const view = initPowerPolicy(data);
-  if (command === "read_automatic_profile_application") {
-    const report = data.profileApplication;
-    if (report && ["ac", "battery", "resume"].includes(report.origin)) data.lastAutomaticProfileApplication = structuredClone(report);
-    return structuredClone(data.lastAutomaticProfileApplication ?? null);
-  }
   if (command === "read_power_profile_policy") {
     if (data.powerPolicyReadError) throw new Error(data.powerPolicyReadError);
     if (data.powerPolicyExternalRecord) { view.configurationError = "自动档案策略已被外部修改，请重新读取"; view.active = false; view.paused = true; }

@@ -132,18 +132,17 @@ fn options_preflight(
     settings: &ProfileSettings,
     mode: Option<&powerctl::mode::Plan>,
 ) -> Result<Option<powerctl::mode::boost::Plan>> {
-    powerctl::mode::boost::validate_profile(
-        hal,
-        settings.performance_options.as_ref(),
-        mode,
-        super::super::model::fan_target(settings),
-    )?;
-    settings
-        .performance_options
-        .as_ref()
-        .filter(|_| mode.is_none())
-        .map(|values| powerctl::mode::boost::Plan::prepare(hal, values))
-        .transpose()
+    use powerctl::mode::boost;
+    if mode.is_some() {
+        return Ok(None);
+    }
+    let fan = super::super::model::fan_target(settings);
+    if let Some(values) = &settings.performance_options {
+        return boost::Plan::prepare(hal, values, fan).map(Some);
+    } else if let Some(fan) = fan {
+        boost::ensure_fan_allowed(hal, fan)?;
+    }
+    Ok(None)
 }
 
 fn fan_preflight(

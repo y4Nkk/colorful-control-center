@@ -1,4 +1,4 @@
-//! 自动档案命令仅调度唯一策略及应用Controller。
+//! 自动档案命令仅调度档案策略。
 use crate::{
     hal::Hal,
     profiles::{
@@ -44,8 +44,12 @@ pub(crate) async fn set_power_profile_policy_enabled(
         let gpu = app.state::<crate::gpuctl::GpuController>();
         let power = app.state::<crate::gpu_power::Controller>();
         let context = crate::powerctl::mode::links::Context::native(&hal, &gpu, &power);
-        app.state::<Controller>()
-            .set_enabled(&context, &profiles::profiles_dir(&app)?, &expected, enabled)
+        app.state::<Controller>().set_enabled(
+            &context,
+            &profiles::profiles_dir(&app)?,
+            &expected,
+            enabled,
+        )
     })
     .await
     .map_err(|error| format!("自动规则切换任务失败：{error}"))?
@@ -90,16 +94,4 @@ pub(crate) async fn reload_power_profile_policy(app: AppHandle) -> Result<(), St
         .await
         .map_err(|error| format!("自动规则重读任务失败：{error}"))?
         .map_err(|error| format!("{error:#}"))
-}
-#[tauri::command]
-pub(crate) async fn read_automatic_profile_application(
-    app: AppHandle,
-) -> Result<Option<profiles::Application>, String> {
-    crate::shutdown::blocking(move || {
-        app.state::<profiles::application::Controller>()
-            .automatic_report(&app.state::<crate::display::Controller>())
-    })
-    .await
-    .map_err(|error| format!("自动档案结果读取任务失败：{error}"))?
-    .map_err(|error| format!("{error:#}"))
 }

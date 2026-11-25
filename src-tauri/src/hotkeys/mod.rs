@@ -40,6 +40,7 @@ pub struct Controller {
 #[serde(rename_all = "camelCase")]
 pub struct Profile {
     revision: Option<String>,
+    restore_revision: Option<String>,
     current: Option<Settings>,
     record_error: Option<String>,
     reset_revision: Option<String>,
@@ -139,21 +140,28 @@ impl Controller {
         }
     }
     pub fn read(&self, app: &AppHandle) -> Result<Profile> {
-        let initial = self
-            .mutation
-            .lock()
-            .map_err(|_| anyhow!("热键策略状态异常"))?
-            .as_ref()
-            .map(|record| record.settings.clone());
-        let inspected = store::inspect(&self.path)?;
+        let (initial, inspected) = {
+            let baseline = self
+                .mutation
+                .lock()
+                .map_err(|_| anyhow!("热键策略状态异常"))?;
+            (baseline.clone(), store::inspect(&self.path)?)
+        };
         let facts = actions::facts(app, &SCOPES);
         let revision = inspected
             .loaded
             .as_ref()
             .map(|loaded| transaction::revision(loaded, &facts))
             .transpose()?;
+        let restore_revision = inspected
+            .loaded
+            .as_ref()
+            .zip(initial.as_ref())
+            .map(|(loaded, initial)| transaction::restore_revision(loaded, initial))
+            .transpose()?;
         Ok(Profile {
             revision,
+            restore_revision,
             authorized: inspected
                 .loaded
                 .as_ref()
@@ -161,7 +169,7 @@ impl Controller {
             current: inspected.loaded.map(|loaded| loaded.record.settings),
             record_error: inspected.error,
             reset_revision: inspected.reset_revision,
-            initial,
+            initial: initial.map(|record| record.settings),
             facts,
             status: self
                 .status
@@ -202,14 +210,12 @@ impl Controller {
             .mutation
             .lock()
             .map_err(|_| anyhow!("热键策略状态异常"))?;
-        let initial = baseline.clone().context("尚未修改热键软件策略")?;
-        transaction::change(
+        transaction::restore(
             &Native {
                 controller: self,
                 app,
             },
             expected,
-            |_, _| Ok(initial),
             &mut baseline,
         )
     }

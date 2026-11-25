@@ -44,6 +44,10 @@
   background: var(--ccc-action);
 }
 
+.ccc-switch[data-checked-tone="neutral"] > input:checked + .ccc-switch-track {
+  background: var(--ccc-text-muted);
+}
+
 .ccc-switch > input:checked + .ccc-switch-track > .ccc-switch-thumb {
   transform: translate(calc(var(--ccc-switch-width) - var(--ccc-switch-height)), -50%);
 }

@@ -53,6 +53,8 @@ use std::{
     },
 };
 
+pub(crate) const SOFTWARE_FAN_IDLE_STATUS: &str = "软件风扇曲线未运行";
+
 #[derive(Clone, Serialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct NvidiaSnapshot {
@@ -168,7 +170,7 @@ impl Hal {
             test_fan_guard: None,
             #[cfg(test)]
             test_fan_control: None,
-            safety: Mutex::new("固件控制".into()),
+            safety: Mutex::new(SOFTWARE_FAN_IDLE_STATUS.into()),
             fan_recovery_needed: AtomicBool::new(false),
             software_fan_safety: Mutex::new(fan_safety::journal::Journal::default()),
             software_fan: Mutex::new(None),
@@ -240,7 +242,7 @@ impl Hal {
             fan_guard: Mutex::new(guard),
             test_fan_guard: None,
             test_fan_control: None,
-            safety: Mutex::new("固件控制".into()),
+            safety: Mutex::new(SOFTWARE_FAN_IDLE_STATUS.into()),
             mutation: std::sync::Arc::new(Mutex::new(())),
             fan_recovery_needed: AtomicBool::new(false),
             software_fan_safety: Mutex::new(fan_safety::journal::Journal::default()),
@@ -304,7 +306,10 @@ impl Hal {
         f(dchu)
     }
 
-    fn sample_nvidia(&self) -> Result<Option<NvidiaSnapshot>> {
+    fn sample_nvidia(
+        &self,
+        sample: impl FnOnce(&nvidia::Nvidia) -> Result<NvidiaSnapshot>,
+    ) -> Result<Option<NvidiaSnapshot>> {
         let mut guard = self
             .nvidia
             .lock()
@@ -320,7 +325,7 @@ impl Hal {
         if guard.is_none() {
             *guard = Some(nvidia::Nvidia::init()?);
         }
-        let result = guard.as_ref().map(nvidia::Nvidia::sample).transpose();
+        let result = guard.as_ref().map(sample).transpose();
         if result.is_err() {
             guard.take();
         }

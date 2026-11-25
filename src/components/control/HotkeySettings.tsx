@@ -1,5 +1,5 @@
 import { Icon } from "../Icon";
-import { applyHotkeys, restoreHotkeys, resetInvalidHotkeys, type HotkeyScope } from "../../api/client";
+import { applyHotkeys, findOemConflict, resetInvalidHotkeys, type HotkeyScope } from "../../api/client";
 import { Button } from "../Button";
 import { Checkbox } from "../Checkbox";
 import { ConfigurationAction } from "../ConfigurationAction";
@@ -10,8 +10,9 @@ import { Surface } from "../Surface";
 import { Switch } from "../Switch";
 import { useHotkeySettings } from "./useHotkeySettings";
 import { HotkeyCurrent } from "./HotkeyCurrent";
-import { ACTIONS, summary } from "./hotkey-actions";
+import { ACTIONS } from "./hotkey-actions";
 import { HotkeyEventPreviews } from "./HotkeyEventPreviews";
+import { HotkeyRecovery } from "./HotkeyRecovery";
 
 type HotkeyModel = ReturnType<typeof useHotkeySettings>;
 
@@ -57,25 +58,19 @@ function HotkeyChanges({ model }: { model: HotkeyModel }) {
     draft.actions.some(scope => !profile.facts.capabilities.some(cap => cap.scope === scope && cap.identity)));
   const changed = JSON.stringify(draft) !== JSON.stringify(profile.current);
   const canApply = !!profile.revision && !blocked && (changed || draft.enabled && (!profile.status.running || !profile.authorized));
-  return <>
-    <ConfigurationAction revision={JSON.stringify([profile.revision, draft])} label="原厂热键与屏显" applyLabel="保存热键接管范围" disabled={busy || !canApply}
-      onConfirm={() => run(() => applyHotkeys(profile.revision!, draft), "热键软件策略已保存", true)}>
-      <p>接管{draft.enabled ? "开启" : "关闭"} · 桌面提示{draft.osd ? "开启" : "关闭"}</p>
-      <ul className="ccc-parameter-descriptions">{ACTIONS.filter(action => draft.actions.includes(action.scope)).map(action =>
-        <li key={action.scope}><strong>{action.title}</strong><p>{action.rule}</p></li>)}</ul>
-      {draft.actions.includes("powerMode") && profile.facts.modeCycle?.nodeChoices.some(choice => choice.action?.target.enabled === false) &&
-        <p className="ccc-control-caption">所选模式循环包含独显关断。</p>}
-      {draft.actions.includes("batteryLowAction") && <p className="ccc-control-caption">低电量时可能进入睡眠或休眠。</p>}
-      {draft.actions.includes("panelHotkey") && <p className="ccc-control-caption" aria-label="屏幕按键接管预览">
-        {profile.facts.panelHotkey?.current?.kind === "blankSaver" ? "按键启动空白屏保，正常输入退出。"
-          : profile.facts.panelHotkey?.current?.kind === "pointerWake" ? "按键开始等待；键盘按下取消，鼠标活动发送一次唤醒请求。" : "当前条件不可用，请重新读取。"}
-      </p>}
-    </ConfigurationAction>
-    <ConfigurationAction revision={profile.revision ?? ""} label="原厂热键与屏显" restore disabled={busy || !profile.initial || !profile.revision}
-      onConfirm={() => run(() => restoreHotkeys(profile.revision!), "初始软件策略已恢复", true)}>
-      {profile.initial && <p>恢复初始策略 · {profile.initial.enabled ? "启用" : "关闭"} · {summary(profile.initial)}</p>}
-    </ConfigurationAction>
-  </>;
+  return <ConfigurationAction revision={JSON.stringify([profile.revision, draft])} label="原厂热键与屏显" applyLabel="保存热键接管范围" disabled={busy || !canApply}
+    onConfirm={() => run(() => applyHotkeys(profile.revision!, draft), "热键软件策略已保存", true)}>
+    <p>接管{draft.enabled ? "开启" : "关闭"} · 桌面提示{draft.osd ? "开启" : "关闭"}</p>
+    <ul className="ccc-parameter-descriptions">{ACTIONS.filter(action => draft.actions.includes(action.scope)).map(action =>
+      <li key={action.scope}><strong>{action.title}</strong><p>{action.rule}</p></li>)}</ul>
+    {draft.actions.includes("powerMode") && profile.facts.modeCycle?.nodeChoices.some(choice => choice.action?.target.enabled === false) &&
+      <p className="ccc-control-caption">所选模式循环包含独显关断。</p>}
+    {draft.actions.includes("batteryLowAction") && <p className="ccc-control-caption">低电量时可能进入睡眠或休眠。</p>}
+    {draft.actions.includes("panelHotkey") && <p className="ccc-control-caption" aria-label="屏幕按键接管预览">
+      {profile.facts.panelHotkey?.current?.kind === "blankSaver" ? "按键启动空白屏保，正常输入退出。"
+        : profile.facts.panelHotkey?.current?.kind === "pointerWake" ? "按键开始等待；键盘按下取消，鼠标活动发送一次唤醒请求。" : "当前条件不可用，请重新读取。"}
+    </p>}
+  </ConfigurationAction>;
 }
 
 export function HotkeySettings({ active, revision }: { active: boolean; revision: number }) {
@@ -87,6 +82,8 @@ export function HotkeySettings({ active, revision }: { active: boolean; revision
   const status = !profile ? error ? "读取失败" : "读取中…" : profile.status.running ? "正在监听"
     : profile.current?.enabled ? "已停止监听" : null;
   const savedCount = profile?.current?.actions.length ?? 0;
+  const conflictIssues = [profile?.facts.blockedReason, error];
+  const conflictMessage = findOemConflict(conflictIssues);
   return <Surface as="section" variant="group" className="ccc-panel" aria-label="原厂热键与屏显">
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="keyboard" />原厂热键与屏显</h2>
       <div className="ccc-module-tools">
@@ -94,7 +91,7 @@ export function HotkeySettings({ active, revision }: { active: boolean; revision
           {error && <p className="ccc-control-error">{error}</p>}
           {profile?.recordError && <p className="ccc-control-error">{profile.recordError}</p>}
           <HotkeyCurrent profile={profile} busy={busy} run={run} screenSelected={selected.has("screenBrightness")} panelSelected={selected.has("panelHotkey")} />
-          <HotkeyEventPreviews profile={profile} selected={selected} draftActions={draft?.actions ?? []} busy={busy} run={run} />
+          <HotkeyEventPreviews profile={profile} selected={selected} draftActions={draft?.actions ?? []} />
           {unavailable.length > 0 && <section aria-label="不可用的热键动作"><h3>不可用的热键动作</h3>
             {unavailable.map(action => <p key={action.scope}><strong>{action.title}</strong> · {
               profile?.facts.capabilities.find(cap => cap.scope === action.scope)?.reason ?? "此设备未提供"}</p>)}
@@ -108,7 +105,8 @@ export function HotkeySettings({ active, revision }: { active: boolean; revision
         {status && <strong>{status}</strong>}
         {savedCount > 0 && <span className="ccc-control-caption">已保存 {savedCount} 项</span>}
         {profile?.current?.enabled && !profile.authorized && <span className="ccc-control-caption">需要重新确认接管</span>}
-        {(error || profile?.facts.blockedReason || profile?.status.error || profile?.osdError) &&
+        {conflictMessage && <span className="ccc-control-error">{conflictMessage}</span>}
+        {!conflictMessage && (error || profile?.facts.blockedReason || profile?.status.error || profile?.osdError) &&
           <span className="ccc-control-caption">查看热键诊断</span>}
       </div>
       <div className="ccc-actions">
@@ -122,7 +120,8 @@ export function HotkeySettings({ active, revision }: { active: boolean; revision
         </ConfirmButton>}
       </div>
     </div>
-    <OemConflictAction issues={[error, profile?.facts.blockedReason, profile?.status.error]} disabled={busy} onClosed={model.reread} />
+    <OemConflictAction issues={conflictIssues} disabled={busy} onClosed={model.reread} />
     <HotkeyChanges model={model} />
+    {profile && <HotkeyRecovery profile={profile} busy={busy} run={run} />}
   </Surface>;
 }

@@ -1,8 +1,22 @@
-use super::{Hal, HardwareSnapshot, memory, oem_dchu::Dchu};
+use super::{Hal, HardwareSnapshot, memory, nvidia::Nvidia, oem_dchu::Dchu};
 use anyhow::{Context, Result};
 use ccc_core::fan_sensors::{FanReadings, fan_channels};
 
 impl Hal {
+    pub(crate) fn tray_temperatures(&self) -> (Option<f64>, Option<f64>) {
+        let cpu = self
+            .with_dchu(|io| io.read_package(12))
+            .ok()
+            .and_then(|page| FanReadings::decode(&page, 0))
+            .and_then(|readings| readings.cpu.temp_c);
+        let gpu = self
+            .sample_nvidia(Nvidia::sample_temperature)
+            .ok()
+            .flatten()
+            .and_then(|reading| (!self.gpu_suspended()).then_some(reading.temp_c).flatten());
+        (cpu, gpu)
+    }
+
     pub fn display_snapshot(&self) -> HardwareSnapshot {
         let mut snapshot = self.sample_hardware(true);
         let reading = self
@@ -46,7 +60,7 @@ impl Hal {
         }) {
             snapshot.warnings.push(format!("传感读取失败：{error:#}"));
         }
-        match self.sample_nvidia() {
+        match self.sample_nvidia(Nvidia::sample) {
             Ok(value) => snapshot.nvidia = value,
             Err(error) => snapshot
                 .warnings

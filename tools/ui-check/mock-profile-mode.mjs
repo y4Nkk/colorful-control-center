@@ -1,5 +1,5 @@
 import { invokePerformance } from "./mock-performance.mjs";
-import { appliesPerformanceOptions, optionCommand, rememberMode, applyModeGpu } from "./mock-mode-state.mjs";
+import { optionCommand, rememberMode, applyModeFan, applyModeGpu, modePreviewTarget } from "./mock-mode-state.mjs";
 
 export function profileNodeStages(target, settings) {
   const gpu = target.gpu;
@@ -55,24 +55,18 @@ export function applyProfileMode(data, target) {
   data.performanceOptions.canRestore = true;
   data.performanceOptions.revision = `options-${++data.performanceRevision}`;
   data.modeEnergy = structuredClone(target.energy);
-  data.fan.currentMode = target.fanMode; data.fan.offsetPct = target.fanOffsetPct; data.fan.software = null;
+  applyModeFan(data, target);
 }
 export async function previewProfileMode(data, settings) {
   const mode = settings.oemPowerMode;
   if (mode === null) return null;
   if (data.profileModeFault) throw new Error(data.profileModeFault);
   const facts = await invokePerformance(data, "read_oem_power_mode", {});
-  const target = facts.targets.find(target => target.mode === mode);
+  let target = facts.targets.find(target => target.mode === mode);
   if (!target) throw new Error("当前设备不能预览此档案的电源模式");
+  if (settings.performanceOptions) target = modePreviewTarget(data, mode, settings.performanceOptions);
   if (target.gpu?.status !== "ready") throw new Error(target.gpu?.value ?? "档案模式GPU事实缺失");
   target.gpu.value.stages = profileNodeStages(target, settings);
-  const values = settings.performanceOptions;
-  if (values) {
-    const active = appliesPerformanceOptions(data, mode);
-    target.turbo = active && values.turboFan === true;
-    target.dtt = active && values.dtt === true;
-    if (active && values.turboFan !== data.performanceOptions.current.turboFan) target.fanMode = target.fanSavedMode = 0;
-  }
   if (target.dtt && data.performanceOptions.dttDriverAvailable !== true) throw new Error("未确认Dynamic Tuning驱动，不能激活DTT");
   target.revision = JSON.stringify([target, data.acMode, data.modeEnergy, data.performanceOptions.current]);
   return target;

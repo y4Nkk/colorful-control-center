@@ -1,10 +1,8 @@
-import { restorePdEvent, type PdEventProfile } from "../../api/client";
-import { ConfirmButton } from "../ConfirmButton";
+import type { PdEventProfile, PowerDeliveryProfile } from "../../api/client";
 import { Surface } from "../Surface";
 import { pdLevelText } from "./platform-values";
 
-type Props = { profile: PdEventProfile; busy: boolean; run: (action: () => Promise<void>, message: string, reset: boolean) => Promise<void> };
-export function PdEventFacts({ profile, busy, run }: Props) {
+export function PdEventFacts({ profile }: { profile: PdEventProfile }) {
   const pd = profile.current;
   return <section className="ccc-pd-event-facts" aria-label="原厂 PD 事件事实与预览">
     <strong>原厂 PD 档位事件</strong>
@@ -23,16 +21,17 @@ export function PdEventFacts({ profile, busy, run }: Props) {
         {pd ? <>
           <p>触发后设置：{pdLevelText(1, pd.zeroBased)}</p>
           <p className="ccc-control-caption">原厂事件使用固定的档位编号；执行前会再核对一次适配器和可选档位。</p>
-          {pd.initial && <>
-            <p className="ccc-control-caption">恢复接管前的档位：{pd.currentValid ? pdLevelText(pd.currentLevel, pd.zeroBased) : "未知"} → {pdLevelText(pd.initial.value, pd.initial.zeroBased)}</p>
-            {pd.restoreBlockedReason && <p className="ccc-control-error">{pd.restoreBlockedReason}</p>}
-            <ConfirmButton icon="undo" key={`${pd.revision}-${pd.blockedReason}-${pd.restoreBlockedReason}`} variant="secondary"
-              label="恢复初始 PD 档位" confirmLabel="确认停止监听并恢复初始 PD 档位？" busy={busy}
-              disabled={!!pd.blockedReason || !!pd.restoreBlockedReason}
-              onConfirm={() => run(() => restorePdEvent(pd.revision), "初始 PD 档位已恢复", false)} />
-          </>}
+          <PdEventRestorePreview profile={pd} />
         </> : <p className="ccc-control-caption">目标不可用，不能确认接管。</p>}
       </Surface>
     </div>
   </section>;
+}
+
+export function PdEventRestorePreview({ profile: pd }: { profile: PowerDeliveryProfile }) {
+  if (!pd.initial) return null;
+  return <>
+    <p className="ccc-control-caption">恢复接管前的档位：{pd.currentValid ? pdLevelText(pd.currentLevel, pd.zeroBased) : "未知"} → {pdLevelText(pd.initial.value, pd.initial.zeroBased)}</p>
+    {pd.restoreBlockedReason && <p className="ccc-control-error">{pd.restoreBlockedReason}</p>}
+  </>;
 }

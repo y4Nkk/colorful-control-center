@@ -1,6 +1,7 @@
+import { memo } from "react";
 import { Surface } from "../Surface";
 import { Icon } from "../Icon";
-import type { HardwareCapacity, OemMemoryReading, SystemOverview } from "../../api/client";
+import type { HardwareCapacity, SystemInventory } from "../../api/client";
 import type { MemorySample } from "../../app/useSystemOverview";
 import { HardwareArtwork } from "./HardwareArtwork";
 import { FactList } from "../FactList";
@@ -47,7 +48,7 @@ function MemoryUsage({ values, speedMts, history }: { values: CapacityValues | n
   </div>;
 }
 
-function StorageVolume({ volume }: { volume: SystemOverview["volumes"][number] }) {
+function StorageVolume({ volume }: { volume: NonNullable<SystemInventory["volumes"]>[number] }) {
   const values = capacityValues(volume.capacity);
   const name = volume.label || "本地磁盘";
   return <li className="ccc-storage-volume">
@@ -62,11 +63,14 @@ function StorageVolume({ volume }: { volume: SystemOverview["volumes"][number] }
   </li>;
 }
 
-export function CapacityOverview({ overview, oemMemory, memoryHistory }: {
-  overview: SystemOverview | null; oemMemory: OemMemoryReading | null; memoryHistory: readonly MemorySample[];
+export const CapacityOverview = memo(function CapacityOverview({ inventory, capacity, memoryHistory, reportedClockMhz, referenceClockMhz }: {
+  inventory: SystemInventory | null; capacity: HardwareCapacity | null; memoryHistory: readonly MemorySample[];
+  reportedClockMhz: number | null; referenceClockMhz: number | null;
 }) {
-  const memory = capacityValues(overview?.memory);
-  const volumes = overview?.volumes ?? [];
+  const memory = capacityValues(capacity);
+  const storage = inventory?.volumes;
+  const volumes = storage ?? [];
+  const speedMts = inventory?.memorySpeedMts ?? null;
   return <div className="ccc-module-grid">
     <Surface as="section" variant="card" className="ccc-capacity-card" aria-label="系统内存概览">
       <div className="ccc-hardware-identity">
@@ -78,15 +82,15 @@ export function CapacityOverview({ overview, oemMemory, memoryHistory }: {
               { label: "总容量", value: formatCapacity(memory?.total) },
               { label: "已用容量", value: formatCapacity(memory?.used) },
               { label: "可用容量", value: formatCapacity(memory?.available) },
-              { label: "内存频率", value: formatParameter(overview?.memorySpeedMts, "MT/s") },
-              { label: "原厂报告频率", value: formatParameter(oemMemory?.reportedClockMhz, "MHz") },
-              { label: "原厂参考频率", value: formatParameter(oemMemory?.referenceClockMhz, "MHz") },
+              { label: "内存频率", value: formatParameter(speedMts, "MT/s") },
+              { label: "原厂报告频率", value: formatParameter(reportedClockMhz, "MHz") },
+              { label: "原厂参考频率", value: formatParameter(referenceClockMhz, "MHz") },
             ]} />
             <ParameterDescriptions items={MEMORY_HELP} />
           </DetailsDialog>
         </div>
       </div>
-      <MemoryUsage values={memory} speedMts={overview?.memorySpeedMts ?? null} history={memoryHistory} />
+      <MemoryUsage values={memory} speedMts={speedMts} history={memoryHistory} />
     </Surface>
     <Surface as="section" variant="card" className="ccc-capacity-card" aria-label="本地存储概览">
       <div className="ccc-capacity-head">
@@ -112,7 +116,7 @@ export function CapacityOverview({ overview, oemMemory, memoryHistory }: {
       </div>
       {volumes.length ? <ul className="ccc-storage-volumes">
         {volumes.map(volume => <StorageVolume volume={volume} key={volume.mount} />)}
-      </ul> : <p className="ccc-capacity-empty">{overview ? "暂无固定磁盘卷" : "容量未读取"}</p>}
+      </ul> : <p className="ccc-capacity-empty">{storage ? "暂无固定磁盘卷" : "容量未读取"}</p>}
     </Surface>
   </div>;
-}
+});

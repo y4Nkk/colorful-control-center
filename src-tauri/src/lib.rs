@@ -19,6 +19,7 @@ mod keyboard;
 mod keymap;
 mod lighting;
 mod microphone;
+mod monitoring;
 mod osd;
 #[cfg(not(test))]
 mod owned_process;
@@ -35,7 +36,7 @@ mod watchdog;
 mod worker_entry;
 
 use hal::Hal;
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -90,7 +91,6 @@ fn run_desktop(start: startup::DesktopStart) -> anyhow::Result<()> {
             if reveal {
                 tray::show_main(app.handle());
             }
-            tray::refresh_profiles(app.handle());
             if login {
                 startup::apply_login_profile(app.handle());
             }
@@ -121,6 +121,7 @@ fn start_workers(app: &tauri::AppHandle) {
     if shutdown::closing() {
         return;
     }
+    startup::start_oem_worker(app);
     #[cfg(not(test))]
     if let Err(error) = app
         .state::<display::automatic::Controller>()
@@ -210,21 +211,7 @@ fn start_hardware_workers(app: &tauri::AppHandle) {
         }
     });
     // 采样与监护心跳独立，硬件读取阻塞不阻断监护管道。
-    let handle = app.clone();
-    std::thread::spawn(move || {
-        while !shutdown::closing() {
-            if let Some(hal) = handle.try_state::<Hal>() {
-                let mut snapshot = hal.display_snapshot();
-                let safety = hal.safety_status();
-                if safety != "自动" && safety != "监护中" {
-                    snapshot.warnings.push(safety);
-                }
-                let _ = handle.emit("hardware-snapshot", &snapshot);
-                tray::sample(&handle, &hal, &snapshot);
-            }
-            std::thread::sleep(std::time::Duration::from_millis(1000));
-        }
-    });
+    monitoring::start(app);
 }
 
 fn control_plugin(

@@ -1,4 +1,5 @@
 import { useRef, useState, type ChangeEvent, type KeyboardEvent, type PointerEvent } from "react";
+import { magnetAt } from "../lib/range-magnet";
 
 interface SliderInput {
   min: number;
@@ -20,18 +21,6 @@ interface Drag {
 }
 
 const RANGE_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"]);
-
-function magnetAt(raw: number, pixelsPerUnit: number, previous: number | undefined, min: number, max: number, interval: number) {
-  const within = (mark: number, pixels: number, fraction: number) => {
-    if (mark < min || mark > max) return false;
-    const gap = Math.min(interval, mark === min ? interval : mark - min, mark === max ? interval : max - mark);
-    // Leave space between neighboring magnets, even on narrow tracks or near a partial end interval.
-    return Math.abs(raw - mark) * pixelsPerUnit <= Math.min(pixels, gap * pixelsPerUnit * fraction);
-  };
-  if (previous !== undefined && within(previous, 6, 0.36)) return previous;
-  const nearest = Math.round(raw / interval) * interval;
-  return within(nearest, 4, 0.24) ? nearest : undefined;
-}
 
 function sampleDrag(drag: Drag, clientX: number, bounds: DOMRect, { min, max, magnetInterval }: SliderInput) {
   const pixelsPerUnit = bounds.width / (max - min);

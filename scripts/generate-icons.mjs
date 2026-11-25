@@ -103,7 +103,7 @@ function rasterize(cli, root, input, output, options = []) {
 function presetIcons(cli, root, temporary) {
   const directory = "src-tauri/icons/presets";
   const tokens = postcss.parse(readFileSync(join(root, "src/styles/tokens.css"), "utf8"));
-  return ["quiet", "eco", "performance", "entertainment"].map(palette => {
+  return ["quiet", "eco", "performance", "entertainment", "check"].map(palette => {
     const colors = new Map();
     tokens.walkRules(`[data-preset-palette="${palette}"]`, rule => {
       rule.walkDecls(/^--ccc-preset-/, value => { colors.set(value.prop, value.value); });

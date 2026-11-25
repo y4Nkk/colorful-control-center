@@ -23,8 +23,9 @@ function useOemStartupNotice() {
     void getOemStartupNotice().then(notice => {
       if (disposed || !notice) return;
       toast(notice.kind === "closed"
-        ? { kind: "success", title: "已结束原厂 FnKey", durationMs: 0 }
-        : { kind: "warning", title: "启动时未完全退出原厂软件", description: notice.detail, durationMs: 0 });
+        ? { kind: "success", title: "已关闭原厂软件", description: notice.executables.join("、"), durationMs: 0 }
+        : { kind: "warning", title: "启动时未完全退出原厂软件", durationMs: 0,
+            description: notice.closed.length ? `已关闭 ${notice.closed.join("、")}。 ${notice.detail}` : notice.detail });
     }).catch(error => {
       if (!disposed) toast({ kind: "error", title: "无法读取原厂软件启动处理结果", description: toCommandError(error).message });
     });

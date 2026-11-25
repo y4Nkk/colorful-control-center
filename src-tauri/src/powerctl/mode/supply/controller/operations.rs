@@ -11,6 +11,7 @@ use crate::{
     },
 };
 use anyhow::{Result, anyhow, bail};
+use std::path::PathBuf;
 
 impl Controller {
     pub fn read(
@@ -111,6 +112,12 @@ impl Controller {
             })
         })();
         finish(result, io.finish())
+    }
+    pub fn archive_invalid(&self, hal: &Hal, expected: &str) -> Result<PathBuf> {
+        let _operation = self.lock()?;
+        let _gate = hal.begin_write()?;
+        self.store
+            .archive_invalid(expected, || self.shared.pause(None))
     }
     pub(in crate::powerctl::mode::supply) fn execute_work(
         &self,

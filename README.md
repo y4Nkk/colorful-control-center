@@ -18,9 +18,9 @@
 
 ![系统概览，显示当前预设、五分钟温度趋势、CPU 和 GPU 读数](docs/screenshots/system-overview.png)
 
-| 性能与散热 · 风扇设置 | 键盘与灯光 |
+| 性能与散热 · 散热控制 | 键盘与灯光 |
 | --- | --- |
-| ![风扇设置的实时转速、固件曲线及整机设置](docs/screenshots/fan-control.png) | ![键盘与灯光页的三区 RGB 预览](docs/screenshots/keyboard-lighting.png) |
+| ![散热控制的实时转速和固件曲线](docs/screenshots/fan-control.png) | ![键盘与灯光页的三区 RGB 预览](docs/screenshots/keyboard-lighting.png) |
 
 ![电源设置中的电池与充电、节能计划和档案应用](docs/screenshots/power.png)
 
@@ -35,13 +35,13 @@
 | **键盘与灯光** | 按设备能力设置分区或逐键 RGB、外围灯区和闲置关灯。管理按键映射、宏，以及授权接管的原厂热键与屏显。 |
 | **电源与档案** | 管理电池、节能、供电和 USB 选择性暂停。按组保存、预览、导入或导出配置档案，并设置启动、插电、电池和唤醒规则。 |
 | **设备配置** | 设置刷新率、主屏方向和显卡模式，管理独显电源、触摸板、麦克风及飞行模式。显卡切换可在重启后核对结果。 |
-| **设置与托盘** | 选择普通或管理员登录自启，以及启动时显示主界面或最小化到托盘。启动时默认结束已核验的原厂 FnKey，可在设置中关闭。通过托盘切换受支持的模式、控制风扇、打开档案预览或退出。 |
+| **设置与托盘** | 选择普通或管理员登录自启，以及启动时显示主界面或最小化到托盘。默认在启动和运行期间关闭已核验的原厂控制中心、Flexikey 和 FnKey，可在「设置 → 窗口与托盘」切换。通过托盘切换受支持的模式、控制风扇、打开档案预览或退出。 |
 
-在固件支持的设备上，「性能与散热」的娱乐档和性能档都可分别开关 **Turbo 风扇**、**动态调校 DTT** 和**寂静模式**。DTT 需要对应的驱动就绪，单独调整时保留当前风扇曲线。从自定义固件曲线开启娱乐档 Turbo 时，界面会先确认切换到自动风扇，原曲线可恢复。
+「散热控制」集中显示风扇档位、加速偏移、**Turbo 风扇**、**动态调校 DTT** 和各风扇实况及曲线。Turbo 和 DTT 区分已应用与仅保存，娱乐档单独显示寂静偏好。DTT 按驱动状态开放，单独调整时保留当前风扇策略。Turbo 与寂静及自定义曲线互斥，联动切换会先展示确认目标。
 
 ## 安装与使用
 
-**当前版本为 1.1.0。** Windows x64 安装包名为 `ColorfulControlCenter_1.1.0_x64-setup.exe`，由 [GitHub Releases](https://github.com/y4Nkk/colorful-control-center/releases) 提供。源码构建方式见 [开发与构建指南](docs/development.md)。
+**当前版本为 1.3.0。** Windows x64 安装包名为 `ColorfulControlCenter_1.3.0_x64-setup.exe`，由 [GitHub Releases](https://github.com/y4Nkk/colorful-control-center/releases) 提供。源码构建方式见 [开发与构建指南](docs/development.md)。
 
 1. 运行安装包，按向导为当前用户安装。向导需要 .NET Framework 4.8.1，并会在需要时联网准备 WebView2。[.NET Framework 系统要求](https://learn.microsoft.com/dotnet/framework/get-started/system-requirements)
 2. 打开「概览」，确认可读的硬件状态。原厂硬件通道依赖机型已有的 InsydeDCHU 组件和驱动，部分 CPU 实时调校还需要 PawnIO。

@@ -24,7 +24,7 @@ test("分类导航统一使用本地库图标，中文名称与选中状态保�
 
 test("领域模块与设置标题显式使用语义图标，硬件插画继续保留", async ({ page }) => {
   await page.goto("/");
-  for (const [title, icon, workspace] of [["风扇设置", "fan", "性能与散热"], ["CPU 功耗与电压", "power", "性能与散热"], ["独显电源", "gpu", "设备配置"], ["电池与充电", "charging", "电源与档案"], ["屏幕显示", "display", "设备配置"], ["原厂热键与屏显", "keyboard", "键盘与灯光"]]) {
+  for (const [title, icon, workspace] of [["散热控制", "fan", "性能与散热"], ["CPU 功耗与电压", "power", "性能与散热"], ["独显电源", "gpu", "设备配置"], ["电池与充电", "charging", "电源与档案"], ["屏幕显示", "display", "设备配置"], ["原厂热键与屏显", "keyboard", "键盘与灯光"]]) {
     await openWorkspace(page, workspace);
     await expect(page.getByRole("heading", { name: title, exact: true }).locator("svg")).toHaveAttribute("data-icon", icon);
   }
@@ -40,7 +40,7 @@ test("深浅主题与窄窗口保持图标尺寸、模块间距和页面宽度",
   for (const [width, theme] of [[1440, "light"], [700, "dark"]]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
-    const title = page.getByRole("heading", { name: "风扇设置", exact: true });
+    const title = page.getByRole("heading", { name: "散热控制", exact: true });
     await expect(title.locator("svg")).toHaveCSS("width", "20px");
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     expect(overflow).toBeFalsy();

@@ -122,6 +122,35 @@ fn current_transport_failure_clears_availability_and_old_readings_then_can_recov
     assert_eq!(MEMORY_READS.load(Ordering::SeqCst), 4);
 }
 #[test]
+fn tooltip_temperature_does_not_read_fan_inventory_or_shared_memory() {
+    use std::sync::atomic::AtomicUsize;
+    static EXTRA_READS: AtomicUsize = AtomicUsize::new(0);
+    unsafe extern "system" fn temperature_only(command: i32, output: *mut u8) -> i32 {
+        if command != 12 {
+            EXTRA_READS.fetch_add(1, Ordering::SeqCst);
+            return 0;
+        }
+        unsafe { healthy_buffer(command, output) }
+    }
+    unsafe extern "system" fn unexpected_read(_: i32, _: i32, _: i32, _: *mut u8) -> i32 {
+        EXTRA_READS.fetch_add(1, Ordering::SeqCst);
+        0
+    }
+    let io = oem_dchu::Dchu::test_io(temperature_only, unexpected_read, set, write);
+    let mut hal = Hal::test_instance(io, None);
+    hal.test_nvidia = Some(std::sync::Arc::new(|| {
+        Ok(Some(NvidiaSnapshot {
+            temp_c: Some(41.0),
+            ..Default::default()
+        }))
+    }));
+    assert_eq!(hal.tray_temperatures(), (Some(60.0), Some(41.0)));
+    hal.suspend_gpu(true).unwrap();
+    assert_eq!(hal.tray_temperatures(), (Some(60.0), None));
+    assert_eq!(EXTRA_READS.load(Ordering::SeqCst), 0);
+}
+
+#[test]
 fn isolated_missing_providers_never_load_real_dll_or_nvml() {
     let hal = Hal::test_instance(oem_dchu::Dchu::test_io(buffer, read, set, write), None);
     hal.dchu.lock().unwrap().take();

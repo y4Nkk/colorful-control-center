@@ -35,3 +35,12 @@
 .ccc-segmented-option:has(.ccc-radio:focus-visible) { box-shadow: var(--ccc-focus-shadow); }
 .ccc-segmented-option:has(.ccc-radio:disabled) { cursor: not-allowed; opacity: 0.5; }
 .ccc-segmented[aria-busy="true"] .ccc-segmented-option[data-pending] .ccc-radio:enabled { cursor: progress; }
+
+@container (max-width: 16.5rem) {
+  .ccc-segmented[data-balanced-wrap] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    inline-size: 100%;
+  }
+  .ccc-segmented[data-balanced-wrap] > .ccc-segmented-option:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}

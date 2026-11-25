@@ -16,6 +16,52 @@ pub(super) use memory::{Memory, setup};
 use memory::{enable, snapshot, target};
 
 #[test]
+fn invalid_supply_record_archive_is_bound_to_raw_bytes_and_releases_both_strategies() {
+    let (_dir, store, io) = setup();
+    enable(&io, &store);
+    let mut old = serde_json::to_value(store.load().unwrap().unwrap()).unwrap();
+    assert!(
+        store
+            .archive_invalid("unconfirmed", || panic!("有效记录不可归档"))
+            .is_err()
+    );
+    old["version"] = 4.into();
+    let original = serde_json::to_vec(&old).unwrap();
+    std::fs::write(&store.0, &original).unwrap();
+    assert!(super::ensure_inactive(&store.0).is_err());
+    let view = transaction::read(&io, &store).unwrap();
+    assert!(!view.can_enable && !view.can_restore);
+    let revision = view.archive_revision.unwrap();
+    let mut changed = original.clone();
+    changed.push(b'\n');
+    std::fs::write(&store.0, &changed).unwrap();
+    assert!(
+        store
+            .archive_invalid(&revision, || panic!("过期摘要不能暂停"))
+            .is_err()
+    );
+    assert_eq!(std::fs::read(&store.0).unwrap(), changed);
+
+    let revision = transaction::read(&io, &store)
+        .unwrap()
+        .archive_revision
+        .unwrap();
+    let mut paused = false;
+    let archived = store
+        .archive_invalid(&revision, || {
+            paused = true;
+            Ok(())
+        })
+        .unwrap();
+    assert!(paused);
+    assert_eq!(std::fs::read(archived).unwrap(), changed);
+    assert!(store.load().unwrap().is_none());
+    assert!(super::ensure_inactive(&store.0).is_ok());
+    assert!(transaction::read(&io, &store).unwrap().can_enable);
+    assert_eq!(io.0.borrow().writes, 0);
+}
+
+#[test]
 fn automatic_journal_rejects_ac_preference_targets_and_snapshots() {
     let (_dir, store, io) = setup();
     enable(&io, &store);

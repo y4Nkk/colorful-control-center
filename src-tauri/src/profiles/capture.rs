@@ -12,7 +12,7 @@ pub(crate) fn capture_current(
     if groups.is_empty() {
         bail!("至少选择一组配置");
     }
-    let capture = collect(hal, gpu, devices, groups)?;
+    let capture = collect(hal, gpu, devices, groups, false)?;
     if !capture.issues.is_empty() {
         bail!("{}", capture.issues.join("；"));
     }
@@ -35,7 +35,7 @@ pub(crate) fn compare_current(
     if groups.is_empty() {
         return Ok(ProfileSettings::default());
     }
-    Ok(collect(hal, gpu, devices, &groups)?.settings)
+    Ok(collect(hal, gpu, devices, &groups, true)?.settings)
 }
 
 #[derive(Default)]
@@ -49,6 +49,7 @@ fn collect(
     gpu: &crate::gpuctl::GpuController,
     devices: super::Devices<'_>,
     groups: &[ProfileGroup],
+    for_comparison: bool,
 ) -> Result<Capture> {
     use ProfileGroup::*;
     let has = |group| groups.contains(&group);
@@ -115,7 +116,7 @@ fn collect(
         .flatten();
     }
     if let Some(node) = node.as_ref().filter(|_| has(Performance)) {
-        capture_performance(hal, gpu, node, &mut settings, &mut issues);
+        capture_performance(hal, gpu, node, &mut settings, &mut issues, for_comparison);
     }
     Ok(Capture { settings, issues })
 }
@@ -136,6 +137,7 @@ fn capture_performance(
     node: &crate::gpu_power::Scope<'_>,
     settings: &mut ProfileSettings,
     issues: &mut Vec<String>,
+    for_comparison: bool,
 ) {
     settings.oem_power_mode = observe(issues, "电源模式", Some(powerctl::mode::read(hal)))
         .and_then(|mode| {
@@ -159,7 +161,10 @@ fn capture_performance(
     observe(
         issues,
         "风扇",
-        Some(fanctl::read_profile(hal).and_then(|fan| super::model::capture_fan(&fan, settings))),
+        Some(
+            fanctl::read_profile(hal)
+                .and_then(|fan| super::model::capture_fan(&fan, settings, for_comparison)),
+        ),
     );
     if observe(issues, "独显连接", Some(node.synchronize(hal, gpu))).is_some() {
         settings.gpu = gpu.capture_settings().ok();

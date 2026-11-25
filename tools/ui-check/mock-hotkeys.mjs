@@ -69,7 +69,7 @@ export async function acknowledgeNavigationFixture(data, args, emit) {
   data.hotkeys.status.navigationRequest = null; emit("hotkeys-state", data.hotkeys.status); return null;
 }
 export function initializeHotkeys(data) {
-  data.hotkeys ??= { revision: "hotkeys-0", recordError: null, resetRevision: null, current: { enabled: false, actions: [], osd: true }, initial: null,
+  data.hotkeys ??= { revision: "hotkeys-0", restoreRevision: null, recordError: null, resetRevision: null, current: { enabled: false, actions: [], osd: true }, initial: null,
     facts: { capabilities: ["powerMode", "fan", "keyboardBrightness", "keyboardSwitch", "keyboardZones", "keyboardColor", "microphoneMute", "touchpad", "fnLock", "mappings", "openConsole", "stateNotifications", "keyboardBrightnessEvent", "cameraReports", "screenBrightness", "panelHotkey", "gpuTurbo", "batteryThresholds", "powerDeliveryEvent", "batteryColdWarning", "batteryLowBrightness", "batteryLowAction", "openKeyboard", "displayRotation", "batteryAlert", "systemRecovery", "systemShutdown", "lidAction", "airplaneMode", "panelEvent"].map(scope => scope === "powerDeliveryEvent" && !data.platform.powerDelivery ? { scope, identity: null, reason: "固件未声明PD档位控制" } : scope === "openKeyboard" && ![1, 2, 3, 6, 22, 23, 38].includes(data.keyboard.detectedType) ? { scope, identity: null, reason: "当前键盘没有原厂键盘灯快捷入口" } : scope === "keyboardBrightnessEvent" && ![1, 22].includes(data.keyboard.detectedType) ? { scope, identity: null, reason: "此键盘未提供原厂亮度循环或反馈" } : scope === "keyboardColor" && ![6, 22, 38].includes(data.keyboard.detectedType) ? { scope, identity: null, reason: "此键盘未提供原厂颜色循环" } : scope === "keyboardZones" && data.keyboard.detectedType !== 2 ? { scope, identity: null, reason: "此键盘未提供原厂分区开关" } : { scope, identity: `isolated-${scope}`, reason: null }), blockedReason: null },
     authorized: false, status: { running: false, error: null, lastResult: null, coldWarning: null, navigationRequest: null }, osdError: null };
   data.hotkeys.facts.lidAction ??= { identity: "isolated-lid-action", current: { plan: "381b4222f69441f09685ff5bb260df2e", actions: ["screenOff", "hibernate"], modernStandby: true }, onAc: true, error: null, powerError: null };
@@ -125,7 +125,7 @@ export async function invokeHotkeys(data, command, args, emit) {
     if (!data.hotkeys.recordError || !args.expectedRevision || args.expectedRevision !== data.hotkeys.resetRevision) throw new Error("不可用热键策略已变化");
     if (data.hotkeysResetFault) throw new Error(data.hotkeysResetFault);
     data.hotkeys.current = { enabled: false, actions: [], osd: true };
-    data.hotkeys.recordError = null; data.hotkeys.resetRevision = null; data.hotkeys.initial = null;
+    data.hotkeys.recordError = null; data.hotkeys.resetRevision = null; data.hotkeys.initial = null; data.hotkeys.restoreRevision = null;
     data.hotkeys.authorized = false; data.hotkeys.status.running = false;
     data.hotkeys.revision = "hotkeys-reset";
     emit("hotkeys-state", data.hotkeys.status); return null;
@@ -182,16 +182,18 @@ export async function invokeHotkeys(data, command, args, emit) {
     if (data.hotkeysReadFault) throw new Error(data.hotkeysReadFault);
     return structuredClone(data.hotkeys);
   }
-  const hotkeys = data.hotkeys, expected = command === "apply_hotkeys" ? args.request.expectedRevision : args.expectedRevision;
-  if (expected !== hotkeys.revision) throw new Error("热键策略或设备预览已变化");
+  const hotkeys = data.hotkeys, applying = command === "apply_hotkeys";
+  const expected = applying ? args.request.expectedRevision : args.expectedRevision;
+  if (expected !== (applying ? hotkeys.revision : hotkeys.restoreRevision)) throw new Error("热键策略或设备预览已变化");
   if (data.hotkeysFault) { const error = data.hotkeysFault; data.hotkeysFault = null; throw new Error(error); }
   hotkeys.initial ??= structuredClone(hotkeys.current);
   hotkeys.facts.panelHotkey.session = null; hotkeys.facts.panelHotkey.restoreRevision = null;
-  hotkeys.current = structuredClone(command === "apply_hotkeys" ? args.request.settings : hotkeys.initial);
+  hotkeys.current = structuredClone(applying ? args.request.settings : hotkeys.initial);
   hotkeys.authorized = hotkeys.current.enabled;
   hotkeys.status = { running: hotkeys.current.enabled, error: null, lastResult: null, coldWarning: null, navigationRequest: null };
   data.hotkeyRevision = (data.hotkeyRevision ?? 0) + 1;
   hotkeys.revision = `hotkeys-${data.hotkeyRevision}`;
+  hotkeys.restoreRevision = `hotkeys-restore-${data.hotkeyRevision}`;
   return null;
 }
 

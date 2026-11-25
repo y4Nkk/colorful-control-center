@@ -58,26 +58,6 @@ export function sameDraft(a: CurveDraft, b: CurveDraft): boolean {
   return a.t2 === b.t2 && a.t3 === b.t3 && a.d2Pct === b.d2Pct && a.d3Pct === b.d3Pct;
 }
 
-/** 折线插值：温度在当前曲线上的投影占空比（T1→T2→T3→100°C/100%）。 */
-export function dutyAtTemp(temp: number, anchors: CurveAnchors, draft: CurveDraft): number {
-  const stops: ReadonlyArray<readonly [number, number]> = [
-    [anchors.t1, anchors.d1Pct],
-    [draft.t2, draft.d2Pct],
-    [draft.t3, draft.d3Pct],
-    [CURVE_TEMP_MAX, CURVE_DUTY_MAX],
-  ];
-  if (temp <= stops[0][0]) return stops[0][1];
-  for (let i = 1; i < stops.length; i++) {
-    const [t0, d0] = stops[i - 1];
-    const [t1, d1] = stops[i];
-    if (temp <= t1) {
-      const span = Math.max(1e-6, t1 - t0);
-      return d0 + ((d1 - d0) * (temp - t0)) / span;
-    }
-  }
-  return CURVE_DUTY_MAX;
-}
-
 export function movePoint(anchors: CurveAnchors, draft: CurveDraft, key: "p2" | "p3", temp: number, duty: number): CurveDraft {
   return key === "p2"
     ? { ...draft, t2: clampT2(temp, anchors, draft.t3), d2Pct: clampD2(duty, anchors, draft.d3Pct) }

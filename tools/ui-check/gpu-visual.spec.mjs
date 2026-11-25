@@ -1,4 +1,4 @@
-import { openWorkspace } from "./workspace.mjs";
+import { hotkeyRestoreButton, openWorkspace } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 
@@ -55,13 +55,16 @@ test("能力详情按需展示，取消草稿仍保留已有初始恢复入口",
     window.__uiFixture.hotkeys.revision += "-initial";
     window.__uiEmit("hardware-controls-changed", null);
   });
-  await expect(turbo(page).getByRole("button", { name: "恢复初始 GPU 状态", exact: true })).toBeEnabled();
+  await expect(turbo(page)).toContainText("恢复接管前的值");
   await page.keyboard.press("Escape");
+  await expect(hotkeyRestoreButton(page)).toBeEnabled();
   await openEditor();
   await scope.uncheck();
   await done();
   await openDetails();
-  await expect(turbo(page).getByRole("button", { name: "恢复初始 GPU 状态", exact: true })).toBeVisible();
+  await expect(turbo(page)).toContainText("恢复接管前的值");
+  await page.keyboard.press("Escape");
+  await expect(hotkeyRestoreButton(page)).toBeVisible();
   expect(await calls(page, "apply_hotkeys")).toHaveLength(0);
 });
 

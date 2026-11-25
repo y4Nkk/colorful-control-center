@@ -31,16 +31,31 @@ export function entertainmentCommand(data) {
   return (data.modeOptionsCommand & 63) === 3 ? data.modeOptionsCommand : 3;
 }
 
-export function modePreviewTarget(data, mode) {
+export function modePreviewTarget(data, mode, values = data.performanceOptions.current) {
   const p = data.performanceOptions;
   const active = appliesPerformanceOptions(data, mode);
-  const turbo = active && p.current.turboFan === true;
-  const fanSavedMode = mode === 2 && !turbo ? data.performanceFanMode ?? 0 : 0;
-  const fanMode = mode === 3 && !turbo && data.entertainmentQuiet ? 8 : fanSavedMode;
+  const turbo = active && values.turboFan === true;
+  const keepsFanMode = data.performanceFanMode !== null;
+  const remembered = keepsFanMode ? mode === 2 ? data.performanceFanMode : 0 : null;
+  const resetFan = turbo && (mode === 3 || [null, 6, 8].includes(remembered));
+  const savedMode = resetFan ? 0 : remembered ?? 0;
+  const effective = mode === 3 && !turbo && data.entertainmentQuiet ? 8 : resetFan ? 0 : remembered;
+  const fan = effective === null ? { control: "firmware", savedMode } : {
+    control: "explicit", mode: effective, savedMode, offsetPct: keepsFanMode && data.fanKind !== "rpmTable" ? 0 : null,
+  };
   const target = { mode, fromMode: p.currentMode, acMode: mode, gpu: modeGpuReview(data, mode), unavailableReason: null,
     energy: data.modeEnergy.hardwarePState ? { hardwarePState: true, energyStar: null } : { hardwarePState: false, energyStar: [2, 1, 0, 2, 1][mode] },
-    turbo, dtt: active && p.current.dtt === true, fanMode, fanSavedMode, fanOffsetPct: data.fanKind === "rpmTable" ? null : 0, aspm: null, powerPlan: null };
+    turbo, dtt: active && values.dtt === true, fan, aspm: null, powerPlan: null };
   return { ...target, revision: JSON.stringify([target, data.acMode, data.modeEnergy, p.current, data.fan.currentMode, data.fan.offsetPct, data.fan.software]) };
+}
+export function applyModeFan(data, target) {
+  const { fan } = target;
+  if (fan.control === "explicit") {
+    data.fan.currentMode = fan.mode;
+    if (fan.offsetPct !== null) data.fan.offsetPct = fan.offsetPct;
+  }
+  data.fan.software = null;
+  if (target.mode === 2 && data.performanceFanMode !== null) data.performanceFanMode = fan.savedMode === 1 ? 0 : fan.savedMode;
 }
 export function rememberMode(data, selection, target) {
   const p = data.performanceOptions;

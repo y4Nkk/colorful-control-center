@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { HardwareSnapshot } from "../../api/client";
 import { HARDWARE_HISTORY_MS } from "../../app/useHardwareHistory";
 import { formatParameter } from "../../lib/format-parameters";
@@ -15,7 +16,7 @@ function temperatureAt(sample: HardwareSnapshot | undefined, read: (sample: Hard
   return value != null && Number.isFinite(value) ? value : null;
 }
 
-export function SensorTemperature({ label, samples, read, colorVar }: {
+export const SensorTemperature = memo(function SensorTemperature({ label, samples, read, colorVar }: {
   label: string;
   samples: readonly HardwareSnapshot[];
   read: (sample: HardwareSnapshot) => number | null;
@@ -67,4 +68,4 @@ export function SensorTemperature({ label, samples, read, colorVar }: {
       <div className="ccc-trend-time" aria-hidden="true"><span>{minutes} 分钟前</span><span>现在</span></div>
     </div>
   </div>;
-}
+});

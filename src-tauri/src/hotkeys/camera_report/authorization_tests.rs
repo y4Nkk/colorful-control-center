@@ -73,8 +73,8 @@ fn camera_policy_apply_failure_and_initial_restore_use_the_existing_software_tra
     .unwrap();
     assert_eq!(io.loaded.borrow().record.settings, target);
     assert!(io.running.get());
-    let restore = initial.clone().unwrap();
-    transaction::change(&io, &io.revision(), |_, _| Ok(restore), &mut initial).unwrap();
+    let revision = io.restore_revision(initial.as_ref().unwrap());
+    transaction::restore(&io, &revision, &mut initial).unwrap();
     assert_eq!(io.loaded.borrow().record.settings, Settings::default());
     assert!(!io.running.get());
 }
@@ -93,10 +93,16 @@ fn restoring_an_initially_enabled_camera_policy_resumes_that_policy_without_assu
     .unwrap();
     io.loaded.borrow_mut().record = original.clone();
     let mut initial = None;
-    transaction::change(&io, &io.revision(), |_, _| Ok(Record::default()), &mut initial).unwrap();
+    transaction::change(
+        &io,
+        &io.revision(),
+        |_, _| Ok(Record::default()),
+        &mut initial,
+    )
+    .unwrap();
     assert!(!io.running.get());
-    let restore = initial.clone().unwrap();
-    transaction::change(&io, &io.revision(), |_, _| Ok(restore), &mut initial).unwrap();
+    let revision = io.restore_revision(initial.as_ref().unwrap());
+    transaction::restore(&io, &revision, &mut initial).unwrap();
     assert!(io.running.get());
     assert_eq!(io.loaded.borrow().record, original);
 }

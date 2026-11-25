@@ -1,4 +1,5 @@
 use super::*;
+use crate::fanctl::ModePolicy;
 #[path = "../../../profiles/apply/fixtures.rs"]
 #[allow(dead_code)] // 共用档案夹具，本组不使用GPU控制器。
 mod fixtures;
@@ -59,7 +60,7 @@ fn entertainment_saves_preferences_without_sending_the_mode_or_fan_command() {
         .find(|target| target.mode == 2)
         .unwrap();
     assert!(performance.turbo && performance.dtt);
-    assert_eq!(performance.fan_mode, FAN_MODE_AUTO);
+    assert_eq!(performance.fan.mode(), Some(FAN_MODE_AUTO));
     let error = super::super::checkpoint(&f.hal, 2).err().unwrap();
     assert!(error.to_string().contains("Dynamic Tuning"));
 }
@@ -84,7 +85,7 @@ fn performance_noiseless_compensates_failure_and_restores_fan_and_turbo() {
     let _gate = f.hal.begin_write().unwrap();
     assert!(!fanctl::read_profile(&f.hal).unwrap().custom_supported);
     let mut quiet = request(&f, false, false);
-    quiet.quiet_fan = Some(true);
+    quiet.quiet_fan = Some(QuietTarget::Current);
     assert!(
         apply(&f.hal, &quiet)
             .unwrap_err()
@@ -106,7 +107,7 @@ fn performance_noiseless_compensates_failure_and_restores_fan_and_turbo() {
             .unwrap()
             .targets
             .iter()
-            .any(|target| target.mode == 2 && target.fan_mode == FAN_MODE_NOISELESS)
+            .any(|target| target.mode == 2 && target.fan.mode() == Some(FAN_MODE_NOISELESS))
     );
 }
 
@@ -126,7 +127,7 @@ fn confirmed_custom_curve_handoff_applies_quiet_in_both_modes() {
         }
         let _gate = f.hal.begin_write().unwrap();
         let mut quiet = request(&f, false, false);
-        quiet.quiet_fan = Some(true);
+        quiet.quiet_fan = Some(QuietTarget::Current);
         assert!(apply(&f.hal, &quiet).is_err());
         assert!(f.device.0.lock().unwrap().events.is_empty());
 
@@ -162,7 +163,7 @@ fn entertainment_noiseless_remembers_its_own_preference_across_mode_changes() {
     }
     let _gate = f.hal.begin_write().unwrap();
     let mut performance = request(&f, false, false);
-    performance.quiet_fan = Some(true);
+    performance.quiet_fan = Some(QuietTarget::Current);
     apply(&f.hal, &performance).unwrap();
 
     super::super::checkpoint(&f.hal, 3)
@@ -171,7 +172,7 @@ fn entertainment_noiseless_remembers_its_own_preference_across_mode_changes() {
         .unwrap();
     assert!(!read(&f.hal).unwrap().quiet_fan.unwrap().enabled);
     let mut entertainment = request(&f, false, false);
-    entertainment.quiet_fan = Some(true);
+    entertainment.quiet_fan = Some(QuietTarget::EntertainmentOn);
     apply(&f.hal, &entertainment).unwrap();
     {
         let state = f.device.0.lock().unwrap();
@@ -205,7 +206,7 @@ fn entertainment_noiseless_can_switch_off_after_save_failure() {
     }
     let _gate = f.hal.begin_write().unwrap();
     let mut quiet = request(&f, true, false);
-    quiet.quiet_fan = Some(false);
+    quiet.quiet_fan = Some(QuietTarget::EntertainmentOff);
     assert!(apply(&f.hal, &quiet).is_err());
     {
         let state = f.device.0.lock().unwrap();
@@ -245,8 +246,7 @@ fn hot_performance_selection_applies_remembered_noiseless_mode_and_offset() {
         .into_iter()
         .find(|target| target.mode == 2)
         .unwrap();
-    assert_eq!(target.fan_mode, FAN_MODE_NOISELESS);
-    assert_eq!(target.fan_offset_pct, Some(20));
+    assert_eq!(target.fan, ModePolicy::explicit(FAN_MODE_NOISELESS, FAN_MODE_NOISELESS, Some(20)));
     super::super::apply_preview(&f.hal, &target).unwrap();
     assert!(!f.hal.fan_guard_armed().unwrap());
     let state = f.device.0.lock().unwrap();

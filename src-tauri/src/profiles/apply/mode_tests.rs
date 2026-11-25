@@ -268,7 +268,7 @@ fn default_fan_reset_synchronizes_defaults_and_is_fully_reversible() {
     }
     let original = f.device.0.lock().unwrap().pages[4];
     let _write = f.hal.begin_write().unwrap();
-    fanctl::restore_default(&f.hal).unwrap();
+    f.restore_fan(fanctl::RestoreTarget::FirmwareDefault).unwrap();
     {
         let state = f.device.0.lock().unwrap();
         assert_eq!(state.pages[4][73], 0);
@@ -278,7 +278,7 @@ fn default_fan_reset_synchronizes_defaults_and_is_fully_reversible() {
         );
         assert_eq!(&state.pages[4][16..20], &[20, 40, 80, 100]);
     }
-    fanctl::restore_initial(&f.hal).unwrap();
+    f.restore_fan(fanctl::RestoreTarget::Initial).unwrap();
     let state = f.device.0.lock().unwrap();
     assert_eq!(state.pages[4], original);
     assert_eq!(state.offset_raw, 77);
@@ -294,7 +294,7 @@ fn default_command_failure_retains_original_fan_state_and_recovery_path() {
         state.fail_default = true;
     }
     let _write = f.hal.begin_write().unwrap();
-    assert!(fanctl::restore_default(&f.hal).is_err());
+    assert!(f.restore_fan(fanctl::RestoreTarget::FirmwareDefault).is_err());
     {
         let state = f.device.0.lock().unwrap();
         assert_eq!(state.pages[4], original);

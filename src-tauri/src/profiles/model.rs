@@ -60,7 +60,7 @@ pub struct ProfileFile {
     pub settings: ProfileSettings,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProfileMeta {
     pub name: String,
@@ -154,8 +154,8 @@ fn validate_devices(settings: &ProfileSettings) -> Result<()> {
     }
     if let Some(values) = &settings.performance_options {
         values.validate()?;
-        if let (Some(mode), Some(fan)) = (settings.oem_power_mode, fan_target(settings)) {
-            powerctl::mode::boost::validate_fan(mode, values.turbo_fan == Some(true), fan)?;
+        if let (Some(2), Some(fan)) = (settings.oem_power_mode, fan_target(settings)) {
+            powerctl::mode::boost::validate_active_fan(values.turbo_fan == Some(true), fan)?;
         }
     }
     crate::battery::validate_targets(
@@ -263,17 +263,22 @@ fn validate_curves(settings: &ProfileSettings) -> Result<()> {
     Ok(())
 }
 
-pub fn capture_fan(fan: &fanctl::FanProfile, settings: &mut ProfileSettings) -> Result<()> {
-    if let Some(curves) = &fan.software {
-        settings.fan_mode = None;
-        settings.fan_curves = None;
-        settings.fan_rpm_curves = None;
-        settings.fan_software_curves = Some(curves.clone());
+pub fn capture_fan(
+    fan: &fanctl::FanProfile,
+    settings: &mut ProfileSettings,
+    for_comparison: bool,
+) -> Result<()> {
+    settings.fan_mode = None;
+    settings.fan_curves = None;
+    settings.fan_rpm_curves = None;
+    settings.fan_software_curves.clone_from(&fan.software);
+    let writable = fan.available_modes.contains(&fan.current_mode)
+        && (fan.current_mode != fanctl::FAN_MODE_CUSTOM || fan.custom_blocked_reason.is_none());
+    if fan.software.is_some() || !for_comparison && !writable {
         return Ok(());
     }
-    settings.fan_software_curves = None;
     settings.fan_mode = Some(fan.current_mode);
-    if !fan.custom_supported {
+    if !fan.custom_supported || !for_comparison && fan.custom_blocked_reason.is_some() {
         return Ok(());
     }
     if fan.curve_kind == fanctl::CurveKind::TwoPoint {
@@ -353,10 +358,10 @@ mod tests {
             10.0,
         );
         let mut s = ProfileSettings::default();
-        capture_fan(&fan, &mut s).unwrap();
+        capture_fan(&fan, &mut s, false).unwrap();
         assert_eq!(s.fan_mode, Some(8));
         fan.software = Some(BTreeMap::from([("cpu".into(), curve)]));
-        capture_fan(&fan, &mut s).unwrap();
+        capture_fan(&fan, &mut s, false).unwrap();
         assert_eq!(s.fan_software_curves, fan.software);
         assert!(s.fan_mode.is_none() && s.fan_curves.is_none() && s.fan_rpm_curves.is_none());
         assert!(validate(&s).is_ok());
@@ -428,15 +433,15 @@ mod tests {
         };
         f.rpm_fans[0].points[0].rpm_pct = 0;
         let mut s = ProfileSettings::default();
-        capture_fan(&f, &mut s).unwrap();
+        capture_fan(&f, &mut s, false).unwrap();
         assert_eq!(s.fan_mode, Some(0));
         assert!(s.fan_rpm_curves.is_none());
         assert!(validate(&s).is_ok());
         f.current_mode = 6;
-        assert!(capture_fan(&f, &mut ProfileSettings::default()).is_err());
+        assert!(capture_fan(&f, &mut ProfileSettings::default(), false).is_err());
         f.rpm_fans[0].points[0].rpm_pct = 20;
         let mut s = ProfileSettings::default();
-        capture_fan(&f, &mut s).unwrap();
+        capture_fan(&f, &mut s, false).unwrap();
         assert_eq!(
             s.fan_rpm_curves.as_ref().unwrap()["cpu"],
             f.rpm_fans[0].points

@@ -53,6 +53,7 @@ export interface HotkeyNavigationRequest { id: number; ready: boolean; kind: "ke
 export interface HotkeyStatus { running: boolean; error: string | null; lastResult: string | null; coldWarning: BatteryColdWarning | null; navigationRequest: HotkeyNavigationRequest | null }
 export interface HotkeyProfile {
   revision: string | null;
+  restoreRevision: string | null;
   current: HotkeySettingsValue | null;
   recordError: string | null;
   resetRevision: string | null;

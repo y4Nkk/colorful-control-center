@@ -17,21 +17,22 @@ export function profileGroups(settings) {
   return Object.entries(profileFields()).filter(([, keys]) => keys.some(key => settings[key] != null)).map(([group]) => group);
 }
 
-export function captureProfileDevices(data, groups) {
+export function captureProfileDevices(data, groups, forComparison = false) {
   const settings = emptyProfileSettings();
   if (groups.includes("performance")) {
     const { pl1W, pl2W, coreOffsetMv, gtOffsetMv, runtime, msrRuntimeAvailable } = data.power;
     const { current, currentMode } = data.performanceOptions;
     const saved = { pl1W, pl2W, coreOffsetMv, gtOffsetMv, oemPowerMode: currentMode };
-    Object.assign(settings, saved, { fanMode: data.fan.software ? null : data.fan.currentMode, fanSoftwareCurves: data.fan.software,
+    const fanMode = !data.fan.software && (forComparison || data.fan.availableModes.includes(data.fan.currentMode)) ? data.fan.currentMode : null;
+    Object.assign(settings, saved, { fanMode, fanSoftwareCurves: data.fan.software,
       performanceOptions: Object.values(current).some(value => value !== null) ? current : null,
       gpu: data.gpu.available ? { coreOffsetMhz: data.gpu.coreOffsetMhz, memOffsetMhz: data.gpu.memOffsetMhz } : null });
     if (msrRuntimeAvailable) settings.runtimeCpu = { pl1W: runtime.pl1W, pl2W: runtime.pl2W,
       coreOffsetUnits: runtime.coreOffsetMv == null ? null : Math.round(runtime.coreOffsetMv * 1.024),
       gtOffsetUnits: runtime.gtOffsetMv == null ? null : Math.round(runtime.gtOffsetMv * 1.024) };
-    if (data.fan.currentMode === 6 && data.fan.curveKind === "twoPoint") settings.fanCurves = Object.fromEntries(
+    if (fanMode === 6 && data.fan.curveKind === "twoPoint") settings.fanCurves = Object.fromEntries(
       data.fan.fans.filter(fan => fan.present).map(({ id, t2, d2Pct, t3, d3Pct }) => [id, { t2, d2Pct, t3, d3Pct }]));
-    if (data.fan.currentMode === 6 && data.fan.curveKind === "rpmTable") settings.fanRpmCurves = Object.fromEntries(
+    if (fanMode === 6 && data.fan.curveKind === "rpmTable") settings.fanRpmCurves = Object.fromEntries(
       data.fan.rpmFans.map(fan => [fan.id, fan.points]));
   }
   if (groups.includes("display")) {

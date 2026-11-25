@@ -4,6 +4,7 @@ mod apply;
 pub(crate) mod authorization;
 mod capture;
 mod devices;
+mod listing;
 mod model;
 pub mod policy;
 mod preview;
@@ -14,12 +15,17 @@ pub use application::{Application, apply_preview};
 pub(crate) use apply::apply_reviewed;
 pub(crate) use apply::review::{ManualPreview, preview_manual};
 pub(crate) use devices::Devices;
+use listing::Listing;
 pub(crate) use preview::preview_authorization;
 #[cfg(test)]
 pub(crate) use preview::preview_mode;
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::{LazyLock, Mutex, MutexGuard},
+};
 use tauri::Manager;
-static PROFILE_MUTATION: std::sync::Mutex<()> = std::sync::Mutex::new(());
+// Windows 替换档案时可能受并行读取阻塞，列表与本进程修改共用档案锁。
+static PROFILE_STORAGE: LazyLock<Mutex<Listing>> = LazyLock::new(|| Mutex::new(Listing::default()));
 
 pub use model::{ApplyStep, ProfileFile, ProfileGroup, ProfileMeta, ProfileSettings, validate};
 
@@ -111,15 +117,19 @@ pub(crate) fn save(
     save_in(&profiles_dir(app)?, settings, name, expected_revision)
 }
 
+fn lock_storage() -> Result<MutexGuard<'static, Listing>> {
+    PROFILE_STORAGE
+        .lock()
+        .map_err(|_| anyhow!("档案存储状态异常"))
+}
+
 fn save_in(
     dir: &Path,
     settings: ProfileSettings,
     name: &str,
     expected_revision: Option<&str>,
 ) -> Result<()> {
-    let _lock = PROFILE_MUTATION
-        .lock()
-        .map_err(|_| anyhow!("档案存储状态异常"))?;
+    let _lock = lock_storage()?;
     validate(&settings)?;
     let path = profile_path(dir, name)?;
     let file = ProfileFile {
@@ -164,28 +174,7 @@ pub fn list(app: &tauri::AppHandle) -> Result<Vec<ProfileMeta>> {
 }
 
 fn list_in(dir: &Path) -> Result<Vec<ProfileMeta>> {
-    let mut files = Vec::new();
-    for entry in std::fs::read_dir(dir)? {
-        let path = entry?.path();
-        if path.extension().and_then(|s| s.to_str()) != Some("json") {
-            continue;
-        }
-        let data = std::fs::read(&path).with_context(|| format!("读取 {} 失败", path.display()))?;
-        let file: ProfileFile = serde_json::from_slice(&data)
-            .with_context(|| format!("档案 {} 损坏", path.display()))?;
-        validate_file(&file)?;
-        if profile_path(dir, &file.name)? != path {
-            bail!("档案名与文件名不一致");
-        }
-        let revision = authorization::digest(&file)?;
-        files.push(ProfileMeta {
-            groups: ProfileGroup::captured(&file.settings),
-            name: file.name,
-            revision,
-        });
-    }
-    files.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(files)
+    lock_storage()?.read(dir)
 }
 
 pub fn load(app: &tauri::AppHandle, name: &str) -> Result<ProfileFile> {
@@ -203,13 +192,13 @@ fn load_from(dir: &Path, name: &str) -> Result<ProfileFile> {
 
 pub(crate) fn delete(app: &tauri::AppHandle, name: &str, expected_revision: &str) -> Result<bool> {
     // 删除先锁档案，再解除启动引用；启动选择的只读校验不取档案写锁。
-    let _lock = PROFILE_MUTATION
-        .lock()
-        .map_err(|_| anyhow!("档案存储状态异常"))?;
+    let mut storage = lock_storage()?;
     let path = profile_path(&profiles_dir(app)?, name)?;
     check_revision(&path, name, Some(expected_revision))?;
     crate::startup::delete_linked_profile(app, name, || {
-        std::fs::remove_file(path).context("删除档案文件失败")
+        std::fs::remove_file(&path).context("删除档案文件失败")?;
+        storage.remove(&path);
+        Ok(())
     })
 }
 

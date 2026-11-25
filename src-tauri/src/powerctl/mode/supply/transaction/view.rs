@@ -3,7 +3,10 @@ use crate::powerctl::mode::{
     supply::{digest, plans},
     workflow::RecoveryPreview,
 };
-use crate::{gpuctl::turbo::mode::ClockObservation, powerctl::mode::supply::record::ClockRead};
+use crate::{
+    gpuctl::turbo::mode::ClockObservation,
+    powerctl::mode::supply::record::{ClockRead, Inspection},
+};
 use anyhow::Result;
 use serde::Serialize;
 
@@ -18,6 +21,7 @@ pub(crate) struct View {
     pub recovery: Option<RecoveryPreview>,
     pub error: Option<String>,
     pub recovery_error: Option<String>,
+    pub archive_revision: Option<String>,
     #[serde(skip)]
     pub(in crate::powerctl::mode::supply) current: Option<Snapshot>,
 }
@@ -30,7 +34,13 @@ pub(in crate::powerctl::mode::supply) fn read_scoped(
     store: &FileStore,
     scope: Scope,
 ) -> Result<View> {
-    let (review, record, device, mut error) = evidence(io, store, scope);
+    let (stored, archive_revision) = match store.inspect() {
+        Ok(Inspection::Missing) => (Ok(None), None),
+        Ok(Inspection::Current(record)) => (Ok(Some(record)), None),
+        Ok(Inspection::Invalid { error, revision }) => (Err(error), Some(revision)),
+        Err(error) => (Err(error), None),
+    };
+    let (review, record, device, mut error) = evidence(io, stored, scope);
     let device_matches = record
         .as_ref()
         .zip(device.as_ref())
@@ -95,6 +105,7 @@ pub(in crate::powerctl::mode::supply) fn read_scoped(
         error,
         current,
         recovery_error,
+        archive_revision,
     })
 }
 
@@ -148,7 +159,7 @@ fn current(
 
 fn evidence(
     io: &impl Io,
-    store: &FileStore,
+    record: Result<Option<Record>>,
     scope: Scope,
 ) -> (
     Option<Review>,
@@ -157,10 +168,9 @@ fn evidence(
     Option<String>,
 ) {
     let review = io.review(scope);
-    let record = store.load();
     let device = io.device_identity();
     let mut error = match (&review, &record) {
-        (Err(error), _) | (_, Err(error)) => Some(format!("{error:#}")),
+        (_, Err(error)) | (Err(error), _) => Some(format!("{error:#}")),
         (Ok(Some(review)), Ok(Some(record)))
             if review.device_identity != record.device_identity =>
         {
@@ -177,7 +187,7 @@ fn evidence(
         _ => None,
     };
     if let Err(issue) = &device {
-        error = Some(format!("设备身份读取失败：{issue:#}"));
+        error.get_or_insert_with(|| format!("设备身份读取失败：{issue:#}"));
     }
     let review = review.ok().flatten();
     let record = record.ok().flatten();

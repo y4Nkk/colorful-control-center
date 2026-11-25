@@ -6,7 +6,6 @@ const PERCENT_TICKS = [100, 80, 60, 40, 20, 0];
 export function fanTemperaturePercent(temp: number, minTemp: number, maxTemp: number): number {
   return (temp - minTemp) / (maxTemp - minTemp) * 100;
 }
-
 interface PlotProps {
   label: string;
   measure: "占空比" | "目标转速";
@@ -26,7 +25,8 @@ export function FanCurvePlot({ label, measure, minTemp, maxTemp, startTemp, draf
     <div className="ccc-plot-ylabels ccc-mono" aria-hidden="true">
       {PERCENT_TICKS.map(value => <span key={value} style={{ top: `${100 - value}%` }}>{value}%</span>)}
     </div>
-    <div className="ccc-plot" ref={plotRef} role="group" aria-label={label}>
+    <div className="ccc-plot" ref={plotRef} role="group" aria-label={label}
+      aria-description={currentPath ? "实线为曲线草稿，虚线为当前设置。" : undefined}>
       <svg className="ccc-plot-svg" viewBox={`${minTemp} 0 ${maxTemp - minTemp} 100`} preserveAspectRatio="none" aria-hidden="true">
         {draftPath && <path className="ccc-plot-area" d={`${draftPath} L${maxTemp},100 H${startTemp} Z`} />}
         <g className="ccc-plot-grid">
@@ -43,15 +43,5 @@ export function FanCurvePlot({ label, measure, minTemp, maxTemp, startTemp, draf
       {temperatures.map(temp => <span key={temp} style={{ left: `${fanTemperaturePercent(temp, minTemp, maxTemp)}%` }}>{temp}</span>)}
     </div>
     <span className="ccc-plot-unit" aria-hidden="true">温度 °C</span>
-  </div>;
-}
-
-export function FanCurveLegend({ hasReference, mainLabel, children }: {
-  hasReference: boolean; mainLabel: "当前设置" | "草稿"; children: ReactNode;
-}) {
-  return <div className="ccc-plot-key">
-    {hasReference && <span className="ccc-key-item"><span className="ccc-key-swatch is-current" aria-hidden="true" />当前设置</span>}
-    <span className="ccc-key-item"><span className="ccc-key-swatch" aria-hidden="true" />{mainLabel}</span>
-    {children}
   </div>;
 }

@@ -7,7 +7,7 @@ export function FanCurveSection({ status, plot, fields }: {
 }) {
   return <section className="ccc-fan-curve">
     <div className="ccc-fan-curve-head">
-      <h3>风扇曲线</h3>
+      <h4>风扇曲线</h4>
       {status && <p className="ccc-control-caption">{status}</p>}
     </div>
     {plot && <div className="ccc-fan-curve-body">

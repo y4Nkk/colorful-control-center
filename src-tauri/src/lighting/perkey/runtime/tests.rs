@@ -38,22 +38,60 @@ fn prepared_inactive_session_and_stale_epochs_cannot_output() {
         },
     })
     .unwrap();
-    tx.send(Envelope {
-        epoch: 1,
-        event: KeyEvent {
+    control.enqueue(
+        &tx,
+        KeyEvent {
             scan: 21,
             down: true,
         },
-    })
-    .unwrap();
+    );
     assert_eq!(
         sent_rx.recv_timeout(Duration::from_secs(1)).unwrap(),
         [7, 255, 21, 0, 0]
     );
-    control.stop.store(true, Ordering::SeqCst);
-    drop(tx);
+    control.shutdown();
+    assert_eq!(
+        sent_rx.recv_timeout(Duration::from_secs(1)),
+        Err(mpsc::RecvTimeoutError::Disconnected)
+    );
     handle.join().unwrap();
-    assert!(sent_rx.try_recv().is_err());
+}
+
+#[test]
+fn win_deadline_and_shutdown_wake_output_without_further_input() {
+    let (values, info) = config();
+    let control = Arc::new(Control::default());
+    control.active.store(true, Ordering::SeqCst);
+    let shared = control.clone();
+    let (tx, rx) = mpsc::sync_channel(64);
+    let (sent_tx, sent_rx) = mpsc::channel();
+    let handle = thread::spawn(move || {
+        run(rx, &shared, &Mutex::new(()), &values, &info, |p| {
+            sent_tx.send(p).unwrap();
+            Ok(())
+        })
+    });
+
+    let started = Instant::now();
+    control.enqueue(
+        &tx,
+        KeyEvent {
+            scan: 0xE05B,
+            down: true,
+        },
+    );
+    assert_eq!(
+        sent_rx.recv_timeout(Duration::from_secs(1)).unwrap(),
+        [7, 255, 0xDB, 0, 0]
+    );
+    assert!(started.elapsed() >= Duration::from_millis(50));
+    control.shutdown();
+    assert_eq!(
+        sent_rx.recv_timeout(Duration::from_secs(1)),
+        Err(mpsc::RecvTimeoutError::Disconnected)
+    );
+    handle.join().unwrap();
+    drop(tx);
 }
 #[test]
 fn pause_cancels_pending_output_while_another_control_holds_gate() {
@@ -86,16 +124,23 @@ fn overflow_and_transport_failure_stop_instead_of_losing_key_release() {
     for overflow in [false, true] {
         let control = Control::default();
         control.active.store(true, Ordering::SeqCst);
-        control.overflow.store(overflow, Ordering::SeqCst);
-        let (tx, rx) = mpsc::sync_channel(64);
-        tx.send(Envelope {
-            epoch: 0,
-            event: KeyEvent {
+        let (tx, rx) = mpsc::sync_channel(1);
+        control.enqueue(
+            &tx,
+            KeyEvent {
                 scan: 20,
                 down: true,
             },
-        })
-        .unwrap();
+        );
+        if overflow {
+            control.enqueue(
+                &tx,
+                KeyEvent {
+                    scan: 20,
+                    down: false,
+                },
+            );
+        }
         run(rx, &control, &Mutex::new(()), &values, &info, |_| {
             bail!("isolated HID failure")
         });

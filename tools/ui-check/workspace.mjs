@@ -27,3 +27,18 @@ export async function openHotkeyDetails(page) {
   await hotkeys(page).getByRole("button", { name: "详情", exact: true }).click();
   return page.getByRole("dialog", { name: "热键状态与诊断", exact: true });
 }
+
+export const hotkeyRestoreButton = page => hotkeys(page).getByRole("button", { name: "恢复原厂热键与屏显", exact: true });
+export const hotkeyRestoreDialog = page => page.getByRole("dialog", { name: "恢复原厂热键与屏显", exact: true });
+
+export async function previewHotkeyRestore(page, name) {
+  const details = page.getByRole("dialog", { name: "热键状态与诊断", exact: true });
+  if (await details.isVisible()) await details.getByRole("button", { name: "关闭弹窗", exact: true }).click();
+  await hotkeyRestoreButton(page).click();
+  const dialog = hotkeyRestoreDialog(page);
+  await expect(dialog).toBeVisible();
+  if (name && await dialog.getByRole("group", { name: "恢复项目", exact: true }).count()) {
+    await dialog.getByRole("checkbox", { name, exact: true }).check();
+  }
+  return dialog;
+}

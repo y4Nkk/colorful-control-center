@@ -2,13 +2,13 @@ export function supplyModeFixture() {
   const ids = [{ pciDevice: 10336, subsystem: 407, revision: 1, extended: 10588, bus: 1, slot: 0 }];
   const raw = { devices: ids, locks: [0, 2].map((mode, domain) => ({ domain, mode, value: domain ? 1500000 : 0, unknown1: 1, unknown2: 2, unknown3: 3 })),
     offsets: [{ coreKhz: -12500, memKhz: 987654 }] };
-  const target = mode => ({ mode, fromMode: null, gpu: null, revision: null, unavailableReason: null, acMode: null, energy: { hardwarePState: false, energyStar: [2, 1, 0, 2, 1][mode] }, turbo: mode === 2, dtt: mode === 2, fanMode: mode === 2 ? 6 : 0,
-    fanSavedMode: 0, fanOffsetPct: mode === 2 ? 5 : 0, aspm: [1, 2], powerPlan: mode === 2 ? 1 : 0 });
+  const target = mode => ({ mode, fromMode: null, gpu: null, revision: null, unavailableReason: null, acMode: null, energy: { hardwarePState: false, energyStar: [2, 1, 0, 2, 1][mode] }, turbo: mode === 2, dtt: mode === 2,
+    fan: { control: "explicit", mode: 0, savedMode: 0, offsetPct: mode === 2 ? 5 : 0 }, aspm: [1, 2], powerPlan: mode === 2 ? 1 : 0 });
   const conditions = ["ac", "battery", "startupAc", "startupBattery", "resumeAc", "resumeBattery"];
   const variants = Object.fromEntries(conditions.map(key => [key, { ...target(key.endsWith("Battery") || key === "battery" ? 1 : 2),
     powerPlan: ["ac", "battery"].includes(key) ? 0 : null }]));
   return { revision: "supply-0", enabled: false, canEnable: true, canRestore: false, recovery: null,
-    error: null, recoveryError: null, listenerOnline: true, sleeping: false, active: false, canResume: false, issue: null, last: null,
+    error: null, recoveryError: null, archiveRevision: null, listenerOnline: true, sleeping: false, active: false, canResume: false, issue: null, last: null,
     review: { deviceIdentity: "isolated-device", identity: "isolated-policy", revision: "isolated-review", currentMode: 3, acMode: 2,
       onAc: true, targets: [0, 1, 2, 3, 4].map(target), softwareFanActive: true, dcModePower: true, ...variants,
       currentEnergy: { hardwarePState: false, energyStar: 0 },

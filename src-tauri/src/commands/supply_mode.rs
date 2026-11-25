@@ -1,5 +1,6 @@
 //! 原厂供电模式命令只调度领域控制器，目标和恢复由该领域拥有。
 use crate::{display, gpu_power, gpuctl::GpuController, hal::Hal, powerctl::mode::supply};
+use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 #[tauri::command]
@@ -73,5 +74,19 @@ pub(crate) async fn restore_oem_supply_mode(
     })
     .await
     .map_err(|error| format!("供电模式恢复任务失败：{error}"))?
+    .map_err(|error| format!("{error:#}"))
+}
+
+#[tauri::command]
+pub(crate) async fn archive_invalid_oem_supply_record(
+    app: AppHandle,
+    expected_revision: String,
+) -> Result<PathBuf, String> {
+    crate::shutdown::blocking(move || {
+        app.state::<supply::Controller>()
+            .archive_invalid(&app.state::<Hal>(), &expected_revision)
+    })
+    .await
+    .map_err(|error| format!("供电记录归档任务失败：{error}"))?
     .map_err(|error| format!("{error:#}"))
 }

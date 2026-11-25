@@ -71,6 +71,7 @@ export interface SupplyModeStatus {
   recovery: SupplyModeRecovery | null;
   error: string | null;
   recoveryError: string | null;
+  archiveRevision: string | null;
   listenerOnline: boolean;
   sleeping: boolean;
   active: boolean;
@@ -85,3 +86,5 @@ export const enableOemSupplyMode = (expectedRevision: string): Promise<void> => 
 export const resumeOemSupplyMode = (expectedRevision: string): Promise<void> => invoke("resume_oem_supply_mode", { expectedRevision });
 export const pauseOemSupplyMode = (): Promise<void> => invoke("pause_oem_supply_mode");
 export const restoreOemSupplyMode = (expectedRevision: string): Promise<void> => invoke("restore_oem_supply_mode", { expectedRevision });
+export const archiveInvalidOemSupplyRecord = (expectedRevision: string): Promise<string> =>
+  invoke("archive_invalid_oem_supply_record", { expectedRevision });

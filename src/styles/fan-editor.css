@@ -1,40 +1,79 @@
-.ccc-fan-panel-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; justify-items: start; }
-.ccc-fan-panel-help { grid-column: 1 / -1; padding-inline-start: calc(20px + var(--ccc-space-2)); }
+.ccc-cooling-head {
+  border-block-end: var(--ccc-border);
+  padding-block-end: var(--ccc-space-3);
+}
 
-.ccc-fan-layout, .ccc-fan-details {
+.ccc-cooling-layout, .ccc-cooling-policy, .ccc-cooling-strategy, .ccc-cooling-controls, .ccc-fan-workspace, .ccc-fan-details {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   gap: var(--ccc-space-4);
 }
 
-.ccc-fan-current, .ccc-fan-curve, .ccc-fan-settings, .ccc-fan-fields {
+.ccc-cooling-layout { gap: var(--ccc-space-5); }
+.ccc-cooling-policy { container-type: inline-size; }
+.ccc-cooling-layout :is(h3, h4, h5, p) { margin: 0; }
+.ccc-cooling-layout h3 { font-size: var(--ccc-text-lg); font-weight: 600; }
+.ccc-cooling-layout :is(h4, h5) { font-size: var(--ccc-text-md); font-weight: 600; }
+
+.ccc-cooling-strategy-head, .ccc-fan-curve-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ccc-space-1) var(--ccc-space-2);
+}
+
+.ccc-cooling-state {
+  color: var(--ccc-text-muted);
+  font-size: var(--ccc-text-xs);
+  line-height: 1.3;
+}
+
+.ccc-cooling-field, .ccc-cooling-options {
+  display: grid;
+  gap: var(--ccc-space-2);
+  min-width: 0;
+}
+.ccc-cooling-field > [role="radiogroup"] { justify-self: start; }
+.ccc-cooling-options { padding-block-start: var(--ccc-space-2); }
+.ccc-cooling-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ccc-space-3);
+  padding-block: var(--ccc-space-1);
+}
+.ccc-cooling-option > strong { font-size: var(--ccc-text-sm); font-weight: 500; }
+
+.ccc-fan-workspace {
+  container: ccc-fan-workspace / inline-size;
+  border-block-start: var(--ccc-border);
+  padding-block-start: var(--ccc-space-5);
+  gap: var(--ccc-space-3);
+}
+
+.ccc-fan-curve, .ccc-fan-fields {
   display: grid;
   min-width: 0;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--ccc-space-3);
+}
+
+.ccc-fan-curve {
   padding: var(--ccc-space-4);
+  border-radius: var(--ccc-radius-card);
+  background: var(--ccc-content-muted);
 }
-
-.ccc-fan-curve { border-radius: var(--ccc-radius-card); background: var(--ccc-content-muted); }
-.ccc-fan-curve-body, .ccc-fan-setting-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-4); align-items: start; }
-.ccc-fan-fields { padding: 0; }
-.ccc-fan-layout h3, .ccc-fan-fields h4 { margin: 0; font-size: var(--ccc-text-md); font-weight: 600; }
-.ccc-fan-layout p { margin: 0; }
-
-.ccc-fan-current-head, .ccc-fan-setting { display: grid; gap: var(--ccc-space-2); min-width: 0; }
-.ccc-fan-current-head { justify-items: start; }
-.ccc-fan-setting > [role="radiogroup"] { justify-self: start; }
-.ccc-fan-curve-head { display: grid; gap: var(--ccc-space-1); }
-.ccc-fan-control-state {
-  color: var(--ccc-text-muted);
-  font-size: var(--ccc-text-xs);
-}
+.ccc-fan-curve-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-4); align-items: start; }
 
 .ccc-fan-readings {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-inline-size: 26rem;
   gap: var(--ccc-space-3);
   margin: 0;
+  padding-block: var(--ccc-space-1);
 }
 
 .ccc-fan-readings dt, .ccc-curve-columns, .ccc-curve-number {
@@ -44,7 +83,7 @@
 
 .ccc-fan-readings dd {
   margin: 0;
-  font: 500 var(--ccc-text-reading)/1.25 var(--ccc-font-mono);
+  font: 500 var(--ccc-text-reading)/1.2 var(--ccc-font-mono);
 }
 
 .ccc-fan-readings dd > span { color: var(--ccc-text-muted); font: var(--ccc-text-xs) var(--ccc-font-sans); white-space: nowrap; }
@@ -64,19 +103,22 @@
 .ccc-curve-point[data-selected="true"] { background: var(--ccc-nav-selected); }
 .ccc-curve-point[data-selected="true"] > strong { color: var(--ccc-action); }
 .ccc-rpm-inputs { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 0; }
-.ccc-fan-recovery-actions { display: grid; gap: var(--ccc-space-1); padding-block-start: var(--ccc-space-2); }
-.ccc-fan-recovery-actions[hidden] { display: none; }
 
-@container ccc-control (min-width: 44rem) {
-  .ccc-fan-current { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); align-items: center; }
-  .ccc-fan-setting-controls { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+@container ccc-control (min-width: 58rem) {
+  .ccc-cooling-layout { grid-template-columns: minmax(18rem, 0.9fr) minmax(0, 2.1fr); }
+  .ccc-fan-workspace {
+    border-block-start: 0;
+    border-inline-start: var(--ccc-border);
+    padding-block-start: 0;
+    padding-inline-start: var(--ccc-space-5);
+  }
 }
 
-@container ccc-control (min-width: 54rem) {
-  .ccc-fan-curve-body { grid-template-columns: minmax(0, 1fr) minmax(15rem, 29%); }
-  .ccc-fan-layout .ccc-plot { height: clamp(216px, 27dvh, 300px); }
+@container ccc-fan-workspace (min-width: 40rem) {
+  .ccc-fan-curve-body { grid-template-columns: minmax(0, 1fr) minmax(11rem, 29%); }
+  .ccc-fan-curve .ccc-plot { height: clamp(216px, 26dvh, 264px); }
 }
 
-@container ccc-control (max-width: 21rem) {
-  .ccc-fan-current, .ccc-fan-curve, .ccc-fan-settings { padding-inline: var(--ccc-space-3); }
+@container ccc-fan-workspace (max-width: 21rem) {
+  .ccc-fan-curve { padding-inline: var(--ccc-space-3); }
 }

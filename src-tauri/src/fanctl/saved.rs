@@ -36,7 +36,7 @@ fn slot(io: &impl SettingsAccess) -> Result<Option<usize>> {
     }
     mode_slot(power::current_mode(io)?).map(Some)
 }
-pub(super) fn mode_slot(mode: u8) -> Result<usize> {
+pub(crate) fn mode_slot(mode: u8) -> Result<usize> {
     match mode {
         0 | 4 => Ok(0),
         1..=3 => Ok(mode as usize),

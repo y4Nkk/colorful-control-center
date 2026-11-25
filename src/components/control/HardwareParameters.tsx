@@ -1,12 +1,11 @@
-import type { HardwareSnapshot, SystemOverview } from "../../api/client";
+import type { HardwareSnapshot, SystemInventory } from "../../api/client";
 import { BYTES_PER_MB, formatCapacity, formatParameter } from "../../lib/format-parameters";
 import { FactList } from "../FactList";
 import { ParameterDescriptions } from "./ParameterHelp";
 import { DetailsDialog } from "../DetailsDialog";
 import { CPU_SPEC_HELP, GPU_SPEC_HELP } from "./parameterDescriptions";
 
-export function CpuParameters({ overview, live }: { overview: SystemOverview | null; live: HardwareSnapshot | null }) {
-  const cpu = overview?.cpu;
+export function CpuParameters({ cpu, live }: { cpu: SystemInventory["cpu"] | undefined; live: HardwareSnapshot | null }) {
   const ghz = (mhz: number | null | undefined) => formatParameter(mhz == null ? null : mhz / 1000, "GHz", 2);
   return <DetailsDialog title="CPU 硬件参数" label="CPU 规格" icon={null}>
     <FactList compact facts={[

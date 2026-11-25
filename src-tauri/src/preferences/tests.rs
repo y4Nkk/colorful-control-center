@@ -30,8 +30,43 @@ fn existing_preferences_enable_oem_close_and_keep_the_saved_window_choice() {
     value["startMinimized"] = true.into();
     value.as_object_mut().unwrap().remove("closeOemOnStartup");
     let settings = serde_json::from_value::<Preferences>(value).unwrap();
-    assert!(settings.close_oem_on_startup);
+    assert!(settings.auto_close_oem);
     assert!(settings.start_minimized);
+}
+
+#[test]
+fn runtime_oem_close_tracks_saved_switch_and_skips_unreadable_preferences() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("preferences.json");
+    let controller = Controller::new(path.clone());
+    assert_eq!(controller.with_oem_auto_close(|| Ok(1)).unwrap(), Some(1));
+
+    let disabled = Preferences {
+        auto_close_oem: false,
+        ..Preferences::default()
+    };
+    controller.save(disabled, |_| Ok(())).unwrap();
+    let forbidden = || panic!("关闭开关后不得检查或结束进程");
+    assert_eq!(
+        controller.with_oem_auto_close::<()>(forbidden).unwrap(),
+        None
+    );
+    assert_eq!(
+        Controller::new(path.clone())
+            .with_oem_auto_close::<()>(forbidden)
+            .unwrap(),
+        None
+    );
+
+    controller.save(Preferences::default(), |_| Ok(())).unwrap();
+    assert_eq!(controller.with_oem_auto_close(|| Ok(2)).unwrap(), Some(2));
+    fs::write(&path, b"{broken").unwrap();
+    assert_eq!(
+        Controller::new(path)
+            .with_oem_auto_close::<()>(forbidden)
+            .unwrap(),
+        None
+    );
 }
 
 #[test]
@@ -66,7 +101,7 @@ fn saved_preferences_are_complete_persistent_and_restart_state_tracks_startup() 
         close_behavior: CloseBehavior::Exit,
         always_on_top: true,
         start_minimized: true,
-        close_oem_on_startup: false,
+        auto_close_oem: false,
         startup_page: StartupPage::LastVisited,
         global_shortcut: "shift+control+KeyK".into(),
         hardware_acceleration: false,

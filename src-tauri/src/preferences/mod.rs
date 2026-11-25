@@ -1,6 +1,7 @@
 mod desktop;
 mod fonts;
 pub mod model;
+mod placement;
 mod shortcut;
 mod startup;
 #[cfg(test)]
@@ -9,6 +10,7 @@ mod tests;
 use anyhow::{Context, Result, anyhow};
 pub use fonts::list as list_fonts;
 use model::Preferences;
+pub(crate) use placement::save as save_window_placement;
 use serde::Serialize;
 pub use startup::{create_window, prepare_windows};
 use std::{path::PathBuf, sync::Mutex};
@@ -69,6 +71,25 @@ impl Controller {
             settings,
             desktop_error: state.error.clone(),
         })
+    }
+
+    pub(crate) fn with_oem_auto_close<T>(
+        &self,
+        run: impl FnOnce() -> Result<T>,
+    ) -> Result<Option<T>> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| anyhow!("软件偏好状态不可用"))?;
+        // 关闭开关的保存响应必须在已经获准的进程操作结束后返回。
+        if state
+            .settings
+            .as_ref()
+            .is_some_and(|settings| settings.auto_close_oem)
+        {
+            return run().map(Some);
+        }
+        Ok(None)
     }
 
     fn report(&self, error: Option<String>) {

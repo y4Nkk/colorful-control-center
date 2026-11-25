@@ -1,3 +1,4 @@
+use crate::hal::SOFTWARE_FAN_IDLE_STATUS;
 use anyhow::{Result, anyhow, bail};
 use ccc_core::{
     fan::{
@@ -123,7 +124,7 @@ pub fn decode(package: &[u8; 256], capabilities: &[u8]) -> Result<FanProfile> {
                 .into(),
             ]
         },
-        safety_status: "固件控制".into(),
+        safety_status: SOFTWARE_FAN_IDLE_STATUS.into(),
         blocked_reason: None,
     })
 }

@@ -150,7 +150,7 @@ fn other_modes_and_unknown_preference_refuse() {
 fn noiseless_is_bound_to_capability_mode_and_remembered_preference() {
     let io = Memory::new();
     let mut request = io.request(Some(false), Some(false));
-    request.quiet_fan = Some(true);
+    request.quiet_fan = Some(QuietTarget::Current);
     assert!(preview(&io, Some(true)).unwrap().target(&request).is_err());
     io.pages.borrow_mut()[7][20] = 1;
     let p = preview(&io, Some(true)).unwrap();
@@ -289,6 +289,12 @@ fn target_contract_requires_curve_confirmation_flag_and_rejects_extra_fields() {
         )
         .is_ok()
     );
+    assert!(serde_json::from_str::<Request>(
+        r#"{"expectedRevision":"x","quietFan":"current","replaceCustomFan":false,"values":{"turboFan":false,"dtt":null}}"#
+    ).is_ok());
+    assert!(serde_json::from_str::<Request>(
+        r#"{"expectedRevision":"x","quietFan":true,"replaceCustomFan":false,"values":{"turboFan":false,"dtt":false}}"#
+    ).is_err());
     assert!(
         serde_json::from_str::<Request>(
             r#"{"expectedRevision":"x","quietFan":null,"values":{"turboFan":true,"dtt":true}}"#

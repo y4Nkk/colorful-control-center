@@ -85,7 +85,12 @@ fn child_restore_releases_direct_control_and_attempts_every_recovery_stage() {
             has_reader && !fail_release && !fail_read && !skip_release && mode_bits == 2
         );
         if skip_release {
-            assert!(result.unwrap_err().to_string().contains("归还未证实"));
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("尚未确认所有风扇已退出软件调速")
+            );
         }
         let record = RECORD.lock().unwrap();
         let commands: Vec<_> = record.commands.iter().map(|c| c.0).collect();

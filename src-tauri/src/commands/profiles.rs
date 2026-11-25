@@ -29,20 +29,25 @@ pub(crate) struct CapturedProfile {
 }
 
 #[tauri::command]
-pub(crate) fn save_profile(app: AppHandle, args: SaveProfileArgs) -> Result<OpResult, String> {
-    match crate::profiles::save(
-        &app,
-        args.settings,
-        &args.name,
-        args.expected_revision.as_deref(),
-    ) {
-        Ok(()) => {
-            crate::tray::refresh_profiles(&app);
-            Ok(OpResult {
-                ok: true,
-                message: "档案已保存".into(),
-            })
-        }
+pub(crate) async fn save_profile(
+    app: AppHandle,
+    args: SaveProfileArgs,
+) -> Result<OpResult, String> {
+    let result = crate::shutdown::blocking(move || {
+        crate::profiles::save(
+            &app,
+            args.settings,
+            &args.name,
+            args.expected_revision.as_deref(),
+        )
+    })
+    .await
+    .map_err(|error| format!("{error:#}"))?;
+    match result {
+        Ok(()) => Ok(OpResult {
+            ok: true,
+            message: "档案已保存".into(),
+        }),
         Err(err) => Ok(OpResult {
             ok: false,
             message: format!("{err:#}"),
@@ -51,8 +56,11 @@ pub(crate) fn save_profile(app: AppHandle, args: SaveProfileArgs) -> Result<OpRe
 }
 
 #[tauri::command]
-pub(crate) fn list_profiles(app: AppHandle) -> Result<Vec<ProfileMeta>, String> {
-    crate::profiles::list(&app).map_err(|e| format!("{e:#}"))
+pub(crate) async fn list_profiles(app: AppHandle) -> Result<Vec<ProfileMeta>, String> {
+    crate::shutdown::blocking(move || crate::profiles::list(&app))
+        .await
+        .and_then(|result| result)
+        .map_err(|error| format!("{error:#}"))
 }
 
 #[tauri::command]
@@ -64,24 +72,25 @@ pub(crate) fn load_profile(
 }
 
 #[tauri::command]
-pub(crate) fn delete_profile(
+pub(crate) async fn delete_profile(
     app: AppHandle,
     name: String,
     expected_revision: String,
 ) -> Result<OpResult, String> {
-    match crate::profiles::delete(&app, &name, &expected_revision) {
-        Ok(unlinked) => {
-            crate::tray::refresh_profiles(&app);
-            Ok(OpResult {
-                ok: true,
-                message: if unlinked {
-                    "档案已删除，并已取消该档案的开机应用"
-                } else {
-                    "档案已删除"
-                }
-                .into(),
-            })
-        }
+    let result =
+        crate::shutdown::blocking(move || crate::profiles::delete(&app, &name, &expected_revision))
+            .await
+            .map_err(|error| format!("{error:#}"))?;
+    match result {
+        Ok(unlinked) => Ok(OpResult {
+            ok: true,
+            message: if unlinked {
+                "档案已删除，并已取消该档案的开机应用"
+            } else {
+                "档案已删除"
+            }
+            .into(),
+        }),
         Err(err) => Ok(OpResult {
             ok: false,
             message: format!("{err:#}"),

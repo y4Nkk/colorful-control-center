@@ -1,13 +1,15 @@
 import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { closeFnKey, findOemConflict, readFnKeyCloseTarget, type FnKeyIdentity, type OemConflict } from "../api/client";
+import { closeFnKey, findOemConflict, readFnKeyCloseTarget, type FnKeyIdentity } from "../api/client";
 import { Button } from "./Button";
 import { Dialog, WorkspaceActivity } from "./Dialog";
 import { Icon } from "./Icon";
 import { toast } from "./use-toast";
 
-type Prompt = { conflict: OemConflict; onClosed?: () => void } | { mode: string; confirm: () => Promise<void> };
+type Prompt = { conflict: string; onClosed?: () => void } | { mode: string; confirm: () => Promise<void> };
 type Inspection = { checking?: boolean; target?: FnKeyIdentity; message?: string; failed?: boolean };
 const ConflictContext = createContext<((prompt: Prompt) => void) | null>(null);
+
+export const fnKeyConflict = (issues: Parameters<typeof findOemConflict>[0]) => findOemConflict(issues, "FnKey.exe");
 
 export function useOemConflict() {
   const present = useContext(ConflictContext);
@@ -15,7 +17,7 @@ export function useOemConflict() {
   if (!present) throw new Error("原厂软件冲突确认未挂载");
   return {
     review: (issues: Parameters<typeof findOemConflict>[0], onClosed?: () => void) => {
-      const conflict = active ? findOemConflict(issues) : undefined;
+      const conflict = active ? fnKeyConflict(issues) : undefined;
       if (conflict) present({ conflict, onClosed });
     },
     switchMode: (mode: string, confirm: () => Promise<void>) => {
@@ -45,7 +47,7 @@ export function OemConflictHost({ workspace, children }: { workspace: string; ch
   const present = useCallback((next: Prompt) => {
     if (activeScope.current !== scope || current.current) return;
     current.current = next;
-    const checking = "conflict" in next && next.conflict.executable === "FnKey.exe";
+    const checking = "conflict" in next;
     setInspection({ checking });
     setPrompt(next);
     if (!checking) return;
@@ -95,18 +97,17 @@ function OemConflictDialog({ prompt, inspection, busy, onClose, onConfirm }: {
 }) {
   const mode = prompt && "mode" in prompt ? prompt.mode : null;
   const conflict = prompt && "conflict" in prompt ? prompt.conflict : null;
-  const fnKey = !!mode || conflict?.executable === "FnKey.exe";
   const ready = !!mode || !!inspection.target;
   const actionLabel = mode ? "关闭并切换" : "关闭 FnKey";
-  return <Dialog title={fnKey ? "关闭原厂 FnKey" : "原厂软件冲突"} width="narrow" open={prompt !== null} busy={busy} onClose={onClose}
+  return <Dialog title="关闭原厂 FnKey" width="narrow" open={prompt !== null} busy={busy} onClose={onClose}
     actions={<><Button variant="secondary" disabled={busy} onClick={onClose}>{ready || inspection.checking ? "取消" : "知道了"}</Button>
       {ready && <Button icon={busy ? "loading" : undefined} disabled={busy} aria-busy={busy || undefined} onClick={() => void onConfirm()}>
         {busy ? `正在${actionLabel}…` : actionLabel}
       </Button>}</>}>
     {mode && <p>关闭原厂 FnKey 后，控制台会切换到「{mode}」。</p>}
-    {conflict && !inspection.message && <p>{conflict.message}</p>}
+    {conflict && !inspection.message && <p>{conflict}</p>}
     {inspection.checking && <p role="status">正在核对原厂进程…</p>}
     {inspection.message && <p role={inspection.failed ? "alert" : "status"} className={inspection.failed ? "ccc-control-error" : undefined}>{inspection.failed && <Icon name="error" size={16} />}{inspection.message}</p>}
-    {ready && <p>部分原厂 Fn 热键和屏显会暂停。可以从开始菜单打开「Fn hotkeys and OSD」恢复。</p>}
+    {ready && <p>部分原厂 Fn 热键和屏显会暂停。要恢复，请在设置中关闭「自动关闭原厂软件」，再从开始菜单打开「Fn hotkeys and OSD」。</p>}
   </Dialog>;
 }

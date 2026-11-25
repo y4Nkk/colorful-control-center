@@ -1,4 +1,4 @@
-/** 硬件监控（对应 src-tauri/src/hal/；1Hz hardware-snapshot 事件推送）。 */
+/** 主窗口按需采样，通过 hardware-snapshot 接收事件。 */
 import { invoke, listenEvent } from "./client";
 import type { FanId } from "./fans";
 
@@ -50,7 +50,7 @@ export interface HardwareSnapshot {
   warnings: string[];
 }
 
-export const getHardwareSnapshot = (): Promise<HardwareSnapshot> => invoke("read_hardware_snapshot");
+export const updateHardwareMonitoring = (active: boolean): Promise<void> => invoke("update_hardware_monitoring", { active });
 
 export function onHardwareSnapshot(handler: (snapshot: HardwareSnapshot) => void): Promise<() => void> {
   return listenEvent<HardwareSnapshot>("hardware-snapshot", handler);
@@ -61,15 +61,16 @@ export interface HardwareCapacity {
   availableBytes: number;
 }
 
-export interface SystemOverview {
+export interface SystemInventory {
   cpu: { vendor: "intel" | "amd" | "unknown"; name: string | null;
     physicalCores: number | null; logicalProcessors: number | null;
     baseClockMhz: number | null; maxClockMhz: number | null };
-  memory: HardwareCapacity | null;
   /** SMBIOS Type 17 已安装内存条共同报告的配置速率（MT/s）。 */
   memorySpeedMts: number | null;
-  volumes: { mount: string; label: string | null; fileSystem: string | null; capacity: HardwareCapacity | null }[];
+  volumes: { mount: string; label: string | null; fileSystem: string | null; capacity: HardwareCapacity | null }[] | null;
   warnings: string[];
 }
 
-export const readSystemOverview = (): Promise<SystemOverview> => invoke("read_system_overview");
+export const readMemoryCapacity = (): Promise<HardwareCapacity> => invoke("read_memory_capacity");
+export const readSystemInventory = (refreshVolumeMetadata: boolean): Promise<SystemInventory> =>
+  invoke("read_system_inventory", { refreshVolumeMetadata });

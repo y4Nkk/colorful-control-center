@@ -1,7 +1,10 @@
 //! GPU 传感器（T4：NVML，用户态，无内核依赖）。
 
 use anyhow::Result;
-use nvml_wrapper::{Nvml, enum_wrappers::device::Clock};
+use nvml_wrapper::{
+    Nvml,
+    enum_wrappers::device::{Clock, TemperatureSensor},
+};
 
 use super::NvidiaSnapshot;
 
@@ -26,9 +29,7 @@ impl Nvidia {
         if let Ok(name) = device.name() {
             out.name = name;
         }
-        if let Ok(temp) =
-            device.temperature(nvml_wrapper::enum_wrappers::device::TemperatureSensor::Gpu)
-        {
+        if let Ok(temp) = device.temperature(TemperatureSensor::Gpu) {
             out.temp_c = Some(temp as f64);
         }
         // 笔记本 dGPU 风扇通常不归 NVML 管（Err 属预期）
@@ -52,5 +53,16 @@ impl Nvidia {
         out.cuda_cores = device.num_cores().ok().filter(|count| *count > 0);
         out.memory_bus_width_bits = device.memory_bus_width().ok().filter(|width| *width > 0);
         Ok(out)
+    }
+
+    pub(super) fn sample_temperature(&self) -> Result<NvidiaSnapshot> {
+        let device = self.nvml.device_by_index(0)?;
+        Ok(NvidiaSnapshot {
+            temp_c: device
+                .temperature(TemperatureSensor::Gpu)
+                .ok()
+                .map(f64::from),
+            ..NvidiaSnapshot::default()
+        })
     }
 }

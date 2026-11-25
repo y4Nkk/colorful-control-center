@@ -53,11 +53,15 @@ function icns(records) {
 }
 
 const presetPalettes = ["quiet", "eco", "performance", "entertainment"];
+// 托盘勾选标记不取配色令牌。
+const checkSource = '<svg xmlns="http://www.w3.org/2000/svg" stroke="#000"/>';
+const presetAssets = [...presetPalettes, "check"];
 
 function preparePresetFixture(root) {
   const presetSource = '<svg xmlns="http://www.w3.org/2000/svg" fill="var(--ccc-preset-mid)"/>';
   for (const palette of presetPalettes)
     writeFileSync(join(root, "src-tauri/icons/presets", `${palette}.svg`), presetSource);
+  writeFileSync(join(root, "src-tauri/icons/presets", "check.svg"), checkSource);
   const tokens = presetPalettes.map(palette =>
     `[data-preset-palette="${palette}"] { --ccc-preset-mid: #127069; }`).join("\n");
   writeFileSync(join(root, "src/styles/tokens.css"), tokens);
@@ -76,7 +80,7 @@ function fixture(t) {
   writeFileSync(join(root, "src-tauri/icons/icon.svg"), '<svg xmlns="http://www.w3.org/2000/svg"/>');
   preparePresetFixture(root);
   const paths = ["public/favicon.svg", ...desktopIcons.map(name => `src-tauri/icons/${name}`),
-    ...presetPalettes.map(palette => `src-tauri/icons/presets/${palette}.png`)];
+    ...presetAssets.map(name => `src-tauri/icons/presets/${name}.png`)];
   for (const path of paths) writeFileSync(join(root, path), "old asset");
   // A local CLI double exercises the actual script without rendering the changing user source.
   writeFileSync(join(root, "node_modules/@tauri-apps/cli/package.json"), '{"name":"@tauri-apps/cli","type":"commonjs"}');
@@ -95,7 +99,7 @@ function fixture(t) {
     const image = Buffer.from(${JSON.stringify(png().toString("base64"))}, "base64");
     if (options.length) {
       assert.deepEqual(options, ["--png", "48"]);
-      assert.ok(source.includes('fill="#127069"'));
+      assert.ok(source.includes('fill="#127069"') || source.equals(Buffer.from(${JSON.stringify(checkSource)})));
       fs.writeFileSync(path.join(output, "48x48.png"), image);
       process.exit(0);
     }
@@ -136,8 +140,8 @@ test("生成完整桌面清单、同源 favicon 和托盘图标，且不复制�
     assert.deepEqual(readFileSync(join(f.root, "src-tauri/icons", name)), expected);
   }
   assert.deepEqual(readdirSync(join(f.root, "src-tauri/icons")).sort(), [...desktopIcons, "icon.svg", "presets"].sort());
-  for (const palette of presetPalettes)
-    assertVisiblePng(readFileSync(join(f.root, "src-tauri/icons/presets", `${palette}.png`)));
+  for (const name of presetAssets)
+    assertVisiblePng(readFileSync(join(f.root, "src-tauri/icons/presets", `${name}.png`)));
   f.cleaned();
   const before = f.snapshot();
   const checked = f.run(["--check"]);

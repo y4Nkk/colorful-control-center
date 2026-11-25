@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { enableOemSupplyMode, pauseOemSupplyMode, readOemSupplyMode, restoreOemSupplyMode, resumeOemSupplyMode, type SupplyModeStatus } from "../../api/client";
+import { archiveInvalidOemSupplyRecord, enableOemSupplyMode, pauseOemSupplyMode, readOemSupplyMode, restoreOemSupplyMode, resumeOemSupplyMode, type SupplyModeStatus } from "../../api/client";
 import { useOemConflict } from "../OemConflictHost";
+import { toast } from "../use-toast";
 
 export function useSupplyMode(active: boolean, revision: number, onSettled: () => void) {
   const conflict = useOemConflict();
@@ -63,7 +64,11 @@ export function useSupplyMode(active: boolean, revision: number, onSettled: () =
     }
   };
   const confirmed = (action: (expected: string) => Promise<void>) => view ? run(() => action(view.revision)) : Promise.resolve(false);
+  const archive = (expected: string) => run(async () => {
+    const path = await archiveInvalidOemSupplyRecord(expected);
+    toast({ kind: "success", title: "无效供电记录已归档", description: path });
+  });
   return { view, busy, pausing, pauseRequested, error: error ?? readError,
     reread, enable: () => confirmed(enableOemSupplyMode),
-    resume: () => confirmed(resumeOemSupplyMode), restore: () => confirmed(restoreOemSupplyMode), pause };
+    resume: () => confirmed(resumeOemSupplyMode), restore: () => confirmed(restoreOemSupplyMode), pause, archive };
 }

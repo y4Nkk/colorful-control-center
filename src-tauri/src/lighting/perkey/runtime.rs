@@ -8,11 +8,11 @@ use crate::hal::key_events;
 use anyhow::{Result, anyhow, bail};
 use std::{
     sync::{
-        Arc, Mutex, TryLockError,
+        Arc, Mutex, OnceLock, TryLockError,
         atomic::{AtomicBool, AtomicU64, Ordering},
-        mpsc::{self, Receiver, RecvTimeoutError},
+        mpsc::{self, Receiver, SyncSender, TryRecvError},
     },
-    thread::{self, JoinHandle},
+    thread::{self, JoinHandle, Thread},
     time::{Duration, Instant},
 };
 #[cfg(test)]
@@ -30,6 +30,7 @@ pub(super) struct Control {
     stop: AtomicBool,
     overflow: AtomicBool,
     epoch: AtomicU64,
+    output_thread: OnceLock<Thread>,
     input_stop: Mutex<Option<key_events::Stopper>>,
     error: Mutex<Option<String>>,
 }
@@ -37,17 +38,35 @@ impl Control {
     fn pause(&self) {
         self.active.store(false, Ordering::SeqCst);
         self.epoch.fetch_add(1, Ordering::SeqCst);
+        self.wake_output();
     }
     fn fail(&self, error: String) {
         if let Ok(mut value) = self.error.lock() {
             *value = Some(error);
         }
+        self.shutdown();
+    }
+    fn shutdown(&self) {
         self.stop.store(true, Ordering::SeqCst);
         self.pause();
         if let Ok(stop) = self.input_stop.lock() {
             if let Some(stop) = stop.as_ref() {
                 stop.stop();
             }
+        }
+    }
+    fn wake_output(&self) {
+        if let Some(thread) = self.output_thread.get() {
+            thread.unpark();
+        }
+    }
+    fn enqueue(&self, sender: &SyncSender<Envelope>, event: KeyEvent) {
+        let epoch = self.epoch.load(Ordering::SeqCst);
+        if self.accepts(epoch) {
+            if sender.try_send(Envelope { epoch, event }).is_err() {
+                self.overflow.store(true, Ordering::SeqCst);
+            }
+            self.wake_output();
         }
     }
     fn accepts(&self, epoch: u64) -> bool {
@@ -153,26 +172,19 @@ impl Session {
     }
 }
 fn keyboard_input(
-    sender: mpsc::SyncSender<Envelope>,
+    sender: SyncSender<Envelope>,
     control: Arc<Control>,
 ) -> Result<key_events::Session> {
     let failed = control.clone();
     key_events::Session::start(
         move |key| {
-            let epoch = control.epoch.load(Ordering::SeqCst);
-            if control.accepts(epoch)
-                && sender
-                    .try_send(Envelope {
-                        epoch,
-                        event: KeyEvent {
-                            scan: key.scan,
-                            down: key.down,
-                        },
-                    })
-                    .is_err()
-            {
-                control.overflow.store(true, Ordering::SeqCst);
-            }
+            control.enqueue(
+                &sender,
+                KeyEvent {
+                    scan: key.scan,
+                    down: key.down,
+                },
+            );
             false
         },
         move |error| failed.fail(error),
@@ -180,13 +192,7 @@ fn keyboard_input(
 }
 impl Drop for Session {
     fn drop(&mut self) {
-        self.control.pause();
-        self.control.stop.store(true, Ordering::SeqCst);
-        if let Ok(stop) = self.control.input_stop.lock() {
-            if let Some(stop) = stop.as_ref() {
-                stop.stop();
-            }
-        }
+        self.control.shutdown();
         self.input.take();
         for thread in self.threads.drain(..) {
             let _ = thread.join();
@@ -201,6 +207,10 @@ fn run(
     device: &DeviceInfo,
     mut send: impl FnMut([u8; 5]) -> Result<()>,
 ) {
+    control
+        .output_thread
+        .set(thread::current())
+        .expect("逐键会话只能有一个输出线程");
     let start = Instant::now();
     let mut engine = Engine::default();
     let mut epoch = control.epoch.load(Ordering::SeqCst);
@@ -209,22 +219,34 @@ fn run(
             control.fail("按键事件队列已满，灯效已停止；请重新应用".into());
             break;
         }
-        let next = match rx.recv_timeout(Duration::from_millis(10)) {
-            Ok(event) => Some(event),
-            Err(RecvTimeoutError::Timeout) => None,
-            Err(RecvTimeoutError::Disconnected) => break,
-        };
+        let next = rx.try_recv();
         let current = control.epoch.load(Ordering::SeqCst);
         if current != epoch {
             engine = Engine::default();
             epoch = current;
-        }
-        if !control.accepts(epoch) || next.as_ref().is_some_and(|e| e.epoch != epoch) {
-            continue;
+            if matches!(next, Err(TryRecvError::Empty)) {
+                continue;
+            }
         }
         let packets = match next {
-            Some(e) => engine.event(e.event, start.elapsed(), &values.pattern, device),
-            None => engine.tick(start.elapsed(), &values.pattern),
+            Ok(e) if e.epoch == epoch && control.accepts(epoch) => {
+                engine.event(e.event, start.elapsed(), &values.pattern, device)
+            }
+            Ok(_) => continue,
+            Err(TryRecvError::Disconnected) => break,
+            Err(TryRecvError::Empty) => {
+                // 队列和代次检查之后只能使用不会消耗唤醒令牌的操作。
+                let Some(deadline) = engine.deadline() else {
+                    thread::park();
+                    continue;
+                };
+                let now = start.elapsed();
+                if now < deadline {
+                    thread::park_timeout(deadline - now);
+                    continue;
+                }
+                engine.tick(now, &values.pattern)
+            }
         };
         if let Err(e) = output(control, gate, epoch, packets, &mut send) {
             control.fail(format!("按键灯效发送失败：{e:#}"));

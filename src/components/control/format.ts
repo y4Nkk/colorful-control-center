@@ -17,3 +17,7 @@ export function fmtInt(value: number): string {
   return String(Math.round(value));
 }
 
+export function performanceState(value: boolean | null): string {
+  return value === null ? "未确认支持" : value ? "开启" : "关闭";
+}
+

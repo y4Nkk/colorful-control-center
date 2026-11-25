@@ -7,7 +7,7 @@ const missing = page => cpu(page).getByRole("img", { name: "CPU 利用率：暂�
 async function publish(page, valuePct, age = 0, error = null) {
   await page.evaluate(async ({ valuePct, age, error }) => {
     const data = window.__uiFixture;
-    const snapshot = await window.__TAURI_INTERNALS__.invoke("read_hardware_snapshot");
+    const snapshot = window.__uiHardwareSnapshot();
     snapshot.sampledAtMs = data.lastCpuSample = Math.max(Date.now(), data.lastCpuSample ?? 0) + 1000;
     snapshot.cpuUtility = valuePct == null ? null : { valuePct, clockMhz: null, sampledAtMs: snapshot.sampledAtMs - age };
     snapshot.warnings = error ? [error] : [];
@@ -20,7 +20,7 @@ test.beforeEach(async ({ page }) => {
     const invoke = window.__TAURI_INTERNALS__.invoke;
     window.__TAURI_INTERNALS__.invoke = async (command, args) => {
       const result = await invoke(command, args);
-      return command === "read_system_overview" ? { ...result, warnings: ["隔离系统资料诊断"] } : result;
+      return command === "read_system_inventory" ? { ...result, warnings: ["隔离系统资料诊断"] } : result;
     };
   });
   await page.goto("/");

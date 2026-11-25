@@ -1,12 +1,10 @@
-import { restoreScreenBrightness, type ScreenBrightnessProfile } from "../../api/client";
-import { ConfirmButton } from "../ConfirmButton";
+import type { ScreenBrightnessProfile } from "../../api/client";
 import { FactList } from "../FactList";
 import { MetricReadout } from "./MetricReadout";
 
-type Props = { profile: ScreenBrightnessProfile; busy: boolean; run: (action: () => Promise<void>, message: string, reset: boolean) => Promise<void> };
 import { powerPlanName } from "./power-plan-values";
 
-export function ScreenBrightnessFacts({ profile, busy, run }: Props) {
+export function ScreenBrightnessFacts({ profile }: { profile: ScreenBrightnessProfile }) {
   const current = profile.current;
   return <section className="ccc-screen-brightness-facts" aria-label="屏幕亮度策略事实">
     <strong>屏幕亮度策略</strong>
@@ -26,6 +24,12 @@ export function ScreenBrightnessFacts({ profile, busy, run }: Props) {
       {current.targets.includes(0) && <p className="ccc-control-caption">目标里有 0%：触发后屏幕可能变得非常暗，确认接管前请留意。</p>}
     </> : <p className="ccc-control-caption">本次屏幕亮度报告不可用。</p>}
     {profile.error && <p className="ccc-control-error">{profile.error}</p>}
+    <ScreenBrightnessRestorePreview profile={profile} />
+  </section>;
+}
+
+export function ScreenBrightnessRestorePreview({ profile }: { profile: ScreenBrightnessProfile }) {
+  return <>
     {profile.initial.map(initial => <div className="ccc-screen-brightness-initial" key={initial.plan}>
       <p className="ccc-control-caption">恢复接管前的值 · {powerPlanName(initial.plan)}</p>
       <FactList compact facts={(["插电", "电池"] as const).map((label, index) => ({
@@ -34,11 +38,5 @@ export function ScreenBrightnessFacts({ profile, busy, run }: Props) {
       {initial.error && <p className="ccc-control-error">{initial.error}</p>}
     </div>)}
     {profile.restoreError && <p className="ccc-control-error">{profile.restoreError}</p>}
-    {profile.initial.length > 0 && <>
-      <span className="ccc-control-caption">恢复时会停止本次监听，已保存的热键设置保持不变</span>
-      <ConfirmButton icon="undo" key={profile.restoreRevision ?? JSON.stringify(profile.initial)} variant="secondary"
-        label="恢复初始屏幕计划亮度" confirmLabel="确认停止监听并恢复上述亮度？" busy={busy} disabled={!profile.restoreRevision}
-        onConfirm={() => run(() => restoreScreenBrightness(profile.restoreRevision!), "初始屏幕计划亮度已恢复", false)} />
-    </>}
-  </section>;
+  </>;
 }

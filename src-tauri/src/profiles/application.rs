@@ -118,7 +118,6 @@ struct State {
     pending: Option<Pending>,
     report: Option<Application>,
     last_startup: Option<Application>,
-    last_automatic: Option<Application>,
 }
 impl State {
     fn start(&mut self, runtime: &Runtime<'_>, reviewed: Reviewed<'_>) -> Result<u64> {
@@ -128,12 +127,10 @@ impl State {
             .filter(|id| *id <= 9_007_199_254_740_991)
             .ok_or_else(|| anyhow!("档案应用会话标识已耗尽"))?;
         let id = self.next_id;
-        if let Some(previous) = self.report.take() {
-            if previous.origin == Origin::Startup {
-                self.last_startup = Some(previous);
-            } else if previous.origin.automatic() {
-                self.last_automatic = Some(previous);
-            }
+        if let Some(previous) = self.report.take()
+            && previous.origin == Origin::Startup
+        {
+            self.last_startup = Some(previous);
         }
         self.report = Some(Application {
             id,
@@ -231,16 +228,6 @@ impl Controller {
             .filter(|report| report.origin == Origin::Startup)
             .or(state.last_startup.as_ref());
         Ok(report.cloned())
-    }
-    pub fn automatic_report(&self, display: &display::Controller) -> Result<Option<Application>> {
-        let mut state = self.lock()?;
-        Self::refresh(&mut state, display)?;
-        Ok(state
-            .report
-            .as_ref()
-            .filter(|r| r.origin.automatic())
-            .or(state.last_automatic.as_ref())
-            .cloned())
     }
     pub(super) fn begin(
         &self,

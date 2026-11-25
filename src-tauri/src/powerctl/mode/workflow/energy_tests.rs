@@ -215,7 +215,11 @@ fn a_failed_command_or_false_ack_restores_mode_and_keeps_the_energy_baseline() {
 fn later_fan_failure_compensates_the_common_energy_step() {
     let f = setup(1);
     let _gate = f.hal.begin_write().unwrap();
-    f.device.0.lock().unwrap().fail_fan_mode = true;
+    {
+        let mut state = f.device.0.lock().unwrap();
+        state.bios[20] |= 0x40;
+        state.fail_fan_mode = true;
+    }
     assert!(apply(&f, 2).is_err());
     assert_eq!(current(&f).energy_star, Some(1));
     assert_eq!(f.device.0.lock().unwrap().pages[1][1], 3);

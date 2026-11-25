@@ -5,7 +5,7 @@ export function modeCycleFixture(off = false) {
   const gpu = modeGpuFixture().value.clocks;
   const modes = [0, 1, 2, 3].map(mode => ({ mode, fromMode: null, gpu: null, revision: null, unavailableReason: null,
     acMode: mode, energy: { hardwarePState: false, energyStar: mode === 2 ? 0 : mode === 1 ? 1 : 2 },
-    turbo: false, dtt: false, fanMode: 0, fanSavedMode: 0, fanOffsetPct: 10, aspm: [1, 2], powerPlan: 0 }));
+    turbo: false, dtt: false, fan: { control: "explicit", mode: 0, savedMode: 0, offsetPct: 10 }, aspm: [1, 2], powerPlan: 0 }));
   const choices = gpuTurboFixture().current.onTargets.filter(choice => choice.mode !== 4).map(choice => {
     const projected = structuredClone(gpu.driver.current), target = choice.target;
     if (target.lockMhz !== null) projected.locks.forEach((lock, index) => { lock.mode = index === 0 && target.lockMhz !== 0 ? 2 : 0; lock.value = index === 0 ? target.lockMhz * 1000 : 0; });
