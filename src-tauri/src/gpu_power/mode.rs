@@ -66,14 +66,14 @@ fn choice(
     dc_mode_power: bool,
     automatic: bool,
 ) -> Result<Option<(Stage, bool)>> {
-    if mode > 4 {
+    if !ccc_core::oem_events::is_power_mode(mode) {
         bail!("未知原厂电源模式");
     }
     Ok(match (mode, trigger) {
         (2 | 3, _) => Some((Stage::BeforeMode, true)),
         (0, _) => Some((Stage::AfterMode, true)),
-        (1 | 4, None) if automatic => Some((Stage::AfterMode, false)),
-        (1 | 4, Some(Trigger::Resume)) if automatic && dc_mode_power => {
+        (1, None) if automatic => Some((Stage::AfterMode, false)),
+        (1, Some(Trigger::Resume)) if automatic && dc_mode_power => {
             Some((Stage::AfterMode, false))
         }
         _ => None,
@@ -105,7 +105,7 @@ pub(crate) fn action(
     trigger: Option<Trigger>,
     dc_mode_power: bool,
 ) -> Result<Option<Action>> {
-    if mode > 4 {
+    if !ccc_core::oem_events::is_power_mode(mode) {
         bail!("未知原厂电源模式");
     }
     if !supported {

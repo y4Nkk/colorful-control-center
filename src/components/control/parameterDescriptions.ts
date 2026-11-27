@@ -4,13 +4,14 @@ import { PERFORMANCE_OPTION_LABELS } from "../../api/client";
 export const CPU_SPEC_HELP: readonly ParameterDescription[] = [
   { name: "物理核心与逻辑处理器", description: "物理核心是 CPU 实际的核心数量；逻辑处理器是系统能同时安排任务的线程数。两项都是系统当前启用的数量。" },
   { name: "标称基础频率与标称最高频率", description: "厂商标称的基础频率和最高频率，单位 GHz。实际运行频率会随任务负载、温度和功耗变化，不一定等于这两个值。" },
-  { name: "温度与风扇读数", description: "温度单位是 °C。风扇转速单位是 RPM，即每分钟转数；占空比是送给风扇的控制比例，单位 %，和实际转速不一定成正比。读不到的数据显示「未知」。" },
+  { name: "活跃频率（估算）", description: "根据这次采样里正在工作的逻辑处理器估算。概览按忙碌时间加权，详情显示其中的最高估算值。" },
+  { name: "温度与风扇读数", description: "温度按 °C 显示，实际转速按每分钟转数（RPM）显示。风扇强度表示当前的控制比例，数值越高，风扇通常转得越快。读不到的数据显示「未知」。" },
   { name: "CPU 利用率", description: "CPU 当前的忙碌程度，单位 %。数据来自 Windows 的「处理器效用」计数器，和电脑自带控制中心用的是同一个来源；最高显示 100%，启动或读取失败时显示未知。" },
 ];
 export const GPU_SPEC_HELP: readonly ParameterDescription[] = [
   { name: "计算核心数与显存位宽", description: "计算核心数是显卡里并行计算核心的数量；显存位宽是显存传输数据的通道宽度，单位为位。位宽不能单独用来判断游戏性能。" },
   { name: "当前核心频率与当前显存频率", description: "刚读取到的 GPU 核心和显存运行频率，单位 MHz，会随任务负载变化。在「性能与散热 → GPU 频率」里调的偏移，是在默认频率基础上加减的量。" },
-  { name: "显存总量与显存占用", description: "显存是显卡自带的内存。总量是它的容量，占用是已经用掉的部分，单位 MB、GB 等。显存和系统内存分开统计。" },
+  { name: "显存总量与容量占用率", description: "显存总量是显卡自带的内存容量。容量占用率是已经使用的显存占总量的比例。" },
   { name: "当前功耗与当前功耗上限", description: "当前功耗是显卡此刻的耗电量，功耗上限是当前设置允许的最大功耗，单位 W（瓦）。功耗上限不等于出厂最大功耗，也不保证能一直达到。" },
 ];
 export const MEMORY_HELP: readonly ParameterDescription[] = [
@@ -21,7 +22,7 @@ export const MEMORY_HELP: readonly ParameterDescription[] = [
 ];
 export const STORAGE_HELP: readonly ParameterDescription[] = [
   { name: "盘符、卷标与文件系统", description: "盘符是 C:、D: 这样的字母标识；卷标是给这个分区起的名字；文件系统是这块分区存放数据的方式。一块硬盘可以分成多个分区，各有自己的盘符。" },
-  { name: "总容量、已用与可用", description: "只统计当前账户能看到的本地磁盘分区。如果账户设置了磁盘配额，「可用」可能比磁盘实际的剩余空间小。" },
+  { name: "总容量、已用与可用", description: "只统计当前账户能看到的本地磁盘分区。如果账户设置了磁盘配额，「可用」可能比磁盘实际的剩余空间小。容量条和百分比会随占用变色：用到 80% 起提醒留意，90% 起建议清理空间。" },
 ];
 export const CPU_TUNING_HELP: readonly ParameterDescription[] = [
   { name: "持续功耗上限 · W", description: "限制 CPU 长时间运行时的平均功耗，单位 W（瓦）。调高上限后，高负载时 CPU 可以用更多电，也可能产生更多热量。" },
@@ -38,9 +39,9 @@ export const GPU_TUNING_HELP: readonly ParameterDescription[] = [
 export const FAN_HELP: readonly ParameterDescription[] = [
   { name: PERFORMANCE_OPTION_LABELS.turboFan, description: "提高风扇转速来加强散热。Turbo 的应用状态改变后，风扇切到自动档。Turbo 与寂静、自定义固件曲线和软件曲线互斥。" },
   { name: PERFORMANCE_OPTION_LABELS.dtt, description: "由 Intel Dynamic Tuning 驱动自动调节功耗和散热。驱动就绪后才能在支持的预设里应用。" },
-  { name: "娱乐档寂静偏好", description: "设定娱乐档自动风扇策略是否使用寂静。手动选择寂静只切换当前档位。" },
-  { name: "温度阈值 · °C", description: "风扇曲线的横轴是温度（°C），纵轴是想让风扇达到的转速。不同机型能调的方式不同：有的只能设两个温度点和对应的占空比，有的可以分十档温度分别设定目标转速。" },
-  { name: "占空比与目标转速 · %", description: "占空比是送给风扇的控制信号比例；目标转速是相对该风扇最大转速的百分比。两者都是目标值，和实际转速（RPM）不一定成正比。" },
+  { name: "娱乐档寂静偏好", description: "开启时切到寂静，关闭时切到自动。进入娱乐档时，默认风扇策略会应用此偏好。当前档位可在「风扇模式」中单独选择。" },
+  { name: "温度阈值 · °C", description: "风扇曲线横轴是温度。不同机型支持的曲线不同，有的可设置两个温度点的风扇强度，有的可为十档温度分别设置目标转速。" },
+  { name: "风扇强度与目标转速 · %", description: "风扇强度表示给风扇的控制比例，数值越高，风扇通常转得越快。目标转速按该风扇最高转速的百分比设定。实际转速可在风扇实况中查看。" },
   { name: "加速偏移 · %", description: "在电脑自带风扇方案的基础上额外加速风扇的幅度。调好后松开滑杆或结束键盘调整就会生效。" },
 ];
 export const MODE_HELP: readonly ParameterDescription[] = [

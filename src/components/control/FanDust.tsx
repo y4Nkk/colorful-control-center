@@ -1,4 +1,5 @@
 import { Icon } from "../Icon";
+import { Loading } from "../Loading";
 import { applyFanDustSchedule, restoreFanDustSchedule, startFanDust, type DustSchedule } from "../../api/client";
 import { Button } from "../Button";
 import { ConfirmButton } from "../ConfirmButton";
@@ -24,11 +25,16 @@ export function FanDust({ active, revision, onSettled }: { active: boolean; revi
   const restoreConflict = !!profile?.softwareActive && !!profile.initial &&
     (!profile.initial.schedule || profile.initial.schedule.weekdays !== 0 || profile.initial.schedule.onResume);
   return <Surface as="section" variant="group" className="ccc-panel ccc-dust-panel" aria-label="风扇除尘" aria-busy={busy || undefined}>
-    <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="fan" />风扇除尘</h2>
-      <Button icon="refresh" variant="ghost" size="compact" disabled={busy} onClick={reread}>重新读取除尘状态</Button></div>
+    <div className="ccc-panel-head">
+      <h2 className="ccc-panel-title"><Icon name="fan" />风扇除尘</h2>
+      <Button className="ccc-dust-refresh" icon="refresh" variant="ghost" size="compact" disabled={busy} onClick={reread}>重新读取除尘状态</Button>
+      <div className="ccc-module-tools"><DetailsDialog title="除尘说明">
+        <p>点击开始后，除尘由电脑自行完成，期间暂时不能修改风扇和电源模式。「正在除尘」以电脑报告的状态为准：发出开始指令后，要等电脑确认才会显示为进行中。</p>
+      </DetailsDialog></div>
+    </div>
     {error && <p className="ccc-control-error" role="alert">{error}</p>}
     {!readValid && profile && <p className="ccc-control-caption">显示上次读取的除尘状态。</p>}
-    {!profile ? <p className="ccc-control-caption">{error ? "无法读取，请重试。" : "正在读取除尘状态。"}</p> : <div className="ccc-dust-columns">
+    {!profile ? (error ? <p className="ccc-control-caption">无法读取，请重试。</p> : <Loading label="正在读取除尘状态…" />) : <div className="ccc-dust-columns">
       <Surface as="div" variant="inset" className="ccc-dust-section">
         <div className="ccc-dust-visual" role="img" aria-label={profile.running ? "正在除尘" : "除尘风扇"}>
           <svg viewBox="0 0 120 110" aria-hidden="true" data-dust-running={profile.running}>
@@ -61,6 +67,5 @@ export function FanDust({ active, revision, onSettled }: { active: boolean; revi
         {restoreConflict && <p className="ccc-control-caption">请先退出软件风扇曲线，再恢复初始除尘计划。</p>}
       </Surface>
     </div>}
-    <DetailsDialog title="除尘说明"><p>点击开始后，除尘由电脑自行完成，期间暂时不能修改风扇和电源模式。「正在除尘」以电脑报告的状态为准：发出开始指令后，要等电脑确认才会显示为进行中。</p></DetailsDialog>
   </Surface>;
 }

@@ -2,8 +2,10 @@ import { applyKeyboardSettings, readKeyboardSettings, type KeyboardValues } from
 import { Button } from "../Button";
 import { DetailsDialog } from "../DetailsDialog";
 import { Icon } from "../Icon";
+import { Loading } from "../Loading";
 import { Surface } from "../Surface";
 import { Switch } from "../Switch";
+import { KeyboardFunctionArtwork } from "./KeyboardFunctionArtwork";
 import { FIELDS } from "./keyboard-values";
 import { useDeviceSettings } from "./useDeviceSettings";
 
@@ -23,10 +25,11 @@ export function KeyboardSettings({ active, revision }: { active: boolean; revisi
     </div>
     {error && <p className="ccc-control-error" role="alert">{error}</p>}
     {profile ? <div className="ccc-setting-tiles">{FIELDS.map(({ key, title }) => <Surface as="div" variant="inset" className="ccc-keyboard-setting" key={key}>
+      <KeyboardFunctionArtwork setting={key} />
       <div><strong>{title}</strong>
         {profile.current[key] === null && <p className="ccc-control-caption">此设备未提供</p>}</div>
       <Switch label={title} checked={profile.current[key] ?? false}
         disabled={busy || profile.current[key] === null} onChange={value => change(key, value)} />
-    </Surface>)}</div> : <p className="ccc-control-caption">{error ? "请重新读取键盘功能。" : "正在读取键盘功能。"}</p>}
+    </Surface>)}</div> : error ? <p className="ccc-control-caption">请重新读取键盘功能。</p> : <Loading label="正在读取键盘功能…" />}
   </Surface>;
 }

@@ -6,16 +6,20 @@
   height: 100%;
   overflow: hidden;
   background: var(--ccc-chrome-bg);
-  -webkit-backdrop-filter: blur(var(--ccc-chrome-blur)) saturate(var(--ccc-chrome-saturation));
-  backdrop-filter: blur(var(--ccc-chrome-blur)) saturate(var(--ccc-chrome-saturation));
+  -webkit-backdrop-filter: blur(var(--ccc-chrome-blur));
+  backdrop-filter: blur(var(--ccc-chrome-blur));
   transition: grid-template-columns var(--ccc-motion-rail) var(--ccc-easing);
+}
+
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  .ccc-shell { background: var(--ccc-chrome-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 
 .ccc-shell.is-collapsed {
   grid-template-columns: var(--ccc-sidebar-collapsed-width) minmax(0, 1fr);
 }
 
-/* 侧栏与标题栏共享完整的 64px 顶部拖动区。 */
+/* 侧栏与标题栏共享完整的顶部拖动区。 */
 .ccc-sidebar {
   grid-area: 1 / 1 / 3 / 2;
   display: flex;
@@ -62,7 +66,11 @@
   list-style: none;
 }
 
-.ccc-nav-footer { padding-block-start: var(--ccc-space-3); }
+.ccc-nav-footer { flex: none; }
+@media (max-height: 18rem) {
+  .ccc-nav { gap: var(--ccc-space-2); padding-block-end: var(--ccc-space-2); }
+  .ccc-nav-footer { --ccc-control-height: var(--ccc-control-height-compact); }
+}
 .ccc-nav-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -80,24 +88,48 @@
 
 .ccc-shell.is-collapsed .ccc-nav-label { opacity: 0; }
 
+.ccc-update-nav-glyph { place-items: center; }
+.ccc-update-nav[data-phase="current"] .ccc-update-nav-glyph,
+.ccc-update-nav[data-phase="finished"] .ccc-update-nav-glyph { color: var(--ccc-safe-text); }
+.ccc-update-nav[data-phase="error"] .ccc-update-nav-glyph { color: var(--ccc-danger); }
+.ccc-update-nav:is([data-phase="available"], [data-phase="checking"], [data-phase="downloading"]) .ccc-update-nav-glyph { color: var(--ccc-action-ink); }
+
+.ccc-update-nav-ring {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  rotate: -90deg;
+}
+.ccc-update-nav-ring > circle:first-child { opacity: 0.2; }
+
+.ccc-update-nav-copy {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ccc-space-2);
+}
+.ccc-update-nav-copy > span { overflow: hidden; text-overflow: ellipsis; }
+.ccc-update-nav-copy > .ccc-mono { max-width: 50%; color: var(--ccc-text); }
+.ccc-update-nav-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .ccc-nav-indicator {
   position: absolute;
   z-index: 1;
   inset-inline-start: var(--ccc-space-2);
   width: var(--ccc-rail-indicator-width);
   border-radius: var(--ccc-radius-full);
-  background: var(--ccc-rail-selected-icon);
+  background: var(--ccc-action-ink);
   pointer-events: none;
-}
-
-.ccc-nav-tooltip {
-  z-index: 60;
-  padding: var(--ccc-space-1) var(--ccc-space-2);
-  border-radius: var(--ccc-radius-control);
-  background: var(--ccc-rail-tooltip-bg);
-  color: var(--ccc-text-on-action);
-  font: var(--ccc-fact-label-font);
-  box-shadow: var(--ccc-overlay-shadow);
 }
 
 /* 未标记为拖动区的按钮、通知等交互元素保留自己的点击行为。 */

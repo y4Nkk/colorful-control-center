@@ -1,0 +1,14 @@
+.ccc-tooltip {
+  z-index: var(--ccc-tooltip-layer);
+  max-inline-size: min(var(--ccc-tooltip-max-width), var(--radix-tooltip-content-available-width));
+  padding: var(--ccc-space-1) var(--ccc-space-2);
+  border-radius: var(--ccc-radius-control);
+  background: var(--ccc-tooltip-bg);
+  color: var(--ccc-text-on-action);
+  font: var(--ccc-fact-label-font);
+  overflow-wrap: anywhere;
+}
+
+@media (forced-colors: active) {
+  .ccc-tooltip { border: var(--ccc-border-width) solid CanvasText; background: Canvas; color: CanvasText; }
+}

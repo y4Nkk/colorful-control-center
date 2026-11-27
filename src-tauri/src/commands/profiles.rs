@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
 use crate::hal::Hal;
+use crate::profiles::builtins;
 use crate::profiles::{Application, ProfileGroup, ProfileMeta, ProfileSettings};
 
 #[derive(Deserialize)]
@@ -61,6 +62,46 @@ pub(crate) async fn list_profiles(app: AppHandle) -> Result<Vec<ProfileMeta>, St
         .await
         .and_then(|result| result)
         .map_err(|error| format!("{error:#}"))
+}
+
+#[tauri::command]
+pub(crate) async fn read_builtin_profiles(app: AppHandle) -> Result<builtins::Catalog, String> {
+    crate::shutdown::blocking(move || builtins::catalog(&app))
+        .await
+        .map_err(|error| format!("内置档案读取失败：{error:#}"))
+}
+
+#[tauri::command]
+pub(crate) async fn preview_builtin_profile(
+    app: AppHandle,
+    request: builtins::Request,
+) -> Result<builtins::Preview, String> {
+    crate::shutdown::blocking(move || builtins::preview(&app, &request))
+        .await
+        .and_then(|result| result)
+        .map_err(|error| format!("{error:#}"))
+}
+
+#[tauri::command]
+pub(crate) async fn apply_builtin_profile(
+    app: AppHandle,
+    request: builtins::Request,
+    expected: crate::profiles::ProfileFile,
+    expected_mode: Option<crate::powerctl::mode::Target>,
+    expected_display: Option<crate::display::profile::Review>,
+) -> Result<Application, String> {
+    crate::shutdown::blocking(move || {
+        builtins::apply(
+            app,
+            &request,
+            &expected,
+            expected_mode.as_ref(),
+            expected_display.as_ref(),
+        )
+    })
+    .await
+    .and_then(|result| result)
+    .map_err(|error| format!("{error:#}"))
 }
 
 #[tauri::command]

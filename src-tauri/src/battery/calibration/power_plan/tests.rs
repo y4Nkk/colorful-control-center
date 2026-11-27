@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::BTreeSet};
 
 const BEFORE: &str = "381b4222-f694-41f0-9685-ff5bb260df2e";
 fn target() -> String {
-    format(owned("1234567890abcdef1234567890abcdef").unwrap())
+    crate::hal::power_plan::format_guid(owned("1234567890abcdef1234567890abcdef").unwrap())
 }
 struct Memory {
     active: RefCell<String>,

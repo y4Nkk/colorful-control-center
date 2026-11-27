@@ -140,9 +140,13 @@ fn display_is_kept_before_mux_and_cancellation_sends_no_choice() {
         assert!(report.pending.is_some());
         assert!(h.f.graphics_mode.io.0.lock().unwrap().sent.is_empty());
         let report = if keep {
-            h.application.keep(h.runtime(false), report.id).unwrap()
+            h.application
+                .keep(&h.f.hal, &h.f.gpu, h.f.devices(), report.id)
+                .unwrap()
         } else {
-            h.application.cancel(h.runtime(false), report.id).unwrap()
+            h.application
+                .cancel(&h.f.hal, &h.f.display.controller, report.id)
+                .unwrap()
         };
         assert_eq!(report.targets_applied, keep);
         assert_eq!(
@@ -159,7 +163,10 @@ fn source_change_during_display_trial_restores_displays_and_prevents_mux() {
     let display = h.display();
     let report = h.begin(false, Some(&display), Some(&h.review));
     h.f.graphics_mode.io.0.lock().unwrap().identity.boot = "2".repeat(32);
-    let report = h.application.keep(h.runtime(false), report.id).unwrap();
+    let report = h
+        .application
+        .keep(&h.f.hal, &h.f.gpu, h.f.devices(), report.id)
+        .unwrap();
     assert!(!report.targets_applied && report.pending.is_none());
     assert!(h.f.graphics_mode.io.0.lock().unwrap().sent.is_empty());
     assert!(

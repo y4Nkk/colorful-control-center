@@ -23,8 +23,9 @@ async function openExplanation(page) {
 
 test("预览两类计划动作和一次性效果，不虚构比例", async ({ page }) => {
   await openActionDetails(page);
-  await expect(facts(page)).toContainText("低电量：睡眠");
-  await expect(facts(page)).toContainText("严重电量：休眠");
+  const actions = facts(page).locator("dl[aria-label='电池计划动作']");
+  await expect(actions.locator("dt")).toHaveText(["低电量", "严重电量"]);
+  await expect(actions.locator("dd")).toHaveText(["睡眠", "休眠"]);
   const explanation = await openExplanation(page);
   await expect(explanation).toContainText("本软件不会自动把它唤醒");
   await close(explanation);

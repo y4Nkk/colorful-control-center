@@ -15,8 +15,8 @@ export function ProfileBatteryPreview({ settings }: { settings: ProfileSettings 
       <div className="ccc-profile-values"><h3 className="ccc-icon-title"><Icon name="charging" />充电保护</h3><strong>{charge.values.enabled ? "启用阈值控制" : "关闭阈值控制"}</strong>
       </div>
       {charge.values.enabled ? <div className="ccc-profile-thresholds">
-        <MetricReadout label="开始充电阈值" value={charge.values.start} maximum={100} unit="%" colorVar="var(--ccc-action)" />
-        <MetricReadout label="停止充电阈值" value={charge.values.stop} maximum={100} unit="%" colorVar="var(--ccc-safe)" />
+        <MetricReadout label="开始充电阈值" value={charge.values.start} maximum={100} unit="%" />
+        <MetricReadout label="停止充电阈值" value={charge.values.stop} maximum={100} unit="%" colorVar="var(--ccc-chart-teal)" />
       </div> : <FactList compact facts={[{ label: "原始开始阈值", value: `${charge.values.start}%` }, { label: "原始停止阈值", value: `${charge.values.stop}%` }]} />}
     </Surface>}
     {energy && policy && <Surface as="section" variant="group" className="ccc-profile-device" aria-label={`档案${ENERGY_POLICY_LABEL}`}>

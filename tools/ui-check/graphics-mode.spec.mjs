@@ -15,7 +15,7 @@ test("四种显卡模式以不同的 SVG 通路示意，宽窄窗保留标签和
     const routes = art.locator("[data-routes]");
     await expect(routes.locator(":scope > path")).toHaveCount(count);
     if (label === "动态切换") await expect(routes).toHaveAttribute("stroke-dasharray", ".1 5.5");
-    // 实心挖空字形只属于选中项里位于通路上的 GPU。
+    // 强调填充只属于选中项里位于通路上的 GPU。
     await expect(art.locator("[data-solid]")).toHaveCount(label === "混合显卡" ? 2 : 0);
   }
   for (const [width, theme] of [[1440, "light"], [360, "dark"]]) {

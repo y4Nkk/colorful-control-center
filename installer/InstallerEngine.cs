@@ -42,7 +42,11 @@ namespace ColorfulControlCenter.Installer
                             return false;
                         }
                         progress.Report(new InstallProgress { Phase = "正在关闭控制台，等待安装文件解除占用…" });
-                        await ReleaseController(request, log);
+                        if (!await ReleaseController(request, log))
+                        {
+                            log.WriteLine("User canceled administrator authorization.");
+                            return false;
+                        }
                         code = await InstallFiles(engine, request, progress, log);
                     }
                     if (code != 0) throw new EngineExitFailure(code);
@@ -74,9 +78,9 @@ namespace ColorfulControlCenter.Installer
             return code;
         }
 
-        private static async Task ReleaseController(InstallationRequest request, StreamWriter log)
+        private static async Task<bool> ReleaseController(InstallationRequest request, StreamWriter log)
         {
-            try { await Task.Run(() => ControllerShutdown.ReleaseExecutable(request.Directory, log.WriteLine)); }
+            try { return await Task.Run(() => ControllerShutdown.ReleaseExecutable(request.Directory, log.WriteLine)); }
             catch (Exception error) { throw new IOException(EngineExitFailure.ControllerExitInstructions, error); }
         }
 

@@ -1,6 +1,6 @@
 # EC 差异取证与原厂通道
 
-当前应用通过原厂 InsydeDCHU 命令读取温度、RPM、占空比并设置固件曲线。双风扇不需要猜测 GPU EC 地址。主协议和能力判断见 [OEM 契约](../../docs/oem-dchu-contract.md)。
+当前应用通过原厂 InsydeDCHU 命令读取温度、RPM、风扇强度并设置固件曲线。双风扇不需要猜测 GPU EC 地址。主协议和能力判断见 [OEM 契约](../../docs/oem-dchu-contract.md)。
 
 本轮不在机器上执行 EC 探测。`ec-diff.mjs` 只分析已有文件；下面的采集过程供另行安排真机验收时使用，不是应用运行的前置步骤。
 
@@ -8,7 +8,7 @@
 
 1. 记录机型、主板、BIOS、OEM 软件版本、采集工具版本、环境温度及负载；先保存 OEM 当前设置。
 2. 在同一负载下保存原状态 A 的完整 `ec-probe dump`，只在 OEM UI 改一项得到状态 B，保存完整快照；不得同时运行多个 EC 控制程序。
-3. 用 OEM UI 恢复 A，再重复一次 A→B；每次采集对应的 OEM/HWiNFO 温度、RPM、占空比及时间戳。风扇控制与 RPM 读数的证据分开记录。
+3. 用 OEM UI 恢复 A，再重复一次 A→B；每次采集对应的 OEM/HWiNFO 温度、RPM、风扇强度及时间戳。风扇控制与 RPM 读数的证据分开记录。
 4. 最后通过 OEM UI 恢复原设置。不要执行 `ec-probe write/load`，也不要用上一代 X15 AT22 的表盲写本机。
 
 ## 离线比较

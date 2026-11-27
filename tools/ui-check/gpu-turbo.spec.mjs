@@ -3,6 +3,8 @@ import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
 const panel = page => page.getByRole("region", { name: "原厂热键与屏显", exact: true });
 const facts = page => page.getByRole("region", { name: "原厂 GPU Turbo 事实与预览", exact: true });
+const value = (page, group, label) => facts(page).locator(`dl[aria-label='${group}'] > div`)
+  .filter({ has: page.getByText(label, { exact: true }) }).locator("dd");
 const editor = page => page.getByRole("dialog", { name: "配置热键与屏显", exact: true });
 const scope = page => editor(page).getByRole("checkbox", { name: "原厂 GPU Turbo", exact: true });
 const edit = page => panel(page).getByRole("button", { name: "配置热键", exact: true }).click();
@@ -32,10 +34,10 @@ test("授权前展示当前显卡与全部模式目标，选择范围不写入",
   await scope(page).check();
   await done(page);
   await details(page);
-  await expect(facts(page)).toContainText("图形锁频：1700 MHz");
-  await expect(facts(page)).toContainText("关闭：锁频 650 MHz · 偏移保持");
-  await expect(facts(page)).toContainText("性能 · 电池锁频保持 · GPU 1 核心 0 / 显存 0 MHz");
-  await expect(facts(page)).toContainText("静音增强锁频保持 · 偏移保持");
+  await expect(value(page, "当前显卡参数", "图形锁频").locator("strong")).toHaveText("1700 MHz");
+  await expect(value(page, "各模式的 GPU Turbo 目标", "关闭")).toHaveText("锁频 650 MHz · 偏移保持");
+  await expect(value(page, "各模式的 GPU Turbo 目标", "性能 · 电池")).toHaveText("锁频保持 · GPU 1 核心 0 / 显存 0 MHz");
+  await expect(value(page, "各模式的 GPU Turbo 目标", "安静")).toContainText("锁频 700 MHz");
   await facts(page).getByRole("button", { name: "锁频与恢复说明", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "锁频与恢复说明", exact: true })).toContainText("会同时解除第二个频率域");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
@@ -75,14 +77,14 @@ test("某个模式超过驱动范围时在授权前展示具体原因", async ({
 
 test("初始锁频和偏移预览后独立恢复，停止监听并保留策略", async ({ page }) => {
   await initial(page);
-  await expect(facts(page)).toContainText("图形锁频：1700 MHz → 900 MHz");
+  await expect(value(page, "恢复锁频与偏移", "图形锁频")).toHaveText("1700 MHz → 900 MHz");
   await expect(facts(page)).toContainText("核心 100 MHz → 10 MHz · 显存 -1 MHz → 20 MHz");
   const restore = await previewHotkeyRestore(page, "初始 GPU 状态");
   expect(await calls(page, "restore_gpu_turbo")).toEqual([]);
   await restore.getByRole("button", { name: "确认恢复", exact: true }).click();
   expect((await calls(page, "restore_gpu_turbo"))[0].args).toEqual({ expectedRevision: "gpu-restore-0" });
   await openHotkeyDetails(page);
-  await expect(facts(page)).toContainText("图形锁频：900 MHz");
+  await expect(value(page, "当前显卡参数", "图形锁频")).toHaveText("900 MHz");
   await page.keyboard.press("Escape");
   await expect(panel(page).getByRole("status")).toContainText("已停止监听");
   await edit(page);

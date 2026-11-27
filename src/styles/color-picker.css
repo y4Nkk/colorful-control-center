@@ -4,14 +4,18 @@
   inline-size: var(--ccc-space-5);
   block-size: var(--ccc-space-5);
   border: var(--ccc-border);
-  border-radius: calc(var(--ccc-radius-control) - var(--ccc-space-1));
+  border-radius: var(--ccc-radius-inline);
+  overflow: hidden;
 }
 .ccc-color-swatch[data-fill] { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; border: 0; border-radius: inherit; }
 .ccc-color-swatch[data-dimmed] { opacity: 0.25; }
+.ccc-rgb-spectrum { display: block; width: 100%; height: 100%; pointer-events: none; }
 
 .ccc-color-picker-trigger { border: var(--ccc-border); background: var(--ccc-content); }
 .ccc-color-picker-trigger:not([data-size="icon"]) { justify-self: start; padding-inline: var(--ccc-space-3); }
-.ccc-color-picker-trigger:is(:hover:enabled, [aria-expanded="true"]) { border-color: var(--ccc-action); }
+.ccc-color-picker-trigger:enabled:is(:hover, [aria-expanded="true"]) { border-color: var(--ccc-action-ink); }
+.ccc-color-picker-trigger:hover:enabled { background: var(--ccc-control-hover); }
+.ccc-color-picker-trigger:enabled:is(:active, [aria-expanded="true"]) { background: var(--ccc-control-press); }
 .ccc-color-picker-panel {
   position: fixed;
   position-anchor: auto;
@@ -30,7 +34,6 @@
   border-radius: var(--ccc-radius-card);
   color: var(--ccc-text);
   background: var(--ccc-content);
-  box-shadow: var(--ccc-overlay-shadow), var(--ccc-overlay-highlight);
   overflow: auto;
   overscroll-behavior: contain;
 }
@@ -38,17 +41,16 @@
 
 .ccc-color-picker-header { display: flex; justify-content: space-between; align-items: center; gap: var(--ccc-space-2); margin-block-end: var(--ccc-space-2); }
 .ccc-color-picker-header h3 { margin: 0; font-size: var(--ccc-text-md); overflow-wrap: anywhere; }
-.ccc-color-picker-header h3:focus-visible { box-shadow: none; }
 .ccc-color-picker-editor { display: grid; gap: var(--ccc-space-1); }
 .ccc-color-picker-plane {
   position: relative;
   aspect-ratio: 2 / 1;
   border-radius: var(--ccc-radius-control);
-  background: linear-gradient(to top, var(--ccc-color-black), transparent),
-    linear-gradient(to right, var(--ccc-color-white), transparent), hsl(var(--picker-hue) 100% 50%);
+  overflow: hidden;
   touch-action: none;
   cursor: crosshair;
 }
+.ccc-color-picker-plane > svg { position: absolute; inset: 0; }
 .ccc-color-picker-marker {
   position: absolute;
   left: clamp(var(--ccc-space-2), var(--picker-saturation), calc(100% - var(--ccc-space-2)));
@@ -58,7 +60,7 @@
   transform: translate(-50%, -50%);
   border: 2px solid var(--ccc-color-white);
   border-radius: var(--ccc-radius-full);
-  box-shadow: 0 0 0 var(--ccc-border-width) var(--ccc-color-black);
+  outline: var(--ccc-border-width) solid var(--ccc-color-black);
   pointer-events: none;
 }
 .ccc-color-picker-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.2fr); gap: var(--ccc-space-2); }

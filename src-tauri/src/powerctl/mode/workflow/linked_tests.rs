@@ -88,11 +88,14 @@ fn preset_without_fan_memory_leaves_mode_and_offset_to_firmware() {
         state.pages[4][9] = 1;
         state.fan_mode = 8;
         state.offset_raw = 0x4c;
-        state.ignore_fan_write = true;
+        state.ignored_fan_writes = 2;
     }
     let _gate = f.hal.begin_write().unwrap();
     let plan = checkpoint(&f.hal, 0).unwrap();
-    assert_eq!(plan.target.fan, fanctl::ModePolicy::Firmware { saved_mode: 0 });
+    assert_eq!(
+        plan.target.fan,
+        fanctl::ModePolicy::Firmware { saved_mode: 0 }
+    );
     plan.execute_linked(
         &f.hal,
         &mut || Ok(()),
@@ -111,12 +114,148 @@ fn preset_without_fan_memory_leaves_mode_and_offset_to_firmware() {
         assert_eq!(state.fan_command, None);
         assert_eq!(state.offset_raw, 0x4c);
         assert_eq!((state.pages[4][5], state.pages[4][7]), (0, 40));
-        state.ignore_fan_write = false;
+        state.ignored_fan_writes = 0;
     }
     let entertainment = checkpoint(&f.hal, 3).unwrap();
-    assert_eq!(entertainment.target.fan, fanctl::ModePolicy::explicit(8, 0, None));
+    assert_eq!(
+        entertainment.target.fan,
+        fanctl::ModePolicy::explicit(8, 0, None)
+    );
     entertainment.execute(&f.hal).unwrap();
     assert_eq!(f.device.0.lock().unwrap().fan_command, Some(8));
+}
+
+#[test]
+fn firmware_managed_preset_does_not_depend_on_the_post_command_fan_bitmap() {
+    let f = setup();
+    {
+        let mut state = f.device.0.lock().unwrap();
+        state.bios[20] = 1;
+        state.pages[4][5] = 8;
+        state.fan_readbacks_on_preset = [0x80; 8].into();
+    }
+    let _gate = f.hal.begin_write().unwrap();
+    let plan = checkpoint(&f.hal, 0).unwrap();
+    assert_eq!(
+        plan.target.fan,
+        fanctl::ModePolicy::Firmware { saved_mode: 0 }
+    );
+    plan.execute(&f.hal).unwrap();
+    let state = f.device.0.lock().unwrap();
+    assert_eq!((state.pages[1][1], state.pages[4][5]), (0, 0));
+    assert_eq!(state.fan_command, None);
+    assert_eq!(state.fan_readbacks.len(), 8);
+}
+
+#[test]
+fn explicit_preset_waits_for_a_known_mode_then_confirms_its_exact_target() {
+    let f = setup();
+    {
+        let mut state = f.device.0.lock().unwrap();
+        state.fan_mode = 2;
+        state.pages[4][73] = 0;
+        state.fan_readbacks_on_preset = [0x80, 0x08].into();
+        state.fan_readbacks_on_commands = [[0x80, 0x02].into()].into();
+    }
+    let _gate = f.hal.begin_write().unwrap();
+    checkpoint(&f.hal, 3).unwrap().execute(&f.hal).unwrap();
+    assert!(position(&f, "MODE:3") < position(&f, "FAN_MODE:0"));
+    assert!(position(&f, "FAN_MODE:0") < position(&f, "PAGE4:5:"));
+    let state = f.device.0.lock().unwrap();
+    assert_eq!(
+        (state.pages[1][1], state.fan_mode, state.pages[4][5]),
+        (3, 0, 0)
+    );
+    assert!(state.fan_readbacks.is_empty());
+}
+
+#[test]
+fn an_explicit_preset_cannot_save_two_early_matches_that_revert_to_silent() {
+    let f = setup();
+    {
+        let mut state = f.device.0.lock().unwrap();
+        state.fan_mode = 2;
+        state.pages[4][5] = 8;
+        state.pages[4][73] = 0;
+        state.ignored_fan_writes = 1;
+        state.fan_readbacks_on_commands = [[0x02, 0x02].into()].into();
+    }
+    let _gate = f.hal.begin_write().unwrap();
+    let error = checkpoint(&f.hal, 3).unwrap().execute(&f.hal).unwrap_err();
+    assert!(error.to_string().contains("已恢复写入前状态"), "{error}");
+    let state = f.device.0.lock().unwrap();
+    assert!(!state.events.iter().any(|e| e == "PAGE4:5:[0]"));
+    assert_eq!((state.fan_mode, state.pages[4][5]), (2, 8));
+}
+
+#[test]
+fn a_preset_rollback_reasserts_the_original_fan_after_a_stale_matching_read() {
+    let f = setup();
+    f.device.0.lock().unwrap().fan_mode = 1;
+    let _gate = f.hal.begin_write().unwrap();
+    let plan = checkpoint(&f.hal, 3).unwrap();
+    let failure = plan.execute_linked(
+        &f.hal,
+        &mut || Ok(()),
+        &mut |_| {
+            let mut state = f.device.0.lock().unwrap();
+            state.fan_mode = 2;
+            state.fan_readbacks_on_preset = [0x10; 8].into();
+            bail!("关联步骤失败")
+        },
+        &mut |_| Ok(()),
+        &mut || Ok(()),
+    );
+    let error = failure.unwrap_err().to_string();
+    assert!(
+        error.contains("关联步骤失败") && error.contains("已恢复写入前状态"),
+        "{error}"
+    );
+    let state = f.device.0.lock().unwrap();
+    assert_eq!((state.fan_mode, state.fan_command), (1, Some(1)));
+}
+
+#[test]
+fn persistent_unknown_before_the_preset_fan_command_restores_the_previous_mode() {
+    let f = setup();
+    {
+        let mut state = f.device.0.lock().unwrap();
+        state.fan_mode = 2;
+        state.fan_readbacks_on_preset = [0x80; 8].into();
+    }
+    let _gate = f.hal.begin_write().unwrap();
+    let error = checkpoint(&f.hal, 3)
+        .unwrap()
+        .execute(&f.hal)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("读取预设切换后的即时风扇档位"), "{error}");
+    assert!(
+        error.contains("cmd13[14]") && error.contains("0x80"),
+        "{error}"
+    );
+    assert_eq!(error.matches("已恢复写入前状态").count(), 1, "{error}");
+    let state = f.device.0.lock().unwrap();
+    assert_eq!(state.pages[1][1], 2);
+    assert_eq!(state.fan_command, Some(2));
+    assert_eq!(
+        state
+            .events
+            .iter()
+            .filter(|event| event.starts_with("FAN_MODE:"))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn unknown_original_fan_mode_cannot_become_a_rollback_target() {
+    let f = setup();
+    f.device.0.lock().unwrap().fan_readbacks = [0x80].into();
+    let _gate = f.hal.begin_write().unwrap();
+    let error = checkpoint(&f.hal, 3).err().expect("原始档位不能确认");
+    assert!(format!("{error:#}").contains("0x80"));
+    assert!(f.device.0.lock().unwrap().events.is_empty());
 }
 
 #[test]

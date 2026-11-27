@@ -91,15 +91,19 @@ test("部分失败保留原值，驱动更换后拒绝恢复", async ({ page }) 
   await expect(power(page)).toBeDisabled();
 });
 
-test("未知字段禁用节能，不适用补丁和无能力模块隐藏", async ({ page }) => {
+test("未知字段禁用节能，无适用设备或固件能力时保留卡片状态", async ({ page }) => {
   await expect(power(page)).toBeEnabled();
   await page.evaluate(() => { const lan = window.__uiFixture.lan; lan.frame.devices[0].values.powerSavingMode = { kind: 4, bytes: [1, 0, 0, 0] }; lan.frame.devices[0].values.wakeOnSlot = null; lan.revision = "unknown"; });
   await panel(page).getByRole("button", { name: "重新读取网络策略", exact: true }).click();
   await expect(power(page)).toBeDisabled();
   await expect(wake(page)).toHaveCount(0);
+  await page.evaluate(() => { window.__uiFixture.lan.frame.devices = []; });
+  await panel(page).getByRole("button", { name: "重新读取网络策略", exact: true }).click();
+  await expect(panel(page).getByRole("status")).toHaveText("未检测到可用网卡。");
   await page.evaluate(() => { window.__uiFixture.lan = null; });
   await panel(page).getByRole("button", { name: "重新读取网络策略", exact: true }).click();
-  await expect(panel(page)).toHaveCount(0);
+  await expect(panel(page).getByRole("status")).toHaveText("固件未声明网络驱动策略。");
+  await expect(power(page)).toHaveCount(0);
   expect(await writes(page)).toHaveLength(0);
 });
 

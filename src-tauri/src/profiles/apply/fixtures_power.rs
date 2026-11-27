@@ -37,6 +37,12 @@ impl crate::hal::power_plan::PowerAccess for Device {
     fn schemes(&self) -> anyhow::Result<Vec<u128>> {
         Ok(self.0.lock().unwrap().plan_values.keys().copied().collect())
     }
+    fn scheme_name(&self, _: u128) -> anyhow::Result<String> {
+        anyhow::bail!("档案测试未注入计划名称")
+    }
+    fn check_active_scheme_write(&self) -> anyhow::Result<()> {
+        anyhow::bail!("档案测试未注入计划切换权限")
+    }
     fn usb(&self, scheme: u128) -> anyhow::Result<[u32; 2]> {
         self.0
             .lock()

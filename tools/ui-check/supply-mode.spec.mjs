@@ -191,6 +191,9 @@ test("恢复完整预览展示稀疏风扇模式、计划、独显与原始精�
   await setup(page, view);
   const review = await previewConfiguration(page, "原厂供电模式", true);
   const recovery = review.getByLabel("原厂模式初始恢复预览", { exact: true });
+  const plan = recovery.locator("dl[aria-label='PCIe 节能变更']").first();
+  await expect(plan.locator("dt")).toHaveText(["插电", "电池"]);
+  await expect(plan.locator("dd")).toHaveText([/→/, /→/]);
   for (const text of ["性能 → 娱乐", "静音 → 寂静模式", "5% → 0%", "高性能计划", "平衡计划", "节能计划", "电脑节能等级 0 → 电脑节能等级 2", "自动关断允许", "开启独显后取得", "-12.5 MHz", "987.654 MHz"]) {
     await expect(recovery).toContainText(text);
   }
@@ -246,10 +249,11 @@ test("离页期间不读状态，返回后丢弃旧结果并重读；后台通�
   expect(await page.evaluate(() => window.__supplyMaxReading)).toBe(1);
 });
 
-test("无原厂能力时隐藏模块，不发送策略写入", async ({ page }) => {
+test("无原厂能力时显示状态，不发送策略写入", async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC }); await page.goto("/"); await openPowerArea(page, "电源设置");
   await expect.poll(async () => (await calls(page, "read_oem_supply_mode")).length).toBeGreaterThan(0);
-  await expect(card(page)).toHaveCount(0);
+  await expect(card(page).getByRole("status")).toHaveText("当前设备未提供原厂供电模式。");
+  await expect(card(page).getByRole("switch")).toHaveCount(0);
   expect(await calls(page, "enable_oem_supply_mode")).toEqual([]);
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });

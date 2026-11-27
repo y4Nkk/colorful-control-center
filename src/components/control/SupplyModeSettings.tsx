@@ -1,5 +1,6 @@
 import { OEM_POWER_MODES } from "../../api/client";
 import { Icon } from "../Icon";
+import { Loading } from "../Loading";
 import { Button } from "../Button";
 import { ConfigurationAction } from "../ConfigurationAction";
 import { ConfirmButton } from "../ConfirmButton";
@@ -11,8 +12,9 @@ import { useSupplyMode } from "./useSupplyMode";
 
 export function SupplyModeSettings({ active, revision, onSettled }: { active: boolean; revision: number; onSettled: () => void }) {
   const p = useSupplyMode(active, revision, onSettled), { view } = p;
-  if (view && !view.review && !view.recovery && !view.canRestore && !view.blockedReason && !view.error && !p.error) return null;
-  const status = view?.sleeping ? "等待唤醒" : view?.enabled && !view.active ? "已暂停" : !view && !p.error ? "读取中…" : null;
+  const unavailable = view && !view.review && !view.active && !view.recovery && !view.canRestore && !view.blockedReason && !view.error && !p.error;
+  const reading = !view && !p.error;
+  const status = view?.sleeping ? "等待唤醒" : view?.enabled && !view.active ? "已暂停" : null;
   const issues = Array.from(new Set([view?.blockedReason, p.error, view?.error, view?.issue, view?.recoveryError].filter(Boolean)));
   const mutating = p.busy || p.pausing;
   const review = view?.review;
@@ -30,11 +32,11 @@ export function SupplyModeSettings({ active, revision, onSettled }: { active: bo
       </div>
     </div>
     {review && <p className="ccc-control-caption">当前模式 · {OEM_POWER_MODES[review.currentMode] ?? "未知"}</p>}
-    <div className="ccc-keyboard-setting">
-      <div><strong>按供电自动切换</strong>{status && <p className="ccc-control-caption" role="status">{status}</p>}</div>
+    {unavailable ? <p className="ccc-control-caption" role="status">当前设备未提供原厂供电模式。</p> : <div className="ccc-keyboard-setting">
+      <div><strong>按供电自动切换</strong>{reading ? <Loading label="正在读取…" /> : status && <p className="ccc-control-caption" role="status">{status}</p>}</div>
       <Switch label="启用原厂自动切换" disabled={mutating || !view?.active && !canStart} checked={!!view?.active} onChange={toggle} />
-    </div>
-    {view && !view.listenerOnline && <p className="ccc-control-caption">供电监听未就绪</p>}
+    </div>}
+    {view && !unavailable && !view.listenerOnline && <p className="ccc-control-caption">供电监听未就绪</p>}
     {issues.map(issue => <p key={issue} className="ccc-control-error" role="alert">{issue}</p>)}
     <OemConflictAction issues={issues} disabled={mutating} onClosed={p.reread} />
     {archiveRevision && <div className="ccc-actions">
@@ -44,8 +46,8 @@ export function SupplyModeSettings({ active, revision, onSettled }: { active: bo
       </ConfirmButton>
     </div>}
     {(p.busy || !view && p.error) && <div className="ccc-actions ccc-module-control-end">
-      <Button icon="pause" variant="secondary" size="compact" disabled={p.pausing || (p.busy && p.pauseRequested)}
-        aria-busy={p.pausing} onClick={() => void p.pause()}>{p.pausing ? "正在暂停…" : "暂停自动切换"}</Button>
+      <Button icon="pause" variant="secondary" size="compact" busy={p.pausing} disabled={p.busy && p.pauseRequested}
+        onClick={() => void p.pause()}>{p.pausing ? "正在暂停…" : "暂停自动切换"}</Button>
     </div>}
     {p.busy && p.pauseRequested && <p className="ccc-control-caption" role="status">已暂停后续操作，等待当前操作结束。</p>}
     {view && (

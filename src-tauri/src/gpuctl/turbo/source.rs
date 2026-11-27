@@ -38,7 +38,7 @@ impl SourceIo for Native<'_> {
             let limits = Limits::from_packet(&io.exchange_package(4, &request)?);
             let saved = Offsets::saved(&io.read_settings(5, 16, 8)?).map_err(anyhow::Error::msg)?;
             let mode = io.read_settings(1, 1, 1)?[0];
-            if mode > 4 {
+            if !ccc_core::oem_events::is_power_mode(mode) {
                 bail!("当前 OEM 模式超出已核对范围");
             }
             Ok((caps, limits, saved, mode))

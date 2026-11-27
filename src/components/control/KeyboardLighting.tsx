@@ -8,18 +8,14 @@ import { DetailsDialog } from "../DetailsDialog";
 import { ScaleSlider } from "./ScaleSlider";
 import { KeyboardEffectEditor } from "./KeyboardEffectEditor";
 import { hexOf } from "../../lib/color";
-import { EFFECTS, KEYBOARD_ZONE_NAMES, useKeyboardLighting, usesZoneColors } from "./useKeyboardLighting";
-import { PerkeyLighting } from "./PerkeyLighting";
+import { EFFECTS, KEYBOARD_ZONE_NAMES, usesZoneColors, type useKeyboardLighting } from "./useKeyboardLighting";
 import { KeyboardBacklightVisual } from "./KeyboardBacklightVisual";
 
-export function KeyboardLighting({ active, revision = 0 }: { active: boolean; revision?: number }) {
-  const state = useKeyboardLighting(active, revision);
+export function KeyboardLighting({ state }: { state: ReturnType<typeof useKeyboardLighting> }) {
   const { profile, family, brightness, effect, busy, error, request, run } = state;
   const unsupported = profile?.detectedFamily === "unknown" || profile?.detectedFamily === "none";
   const disabled = busy || !profile?.available || unsupported;
   const nameOf = (value: typeof effect) => EFFECTS.find((item) => item.id === value)?.label ?? "未知灯效";
-  if (profile?.detectedFamily === "perkey") return <PerkeyLighting active={active} revision={revision} />;
-  if (profile?.detectedFamily === "multiZone") return null;
   return <Surface as="section" variant="group" className="ccc-panel ccc-keyboard-panel" aria-label="键盘灯光">
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="lighting" />键盘灯光</h2>
       <div className="ccc-module-tools"><DetailsDialog title="键盘灯诊断" label="详情">
@@ -31,10 +27,7 @@ export function KeyboardLighting({ active, revision = 0 }: { active: boolean; re
       </div>
     </div>
     {error && <p role="alert" className="ccc-control-error">{error}</p>}
-    {!profile?.available ? <>
-      {!profile && !error && <p role="status" className="ccc-control-caption">正在读取键盘灯设置。</p>}
-      {profile?.unavailableReason && <p role="status" className="ccc-control-caption">{profile.unavailableReason}</p>}
-    </> : <>
+    {!profile?.available ? (profile?.unavailableReason && <p role="status" className="ccc-control-caption">{profile.unavailableReason}</p>) : <>
       {unsupported ? <span className="ccc-control-caption is-warn">{profile.detectedFamily === "unknown" ? "未能识别键盘灯类型" : "未检测到键盘背光"}</span> : <>
         {family === "zoneRgb" && <KeyboardEffectEditor effect={effect} setEffect={state.chooseEffect} allColor={state.allColor} setAllColor={state.setAllColor}
           zones={state.zones} setZones={state.setZones} toggleZone={state.toggleZone} brightness={brightness} unavailable={!profile.current}
@@ -69,7 +62,8 @@ export function KeyboardLighting({ active, revision = 0 }: { active: boolean; re
 
 function KeyboardColorFacts({ effect, allColor, zones }: Pick<ReturnType<typeof useKeyboardLighting>, "effect" | "allColor" | "zones">) {
   if (usesZoneColors(effect)) return <FactList compact facts={zones.map((zone, index) => ({
-    label: KEYBOARD_ZONE_NAMES[index], value: `${zone.enabled ? "" : "关闭 · "}${hexOf(zone.color)}`,
+    label: KEYBOARD_ZONE_NAMES[index], icon: "lighting", format: zone.enabled ? "code" : undefined,
+    value: `${zone.enabled ? "" : "关闭 · "}${hexOf(zone.color)}`,
   }))} />;
-  return effect === "solid" ? <FactList compact facts={[{ label: "颜色", value: hexOf(allColor) }]} /> : null;
+  return effect === "solid" ? <FactList compact facts={[{ label: "颜色", icon: "lighting", format: "code", value: hexOf(allColor) }]} /> : null;
 }

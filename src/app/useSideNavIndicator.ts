@@ -14,7 +14,7 @@ export function useSideNavIndicator(list: RefObject<HTMLUListElement | null>, cu
 
     const style = getComputedStyle(node);
     const height = Number.parseFloat(style.getPropertyValue("--ccc-rail-indicator-height"));
-    const duration = Number.parseFloat(style.getPropertyValue("--ccc-motion-rail-indicator"));
+    const duration = Number(style.getPropertyValue("--ccc-motion-rail-indicator-ms"));
     // Fixed-height rows use list-relative layout coordinates, independent of scrolling and zoom.
     const top = row.offsetTop + (row.offsetHeight - height) / 2;
     const target = { top, bottom: top + height };

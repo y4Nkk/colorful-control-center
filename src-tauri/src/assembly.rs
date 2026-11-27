@@ -51,6 +51,7 @@ pub(super) fn setup(app: &tauri::AppHandle) -> Result<()> {
         dir.join(platform::lan::RECORD_NAME),
     ));
     app.manage(fanctl::dust::Controller::default());
+    app.manage(fanctl::custom::Store(dir.join(fanctl::custom::RECORD_NAME)));
     input(app, &dir);
     Ok(())
 }

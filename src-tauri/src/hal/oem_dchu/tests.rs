@@ -1,5 +1,8 @@
 use super::*;
+use std::cell::{Cell, RefCell};
+use std::collections::VecDeque;
 use std::mem::ManuallyDrop;
+use std::time::Duration;
 
 unsafe extern "system" fn integer(command: i32, output: *mut i32) -> i32 {
     unsafe {
@@ -64,6 +67,7 @@ fn fake() -> ManuallyDrop<Dchu> {
         read_settings: read,
         write_settings: write,
         acknowledged_mode: Default::default(),
+        fan_mode_unconfirmed: Default::default(),
         test_entertainment_options: Default::default(),
     })
 }
@@ -77,6 +81,72 @@ fn native_set_returns_the_firmware_result() {
     io.set_data_sub(121, 1, 6).unwrap();
     io.set_u32(39, 3).unwrap();
     io.set_package(14, &[0; 256]).unwrap();
+}
+
+thread_local! {
+    static FAN_READS: RefCell<VecDeque<(Duration, u8)>> = const { RefCell::new(VecDeque::new()) };
+    static FAN_WRITES: Cell<usize> = const { Cell::new(0) };
+}
+
+fn scripted_fan(reads: &[(Duration, u8)]) -> ManuallyDrop<Dchu> {
+    unsafe extern "system" fn mode(command: i32, out: *mut u8) -> i32 {
+        let Some((delay, bits)) = FAN_READS.with_borrow_mut(VecDeque::pop_front) else {
+            return 0;
+        };
+        std::thread::sleep(delay);
+        let mut report = [0u8; 257];
+        report[12] = 2;
+        report[14] = bits;
+        unsafe { std::ptr::copy_nonoverlapping(report.as_ptr(), out, report.len()) };
+        command
+    }
+    unsafe extern "system" fn set_mode(command: i32, _: *const u8, _: i32) -> i32 {
+        FAN_WRITES.set(FAN_WRITES.get() + 1);
+        command
+    }
+    FAN_READS.set(reads.iter().copied().collect());
+    FAN_WRITES.set(0);
+    let mut io = fake();
+    io.get_buf = mode;
+    io.set_data = set_mode;
+    io
+}
+
+#[test]
+fn slow_first_matching_read_cannot_confirm_an_uncertain_fan_restore() {
+    let io = scripted_fan(&[(fan::MODE_CONFIRM_TIMEOUT, 0x08), (Duration::ZERO, 0xff)]);
+    let error = io.force_restore_fan_mode(2).unwrap_err();
+    assert!(format!("{error:#}").contains("0xff"), "{error:#}");
+    assert!(FAN_READS.with_borrow(VecDeque::is_empty));
+    assert_eq!(FAN_WRITES.get(), 1);
+}
+
+#[test]
+fn a_first_target_at_the_deadline_requires_a_second_matching_read() {
+    for (next, confirmed) in [(0x02, false), (0x08, true)] {
+        let io = scripted_fan(&[
+            (Duration::ZERO, 0x02),
+            (fan::MODE_CONFIRM_TIMEOUT, 0x08),
+            (Duration::ZERO, next),
+        ]);
+        let result = io.force_restore_fan_mode(2);
+        assert_eq!(result.is_ok(), confirmed, "{result:#?}");
+        assert!(FAN_READS.with_borrow(VecDeque::is_empty));
+        assert_eq!(FAN_WRITES.get(), 1);
+    }
+}
+
+#[test]
+fn a_slow_first_wrong_read_can_still_establish_a_stable_mismatch_and_retry() {
+    let io = scripted_fan(&[
+        (fan::MODE_CONFIRM_TIMEOUT, 0x08),
+        (Duration::ZERO, 0x08),
+        (Duration::ZERO, 0x02),
+        (Duration::ZERO, 0x02),
+    ]);
+    io.set_fan_mode_verified(0).unwrap();
+    assert!(FAN_READS.with_borrow(VecDeque::is_empty));
+    assert_eq!(FAN_WRITES.get(), 2);
 }
 
 #[test]

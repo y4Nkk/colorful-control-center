@@ -1,4 +1,5 @@
 import { Input } from "../Input";
+import { Tooltip } from "../Tooltip";
 import { useEffect, useRef, useState } from "react";
 import { clampInt, movePoint, pointLimits, type CurveAnchors, type CurveDraft } from "./curve";
 
@@ -10,7 +11,7 @@ export function CurvePointInputs({ anchors, draft, disabled, busy, selected, onS
   onCommit: (edit: PointEdit) => void; onCancel: () => void;
 }) {
   return <div className="ccc-curve-values" role="group" aria-label="曲线数值">
-    <div className="ccc-curve-columns" aria-hidden="true"><span /><span>温度 °C</span><span>占空比 %</span></div>
+    <div className="ccc-curve-columns" aria-hidden="true"><span /><span>温度 °C</span><span>风扇强度 %</span></div>
     {(["p2", "p3"] as const).map((point) => {
       const label = point === "p2" ? "T2" : "T3";
       const temp = point === "p2" ? draft.t2 : draft.t3;
@@ -22,7 +23,7 @@ export function CurvePointInputs({ anchors, draft, disabled, busy, selected, onS
         <strong className="ccc-mono">{label}</strong>
         <PointNumber name={`${label} 温度`} value={temp} {...limits.temp} disabled={disabled} busy={busy}
           onChange={next => onChange(changeTemp(next))} onCommit={next => onCommit(changeTemp(next))} onCancel={onCancel} />
-        <PointNumber name={`${label} 占空比`} value={duty} {...limits.duty} disabled={disabled} busy={busy}
+        <PointNumber name={`${label} 风扇强度`} value={duty} {...limits.duty} disabled={disabled} busy={busy}
           onChange={next => onChange(changeDuty(next))} onCommit={next => onCommit(changeDuty(next))} onCancel={onCancel} />
       </div>;
     })}
@@ -48,22 +49,24 @@ export function PointNumber({ label, name, value, min, max, disabled, busy, onCh
   };
   return <label className="ccc-curve-number">
     {label && <span>{label}</span>}
-    <Input size="compact" type="number" className="ccc-mono" aria-label={name} aria-invalid={invalid}
-      title={`${min}–${max}`} min={min} max={max} step={1} value={text} disabled={disabled}
-      readOnly={busy} aria-disabled={busy && !disabled || undefined} aria-busy={busy && !disabled || undefined}
-      onChange={(event) => {
-        if (busy) return;
-        edited.current = true;
-        const next = event.target.value;
-        setText(next);
-        const numeric = Number(next);
-        if (next.trim() && Number.isFinite(numeric) && numeric >= min && numeric <= max)
-          onChange(Math.round(numeric));
-      }}
-      onBlur={commit}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") { event.preventDefault(); commit(); }
-        if (event.key === "Escape") { event.preventDefault(); cancel(); }
-      }} />
+    <Tooltip content={`${min}–${max}`}>
+      <Input size="compact" type="number" className="ccc-mono" aria-label={name} aria-invalid={invalid}
+        min={min} max={max} step={1} value={text} disabled={disabled}
+        readOnly={busy} aria-disabled={busy && !disabled || undefined} aria-busy={busy && !disabled || undefined}
+        onChange={(event) => {
+          if (busy) return;
+          edited.current = true;
+          const next = event.target.value;
+          setText(next);
+          const numeric = Number(next);
+          if (next.trim() && Number.isFinite(numeric) && numeric >= min && numeric <= max)
+            onChange(Math.round(numeric));
+        }}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") { event.preventDefault(); commit(); }
+          if (event.key === "Escape") { event.preventDefault(); cancel(); }
+        }} />
+    </Tooltip>
   </label>;
 }

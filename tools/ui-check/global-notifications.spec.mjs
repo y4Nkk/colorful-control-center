@@ -15,14 +15,14 @@ test("启动显示选项和原厂退出开关使用同一软件偏好", async ({
   await expect(window).toBeChecked();
   await expect(close).toBeChecked();
   await expect(page.getByText(/最小化到托盘时也生效/)).toBeVisible();
-  await tray.check();
+  await tray.click();
   await expect(tray).toBeChecked();
-  await close.uncheck();
+  await close.click();
   await expect(close).not.toBeChecked();
   await expect(trigger(page)).toContainText("已保存启动显示方式");
-  await window.check();
+  await window.click();
   await expect(window).toBeChecked();
-  await close.check();
+  await close.click();
   await expect(close).toBeChecked();
   const saved = await page.evaluate(() => window.__uiFixture.calls.filter(call => call.command === "set_app_preferences")
     .map(({ args: { settings } }) => [settings.startMinimized, settings.closeOemOnStartup]));
@@ -42,8 +42,10 @@ test("标题栏保留原厂启动结果，支持键盘展开、逐条关闭和�
   await expect(trigger(page)).toContainText("启动时未完全退出原厂软件");
   await page.clock.fastForward(12_000);
   await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page.getByRole("radiogroup", { name: "启动时显示", exact: true })
-    .getByRole("radio", { name: "最小化到托盘" }).check();
+  const tray = page.getByRole("radiogroup", { name: "启动时显示", exact: true })
+    .getByRole("radio", { name: "最小化到托盘" });
+  await tray.click();
+  await expect(tray).toBeChecked();
   await expect(trigger(page)).toHaveAccessibleName("通知（2 条）");
   await trigger(page).focus();
   await page.keyboard.press("Enter");

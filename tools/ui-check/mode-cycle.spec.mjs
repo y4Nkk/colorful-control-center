@@ -50,7 +50,7 @@ test("关闭独显时不补造频率，驱动预检错误保留事实并禁用�
   await expect(preview(page).getByText("开启独显后再读取频率", { exact: true })).toBeVisible();
   const recovery = preview(page).getByRole("region", { name: "设备与恢复说明", exact: true });
   await expect(recovery).toContainText("独显已关闭；驱动范围和实际频率");
-  await expect(preview(page).getByText(/^图形锁频：/)).toHaveCount(0);
+  await expect(preview(page).getByText("图形锁频", { exact: true })).toHaveCount(0);
   await page.evaluate(() => {
     const data = window.__uiFixture;
     data.hotkeys.facts.modeCycle.clocks.driverError = "隔离驱动范围不可用";
@@ -106,8 +106,10 @@ test("模式循环宽窄及深浅布局保留左右模块边框", async ({ page 
       const box = card.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width, border: parseFloat(getComputedStyle(card).borderTopWidth) };
     }));
     expect(boxes).toHaveLength(2); expect(boxes.every(box => box.border > 0)).toBeTruthy();
-    const artwork = preview(page).locator("svg[data-mode-art]");
+    const artwork = preview(page).locator("svg.ccc-mode-art");
     await expect(artwork).toHaveCount(4);
+    for (const palette of ["quiet", "eco", "performance", "entertainment"])
+      await expect(artwork.and(page.locator(`[data-preset-palette="${palette}"]`))).toHaveAttribute("viewBox", "0 0 24 24");
     const sizes = await artwork.evaluateAll(items => items.map(svg => svg.getBoundingClientRect().toJSON()));
     expect(sizes.every(size => size.width === 32 && size.height === 32)).toBe(true);
     if (width === 1440) expect(boxes[1].x).toBeGreaterThan(boxes[0].x + boxes[0].width);

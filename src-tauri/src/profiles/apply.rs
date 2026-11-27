@@ -73,7 +73,7 @@ enum ModeReview<'a> {
     Confirmed {
         permission: Option<&'a super::application::Permission>,
         mode: Option<&'a powerctl::mode::Target>,
-        file: Option<(&'a std::path::Path, &'a super::ProfileFile)>,
+        source: Option<(&'a super::application::Source, &'a super::ProfileFile)>,
         display: Option<&'a crate::display::profile::Review>,
         gpu_power: Option<&'a crate::gpu_power::profile::Review>,
         graphics_mode: Option<&'a crate::graphics_mode::profile::Review>,
@@ -167,7 +167,7 @@ pub(crate) fn apply_reviewed(
         ModeReview::Confirmed {
             permission,
             mode: expected_mode,
-            file: None,
+            source: None,
             display: None,
             gpu_power: expected_power,
             graphics_mode: None,
@@ -344,15 +344,13 @@ fn check_authority(review: ModeReview<'_>) -> Result<()> {
         #[cfg(test)]
         ModeReview::Unattended => (),
         ModeReview::Confirmed {
-            permission, file, ..
+            permission, source, ..
         } => {
             if let Some(permission) = permission {
                 permission.check()?;
             }
-            if let Some((dir, expected)) = file {
-                if super::load_from(dir, &expected.name)? != *expected {
-                    bail!("档案已变化，请重新预览后确认");
-                }
+            if let Some((source, expected)) = source {
+                source.check(expected)?;
             }
         }
     }

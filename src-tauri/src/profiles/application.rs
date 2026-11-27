@@ -21,6 +21,25 @@ pub(crate) use app::apply_startup;
 pub use app::{apply_preview, cancel, keep};
 pub(crate) use report::{describe_application, log_application};
 
+#[derive(Clone)]
+pub(super) enum Source {
+    Saved(PathBuf),
+    BuiltIn(Arc<dyn Fn() -> Result<()> + Send + Sync>),
+}
+impl Source {
+    pub(super) fn check(&self, expected: &ProfileFile) -> Result<()> {
+        match self {
+            Self::Saved(dir) => {
+                if super::load_from(dir, &expected.name)? != *expected {
+                    bail!("档案已变化，请重新预览后确认");
+                }
+                Ok(())
+            }
+            Self::BuiltIn(check) => check(),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Origin {
@@ -106,7 +125,7 @@ impl Application {
 struct Pending {
     permission: Option<Permission>,
     id: u64,
-    dir: PathBuf,
+    source: Source,
     file: ProfileFile,
     mode: Option<powerctl::mode::Target>,
     gpu_power: Option<crate::gpu_power::profile::Review>,
@@ -120,7 +139,7 @@ struct State {
     last_startup: Option<Application>,
 }
 impl State {
-    fn start(&mut self, runtime: &Runtime<'_>, reviewed: Reviewed<'_>) -> Result<u64> {
+    fn start(&mut self, origin: Origin, reviewed: Reviewed<'_>) -> Result<u64> {
         self.next_id = self
             .next_id
             .checked_add(1)
@@ -135,16 +154,16 @@ impl State {
         self.report = Some(Application {
             id,
             revision: 1,
-            origin: runtime.origin,
+            origin,
             targets_applied: false,
             name: reviewed.file.name.clone(),
             steps: vec![],
             pending: None,
         });
         self.pending = Some(Pending {
-            permission: runtime.permission.clone(),
+            permission: reviewed.permission.cloned(),
             id,
-            dir: runtime.dir.into(),
+            source: reviewed.source.clone(),
             file: reviewed.file.clone(),
             mode: reviewed.mode.cloned(),
             gpu_power: reviewed.gpu_power.cloned(),
@@ -238,44 +257,52 @@ impl Controller {
         gpu_power: Option<&crate::gpu_power::profile::Review>,
         graphics_mode: Option<&crate::graphics_mode::profile::Review>,
     ) -> Result<Application> {
-        let mut state = self.lock()?;
-        anyhow::ensure!(
-            (runtime.origin != Origin::Manual) == runtime.permission.is_some(),
-            "后台档案来源必须绑定有效授权"
-        );
-        if let Some(permission) = &runtime.permission {
-            permission.check()?;
-        }
-        Self::refresh(&mut state, runtime.devices.display)?;
-        if state.pending.is_some() {
-            bail!("先结束当前档案显示确认或恢复");
-        }
-        let reviewed = Reviewed {
-            permission: runtime.permission.as_ref(),
-            dir: runtime.dir,
-            file,
-            mode,
-            display,
-            gpu_power,
-            graphics_mode,
-        };
-        let id = state.start(&runtime, reviewed)?;
-        let started = review::display_action(
+        let source = Source::Saved(runtime.dir.into());
+        self.begin_reviewed(
+            runtime.origin,
             runtime.hal,
             runtime.gpu,
             runtime.devices,
-            reviewed,
-            DisplayAction::Begin(id),
+            Reviewed {
+                permission: runtime.permission.as_ref(),
+                source: &source,
+                file,
+                mode,
+                display,
+                gpu_power,
+                graphics_mode,
+            },
+        )
+    }
+    pub(super) fn begin_reviewed(
+        &self,
+        origin: Origin,
+        hal: &Hal,
+        gpu: &GpuController,
+        devices: Devices<'_>,
+        reviewed: Reviewed<'_>,
+    ) -> Result<Application> {
+        let mut state = self.lock()?;
+        anyhow::ensure!(
+            (origin != Origin::Manual) == reviewed.permission.is_some(),
+            "后台档案来源必须绑定有效授权"
         );
+        if let Some(permission) = reviewed.permission {
+            permission.check()?;
+        }
+        Self::refresh(&mut state, devices.display)?;
+        if state.pending.is_some() {
+            bail!("先结束当前档案显示确认或恢复");
+        }
+        let id = state.start(origin, reviewed)?;
+        let started = review::display_action(hal, gpu, devices, reviewed, DisplayAction::Begin(id));
         match started {
             Ok(true) => {
-                state.report.as_mut().unwrap().pending = runtime
-                    .devices
-                    .display
-                    .profile_pending(id, display::now_ms())?;
+                state.report.as_mut().unwrap().pending =
+                    devices.display.profile_pending(id, display::now_ms())?;
             }
             Ok(false) => {
-                self.remainder(&mut state, &runtime, reviewed, false)?;
+                self.remainder(&mut state, hal, gpu, devices, reviewed, false)?;
             }
             Err(error) => {
                 state
@@ -284,14 +311,20 @@ impl Controller {
                     .unwrap()
                     .steps
                     .push(step("档案预检与显示试用", Err(error)));
-                self.update_pending(&mut state, runtime.devices.display)?;
+                self.update_pending(&mut state, devices.display)?;
             }
         }
         Ok(state.report.clone().expect("已登记应用结果"))
     }
-    pub(super) fn keep(&self, runtime: Runtime<'_>, id: u64) -> Result<Application> {
+    pub(super) fn keep(
+        &self,
+        hal: &Hal,
+        gpu: &GpuController,
+        mut devices: Devices<'_>,
+        id: u64,
+    ) -> Result<Application> {
         let mut state = self.lock()?;
-        Self::refresh(&mut state, runtime.devices.display)?;
+        Self::refresh(&mut state, devices.display)?;
         let pending = state
             .pending
             .as_ref()
@@ -308,26 +341,19 @@ impl Controller {
             bail!("档案显示试用存在错误，请先恢复本次显示变更");
         }
         state.report.as_mut().unwrap().advance()?;
-        let mut runtime = runtime;
-        runtime.devices.display_owner = Some(id);
+        devices.display_owner = Some(id);
         let reviewed = Reviewed {
             permission: pending.permission.as_ref(),
-            dir: &pending.dir,
+            source: &pending.source,
             file: &pending.file,
             mode: pending.mode.as_ref(),
             display: None,
             gpu_power: pending.gpu_power.as_ref(),
             graphics_mode: pending.graphics_mode.as_ref(),
         };
-        match review::display_action(
-            runtime.hal,
-            runtime.gpu,
-            runtime.devices,
-            reviewed,
-            DisplayAction::Keep(id),
-        ) {
+        match review::display_action(hal, gpu, devices, reviewed, DisplayAction::Keep(id)) {
             Ok(_) => {
-                self.remainder(&mut state, &runtime, reviewed, true)?;
+                self.remainder(&mut state, hal, gpu, devices, reviewed, true)?;
             }
             Err(error) => {
                 state
@@ -336,7 +362,7 @@ impl Controller {
                     .unwrap()
                     .steps
                     .push(step("保留显示与重新预检", Err(error)));
-                self.finish_display(&mut state, &runtime, id, false)?;
+                self.finish_display(&mut state, hal, devices.display, id, false)?;
             }
         }
         Ok(state.report.clone().expect("已有应用结果"))
@@ -344,11 +370,13 @@ impl Controller {
     fn remainder(
         &self,
         state: &mut State,
-        runtime: &Runtime<'_>,
+        hal: &Hal,
+        gpu: &GpuController,
+        devices: Devices<'_>,
         reviewed: Reviewed<'_>,
         retained: bool,
     ) -> Result<()> {
-        let result = review::apply(runtime.hal, runtime.gpu, runtime.devices, reviewed);
+        let result = review::apply(hal, gpu, devices, reviewed);
         let report = state.report.as_mut().expect("已有应用结果");
         match result {
             Ok(outcome) => {
@@ -360,7 +388,7 @@ impl Controller {
         if retained {
             let success = report.targets_applied;
             let id = report.id;
-            self.finish_display(state, runtime, id, success)?;
+            self.finish_display(state, hal, devices.display, id, success)?;
         } else {
             state.pending = None;
         }
@@ -369,15 +397,16 @@ impl Controller {
     fn finish_display(
         &self,
         state: &mut State,
-        runtime: &Runtime<'_>,
+        hal: &Hal,
+        display: &display::Controller,
         id: u64,
         success: bool,
     ) -> Result<()> {
-        let _gate = runtime.hal.begin_write()?;
+        let _gate = hal.begin_write()?;
         let result = if success {
-            runtime.devices.display.release_profile(id)
+            display.release_profile(id)
         } else {
-            runtime.devices.display.cancel_profile(id)
+            display.cancel_profile(id)
         };
         state.report.as_mut().unwrap().steps.push(step(
             if success {
@@ -387,7 +416,7 @@ impl Controller {
             },
             result,
         ));
-        self.update_pending(state, runtime.devices.display)
+        self.update_pending(state, display)
     }
     fn update_pending(&self, state: &mut State, display: &display::Controller) -> Result<()> {
         let id = state.report.as_ref().expect("已有应用结果").id;
@@ -398,9 +427,14 @@ impl Controller {
         state.report.as_mut().unwrap().pending = current;
         Ok(())
     }
-    pub(super) fn cancel(&self, runtime: Runtime<'_>, id: u64) -> Result<Application> {
+    pub(super) fn cancel(
+        &self,
+        hal: &Hal,
+        display: &display::Controller,
+        id: u64,
+    ) -> Result<Application> {
         let mut state = self.lock()?;
-        Self::refresh(&mut state, runtime.devices.display)?;
+        Self::refresh(&mut state, display)?;
         if state.pending.as_ref().map(|pending| pending.id) != Some(id) {
             bail!("档案显示会话已结束或不属于此请求");
         }
@@ -410,7 +444,7 @@ impl Controller {
             "取消档案应用",
             Err(anyhow!("已取消；其余步骤是否执行以结果为准")),
         ));
-        self.finish_display(&mut state, &runtime, id, false)?;
+        self.finish_display(&mut state, hal, display, id, false)?;
         Ok(state.report.clone().unwrap())
     }
 }

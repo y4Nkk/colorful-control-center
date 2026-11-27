@@ -58,6 +58,7 @@ fn tooltip_fan(hal: &Hal) -> Result<&'static str> {
 pub(super) fn menu_controls(app: &AppHandle) -> Controls {
     let read = || -> Result<Controls> {
         let _operation = shutdown::enter().context(shutdown::CLOSING)?;
+        ensure!(crate::startup::ready(app), "应用尚未完成初始化");
         let hal = app.try_state::<Hal>().context("硬件状态尚未初始化")?;
         app.try_state::<crate::display::Controller>()
             .context("显示控制尚未初始化")?;
@@ -88,7 +89,7 @@ fn read_presets(app: &AppHandle, hal: &Hal, blocked: Option<String>) -> Result<P
         let (available, issue) = mode::mode_choices(io)?;
         Ok((mode::current_mode(io)?, available, issue))
     })?;
-    let choices = [1, 0, 3, 2, 4]
+    let choices = [1, 0, 3, 2]
         .into_iter()
         .filter(|mode| available.contains(mode))
         .map(|mode| (mode, MODE_LABELS[usize::from(mode)]))
@@ -117,11 +118,6 @@ fn read_fans(hal: &Hal, blocked: Option<String>) -> Result<Fans> {
     let recovering = hal.fan_recovery_pending();
     let active = match (software || recovering, profile.current_mode) {
         (false, FAN_MODE_AUTO) => Some(FanAction::Auto),
-        (false, FAN_MODE_NOISELESS)
-            if fanctl::automatic_mode(hal).ok() == Some(FAN_MODE_NOISELESS) =>
-        {
-            Some(FanAction::Auto)
-        }
         (false, FAN_MODE_FULL_SPEED) => Some(FanAction::FullSpeed),
         _ => None,
     };
@@ -165,7 +161,7 @@ pub(super) fn dispatch(app: &AppHandle, control: Control) {
     let Some(tray) = app.try_state::<Tray>() else {
         return;
     };
-    if shutdown::closing() || !tray.begin_control() {
+    if shutdown::closing() || !crate::startup::ready(app) || !tray.begin_control() {
         return;
     }
     let app = app.clone();

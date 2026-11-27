@@ -28,7 +28,7 @@ export function BatteryThresholdFacts({ profile }: { profile: BatteryThresholdPr
       <Surface variant="inset" className="ccc-battery-threshold-part">
         <strong>事件目标</strong>
         <div className="ccc-battery-threshold-targets">{targets.map((target, index) =>
-          <MetricReadout key={names[index]} label={names[index]} value={target} maximum={100} unit="%" colorVar="var(--ccc-action)" />)}</div>
+          <MetricReadout key={names[index]} label={names[index]} value={target} maximum={100} unit="%" />)}</div>
         <DetailsDialog title="阈值作用范围"><p>接管后，本软件会把上面的目标写进当前使用的电源计划和电脑上已有的标准电源计划，插电和用电池各设一组。电脑上原本没有的电源计划不会被创建。</p></DetailsDialog>
       </Surface>
     </div>

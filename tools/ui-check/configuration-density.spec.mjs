@@ -4,8 +4,9 @@ import { openWorkspace } from "./workspace.mjs";
 import { previewConfiguration, submitConfiguration } from "./configuration-review.mjs";
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript({ content: MOCK_IPC });
-  await page.addInitScript(() => { window.__uiFixture.calibrationSupported = true; });
+  await page.addInitScript({ content: `${MOCK_IPC}
+    window.__uiFixture.calibrationSupported = true;
+    if (sessionStorage.getItem("standard-account") === "true") window.__uiFixture.administratorAccess = "standard";` });
   await page.goto("/");
 });
 
@@ -35,6 +36,10 @@ for (const { name, leftNeighbor, rightNeighbor, switchCount, systemArea, wideCol
 
 test("配置主位保留控件与状态，详情弹窗且浏览不写硬件", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => {
+    window.__uiFixture.dust = { revision: "dust-0", running: false, current: null, initial: null, softwareActive: false,
+      lastStart: null, startBlockedReason: null, scheduleBlockedReason: null };
+  });
   await openWorkspace(page, "性能与散热");
   const modes = page.getByRole("region", { name: "预设模式", exact: true });
   await expect(modes.getByRole("radio")).toHaveCount(4);
@@ -48,15 +53,8 @@ test("配置主位保留控件与状态，详情弹窗且浏览不写硬件", as
   await expect(artwork).toHaveCSS("pointer-events", "none");
   await expect(modes.locator(".ccc-preset-current")).toHaveText("性能模式");
   const fan = page.getByRole("region", { name: "散热控制", exact: true });
-  const fanInfo = fan.getByRole("button", { name: "说明与诊断", exact: true });
-  await expect(fanInfo).toHaveText("说明与诊断");
-  await expect(fanInfo.locator("svg")).toHaveCount(0);
-  await fanInfo.press("Enter");
-  const fanDetails = page.getByRole("dialog", { name: "风扇说明与诊断", exact: true });
-  await expect(fanDetails.getByRole("heading", { name: "参数说明", exact: true })).toBeVisible();
-  await expect(fanDetails).toContainText("隔离风扇诊断");
-  await page.keyboard.press("Escape");
-  await expect(fanInfo).toBeFocused();
+  await expect(fan.getByRole("region", { name: "整机策略", exact: true })).toHaveAttribute("data-surface", "inset");
+  await expect(fan.getByRole("region", { name: "风扇实况与曲线", exact: true })).toHaveAttribute("data-surface", "inset");
   const cpu = page.getByRole("region", { name: "CPU 功耗与电压", exact: true });
   const gpu = page.getByRole("region", { name: "GPU 频率", exact: true });
   await expect(cpu.getByRole("slider", { name: "持续功耗上限", exact: true })).toBeVisible();
@@ -65,20 +63,67 @@ test("配置主位保留控件与状态，详情弹窗且浏览不写硬件", as
   expect(cpuBox.width).toBeCloseTo(gpuBox.width, 0);
   expect(gpuBox.y).toBeGreaterThan(cpuBox.y + cpuBox.height);
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  const info = cpu.getByRole("button", { name: "说明与诊断", exact: true });
-  await expect(info.locator("svg")).toHaveCount(0);
-  await info.press("Enter");
-  await expect(page.getByRole("dialog", { name: "CPU 参数与诊断", exact: true })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(info).toBeFocused();
+  for (const [panel, name] of [[cpu, "Isolated CPU"], [gpu, "Isolated GPU"]]) {
+    const heading = panel.getByRole("heading", { level: 2 });
+    const hardware = panel.getByText(name, { exact: true });
+    await expect(hardware).toBeVisible();
+    const [titleBox, hardwareBox] = await Promise.all([heading.boundingBox(), hardware.boundingBox()]);
+    const titleTextLeft = await heading.evaluate(element => {
+      const text = document.createRange();
+      text.selectNode(element.lastChild);
+      return text.getBoundingClientRect().left;
+    });
+    expect(hardwareBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height);
+    expect(hardwareBox.x).toBeCloseTo(titleTextLeft, 1);
+  }
+  const dust = page.getByRole("region", { name: "风扇除尘", exact: true });
+  await expect(dust.getByRole("img", { name: "除尘风扇", exact: true })).toBeVisible();
+  const dialogs = [
+    [modes, "模式说明", "预设模式与风扇、电源"],
+    [cpu, "CPU 参数与诊断", "持续功耗上限 · W"],
+    [gpu, "GPU 参数与诊断", "核心频率偏移 · MHz"],
+    [fan, "风扇说明与诊断", "参数说明", "风扇强度与目标转速 · %", "隔离风扇诊断"],
+    [dust, "除尘说明", "除尘由电脑自行完成"],
+  ];
+  for (const width of [1440, 360]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const [panel, title, ...facts] of dialogs) {
+      const info = await expectHeaderInfo(panel, title);
+      if (width === 1440) {
+        await info.hover();
+        await expect(page.getByRole("tooltip", { name: title, exact: true })).toBeVisible();
+        await info.click();
+      } else await info.press("Enter");
+      const dialog = page.getByRole("dialog", { name: title, exact: true });
+      await expect(dialog).toBeVisible();
+      for (const fact of facts) await expect(dialog).toContainText(fact);
+      await page.keyboard.press("Escape");
+      await expect(info).toBeFocused();
+    }
+  }
   await openWorkspace(page, "设备配置");
   const keyboard = page.getByRole("region", { name: "键盘功能", exact: true });
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(keyboard.getByRole("switch", { name: "Fn 锁", exact: true })).toBeVisible();
-  const writes = await page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_|set_|enable_|restore_)/.test(call.command) && call.command !== "set_shortcut_recording"));
+  const writes = await page.evaluate(() => window.__uiFixture.calls.filter(call => /^(apply_|set_|enable_|restore_|start_fan_)/.test(call.command) && call.command !== "set_shortcut_recording"));
   expect(writes).toEqual([]);
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });
+
+async function expectHeaderInfo(panel, title) {
+  const header = panel.locator(".ccc-panel-head");
+  const heading = header.getByRole("heading", { level: 2 });
+  const info = header.getByRole("button", { name: title, exact: true });
+  await expect(panel.locator('button:has(> svg[data-icon="info"])')).toHaveCount(1);
+  await expect(info.locator('svg[data-icon="info"]')).toBeVisible();
+  await expect(info).toHaveText("");
+  await expect(info).toHaveAttribute("data-size", "icon-compact");
+  await expect(info).toHaveAttribute("aria-haspopup", "dialog");
+  const [headerBox, titleBox, infoBox] = await Promise.all([header.boundingBox(), heading.boundingBox(), info.boundingBox()]);
+  expect(infoBox.x + infoBox.width).toBeCloseTo(headerBox.x + headerBox.width, 1);
+  expect(infoBox.y + infoBox.height / 2).toBeCloseTo(titleBox.y + titleBox.height / 2, 1);
+  return info;
+}
 
 test("调校分组随窗口回流，GPU 草稿经预览提交并可恢复", async ({ page }) => {
   await page.evaluate(() => {
@@ -108,6 +153,14 @@ test("调校分组随窗口回流，GPU 草稿经预览提交并可恢复", asyn
   for (const [width, theme] of [[1440, "light"], [360, "dark"]]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+    const sliderSize = await page.evaluate(() => {
+      const tokens = getComputedStyle(document.documentElement);
+      return {
+        track: tokens.getPropertyValue("--ccc-range-track").trim(),
+        thumb: tokens.getPropertyValue("--ccc-range-thumb").trim(),
+        height: tokens.getPropertyValue("--ccc-control-height-compact").trim(),
+      };
+    });
     for (const panel of [cpu, gpu]) {
       const items = await panel.locator(".ccc-tuning-columns > *").evaluateAll(nodes => nodes.map(node => {
         const box = node.getBoundingClientRect();
@@ -116,10 +169,10 @@ test("调校分组随窗口回流，GPU 草稿经预览提交并可恢复", asyn
       expect(items).toHaveLength(2);
       expect(items.every(item => item.left >= 0 && item.right <= width)).toBe(true);
       expect(new Set(items.map(item => item.top)).size).toBe(width === 1440 ? 1 : 2);
-      await expect(panel.locator(".ccc-range-track").first()).toHaveCSS("height", "24px");
-      await expect(panel.locator(".ccc-range-thumb").first()).toHaveCSS("width", "28px");
+      await expect(panel.locator(".ccc-range-track").first()).toHaveCSS("height", sliderSize.track);
+      await expect(panel.locator(".ccc-range-thumb").first()).toHaveCSS("width", sliderSize.thumb);
     }
-    await expect(core).toHaveCSS("height", "32px");
+    await expect(core).toHaveCSS("height", sliderSize.height);
     await cpu.locator("..").screenshot({ path: `target/ui-check/processor-tuning-${theme}-${width}.png` });
   }
   await core.press("ArrowRight");
@@ -140,7 +193,7 @@ test("调校分组随窗口回流，GPU 草稿经预览提交并可恢复", asyn
 test("GPU 调校保留只读偏移，确认后请求管理员重启并可在取消后重试", async ({ page }) => {
   await page.evaluate(() => Object.assign(window.__uiFixture.gpu, {
     coreOffsetMhz: 35, baseline: { coreOffsetMhz: 0, memOffsetMhz: 0 },
-    writeBlock: { reason: "调整或恢复 GPU 偏移需要管理员权限。", canRequestElevation: true },
+    writeBlockedReason: "调整或恢复 GPU 偏移需要管理员权限。",
   }));
   await openWorkspace(page, "性能与散热");
   const gpu = page.getByRole("region", { name: "GPU 频率", exact: true });
@@ -163,9 +216,9 @@ test("GPU 调校保留只读偏移，确认后请求管理员重启并可在取�
   });
   const restarts = () => page.evaluate(() => window.__uiFixture.calls.filter(call => call.command === "restart_as_administrator"));
   const button = gpu.getByRole("button", { name: "以管理员身份重启", exact: true });
-  const dialog = page.getByRole("dialog", { name: "以管理员身份重启", exact: true });
+  const dialog = page.getByRole("dialog", { name: "以管理员运行", exact: true });
   await button.click();
-  await expect(dialog).toContainText("当前 Windows 帐户");
+  await expect(dialog).toContainText("当前 Windows 账户");
   await dialog.getByRole("button", { name: "取消", exact: true }).click();
   expect(await restarts()).toHaveLength(0);
   await button.click();
@@ -180,12 +233,15 @@ test("GPU 调校保留只读偏移，确认后请求管理员重启并可在取�
   await button.click();
   await dialog.getByRole("button", { name: "请求 Windows 授权", exact: true }).click();
   await expect.poll(async () => (await restarts()).length).toBe(2);
+  await expect(button).toBeDisabled();
 });
 
 test("GPU 调校对无法提权的标准账户显示原因并保留只读偏移", async ({ page }) => {
+  await page.evaluate(() => sessionStorage.setItem("standard-account", "true"));
+  await page.reload();
   await page.evaluate(() => Object.assign(window.__uiFixture.gpu, {
     coreOffsetMhz: 35,
-    writeBlock: { reason: "当前 Windows 账户没有可用的管理员权限，请使用管理员账户登录 Windows 后打开应用。", canRequestElevation: false },
+    writeBlockedReason: "当前 Windows 账户没有可用的管理员权限，请使用管理员账户登录 Windows 后打开应用。",
   }));
   await openWorkspace(page, "性能与散热");
   const gpu = page.getByRole("region", { name: "GPU 频率", exact: true });
@@ -219,19 +275,23 @@ for (const readFails of [false, true]) {
     const core = gpu.getByRole("slider", { name: "核心频率偏移" });
     await core.fill("45");
     const preview = await previewConfiguration(page, "GPU 频率");
-    await submitConfiguration(preview);
-    await expect(gpu.getByRole("alert")).toContainText("NVAPI_INVALID_USER_PRIVILEGE (-137)");
-    await expect(gpu.getByRole("alert")).toContainText("回滚失败: NVAPI_ERROR (-1)");
+    const apply = preview.locator("[data-configuration-apply]");
+    const writeError = gpu.getByRole("alert").filter({ hasText: "写入 GPU 频率偏移失败" });
+    await apply.click();
+    await expect(writeError).toContainText("NVAPI_INVALID_USER_PRIVILEGE (-137)");
+    await expect(writeError).toContainText("回滚失败: NVAPI_ERROR (-1)");
     if (readFails) {
-      await expect(gpu).toContainText("无法读取当前偏移 · 隔离回读失败");
-      await expect(core).toHaveCount(0);
-      await expect(preview).toHaveCount(0);
+      await expect(gpu.getByRole("alert").filter({ hasText: "无法读取当前偏移 · 隔离回读失败" })).toBeVisible();
+      await expect(core).toBeVisible();
+      await expect(core).toBeDisabled();
+      await expect(apply).toBeDisabled();
       await gpu.getByRole("button", { name: "重试", exact: true }).click();
     }
+    await expect(core).toBeEnabled();
     await expect(preview).toContainText("25 MHz → 45 MHz");
     await expect(core).toHaveAttribute("aria-valuetext", "45 MHz");
     await expect(gpu.getByRole("slider", { name: "显存频率偏移" })).toHaveAttribute("aria-valuetext", "80 MHz");
-    await expect(gpu.getByRole("alert")).toContainText("回滚失败");
+    await expect(writeError).toContainText("回滚失败");
   });
 }
 
@@ -248,7 +308,7 @@ test("性能调校可用键盘切换预设，概览只展示回读后的模式",
   await expect(entertainment).toBeChecked();
   await expect(modes.getByText("当前使用", { exact: true })).toHaveCount(0);
   await expect(modes.locator(".ccc-preset-artwork")).toHaveAttribute("data-preset-palette", "entertainment");
-  await expect(entertainment.locator("..")).not.toHaveCSS("box-shadow", "none");
+  await expect(entertainment.locator("..")).toHaveCSS("outline-style", "solid");
   await expect(page.getByRole("region", { name: "待应用更改", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "应用更改", exact: true })).toHaveCount(0);
   await expect(page.getByRole("dialog")).toHaveCount(0);

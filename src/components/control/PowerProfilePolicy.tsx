@@ -1,4 +1,5 @@
-import { Icon } from "../Icon";
+import { FactList } from "../FactList";
+import { Loading } from "../Loading";
 import { ProfileModeAuthorization, ProfileModeExecutionNotes } from "../profiles/ProfileModeAuthorization";
 import type { PowerPolicyRecord } from "../../api/client";
 import { Button } from "../Button";
@@ -14,7 +15,8 @@ import { POWER_RULES, usePowerProfilePolicy } from "./usePowerProfilePolicy";
 export function PowerProfilePolicy({ active, revision }: { active: boolean; revision: number }) {
   const p = usePowerProfilePolicy(active, revision);
   const { view } = p;
-  const status = view?.paused && view.record?.enabled ? "已暂停" : !view && !p.error ? "读取中…" : null;
+  const reading = !view && !p.error;
+  const status = view?.paused && view.record?.enabled ? "已暂停" : null;
   const currentIssues = [p.error, view?.configurationError, view?.listenerError];
   const issues = Array.from(new Set([...currentIssues, view?.lastIssue].filter(Boolean)));
   const unavailableRules = POWER_RULES.map(rule => {
@@ -28,7 +30,7 @@ export function PowerProfilePolicy({ active, revision }: { active: boolean; revi
     <div className="ccc-power-setting">
       <div>
         <strong>启用自动档案</strong>
-        {status && <p className="ccc-control-caption" role="status">{status}</p>}
+        {reading ? <Loading label="正在读取…" /> : status && <p className="ccc-control-caption" role="status">{status}</p>}
       </div>
       <div className="ccc-power-setting-tools">
         <Switch label="启用自动档案" checked={!!view?.record?.enabled}
@@ -105,7 +107,9 @@ function PolicyTargets({ model: p }: { model: ReturnType<typeof usePowerProfileP
 }
 
 function SavedRules({ record }: { record: PowerPolicyRecord | null }) {
-  return <dl className="ccc-power-policy-saved">{POWER_RULES.map(rule => <div key={rule.key}>
-    <dt className="ccc-rule-heading"><Icon name={rule.key === "ac" ? "plug" : rule.key === "battery" ? "battery" : "sleep"} size={16} />{rule.label}</dt><dd>{record?.[rule.key]?.profile ?? "不应用档案"}</dd>
-  </div>)}</dl>;
+  return <FactList compact facts={POWER_RULES.map(rule => ({
+    label: rule.label,
+    icon: rule.key === "ac" ? "plug" : rule.key === "battery" ? "battery" : "sleep",
+    value: record?.[rule.key]?.profile ?? "不应用档案",
+  }))} />;
 }

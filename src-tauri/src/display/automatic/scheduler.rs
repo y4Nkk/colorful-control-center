@@ -27,6 +27,10 @@ pub(super) struct Scheduler {
     completed: Option<completed::Handoff>,
 }
 impl Scheduler {
+    pub fn polling_enabled(&self) -> bool {
+        self.enabled && self.online && !self.sleeping && !self.stopping
+    }
+
     fn advance(&mut self, preserve_at: Option<u64>) -> Result<()> {
         self.epoch = self
             .epoch
@@ -49,7 +53,7 @@ impl Scheduler {
         Ok(())
     }
     fn queue(&mut self, trigger: Trigger, previous_mode: Option<u8>, now: u64) {
-        if self.enabled && self.online && !self.sleeping && !self.stopping {
+        if self.polling_enabled() {
             self.pending.push_back(Work {
                 epoch: self.epoch,
                 trigger,
@@ -180,10 +184,7 @@ impl Scheduler {
         None
     }
     pub fn permits(&self, epoch: u64) -> bool {
-        self.enabled
-            && self.online
-            && !self.sleeping
-            && !self.stopping
+        self.polling_enabled()
             && self.epoch == epoch
             && matches!(self.source, Some(Source::Ac | Source::Battery))
     }

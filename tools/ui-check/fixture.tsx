@@ -10,6 +10,8 @@ import { Surface } from "../../src/components/Surface";
 import { SegmentedControl } from "../../src/components/SegmentedControl";
 import { ConfirmButton } from "../../src/components/ConfirmButton";
 import { ColorPicker } from "../../src/components/ColorPicker";
+import { TooltipProvider } from "../../src/components/Tooltip";
+import { FactList, FactStatus } from "../../src/components/FactList";
 import "../../src/styles/tokens.css";
 import "../../src/styles/base.css";
 
@@ -40,7 +42,8 @@ function Fixture() {
           description: "概览 Aa 0123", style: { fontFamily: value } }))} />
       <output aria-label="已选字体">{font}</output>
       <SegmentedControl label="测试单选" value={group} onChange={setGroup}
-        options={[{ value: "one", label: "第一项" }, { value: "two", label: "第二项" }, { value: "three", label: "不可选项", disabled: true }]} />
+        options={[{ value: "one", label: "第一项" }, { value: "two", label: "第二项" },
+          { value: "three", label: "不可选项", disabled: true, tooltip: "隔离不可用原因" }]} />
       <Checkbox label="测试复选" checked={checked} disabled={disabled} onChange={event => setChecked(event.target.checked)} />
       <Switch label="测试开关" checked={checked} disabled={disabled} onChange={setChecked} />
       <Slider aria-label="测试滑杆" min={0} max={100} value={range} disabled={disabled} onChange={setRange} />
@@ -53,4 +56,33 @@ function Fixture() {
   </main>;
 }
 
-createRoot(document.getElementById("root")!).render(<Fixture />);
+function FactListFixture() {
+  return <main style={{ padding: 16, minHeight: "100vh", background: "var(--ccc-workspace-bg)" }}>
+    <Surface as="section" variant="card" style={{ padding: 16, display: "grid", gap: 16 }}>
+      <h2 style={{ margin: 0 }}>设备诊断</h2>
+      <FactList label="诊断字段" compact facts={[
+        { label: "驱动报告的硬件设备识别码", icon: "gpu", format: "code", value: "PCI\\VEN_10DE&DEV_2705&SUBSYS_00000000&REV_A1" },
+        { label: "连接模式", value: "独显直连" },
+        { label: "当前功耗", icon: "power", format: "number", value: "96.4 W" },
+        { label: "设备读取", icon: "check-circle", value: <FactStatus tone="success">已读取</FactStatus> },
+        { label: "固件状态", icon: "warning", tone: "warning", value: <FactStatus tone="warning">未识别</FactStatus> },
+        { label: "配置路径", icon: "logs", tone: "active", value: <a href="#capture">C:/ProgramData/ColorfulControlCenter/profiles/local-profile.json</a> },
+      ]} />
+      <FactList label="采样摘要" compact layout="inline" facts={[
+        { label: "采样数", format: "number", value: "12" },
+        { label: "状态", value: <FactStatus>已停止</FactStatus> },
+      ]} />
+      <h3 id="capture" style={{ margin: 0 }}>已读取的配置</h3>
+      <FactList label="待应用参数" compact layout="tiles" facts={[
+        { label: "模式", value: "性能" }, { label: "功耗墙", format: "number", value: "110 W" },
+      ]} />
+      <FactList label="档案参数差异" layout="comparison" facts={[
+        { label: "内置屏幕", note: "显示试用需保留确认", current: "1920 × 1080 · 144 Hz", value: "1920 × 1080 · 60 Hz" },
+        { label: "持续功耗上限", current: "未读取", value: "65 W" },
+      ]} />
+    </Surface>
+  </main>;
+}
+
+const factList = new URLSearchParams(window.location.search).has("fact-list");
+createRoot(document.getElementById("root")!).render(<TooltipProvider>{factList ? <FactListFixture /> : <Fixture />}</TooltipProvider>);

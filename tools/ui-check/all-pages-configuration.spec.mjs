@@ -6,7 +6,13 @@ import { installConfigurationFixture } from "./configuration-fixture.mjs";
 import { previewConfiguration } from "./configuration-review.mjs";
 import { colorButton, setPickerColor } from "./color-picker.mjs";
 const views = [
-  ["概览"], ["性能与散热"], ["键盘与灯光"], ["电源与档案", "电源设置"], ["电源与档案", "配置档案"], ["设备配置"], ["设置"],
+  { name: "概览", copy: ".ccc-hardware-description > p" },
+  { name: "性能与散热", copy: ".ccc-tuning-meta > p" },
+  { name: "键盘与灯光", copy: ".ccc-lighting-mode > span:first-child" },
+  { name: "电源与档案", area: "电源设置", copy: ".ccc-power-setting > span:first-child" },
+  { name: "电源与档案", area: "配置档案", copy: ".ccc-profile-row .ccc-control-caption" },
+  { name: "设备配置", copy: ".ccc-config-field" },
+  { name: "设置", copy: ".ccc-settings-label" },
 ];
 async function setup(page) {
   await page.addInitScript({ content: MOCK_IPC });
@@ -71,28 +77,39 @@ for (const theme of ["light", "dark"]) {
     await appearance.click();
     await expect(appearance).toBeChecked();
     const before = (await writes(page)).length;
+    const [headingColor, copyColor] = theme === "light"
+      ? ["rgb(29, 29, 31)", "rgb(51, 51, 51)"]
+      : ["rgb(255, 255, 255)", "rgb(204, 204, 204)"];
     for (const width of [1440, 360]) {
       await page.setViewportSize({ width, height: 1000 });
-      for (const [index, [name, area]] of views.entries()) {
+      for (const [index, { name, area, copy }] of views.entries()) {
         if (area) await openPowerArea(page, area);
         else await openWorkspace(page, name);
         if (area === "配置档案") await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /隔离档案/ }).click();
         await ready(page, area ?? name);
         const main = page.getByRole("main", { name, exact: true });
         await expect(main.getByRole("heading").first()).toBeVisible();
+        await expect(main.locator(copy).filter({ visible: true }).first()).toHaveCSS("color", copyColor);
+        const wrongHeadingColors = await main.getByRole("heading").or(main.locator(".ccc-icon-title:visible"))
+          .evaluateAll((headings, color) => headings.filter(heading => getComputedStyle(heading).color !== color)
+            .map(heading => heading.textContent), headingColor);
+        expect(wrongHeadingColors, `${area ?? name} · 标题色`).toEqual([]);
         const wrongInfoButtons = await main.locator('button:has(> svg[data-icon="info"])').evaluateAll(buttons => buttons
           .filter(button => button.checkVisibility() && (button.textContent.trim() || !button.getAttribute("aria-label")
-            || !button.title || button.dataset.size !== "icon-compact"))
-          .map(button => button.outerHTML));
+            || button.getAttribute("aria-haspopup") !== "dialog" || button.dataset.size !== "icon-compact"))
+          .map(button => button.getAttribute("aria-label") ?? button.textContent.trim()));
         expect(wrongInfoButtons, `${area ?? name} · 信息按钮`).toEqual([]);
-        const duplicateInfo = await main.locator('button:has(> svg[data-icon="info"])').evaluateAll(buttons => {
+        // 每个模块只有标题栏的一个信息图标；「翻转主屏」开关旁的说明图标是登记在 DESIGN.md 的唯一例外。
+        const extraInfo = { "屏幕显示": 1 };
+        const duplicateInfo = await main.locator('button:has(> svg[data-icon="info"])').evaluateAll((buttons, extra) => {
           const counts = new Map();
           for (const button of buttons.filter(button => button.checkVisibility())) {
             const module = button.closest("section[aria-label], section[aria-labelledby], [role=region][aria-label]");
             if (module) counts.set(module, (counts.get(module) ?? 0) + 1);
           }
-          return [...counts].filter(([, count]) => count > 1).map(([module]) => module.getAttribute("aria-label") ?? module.getAttribute("aria-labelledby"));
-        });
+          return [...counts].filter(([module, count]) => count > 1 + (extra[module.getAttribute("aria-label")] ?? 0))
+            .map(([module]) => module.getAttribute("aria-label") ?? module.getAttribute("aria-labelledby"));
+        }, extraInfo);
         expect(duplicateInfo, `${area ?? name} · 重复信息按钮`).toEqual([]);
         expect(await misplacedModules(main), `${area ?? name} · ${width}px 模块边缘`).toEqual([]);
         const misaligned = await main.locator(".ccc-panel-head, .ccc-control-status").evaluateAll(rows => rows
@@ -217,11 +234,27 @@ test("全键盘预览配色，开关、灯效和亮度按钮直接回读", async
   await expect(right).toHaveAttribute("data-selected", "true");
   await expect(right).toHaveAttribute("data-zone-color", "#123456");
   const key = right.locator(".ccc-lighting-board-key").first();
-  const litEdge = await key.evaluate(el => getComputedStyle(el).borderTopColor);
+  const face = key.locator("rect");
+  const label = key.locator("text");
+  const fill = node => node.evaluate(el => getComputedStyle(el).fill);
+  const litFace = await fill(face);
+  const litLabel = await fill(label);
   await panel.getByRole("checkbox", { name: "右区开关" }).click();
   await expect(right).toHaveAttribute("data-zone-brightness", "0");
-  await expect(panel.locator('[data-keyboard-zone="0"]')).toHaveAttribute("data-zone-brightness", "3");
-  await expect(key).not.toHaveCSS("border-top-color", litEdge);
+  const left = panel.locator('[data-keyboard-zone="0"]');
+  await expect(left).toHaveAttribute("data-zone-brightness", "3");
+  await expect(label).not.toHaveCSS("fill", litLabel);
+  await expect(face).not.toHaveCSS("fill", litFace);
+  const offFace = await fill(face);
+  const offLabel = await fill(label);
+  await panel.getByRole("tab", { name: "左区", exact: true }).click();
+  await expect(left).toHaveAttribute("data-selected", "true");
+  await expect(face).not.toHaveCSS("fill", offFace);
+  await expect(label).toHaveCSS("fill", offLabel);
+  await page.emulateMedia({ forcedColors: "active" });
+  const selectedFace = left.locator(".ccc-lighting-key-face").first();
+  await expect(selectedFace).not.toHaveCSS("fill", await fill(face));
+  await page.emulateMedia({ forcedColors: "none" });
   await panel.getByRole("combobox", { name: "灯效", exact: true }).click();
   await page.getByRole("option", { name: "呼吸", exact: true }).click();
   await expect(await previewConfiguration(page, "键盘灯光")).toContainText("关闭 · #123456");
@@ -233,6 +266,7 @@ test("全键盘预览配色，开关、灯效和亮度按钮直接回读", async
   await levels.getByRole("button", { name: "关闭", exact: true }).click();
   await expect(levels.getByRole("button", { pressed: true })).toHaveAccessibleName("关闭");
   await expect(panel.locator('[data-zone-brightness="0"]')).toHaveCount(3);
+  await expect(panel.getByText("背光关闭", { exact: true })).toBeVisible();
   await panel.getByRole("combobox", { name: "灯效", exact: true }).click();
   await page.getByRole("option", { name: "波浪", exact: true }).click();
   await expect(panel.locator('[data-zone-color="firmware"]')).toHaveCount(3);

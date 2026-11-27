@@ -1,0 +1,30 @@
+name: 问题反馈
+description: 报告软件运行、硬件读数、设置或安装问题
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: 实际表现与预期
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤
+      description: 可以说明在哪个页面操作，以及发生问题前的状态。
+  - type: input
+    id: version
+    attributes:
+      label: 软件版本
+      description: 可在「设置 → 关于」查看。
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 设备型号与 Windows 版本
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 相关截图或日志
+      description: 如有需要，可附上与问题相关的内容。

@@ -5,10 +5,9 @@
   margin: auto;
   padding: 0;
   border: var(--ccc-border);
-  border-radius: var(--ccc-radius-group);
-  background: var(--ccc-content);
+  border-radius: var(--ccc-radius-card);
+  background: var(--ccc-content-overlay);
   color: var(--ccc-text);
-  box-shadow: var(--ccc-overlay-shadow), var(--ccc-overlay-highlight);
   font: var(--ccc-control-font);
   overflow: visible;
 }
@@ -16,6 +15,7 @@
 .ccc-dialog[open] { display: flex; flex-direction: column; }
 .ccc-dialog[data-width="narrow"] { width: var(--ccc-dialog-narrow); }
 .ccc-dialog[data-width="wide"] { width: var(--ccc-dialog-wide); }
+.ccc-dialog[data-layout="confirmation"] { width: var(--ccc-dialog-confirmation); }
 .ccc-dialog::backdrop { background: var(--ccc-overlay-backdrop); }
 
 .ccc-dialog-frame {
@@ -35,7 +35,7 @@
 }
 .ccc-dialog-header { justify-content: space-between; gap: var(--ccc-space-4); }
 .ccc-dialog-header h2 { margin: 0; font: var(--ccc-dialog-title-font); overflow-wrap: anywhere; }
-.ccc-dialog-header h2:focus-visible { box-shadow: none; }
+.ccc-dialog-header h2:focus-visible { outline: none; }
 .ccc-dialog-footer { justify-content: flex-end; flex-wrap: wrap; gap: var(--ccc-space-3); }
 .ccc-dialog-body { flex: 1 1 auto; min-height: 0; min-width: 0; container: ccc-control / inline-size; }
 .ccc-dialog-body > :first-child {
@@ -57,6 +57,26 @@
   gap: var(--ccc-space-1);
 }
 .ccc-dialog-body .ccc-control-error > .ccc-icon, .ccc-dialog-body .ccc-control-caption.is-warn > .ccc-icon { margin-top: 0.2em; color: inherit; }
+
+.ccc-dialog[data-layout="confirmation"] .ccc-dialog-header { padding-block-end: 0; }
+.ccc-dialog[data-layout="confirmation"] .ccc-dialog-header h2 { font-size: var(--ccc-text-lg); }
+.ccc-dialog[data-layout="confirmation"] .ccc-dialog-body > :first-child {
+  padding-block: var(--ccc-space-2) 0;
+}
+.ccc-dialog[data-layout="confirmation"] .ccc-dialog-footer {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ccc-space-2);
+  padding: var(--ccc-space-4);
+}
+
+@media (prefers-contrast: more) {
+  .ccc-dialog { border-color: var(--ccc-control-edge); }
+}
+
+@media (forced-colors: active) {
+  .ccc-dialog { border-color: CanvasText; }
+}
 @media (max-width: 640px) {
   .ccc-dialog {
     max-width: calc(100% - 2 * var(--ccc-space-3));

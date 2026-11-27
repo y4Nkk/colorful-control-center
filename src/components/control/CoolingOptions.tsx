@@ -15,23 +15,23 @@ export function CoolingOptions({ options, busy, disabled, custom, software, onCh
     const saved = current[key];
     const active = key === "turboFan" ? options.turboActive : options.dttActive;
     const choice = optionChoice(options, key, !saved, custom);
-    const status = saved === null ? "未确认支持" : active ? "已应用" : saved ? "仅保存" : null;
-    return { key, saved, choice, status, savedOnly: saved === true && !active };
+    const status = saved === null ? "未确认支持"
+      : saved === active ? undefined
+      : active ? "当前仍开启" : "尚未生效";
+    return { key, saved, choice, status };
   });
   const quiet = currentMode === 3 ? options.quietFan : null;
   const quietChoice = quiet && optionChoice(options, "quietPreference", !quiet.enabled, custom);
   return <div className="ccc-cooling-options">
     <h4>预设选项</h4>
     <div className="ccc-cooling-option-list">
-      {choices.map(({ key, saved, choice, status, savedOnly }) => <CoolingOption key={key} label={PERFORMANCE_OPTION_LABELS[key]}
-        status={status} savedOnly={savedOnly} checked={saved === true} disabled={disabled || disallowed(choice)}
+      {choices.map(({ key, saved, choice, status }) => <CoolingOption key={key} label={PERFORMANCE_OPTION_LABELS[key]}
+        status={status} checked={saved === true} disabled={disabled || disallowed(choice)}
         busy={busy} onChange={() => onChoice(choice)} />)}
-      {quiet && quietChoice && <CoolingOption label="娱乐档寂静偏好" status={quiet.enabled ? "已保存" : null}
-        savedOnly checked={quiet.enabled} disabled={disabled || disallowed(quietChoice)} busy={busy}
+      {quiet && quietChoice && <CoolingOption label="娱乐档寂静偏好"
+        checked={quiet.enabled} disabled={disabled || disallowed(quietChoice)} busy={busy}
         onChange={() => onChoice(quietChoice)} />}
     </div>
-    {quiet?.enabled && !quiet.active && !options.turboActive &&
-      <p className="ccc-control-caption">选择「自动」时会应用娱乐档寂静偏好。</p>}
     {!editable && <p className="ccc-control-caption">在娱乐或性能模式下可修改 Turbo 风扇和动态调校 DTT。</p>}
     {editable && !applies && choices.some(choice => choice.saved !== null) &&
       <p className="ccc-control-caption">此设备可在娱乐档保存 Turbo 风扇和 DTT 偏好，切换到性能档后应用。</p>}
@@ -46,15 +46,17 @@ export function CoolingOptions({ options, busy, disabled, custom, software, onCh
   </div>;
 }
 
-function CoolingOption({ label, status, savedOnly, checked, disabled, busy, onChange }: {
-  label: string; status: string | null; savedOnly: boolean; checked: boolean;
+function CoolingOption({ label, status, checked, disabled, busy, onChange }: {
+  label: string; status?: string; checked: boolean;
   disabled: boolean; busy: boolean; onChange: () => void;
 }) {
   const statusId = useId();
   return <div className="ccc-cooling-option">
-    <strong>{label}</strong>
-    {status && <span id={statusId} hidden>{status}</span>}
-    <Switch label={label} describedBy={status ? statusId : undefined} checked={checked} checkedTone={savedOnly ? "neutral" : undefined}
+    <div>
+      <strong>{label}</strong>
+      {status && <p id={statusId} className="ccc-control-caption">{status}</p>}
+    </div>
+    <Switch label={label} describedBy={status ? statusId : undefined} checked={checked}
       disabled={disabled} busy={busy} onChange={onChange} />
   </div>;
 }

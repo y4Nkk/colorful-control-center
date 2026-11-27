@@ -35,12 +35,14 @@ test("设备下拉直接试用，固件风扇模式点选后应用", async ({ pa
   await expect(page.getByRole("region", { name: "散热控制", exact: true })).toHaveCount(1);
   await page.evaluate(() => window.__uiFixture.fanKind = "rpmTable");
   await navigate(page, "设置"); await openWorkspace(page, "性能与散热");
+  await fanModes.getByRole("radio", { name: "自定义", exact: true }).click();
+  await page.getByRole("button", { name: "编辑曲线", exact: true }).click();
   await choose(page, "选择 RPM 级别", "第 4 级");
   await expect(page.getByRole("spinbutton", { name: "RPM 温度", exact: true })).toHaveValue("55");
   await expect(page.locator("select,option")).toHaveCount(0);
   expect(await page.evaluate(() => window.__uiFixture.calls
     .filter(({ command }) => /^(apply_|restore_|set_fan|save_|import_|delete_|set_startup)/.test(command)).map(call => call.command)))
-    .toEqual(["apply_keyboard_lighting", "apply_display_refresh", "set_fan_mode", "set_fan_mode"]);
+    .toEqual(["apply_keyboard_lighting", "apply_display_refresh", "set_fan_mode", "set_fan_mode", "set_fan_mode"]);
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });
 

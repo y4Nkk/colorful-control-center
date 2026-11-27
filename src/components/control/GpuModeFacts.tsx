@@ -1,23 +1,30 @@
 import type { GpuModeObservation, GpuModeRawState, GpuModeDriver, GpuTurboTarget, GpuModeCycle } from "../../api/client";
 import { Fragment } from "react";
 import { Icon } from "../Icon";
+import { FactList, type Fact } from "../FactList";
 import { gpuLock, gpuMhz, gpuOffsets, gpuSkipReason } from "./gpu-values";
 
 export function GpuModeRawStateFacts({ value }: { value: GpuModeRawState | null }) {
   if (!value) return <p className="ccc-control-caption">读取不到当前频率，也没有用保存值代替。</p>;
-  return <div className="ccc-mode-clock-facts ccc-gpu-clock-readings">
-    <p className="ccc-gpu-clock-main"><span className="ccc-control-caption">图形锁频：</span><strong>{gpuLock(value.locks[0])}</strong></p>
-    {value.offsets.map((offset, index) => <p key={index} className="ccc-gpu-clock-offset"><span className="ccc-control-caption">GPU {index + 1}</span><span className="ccc-mono">{gpuOffsets(offset)}</span></p>)}
-    <p className="ccc-control-caption">第二锁频域：{gpuLock(value.locks[1])}</p>
+  return <div className="ccc-mode-clock-facts">
+    <FactList compact facts={[
+      { label: "图形锁频", icon: "activity", format: value.locks[0].mode === 2 ? "number" : undefined, value: gpuLock(value.locks[0]) },
+      ...value.offsets.map<Fact>((offset, index) => ({ label: `GPU ${index + 1}`, icon: "gpu", value: gpuOffsets(offset) })),
+      { label: "第二锁频域", icon: "activity", value: gpuLock(value.locks[1]) },
+    ]} />
     {value.devices.length > 2 && <p>另有 {value.devices.length - 2} 张显卡不会被调整偏移。</p>}
   </div>;
 }
 export function GpuModeTargetFacts({ target }: { target: GpuTurboTarget }) {
-  return <div className="ccc-mode-clock-facts ccc-gpu-clock-readings">
-    <p className="ccc-gpu-clock-main"><span className="ccc-control-caption">图形锁频：</span><strong>{target.lockMhz === null ? "保持" : target.lockMhz === 0 ? "自动" : `${target.lockMhz} MHz`}</strong></p>
-    {target.offsets ? target.offsets.map((offset, index) => <p key={index} className="ccc-gpu-clock-offset">
-      <span className="ccc-control-caption">GPU {index + 1}</span><span className="ccc-mono">核心 {offset.coreMhz} MHz · 显存 {offset.memoryMhz} MHz</span>
-    </p>) : <span className="ccc-control-caption">偏移不变</span>}
+  return <div className="ccc-mode-clock-facts">
+    <FactList compact facts={[
+      { label: "图形锁频", icon: "activity", format: target.lockMhz ? "number" : undefined,
+        value: target.lockMhz === null ? "保持" : target.lockMhz === 0 ? "自动" : `${target.lockMhz} MHz` },
+      ...(target.offsets ?? []).map<Fact>((offset, index) => ({
+        label: `GPU ${index + 1}`, icon: "gpu", value: `核心 ${offset.coreMhz} MHz · 显存 ${offset.memoryMhz} MHz`,
+      })),
+    ]} />
+    {!target.offsets && <span className="ccc-control-caption">偏移不变</span>}
   </div>;
 }
 export function GpuModeSupplyTargets({ choices }: { choices: GpuModeCycle["choices"] }) {
@@ -44,9 +51,14 @@ export function GpuModeObservationFacts({ value }: { value: GpuModeObservation |
   return <GpuModeRawStateFacts value={null} />;
 }
 export function GpuModeDriverRanges({ driver }: { driver: GpuModeDriver }) {
-  return <section className="ccc-mode-clock-facts" aria-label="驱动范围"><strong>驱动支持的频率范围</strong>{driver.devices.map((device, index) => <div key={`${device.id.bus}-${device.id.slot}`}>
-    <strong>GPU {index + 1}</strong>
-    <p>核心 {gpuMhz(device.coreRangeKhz[0])} 至 {gpuMhz(device.coreRangeKhz[1])} · {device.coreEditable ? "可调整" : "不可调整"}</p>
-    <p>显存 {gpuMhz(device.memoryRangeKhz[0])} 至 {gpuMhz(device.memoryRangeKhz[1])} · {device.memoryEditable ? "可调整" : "不可调整"}</p>
-  </div>)}</section>;
+  return <section className="ccc-mode-clock-facts" aria-label="驱动范围">
+    <strong>驱动支持的频率范围</strong>
+    {driver.devices.map((device, index) => <div className="ccc-mode-clock-facts" key={`${device.id.bus}-${device.id.slot}`}>
+      <strong>GPU {index + 1}</strong>
+      <FactList compact facts={[
+        { label: "核心", icon: "gpu", value: `${gpuMhz(device.coreRangeKhz[0])} 至 ${gpuMhz(device.coreRangeKhz[1])} · ${device.coreEditable ? "可调整" : "不可调整"}` },
+        { label: "显存", icon: "memory", value: `${gpuMhz(device.memoryRangeKhz[0])} 至 ${gpuMhz(device.memoryRangeKhz[1])} · ${device.memoryEditable ? "可调整" : "不可调整"}` },
+      ]} />
+    </div>)}
+  </section>;
 }

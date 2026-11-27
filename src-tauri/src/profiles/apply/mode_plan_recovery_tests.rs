@@ -52,7 +52,7 @@ fn repeated_modes_keep_every_touched_plan_at_its_first_value_in_the_shared_basel
     enable_policy(&f);
     let initial = f.device.0.lock().unwrap().plan_values.clone();
     let _gate = f.hal.begin_write().unwrap();
-    for mode in [4, 2, 4] {
+    for mode in [0, 2, 0] {
         powerctl::mode::checkpoint(&f.hal, mode)
             .unwrap()
             .execute(&f.hal)

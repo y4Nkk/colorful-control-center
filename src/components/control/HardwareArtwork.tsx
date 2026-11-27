@@ -8,8 +8,7 @@ export type HardwareBrand = "intel" | "amd" | "nvidia";
 
 type HardwareArtworkProps = { kind: "cpu"; brand: CpuArtworkBrand } | { kind: Exclude<HardwareKind, "cpu"> };
 
-export function BrandMark({ brand }: { brand: HardwareBrand | null }) {
-  if (!brand) return null;
+export function BrandMark({ brand }: { brand: HardwareBrand }) {
   return <span className={`ccc-hardware-brand is-${brand}`}>
     <img src={`/brands/${brand}.${brand === "intel" ? "png" : "svg"}`} alt={brand === "intel" ? "Intel" : brand.toUpperCase()} />
   </span>;

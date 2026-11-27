@@ -12,6 +12,13 @@ export interface ScaleDomain {
   max: number;
 }
 
+export interface PlotPoint {
+  atMs: number;
+  value: number;
+  x: number;
+  y: number;
+}
+
 /** 值 → 0..100 纵向百分比（y 自顶向下）。 */
 export function valuePct(domain: ScaleDomain): (value: number) => number {
   const span = Math.max(1e-6, domain.max - domain.min);
@@ -27,7 +34,8 @@ export function timeTrace(points: readonly TimePoint[], domain: ScaleDomain, sta
 ) {
   const y = valuePct(domain);
   const segments: { path: string; firstX: number; lastX: number }[] = [];
-  const markers: { x: number; y: number; atMs: number; value: number }[] = [];
+  const positions: PlotPoint[] = [];
+  const markers: PlotPoint[] = [];
   let path: string[] = [];
   let firstX = 0;
   points.forEach((point, index) => {
@@ -37,6 +45,8 @@ export function timeTrace(points: readonly TimePoint[], domain: ScaleDomain, sta
     const joinsNext = hasReading(next) && next.atMs - point.atMs <= maxGapMs;
     const x = (point.atMs - start) / span * 100;
     const height = Math.min(100, Math.max(0, y(point.value)));
+    const position = { x, y: height, atMs: point.atMs, value: point.value };
+    positions.push(position);
     if (!joinsPrevious) {
       path = [];
       firstX = x;
@@ -44,11 +54,11 @@ export function timeTrace(points: readonly TimePoint[], domain: ScaleDomain, sta
     path.push(`${joinsPrevious ? "L" : "M"}${x.toFixed(3)} ${height.toFixed(3)}`);
     if (!joinsNext) segments.push({ path: path.join(" "), firstX, lastX: x });
     if ((!joinsPrevious && !joinsNext) || index === points.length - 1 || highlight?.(point.value)) {
-      markers.push({ x, y: height, atMs: point.atMs, value: point.value });
+      markers.push(position);
     }
   });
   const line = segments.map(segment => segment.path).join(" ");
   const area = segments.filter(segment => segment.lastX > segment.firstX)
     .map(({ path, firstX, lastX }) => `${path} L${lastX.toFixed(3)} 100 L${firstX.toFixed(3)} 100 Z`).join(" ");
-  return { line, area, markers };
+  return { line, area, markers, positions };
 }

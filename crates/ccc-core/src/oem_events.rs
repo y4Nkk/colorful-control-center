@@ -160,12 +160,21 @@ pub fn keyboard_toggle_type_allowed(rgb_only: bool, raw_type: u8) -> bool {
 pub fn keyboard_navigation_type_allowed(raw_type: u8) -> bool {
     matches!(raw_type, 1 | 2 | 3 | 6 | 22 | 23 | 38)
 }
-/// FnKey循环顺序：安静/静音增强、性能、娱乐、省电，跳过固件未声明项。
+pub const POWER_MODE_COUNT: u8 = 4;
+
+pub const fn is_power_mode(mode: u8) -> bool {
+    mode < POWER_MODE_COUNT
+}
+
+/// FnKey 循环顺序为安静、性能、娱乐、省电，跳过固件未声明项。
 pub fn next_mode(current: u8, available: &[u8]) -> Result<u8, String> {
-    if available.iter().any(|mode| *mode > 4) {
+    if !is_power_mode(current) {
+        return Err("当前原厂模式未知".into());
+    }
+    if available.iter().any(|mode| !is_power_mode(*mode)) {
         return Err("未知原厂模式候选".into());
     }
-    let order: Vec<_> = [0, 4, 2, 3, 1]
+    let order: Vec<_> = [0, 2, 3, 1]
         .into_iter()
         .filter(|mode| available.contains(mode))
         .collect();

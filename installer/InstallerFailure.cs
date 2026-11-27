@@ -36,8 +36,8 @@ namespace ColorfulControlCenter.Installer
             if (code == Product.ControllerRunningExitCode)
                 return "控制台仍在使用安装文件。" + ControllerExitInstructions;
             if (code == Product.ProcessCheckFailedExitCode)
-                return "安装引擎未能检查控制台的退出状态。请查看诊断日志后重试。";
-            return "安装引擎已中止，错误代码 " + code + "。请查看诊断日志。";
+                return "无法确认控制台是否已退出。可从系统托盘确认后重试。";
+            return "安装程序已中止。请重试，或查看诊断详情。";
         }
     }
 

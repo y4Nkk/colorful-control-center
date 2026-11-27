@@ -128,26 +128,26 @@ fn calibration_record_blocks_profile_preflight_and_prepared_mode_execution_or_re
 pub(super) fn enable_policy(f: &Fixture) {
     let mut state = f.device.0.lock().unwrap();
     state.bios[0] = 1;
-    state.bios[17] = 0x8f;
+    state.bios[17] = 0x0f;
     state.bios[16] = 8;
     state.bios[19] = 2;
     let mut aspm = [0; 256];
-    aspm[..9].copy_from_slice(&[15, 0, 1, 1, 2, 2, 0, 0, 2]);
+    aspm[..9].copy_from_slice(&[15, 0, 1, 1, 2, 1, 2, 0, 2]);
     let mut plan = [0; 256];
     plan[..5].copy_from_slice(&[29, 1, 0, 2, 0]);
     state.policy_tables.insert(15, aspm);
     state.policy_tables.insert(29, plan);
 }
 #[test]
-fn mode_only_transaction_applies_quiet_plus_and_restores_fan_and_system_baseline() {
+fn mode_only_transaction_restores_fan_and_system_baseline() {
     let f = Fixture::new();
     enable_policy(&f);
     let _write = f.hal.begin_write().unwrap();
-    let plan = powerctl::mode::checkpoint(&f.hal, 4).unwrap();
+    let plan = powerctl::mode::checkpoint(&f.hal, 0).unwrap();
     plan.execute(&f.hal).unwrap();
     {
         let state = f.device.0.lock().unwrap();
-        assert_eq!(state.pages[1][1], 4);
+        assert_eq!(state.pages[1][1], 0);
         assert_eq!(state.active_plan, SCHEMES[2]);
         assert_eq!(state.plan_values[&SCHEMES[0]], [1, 2]);
         assert!(state.events.iter().any(|e| e == "MODE:0"));
@@ -168,7 +168,7 @@ fn stale_linked_preview_is_rejected_before_any_mode_or_system_write() {
         .unwrap()
         .targets
         .into_iter()
-        .find(|t| t.mode == 4)
+        .find(|t| t.mode == 0)
         .unwrap();
     f.device
         .0
@@ -176,7 +176,7 @@ fn stale_linked_preview_is_rejected_before_any_mode_or_system_write() {
         .unwrap()
         .policy_tables
         .get_mut(&15)
-        .unwrap()[3] = 2;
+        .unwrap()[5] = 2;
     let _write = f.hal.begin_write().unwrap();
     let error = powerctl::mode::apply_preview(&f.hal, &expected)
         .unwrap_err()
@@ -192,7 +192,7 @@ fn failed_plan_activation_restores_all_previous_targets_and_keeps_retryable_base
     f.device.0.lock().unwrap().fail_plan = true;
     let _write = f.hal.begin_write().unwrap();
     assert!(
-        powerctl::mode::checkpoint(&f.hal, 4)
+        powerctl::mode::checkpoint(&f.hal, 0)
             .unwrap()
             .execute(&f.hal)
             .is_err()
@@ -212,7 +212,7 @@ fn later_profile_gpu_failure_recovers_linked_policy_then_exact_runtime_cpu() {
     let original_cpu = f.device.0.lock().unwrap().power;
     f.device.0.lock().unwrap().fail_gpu = true;
     let mut wanted = settings();
-    wanted.oem_power_mode = Some(4);
+    wanted.oem_power_mode = Some(0);
     wanted.gpu = Some(crate::gpuctl::GpuClockSettings {
         core_offset_mhz: Some(60),
         mem_offset_mhz: None,
@@ -317,7 +317,8 @@ fn partial_mode_save_failure_is_compensated_by_the_real_workflow() {
         .unwrap();
     let _write = f.hal.begin_write().unwrap();
     let error = powerctl::mode::apply_preview(&f.hal, &expected).unwrap_err();
-    assert!(format!("{error:#}").contains("已恢复写入前状态"));
+    let message = format!("{error:#}");
+    assert_eq!(message.matches("已恢复写入前状态").count(), 1, "{message}");
     let state = f.device.0.lock().unwrap();
     assert_eq!(state.pages[1][1], 3);
     assert_eq!(state.pages[1][16], 1);
@@ -330,7 +331,7 @@ fn manual_profile_binds_linked_target_and_rejects_missing_or_stale_review() {
     enable_policy(&f);
     f.device.0.lock().unwrap().pages[1][16] = 2;
     let mut wanted = settings();
-    wanted.oem_power_mode = Some(4);
+    wanted.oem_power_mode = Some(0);
     let file = crate::profiles::ProfileFile {
         version: 1,
         name: "联动".into(),
@@ -351,7 +352,7 @@ fn manual_profile_binds_linked_target_and_rejects_missing_or_stale_review() {
         .unwrap()
         .policy_tables
         .get_mut(&15)
-        .unwrap()[3] = 2;
+        .unwrap()[5] = 2;
     assert!(
         apply_reviewed(
             &f.hal,
@@ -372,7 +373,7 @@ fn manual_profile_binds_linked_target_and_rejects_missing_or_stale_review() {
     )
     .unwrap()
     .unwrap();
-    assert_eq!(fresh.ac_mode, Some(4));
+    assert_eq!(fresh.ac_mode, Some(0));
     assert!(
         apply_reviewed(
             &f.hal,
@@ -388,8 +389,8 @@ fn manual_profile_binds_linked_target_and_rejects_missing_or_stale_review() {
         .iter()
         .all(|step| step.ok)
     );
-    assert_eq!(f.device.0.lock().unwrap().pages[1][1], 4);
-    assert_eq!(f.device.0.lock().unwrap().pages[1][16], 4);
+    assert_eq!(f.device.0.lock().unwrap().pages[1][1], 0);
+    assert_eq!(f.device.0.lock().unwrap().pages[1][16], 0);
     let stored = f.hal.recovery().unwrap().oem_mode.clone().unwrap().stored();
     let preview = stored.recovery_preview(&stored).unwrap();
     assert_eq!(preview.initial_ac_mode, Some(2));

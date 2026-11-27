@@ -5,6 +5,7 @@ mod airplane;
 mod app_update;
 mod assembly;
 mod battery;
+mod bundled_fonts;
 mod command_registry;
 mod commands;
 mod controller_lease;
@@ -76,25 +77,26 @@ fn run_desktop(start: startup::DesktopStart) -> anyhow::Result<()> {
         .plugin(shutdown::plugin())
         .plugin(preferences::plugin())
         .plugin(preferences::shortcut_plugin())
-        .plugin(control_plugin(lease))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .register_asynchronous_uri_scheme_protocol("cccfonts", bundled_fonts::serve)
+        .manage(lease)
         .manage(startup::LaunchReport::default())
+        .manage(startup::Preparation::default())
         .invoke_handler(command_registry::handler!())
         .setup(move |app| {
             let Some(_operation) = shutdown::enter() else {
                 return Ok(());
             };
+            let preparation = app.state::<startup::Preparation>();
+            preparation.set_appearance(app.state::<preferences::Controller>().snapshot().ok());
             preferences::create_window(app.handle(), &windows)?;
             tray::bind_window(app.handle());
             activation.listen(app.handle())?;
             if reveal {
                 tray::show_main(app.handle());
             }
-            if login {
-                startup::apply_login_profile(app.handle());
-            }
-            start_workers(app.handle());
+            preparation.start(app.handle(), login);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -212,20 +214,4 @@ fn start_hardware_workers(app: &tauri::AppHandle) {
     });
     // 采样与监护心跳独立，硬件读取阻塞不阻断监护管道。
     monitoring::start(app);
-}
-
-fn control_plugin(
-    lease: controller_lease::ControllerLease,
-) -> tauri::plugin::TauriPlugin<tauri::Wry> {
-    tauri::plugin::Builder::new("controller")
-        .setup(move |app, _| {
-            let Some(_operation) = shutdown::enter() else {
-                return Ok(());
-            };
-            app.manage(lease);
-            startup::close_oem_at_launch(app);
-            assembly::setup(app)?;
-            Ok(())
-        })
-        .build()
 }

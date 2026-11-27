@@ -13,6 +13,12 @@ impl PowerAccess for Memory {
     fn schemes(&self) -> Result<Vec<u128>> {
         bail!("未注入计划枚举")
     }
+    fn scheme_name(&self, _: u128) -> Result<String> {
+        bail!("供电模式测试未注入计划名称")
+    }
+    fn check_active_scheme_write(&self) -> Result<()> {
+        bail!("供电模式测试未注入计划切换权限")
+    }
     fn battery_action(&self, _: u128, _: BatteryAction) -> Result<u32> {
         bail!("未注入电池动作")
     }

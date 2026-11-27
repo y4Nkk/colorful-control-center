@@ -9,10 +9,9 @@
   justify-content: space-between;
   gap: var(--ccc-space-3);
   padding: var(--ccc-space-2) var(--ccc-space-3);
-  border: var(--ccc-border-strong);
-  background: var(--ccc-content);
+  border: var(--ccc-border-field);
+  background: var(--ccc-content-muted);
   text-align: left;
-  transition: border-color var(--ccc-motion-press) var(--ccc-easing);
 }
 .ccc-select-trigger[data-size="compact"] {
   height: var(--ccc-control-height-compact);
@@ -22,7 +21,9 @@
 .ccc-select-trigger > .ccc-icon { color: var(--ccc-text-muted); stroke-width: 2.4; }
 .ccc-select-trigger[data-placeholder] { color: var(--ccc-text-muted); }
 .ccc-select-trigger[data-placeholder] > .ccc-icon { color: var(--ccc-text); }
-.ccc-select-trigger:not([aria-disabled="true"]):is(:hover, :focus-visible) { border-color: var(--ccc-action); }
+.ccc-select-trigger:enabled:not([aria-disabled="true"]):is(:hover, :focus-visible, [aria-expanded="true"]) { border-color: var(--ccc-action-ink); }
+.ccc-select-trigger:hover:enabled:not([aria-disabled="true"]) { background: var(--ccc-control-hover); }
+.ccc-select-trigger:enabled:not([aria-disabled="true"]):is(:active, [aria-expanded="true"]) { background: var(--ccc-control-press); }
 
 .ccc-select-menu {
   position: fixed;
@@ -34,9 +35,8 @@
   overflow: hidden;
   border: var(--ccc-border);
   border-radius: var(--ccc-radius-control);
-  background: var(--ccc-content);
+  background: var(--ccc-content-overlay);
   color: var(--ccc-text);
-  box-shadow: var(--ccc-overlay-shadow), var(--ccc-overlay-highlight);
 }
 .ccc-select-header { display: grid; gap: var(--ccc-space-2); padding: var(--ccc-space-2) var(--ccc-space-2) 0; }
 .ccc-select-viewport {
@@ -62,7 +62,7 @@
 }
 .ccc-select-option > span { min-width: 0; overflow-wrap: anywhere; }
 .ccc-select-option > small { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); overflow-wrap: anywhere; }
-.ccc-select-option[data-active="true"] { background: var(--ccc-nav-selected); }
+.ccc-select-option[data-active="true"] { background: var(--ccc-control-selected); }
 .ccc-select-check {
   position: absolute;
   inset-inline-end: var(--ccc-space-2);

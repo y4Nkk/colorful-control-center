@@ -1,7 +1,7 @@
 use super::{STABLE_MS, Scheduler, Work};
 use crate::hal::power_events::Source;
 use anyhow::{Result, bail};
-use ccc_core::{oem_refresh::Trigger, oem_supply_mode};
+use ccc_core::{oem_events::is_power_mode, oem_refresh::Trigger, oem_supply_mode};
 
 pub(super) struct Handoff {
     id: u64,
@@ -28,7 +28,7 @@ impl Scheduler {
         dc_mode_power: bool,
         now: u64,
     ) -> Result<()> {
-        if mode > 4 || previous_mode > 4 {
+        if !is_power_mode(mode) || !is_power_mode(previous_mode) {
             bail!("供电模式的刷新率交接包含未知模式");
         }
         if self.stopping {

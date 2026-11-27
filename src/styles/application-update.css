@@ -1,0 +1,12 @@
+.ccc-update-release { display: grid; gap: var(--ccc-space-4); }
+.ccc-update-release > p { margin: 0; }
+.ccc-update-version { font-size: var(--ccc-text-title); line-height: 1.3; }
+
+.ccc-update-release .ccc-changelog-notes { color: var(--ccc-text-muted); line-height: 1.5; }
+.ccc-update-release .ccc-changelog-notes :is(h1, h2, h3, h4, h5, h6) {
+  margin: var(--ccc-space-4) 0 var(--ccc-space-1);
+  color: var(--ccc-fact-link);
+  font-size: var(--ccc-text-md);
+}
+.ccc-update-release .ccc-changelog-notes > :first-child { margin-block-start: 0; }
+.ccc-update-release .ccc-changelog-notes li + li { margin-block-start: var(--ccc-space-1); }

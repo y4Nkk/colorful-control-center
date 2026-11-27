@@ -29,7 +29,7 @@ impl PresetBitmap {
     /// 两张等宽，图标列因此对齐。没有专用图形的档位返回 None。
     pub(super) fn pair(mode: u8) -> Result<Option<(Self, Self)>> {
         let art: &[u8] = match mode {
-            0 | 4 => include_bytes!("../../../icons/presets/quiet.png"),
+            0 => include_bytes!("../../../icons/presets/quiet.png"),
             1 => include_bytes!("../../../icons/presets/eco.png"),
             2 => include_bytes!("../../../icons/presets/performance.png"),
             3 => include_bytes!("../../../icons/presets/entertainment.png"),

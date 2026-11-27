@@ -81,7 +81,7 @@ pub(super) fn read(io: &impl Io, reviewed_dsdt: bool) -> Result<State> {
 
 pub(super) fn target(mode: u8, state: State) -> Result<Option<u8>> {
     state.validate()?;
-    if mode > 4 {
+    if !ccc_core::oem_events::is_power_mode(mode) {
         bail!("未知原厂电源模式");
     }
     if state.hardware_p_state {
@@ -92,7 +92,7 @@ pub(super) fn target(mode: u8, state: State) -> Result<Option<u8>> {
     }
     Ok(Some(match mode {
         0 | 3 => 2,
-        1 | 4 => 1,
+        1 => 1,
         2 => 0,
         _ => unreachable!(),
     }))

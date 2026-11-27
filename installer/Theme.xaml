@@ -1,24 +1,15 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <Style x:Key="StepDot" TargetType="Label">
-    <Setter Property="Width" Value="8" /><Setter Property="Height" Value="8" />
-    <Setter Property="Padding" Value="0" /><Setter Property="Focusable" Value="False" />
-    <Setter Property="Template">
-      <Setter.Value>
-        <ControlTemplate TargetType="Label">
-          <Border Background="{TemplateBinding Background}" CornerRadius="4" />
-        </ControlTemplate>
-      </Setter.Value>
-    </Setter>
-  </Style>
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:local="urn:ccc-installer">
+  <local:ButtonCorners x:Key="ButtonCornerConverter" />
   <Style TargetType="TextBlock">
     <Setter Property="Foreground" Value="{DynamicResource Ink}" />
-    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontSize" Value="{DynamicResource UtilityTextSize}" />
     <Setter Property="TextWrapping" Value="Wrap" />
     <Setter Property="LineHeight" Value="24" />
   </Style>
   <Style TargetType="Button">
-    <Setter Property="MinHeight" Value="40" />
+    <Setter Property="MinHeight" Value="{DynamicResource ControlHeight}" />
     <Setter Property="MinWidth" Value="80" />
     <Setter Property="Padding" Value="16,8" />
     <Setter Property="Background" Value="{DynamicResource MutedSurface}" />
@@ -27,54 +18,101 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="FontSize" Value="14" />
     <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="local:ButtonCorners.Radius" Value="{DynamicResource ActionCorner}" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="Frame" Background="{TemplateBinding Background}" CornerRadius="12"
-                  BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
-            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-          </Border>
+          <Grid x:Name="Frame">
+            <Border x:Name="Surface" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+              <Border.CornerRadius>
+                <MultiBinding Mode="OneWay" Converter="{StaticResource ButtonCornerConverter}">
+                  <Binding Path="(local:ButtonCorners.Radius)" RelativeSource="{RelativeSource TemplatedParent}" />
+                  <Binding Path="ActualWidth" RelativeSource="{RelativeSource Self}" />
+                  <Binding Path="ActualHeight" RelativeSource="{RelativeSource Self}" />
+                </MultiBinding>
+              </Border.CornerRadius>
+              <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <Border x:Name="FocusRing" BorderBrush="{DynamicResource FocusInk}" BorderThickness="2" CornerRadius="{Binding CornerRadius, ElementName=Surface}"
+                    Visibility="Collapsed" IsHitTestVisible="False" />
+          </Grid>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Opacity" Value="0.82" /></Trigger>
             <Trigger Property="IsKeyboardFocused" Value="True">
-              <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource Ink}" />
-              <Setter TargetName="Frame" Property="BorderThickness" Value="2" />
+              <Setter TargetName="FocusRing" Property="Visibility" Value="Visible" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Frame" Property="Opacity" Value="0.4" /></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>
     </Setter>
-  </Style>
-  <Style x:Key="Primary" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-    <Setter Property="Background" Value="{DynamicResource Action}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource Action}" />
-    <Setter Property="Foreground" Value="{DynamicResource OnAction}" />
-    <Setter Property="FontWeight" Value="SemiBold" />
     <Style.Triggers>
-      <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource Ink}" /></Trigger>
+      <MultiTrigger>
+        <MultiTrigger.Conditions>
+          <Condition Property="IsEnabled" Value="True" />
+          <Condition Property="IsMouseOver" Value="True" />
+        </MultiTrigger.Conditions>
+        <Setter Property="Background" Value="{DynamicResource ControlHover}" />
+      </MultiTrigger>
+      <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource ControlPress}" /></Trigger>
     </Style.Triggers>
   </Style>
+  <Style x:Key="Primary" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+    <Setter Property="Background" Value="{DynamicResource ActionFill}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource ActionFill}" />
+    <Setter Property="Foreground" Value="{DynamicResource OnAction}" />
+    <Setter Property="FontSize" Value="{DynamicResource ActionTextSize}" />
+    <Setter Property="Padding" Value="22,11" />
+    <Style.Triggers>
+      <MultiTrigger>
+        <MultiTrigger.Conditions>
+          <Condition Property="IsEnabled" Value="True" />
+          <Condition Property="IsMouseOver" Value="True" />
+        </MultiTrigger.Conditions>
+        <Setter Property="Background" Value="{DynamicResource ActionFill}" />
+      </MultiTrigger>
+      <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource ActionFill}" /></Trigger>
+    </Style.Triggers>
+  </Style>
+  <Style x:Key="Quiet" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+    <Setter Property="local:ButtonCorners.Radius" Value="{DynamicResource ControlCorner}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource ActionInk}" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="10,6" />
+  </Style>
   <Style x:Key="Chrome" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-    <Setter Property="MinWidth" Value="40" /><Setter Property="Padding" Value="8,0" />
-    <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+    <Setter Property="local:ButtonCorners.Radius" Value="{DynamicResource ControlCorner}" />
+    <Setter Property="MinWidth" Value="{DynamicResource ControlHeight}" /><Setter Property="Padding" Value="8,0" />
+    <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
   </Style>
   <Style TargetType="TextBox">
-    <Setter Property="Background" Value="{DynamicResource Surface}" />
+    <Setter Property="Background" Value="{DynamicResource MutedSurface}" />
     <Setter Property="Foreground" Value="{DynamicResource Ink}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource Hairline}" />
-    <Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="12" />
-    <Setter Property="FontSize" Value="13" /><Setter Property="FontFamily" Value="Consolas, Microsoft YaHei UI" />
+    <Setter Property="BorderBrush" Value="{DynamicResource FieldEdge}" />
+    <Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="12,8" />
+    <Setter Property="FontSize" Value="{DynamicResource UtilityTextSize}" /><Setter Property="FontFamily" Value="Consolas, Microsoft YaHei UI" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="TextBox">
-          <Border x:Name="Frame" CornerRadius="12" Background="{TemplateBinding Background}"
+          <Border x:Name="Frame" CornerRadius="{DynamicResource ControlCorner}" Background="{TemplateBinding Background}"
                   BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
-            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" />
+            <Grid>
+              <ScrollViewer x:Name="PART_ContentHost" Opacity="0" Focusable="False" VerticalAlignment="Center" />
+              <TextBlock x:Name="PathPreview" Text="{TemplateBinding Text}"
+                         Foreground="{TemplateBinding Foreground}" FontFamily="{TemplateBinding FontFamily}"
+                         FontSize="{TemplateBinding FontSize}" LineHeight="Auto"
+                         TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                         Margin="{TemplateBinding Padding}" VerticalAlignment="Center" IsHitTestVisible="False" />
+            </Grid>
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsKeyboardFocused" Value="True">
-              <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource Action}" />
+              <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource ActionInk}" />
+              <Setter TargetName="PathPreview" Property="Visibility" Value="Hidden" />
+              <Setter TargetName="PART_ContentHost" Property="Opacity" Value="1" />
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>

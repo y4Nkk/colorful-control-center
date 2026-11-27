@@ -38,6 +38,7 @@ export const readGraphicsMode = (): Promise<GraphicsModeProfile> => invoke("read
 export const applyGraphicsMode = (expectedRevision: string, target: number): Promise<void> => invoke("apply_graphics_mode", { request: { expectedRevision, target } });
 export const rebootForGraphicsMode = (expectedRevision: string): Promise<void> => invoke("reboot_for_graphics_mode", { expectedRevision });
 export const readDisplayModes = (): Promise<DisplayProfile> => invoke("read_display_modes");
+export const readAutomaticDisplayTrial = (): Promise<DisplayPending | null> => invoke("read_automatic_display_trial");
 export const readAutomaticRefresh = (): Promise<AutomaticRefreshStatus> => invoke("read_automatic_refresh");
 export const enableAutomaticRefresh = (expectedRevision: string): Promise<void> => invoke("enable_automatic_refresh", { expectedRevision });
 export const restoreAutomaticRefresh = (expectedRevision: string): Promise<void> => invoke("restore_automatic_refresh", { expectedRevision });

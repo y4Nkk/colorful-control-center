@@ -1,0 +1,58 @@
+{
+  "generated_at": "2026-11-27 11:33:38",
+  "elevated": false,
+  "mode": "execute",
+  "start_candidates": [
+    40,
+    50,
+    60,
+    70,
+    80,
+    95
+  ],
+  "stop_candidates": [
+    60,
+    70,
+    80,
+    90,
+    100
+  ],
+  "before": {
+    "enabled": false,
+    "start": 95,
+    "stop": 100
+  },
+  "steps": [
+    {
+      "name": "读取原值",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "确认电池存在",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "校验测试范围",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "写入测试范围并回读",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "恢复原值并回读",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "两秒后复核原值",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "passed": true
+}

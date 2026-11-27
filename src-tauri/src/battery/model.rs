@@ -107,8 +107,40 @@ pub struct PowerStatus {
     pub charging: Option<bool>,
     pub percent: Option<u8>,
     pub remaining_seconds: Option<u32>,
-    pub windows_battery_saver: Option<bool>,
 }
+/// 充电保护读取失败。`reason` 面向用户，`Display` 连同技术细节进入错误链。
+#[derive(Debug)]
+pub enum ChargeUnavailable {
+    /// 原厂控制组件缺失、缺少导出，或没有双向包传输。
+    Component(anyhow::Error),
+    /// 原厂通道调用失败，或返回的包不完整。
+    Transport(anyhow::Error),
+    /// 固件返回的充电保护数据无法识别。
+    Firmware(anyhow::Error),
+}
+impl ChargeUnavailable {
+    pub fn reason(&self) -> &'static str {
+        match self {
+            Self::Component(_) => "未找到可用的原厂控制组件，无法读取充电保护设置。",
+            Self::Transport(_) => "原厂通道没有响应，无法读取充电保护设置。",
+            Self::Firmware(_) => "本机固件不支持充电保护，或返回的数据无法识别。",
+        }
+    }
+    fn kind(&self) -> (&'static str, &anyhow::Error) {
+        match self {
+            Self::Component(error) => ("原厂控制组件不可用", error),
+            Self::Transport(error) => ("原厂通道无响应", error),
+            Self::Firmware(error) => ("固件充电保护数据无法识别", error),
+        }
+    }
+}
+impl std::fmt::Display for ChargeUnavailable {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (kind, error) = self.kind();
+        write!(formatter, "{kind}：{error:#}")
+    }
+}
+impl std::error::Error for ChargeUnavailable {}
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Diagnostics {
@@ -130,7 +162,9 @@ pub struct Profile {
     pub revision: Option<String>,
     pub power: Option<PowerStatus>,
     pub diagnostics: Option<Diagnostics>,
-    pub can_restore: bool,
-    pub warnings: Vec<String>,
+    /// 充电保护读取失败的原因；与 charge 同时为空表示固件未提供该功能。
+    pub charge_unavailable_reason: Option<String>,
+    /// Windows 电源状态读取失败的原因。
+    pub power_unavailable_reason: Option<String>,
     pub charge_lock_reason: Option<String>,
 }

@@ -9,6 +9,7 @@ struct Record {
     skip_release: bool,
     control: [DirectControl; 2],
     mode_bits: u8,
+    saved_mode: u8,
 }
 static RECORD: Mutex<Record> = Mutex::new(Record {
     commands: Vec::new(),
@@ -17,6 +18,7 @@ static RECORD: Mutex<Record> = Mutex::new(Record {
     skip_release: false,
     control: [DirectControl::Firmware; 2],
     mode_bits: 2,
+    saved_mode: 8,
 });
 
 fn direct_control(_: &Dchu) -> Result<[DirectControl; 2]> {
@@ -32,16 +34,21 @@ unsafe extern "system" fn package(command: i32, out: *mut u8) -> i32 {
     command
 }
 unsafe extern "system" fn read(_: i32, _: i32, _: i32, output: *mut u8) -> i32 {
-    if RECORD.lock().unwrap().fail_read {
+    let record = RECORD.lock().unwrap();
+    if record.fail_read {
         return 0;
     }
     unsafe {
-        output.write(0);
+        output.write(record.saved_mode);
     }
     4096
 }
-unsafe extern "system" fn write(_: i32, _: i32, _: i32, _: *const u8) -> i32 {
-    RECORD.lock().unwrap().commands.push((-1, vec![0]));
+unsafe extern "system" fn write(page: i32, offset: i32, count: i32, data: *const u8) -> i32 {
+    assert_eq!((page, offset, count), (4, 5, 1));
+    let mut record = RECORD.lock().unwrap();
+    let mode = unsafe { *data };
+    record.saved_mode = mode;
+    record.commands.push((-1, vec![mode]));
     1
 }
 unsafe extern "system" fn set(command: i32, bytes: *const u8, length: i32) -> i32 {
@@ -60,7 +67,7 @@ unsafe extern "system" fn set(command: i32, bytes: *const u8, length: i32) -> i3
 }
 
 #[test]
-fn child_restore_releases_direct_control_and_attempts_every_recovery_stage() {
+fn child_restores_both_controls_and_only_saves_confirmed_automatic_mode() {
     let io = Dchu::test_io(package, read, set, write);
     for (has_reader, fail_release, fail_read, skip_release, mode_bits) in [
         (true, false, false, false, 2),
@@ -68,7 +75,7 @@ fn child_restore_releases_direct_control_and_attempts_every_recovery_stage() {
         (true, true, false, false, 2),
         (true, false, true, false, 2),
         (true, false, false, true, 2),
-        (true, false, false, false, 16),
+        (true, false, false, false, 0x10),
     ] {
         *RECORD.lock().unwrap() = Record {
             commands: vec![],
@@ -77,13 +84,13 @@ fn child_restore_releases_direct_control_and_attempts_every_recovery_stage() {
             skip_release,
             control: [DirectControl::Manual(90), DirectControl::Firmware],
             mode_bits,
+            saved_mode: 8,
         };
         let reader = has_reader.then_some(direct_control as firmware::ReadDirectControl);
         let result = restore_auto(&io, reader);
-        assert_eq!(
-            result.is_ok(),
-            has_reader && !fail_release && !fail_read && !skip_release && mode_bits == 2
-        );
+        let confirmed =
+            has_reader && !fail_release && !fail_read && !skip_release && mode_bits == 2;
+        assert_eq!(result.is_ok(), confirmed);
         if skip_release {
             assert!(
                 result
@@ -94,7 +101,15 @@ fn child_restore_releases_direct_control_and_attempts_every_recovery_stage() {
         }
         let record = RECORD.lock().unwrap();
         let commands: Vec<_> = record.commands.iter().map(|c| c.0).collect();
-        assert_eq!(commands, vec![0x69, 121, -1]);
+        let mut expected = vec![0x69, 121];
+        if mode_bits == 0x10 {
+            expected.push(121);
+        }
+        if confirmed {
+            expected.push(-1);
+        }
+        assert_eq!(commands, expected);
+        assert_eq!(record.saved_mode, if confirmed { 0 } else { 8 });
         assert_eq!(
             record.commands[0].1,
             firmware::DIRECT_FAN_MASK.to_le_bytes()
@@ -103,7 +118,7 @@ fn child_restore_releases_direct_control_and_attempts_every_recovery_stage() {
             record
                 .commands
                 .iter()
-                .any(|(c, b)| *c == 121 && b == &[0, 0, 0, 1])
+                .all(|(c, b)| *c != 121 || b == &[0, 0, 0, 1])
         );
     }
 }

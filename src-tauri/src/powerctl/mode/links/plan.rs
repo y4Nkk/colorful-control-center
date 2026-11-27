@@ -1,4 +1,4 @@
-use super::{Initial, Session, clocks, settle};
+use super::{Initial, Session, clocks};
 use crate::{gpu_power::mode as node, powerctl::mode::workflow};
 use anyhow::{Context, Result, bail};
 use ccc_core::{gpu_turbo::mode::SkipReason, oem_supply_mode::Trigger};
@@ -127,7 +127,8 @@ impl Plan {
         self.core.reset_attempted();
         self.review(session)?;
         permit()?;
-        let result = (|| {
+        let node_stage = self.effects.node_action.map(|action| action.stage);
+        let result: Result<(), workflow::Failure> = (|| {
             self.power(session, node::Stage::BeforeMode, permit)?;
             if let Some(policy) = &self.effects.clock_policy {
                 session.prepare_clocks(
@@ -146,23 +147,22 @@ impl Plan {
                 permit,
                 &mut |permit| self.after_mode(session, checkpoint, permit),
                 &mut |permit| self.power(session, node::Stage::AfterMode, permit),
-                &mut || {
-                    session.recover_effects(
-                        self.effects
-                            .node_action
-                            .is_some_and(|a| a.stage == node::Stage::AfterMode),
-                    )
-                },
+                &mut || session.recover_effects(node_stage == Some(node::Stage::AfterMode)),
             )
         })();
-        if let Err(error) = result {
-            let recovery = session
-                .rollback_nodes()
-                .map_err(|e| format!("独显恢复：{e:#}"));
-            bail!(ccc_core::msr::with_recovery(
-                format!("模式联动失败：{error:#}"),
-                recovery
-            ));
+        if let Err(mut failure) = result {
+            let before_mode_node_attempted =
+                node_stage == Some(node::Stage::BeforeMode) && session.node_scope().attempted();
+            if before_mode_node_attempted {
+                failure.record_recovery("独显", session.rollback_nodes());
+            }
+            let error = anyhow::anyhow!("模式联动失败：{failure}");
+            log::warn!(
+                "[oem-mode] 预设 {} → {}：{error:#}",
+                self.core.before.core.mode,
+                self.target.mode
+            );
+            return Err(error);
         }
         Ok(())
     }
@@ -183,11 +183,6 @@ impl Plan {
                 self.initial_node.as_ref(),
             )?;
         }
-        settle::wait(
-            self.core.target.mode,
-            self.effects.node_before.as_ref(),
-            permit,
-        )?;
         session.apply_clocks(
             &mut || session.context.policy(),
             &mut |write, origin, identity| {

@@ -40,16 +40,27 @@ pub fn apply(
         .map(capture)
         .collect::<Result<Vec<_>, String>>()?;
     let before_trigger = trigger.map(capture).transpose()?;
-    if let Err(error) = write_verified(io, page, patches, trigger) {
+    if let Err(error) = write_fields(io, page, patches, trigger) {
         return Err(crate::msr::with_recovery(
             error,
-            write_verified(io, page, &before, before_trigger.as_ref()),
+            write_fields(io, page, &before, before_trigger.as_ref()),
         ));
     }
     Ok(before)
 }
 
-fn write_verified(
+/// 写前快照和失败补偿由调用方事务持有。
+pub fn write_verified(
+    io: &impl SettingsAccess,
+    page: u8,
+    patches: &[Patch],
+    trigger: Option<&Patch>,
+) -> Result<(), String> {
+    validate(patches, trigger)?;
+    write_fields(io, page, patches, trigger)
+}
+
+fn write_fields(
     io: &impl SettingsAccess,
     page: u8,
     patches: &[Patch],

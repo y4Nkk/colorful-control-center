@@ -138,11 +138,11 @@ fn display_confirmation_and_capability_recheck_precede_multizone_output() {
         }
         let report = if action == 0 {
             application
-                .cancel(runtime(&f, dir.path(), false), report.id)
+                .cancel(&f.hal, &f.display.controller, report.id)
                 .unwrap()
         } else {
             application
-                .keep(runtime(&f, dir.path(), false), report.id)
+                .keep(&f.hal, &f.gpu, f.devices(), report.id)
                 .unwrap()
         };
         assert_eq!(report.targets_applied, action == 1);

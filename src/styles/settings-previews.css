@@ -10,7 +10,7 @@
 .ccc-preview-titlebar > i { width: var(--ccc-space-1); height: calc(var(--ccc-space-1) / 2); background: var(--ccc-text-muted); }
 .ccc-preview-sidebar { display: flex; flex-direction: column; gap: var(--ccc-space-2); padding: var(--ccc-space-2); }
 .ccc-preview-sidebar > i { height: var(--ccc-space-1); border-radius: var(--ccc-radius-full); background: var(--ccc-hairline); }
-.ccc-preview-sidebar > i:first-child { background: var(--ccc-action); }
+.ccc-preview-sidebar > i:first-child { background: var(--ccc-action-ink); }
 .ccc-preview-content { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: var(--ccc-space-2);
   margin: 0 var(--ccc-space-1) var(--ccc-space-1) 0; gap: var(--ccc-space-2); border-radius: var(--ccc-radius-control); background: var(--ccc-content); }
 .ccc-preview-reading { display: flex; gap: var(--ccc-space-1); }

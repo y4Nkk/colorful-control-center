@@ -6,33 +6,61 @@
   flex: none;
   width: var(--ccc-control-height-compact);
   height: var(--ccc-control-height-compact);
-  border: var(--ccc-border);
+  border: var(--ccc-border-control);
   border-radius: var(--ccc-radius-control);
   background: var(--ccc-content);
   color: var(--ccc-text-on-action);
   transition: background var(--ccc-motion-fast) var(--ccc-easing), border-color var(--ccc-motion-fast) var(--ccc-easing);
 }
 .ccc-checkbox-box > .ccc-icon { visibility: hidden; }
-.ccc-checkbox:has(input:checked) > .ccc-checkbox-box { border-color: var(--ccc-action); background: var(--ccc-action); }
+.ccc-checkbox:has(input:checked) > .ccc-checkbox-box { border-color: var(--ccc-action-fill); background: var(--ccc-action-fill); }
 .ccc-checkbox:has(input:checked) > .ccc-checkbox-box > .ccc-icon { visibility: visible; }
-.ccc-checkbox:has(input:focus-visible) > .ccc-checkbox-box { box-shadow: var(--ccc-focus-shadow); }
+.ccc-checkbox:has(input:focus-visible) > .ccc-checkbox-box { outline: var(--ccc-focus-outline); outline-offset: 2px; }
 .ccc-checkbox:has(input:is(:disabled, [aria-disabled="true"])) { cursor: not-allowed; }
 .ccc-checkbox:has(input:is(:disabled, [aria-disabled="true"]):not([aria-busy="true"])) { opacity: 0.5; }
-.ccc-checkbox:hover:has(input:enabled:not([aria-disabled="true"])) > .ccc-checkbox-box { border-color: var(--ccc-action); }
+.ccc-checkbox:hover:has(input:enabled:not(:checked, [aria-disabled="true"])) > .ccc-checkbox-box { border-color: var(--ccc-action-ink); }
 
-.ccc-radio { flex: none; width: var(--ccc-icon-size); height: var(--ccc-icon-size); margin: 0; appearance: none; border: var(--ccc-border); border-radius: var(--ccc-radius-full); background: var(--ccc-content); cursor: pointer; }
-.ccc-radio:checked { border-color: var(--ccc-action); background: var(--ccc-action); box-shadow: inset 0 0 0 var(--ccc-space-1) var(--ccc-content); }
-.ccc-radio:checked:focus-visible { box-shadow: inset 0 0 0 var(--ccc-space-1) var(--ccc-content), var(--ccc-focus-shadow); }
+.ccc-radio { flex: none; width: var(--ccc-icon-size); height: var(--ccc-icon-size); margin: 0; appearance: none; border: var(--ccc-border-control); border-radius: var(--ccc-radius-full); background: var(--ccc-content); cursor: pointer; }
+.ccc-radio:checked { padding: var(--ccc-space-1); border-color: var(--ccc-action-fill); background: var(--ccc-action-fill) content-box; }
 .ccc-radio:disabled { opacity: 0.5; }
 .ccc-radio:is(:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
 .ccc-radio[data-appearance="overlay"] { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; opacity: 0; }
 
-.ccc-segmented { display: inline-flex; flex-wrap: wrap; gap: var(--ccc-space-1); padding: var(--ccc-space-1); background: var(--ccc-content-muted); border-radius: var(--ccc-radius-card); }
-.ccc-segmented-option { position: relative; display: inline-flex; align-items: center; justify-content: center; min-height: var(--ccc-control-height-compact); padding: var(--ccc-space-1) var(--ccc-space-3); border-radius: var(--ccc-radius-control); color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); cursor: pointer; transition: background var(--ccc-motion-fast) var(--ccc-easing), color var(--ccc-motion-fast) var(--ccc-easing); }
-.ccc-segmented-option:hover:has(.ccc-radio:enabled:not([aria-disabled="true"])) { color: var(--ccc-text); }
-.ccc-segmented-option:has(.ccc-radio:checked) { background: var(--ccc-content); color: var(--ccc-text); font-weight: 500; }
-.ccc-segmented-option[data-pending] { background: var(--ccc-nav-selected); color: var(--ccc-text); }
-.ccc-segmented-option:has(.ccc-radio:focus-visible) { box-shadow: var(--ccc-focus-shadow); }
+.ccc-segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--ccc-space-1);
+  padding: var(--ccc-space-1);
+  background: var(--ccc-content-muted);
+  border-radius: var(--ccc-radius-card);
+}
+.ccc-segmented-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 0;
+  min-height: var(--ccc-control-height-compact);
+  padding: var(--ccc-space-1) var(--ccc-space-3);
+  border-radius: var(--ccc-radius-control);
+  color: var(--ccc-text-muted);
+  font-size: var(--ccc-text-sm);
+  line-height: 1.3;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: background var(--ccc-motion-fast) var(--ccc-easing), color var(--ccc-motion-fast) var(--ccc-easing);
+}
+.ccc-segmented-option:hover:has(.ccc-radio:enabled:not(:checked, [aria-disabled="true"])) { background: var(--ccc-control-hover); color: var(--ccc-text); }
+.ccc-segmented-option:has(.ccc-radio:checked) {
+  background: var(--ccc-control-selected);
+  color: var(--ccc-action-ink);
+  font-weight: 600;
+}
+.ccc-segmented-option:active:has(.ccc-radio:enabled:not(:checked, [aria-disabled="true"])) { background: var(--ccc-control-press); }
+.ccc-segmented-option:active:has(.ccc-radio:checked:enabled:not([aria-disabled="true"])) { background: var(--ccc-control-selected-press); }
+.ccc-segmented-option[data-pending]:not(:has(.ccc-radio:checked)) { background: var(--ccc-control-hover); color: var(--ccc-text); }
+.ccc-segmented-option:has(.ccc-radio:focus-visible) { outline: var(--ccc-focus-outline); outline-offset: 2px; }
 .ccc-segmented-option:has(.ccc-radio:disabled) { cursor: not-allowed; opacity: 0.5; }
 .ccc-segmented[aria-busy="true"] .ccc-segmented-option[data-pending] .ccc-radio:enabled { cursor: progress; }
 
@@ -43,4 +71,17 @@
     inline-size: 100%;
   }
   .ccc-segmented[data-balanced-wrap] > .ccc-segmented-option:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+
+@media (prefers-contrast: more) {
+  .ccc-segmented-option:has(.ccc-radio:checked:not(:focus-visible)) {
+    outline: var(--ccc-border-width) solid var(--ccc-action-ink);
+    outline-offset: calc(-1 * var(--ccc-border-width));
+  }
+}
+
+@media (forced-colors: active) {
+  .ccc-checkbox:has(input:checked) > .ccc-checkbox-box { border-color: Highlight; background: Highlight; color: HighlightText; }
+  .ccc-radio:checked { border: calc(var(--ccc-border-width) + var(--ccc-space-1)) solid Highlight; background: Canvas; }
+  .ccc-segmented-option:has(.ccc-radio:checked) { background: Highlight; color: HighlightText; }
 }

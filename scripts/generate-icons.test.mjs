@@ -58,12 +58,13 @@ const checkSource = '<svg xmlns="http://www.w3.org/2000/svg" stroke="#000"/>';
 const presetAssets = [...presetPalettes, "check"];
 
 function preparePresetFixture(root) {
-  const presetSource = '<svg xmlns="http://www.w3.org/2000/svg" fill="var(--ccc-preset-mid)"/>';
-  for (const palette of presetPalettes)
-    writeFileSync(join(root, "src-tauri/icons/presets", `${palette}.svg`), presetSource);
+  for (const palette of presetPalettes) {
+    writeFileSync(join(root, "src-tauri/icons/presets", `${palette}.svg`),
+      `<svg xmlns="http://www.w3.org/2000/svg" data-preset-palette="${palette}" fill="var(--ccc-preset-mid)"/>`);
+  }
   writeFileSync(join(root, "src-tauri/icons/presets", "check.svg"), checkSource);
   const tokens = presetPalettes.map(palette =>
-    `[data-preset-palette="${palette}"] { --ccc-preset-mid: #127069; }`).join("\n");
+    `[data-preset-palette="${palette}"] { --ccc-preset-mid: ${palette === "quiet" ? "#406abb" : "#127069"}; }`).join("\n");
   writeFileSync(join(root, "src/styles/tokens.css"), tokens);
   writeFileSync(join(root, "node_modules/postcss/package.json"), '{"main":"index.mjs"}');
   writeFileSync(join(root, "node_modules/postcss/index.mjs"),
@@ -99,7 +100,8 @@ function fixture(t) {
     const image = Buffer.from(${JSON.stringify(png().toString("base64"))}, "base64");
     if (options.length) {
       assert.deepEqual(options, ["--png", "48"]);
-      assert.ok(source.includes('fill="#127069"') || source.equals(Buffer.from(${JSON.stringify(checkSource)})));
+      const color = path.basename(input) === "quiet.svg" ? "#406abb" : "#127069";
+      assert.ok(source.includes('fill="' + color + '"') || source.equals(Buffer.from(${JSON.stringify(checkSource)})));
       fs.writeFileSync(path.join(output, "48x48.png"), image);
       process.exit(0);
     }
@@ -151,7 +153,7 @@ test("生成完整桌面清单、同源 favicon 和托盘图标，且不复制�
 });
 
 for (const [path, missing] of [["src-tauri/icons/icon.png", true], ["src-tauri/icons/icon.ico", false],
-  ["public/favicon.svg", false], ["src-tauri/icons/presets/eco.png", false]]) {
+  ["public/favicon.svg", false], ["src-tauri/icons/presets/eco.png", false], ["src-tauri/icons/presets/quiet.png", true]]) {
   test(`检查拒绝${missing ? "缺失" : "过期或不一致"}的 ${path}，不写资产`, t => {
     const f = fixture(t);
     assert.equal(f.run().status, 0);

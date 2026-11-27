@@ -129,15 +129,21 @@ fn shared_plan_pre_enables_then_restores_core_before_closing_on_a_later_failure(
     drop(gate);
     session.authorize().unwrap();
     let gate = f.hal.begin_write().unwrap();
-    f.device.0.lock().unwrap().fail_fan_mode = true;
-    assert!(
+    f.device.0.lock().unwrap().fan_readbacks_on_commands = [[0x80; 8].into()].into();
+    let error = format!(
+        "{:#}",
         plan.execute(
             &session,
             &mut |_, _, _| panic!("无调频目标不得建立检查点"),
             &mut || Ok(())
         )
-        .is_err()
+        .unwrap_err()
     );
+    assert!(
+        error.contains("确认目标风扇档位") && error.contains("0x80"),
+        "{error}"
+    );
+    assert_eq!(error.matches("已恢复写入前状态").count(), 1, "{error}");
     assert!(position(&f, "NODE:true") < position(&f, "MODE:3"));
     assert!(last_position(&f, "MODE:2") < position(&f, "NODE:false"));
     assert!(!environment.io.device().enabled);
@@ -145,7 +151,6 @@ fn shared_plan_pre_enables_then_restores_core_before_closing_on_a_later_failure(
     drop(gate);
     session.finish().unwrap();
 }
-
 #[test]
 fn shared_plan_quiet_enables_after_mode_and_restores_the_node_before_core_on_failure() {
     let f = setup();
@@ -322,48 +327,6 @@ fn shared_plan_changed_frequency_policy_rejects_before_pre_enable_or_core_output
     );
     assert!(environment.io.0.lock().unwrap().events.is_empty());
     assert!(f.device.0.lock().unwrap().events.is_empty());
-    drop(gate);
-    session.finish().unwrap();
-}
-
-#[test]
-fn quiet_plus_settle_revocation_restores_core_without_running_later_effects() {
-    let f = setup();
-    f.device.0.lock().unwrap().bios[17] = 0x8f;
-    let environment = environment(&f, false);
-    let power = gpu_power::Controller::with_environment(environment.clone());
-    let session = context(&f, &power).session().unwrap();
-    let gate = f.hal.begin_write().unwrap();
-    let plan = LinkedPlan::new(
-        checkpoint(&f.hal, 4).unwrap(),
-        effects(&environment, 4, None),
-    )
-    .unwrap();
-    freeze(&session, &environment, &plan.effects);
-    drop(gate);
-    session.authorize().unwrap();
-    let gate = f.hal.begin_write().unwrap();
-    let mut checks = 0;
-    let error = plan
-        .execute(
-            &session,
-            &mut |_, _, _| panic!("静音增强不能调频"),
-            &mut || {
-                if f.device.0.lock().unwrap().pages[1][1] == 4 {
-                    checks += 1;
-                    if checks == 3 {
-                        bail!("隔离静音增强等待撤销");
-                    }
-                }
-                Ok(())
-            },
-        )
-        .unwrap_err();
-    assert!(error.to_string().contains("隔离静音增强等待撤销"));
-    assert_eq!(checks, 3);
-    assert!(position(&f, "MODE:0") < last_position(&f, "MODE:2"));
-    assert_eq!(f.device.0.lock().unwrap().pages[1][1], 2);
-    assert!(environment.io.0.lock().unwrap().events.is_empty());
     drop(gate);
     session.finish().unwrap();
 }

@@ -202,7 +202,7 @@ fn file_changed_while_preparing_rejects_manual_confirmation_without_writes() {
         ModeReview::Confirmed {
             permission: None,
             mode: None,
-            file: Some((dir.path(), &expected)),
+            source: Some((&crate::profiles::application::Source::Saved(dir.path().into()), &expected)),
             display: None,
             gpu_power: None,
             graphics_mode: None,

@@ -1,5 +1,13 @@
 import { appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, rememberMode, applyModeFan, applyModeGpu } from "./mock-mode-state.mjs";
 
+export function applyFanTargets(data, { kind, curves }) {
+  if (kind === "twoPoint") {
+    for (const fan of data.fan.fans) if (curves[fan.id]) Object.assign(fan, curves[fan.id]);
+  } else {
+    data.fan.rpmFans = fanProfile(data).rpmFans.map(fan => ({ ...fan, points: curves[fan.id] ?? fan.points }));
+  }
+}
+
 export function fanProfile(data) {
   const powerMode = data.performanceOptions.currentMode;
   const fan = data.fan;
@@ -16,6 +24,20 @@ export function fanProfile(data) {
   return { ...profile, curveKind: "rpmTable", offsetPct: null, offsetBlockedReason: "此机型不支持风扇加速偏移。", fans: [],
     rpmFans: fan.rpmFans.length ? fan.rpmFans : [{ id: "cpu", maximumRpm: 5000,
       points: Array.from({ length: 10 }, (_, i) => ({ tempC: 40 + i * 5, rpmPct: i === 9 ? 100 : 20 + i * 8 })) }] };
+}
+
+export function fanView(data) {
+  const profile = fanProfile(data);
+  const saved = data.customFanCurves ?? null;
+  const channels = profile.curveKind === "twoPoint" ? profile.fans : profile.rpmFans;
+  const pending = !!saved && (saved.kind !== profile.curveKind || Object.entries(saved.curves).some(([id, points]) => {
+    const live = channels.find(fan => fan.id === id && fan.present !== false);
+    return !live || (Array.isArray(points) ? JSON.stringify(points) !== JSON.stringify(live.points)
+      : Object.keys(points).some(key => live[key] !== points[key]));
+  }));
+  const revision = JSON.stringify([profile.curveKind, channels, saved]);
+  return { ...profile, restoreRevision: JSON.stringify([profile, data.fanRestoreGeneration ?? 0]),
+    custom: profile.customSupported ? { revision, saved, pending } : null, customError: null };
 }
 
 export function applyPerformanceOptions(data, { values, quietFan, replaceCustomFan }, quiet) {
@@ -85,9 +107,14 @@ export async function invokePerformance(data, command, args) {
   const blockedReason = unsupported ? `尚未支持${data.unsupportedModeProduct}机型的完整电源模式控制` : data.calibration.workerRunning || data.calibration.recoveryRequired
     ? "电池校准正在接管或尚需恢复，暂不能切换电源模式及其关联策略"
     : data.dust?.running ? "固件正在除尘，请等待结束" : null;
+  const availableModes = unsupported ? [] : [0, 1, 2, 3];
+  const modeBlocked = !unsupported && ![0, 1, 2, 3].includes(p.currentMode)
+    ? "当前原厂模式未知，无法确认恢复前态" : blockedReason;
   switch (command) {
-    case "read_oem_power_mode": return { currentMode: p.currentMode, acMode: data.acMode, energy: unsupported ? null : energy(), availableModes: unsupported ? [] : [0, 1, 2, 3], softwareActive: false, blockedReason,
-      targets: unsupported ? [] : [0, 1, 2, 3].map(mode => modePreviewTarget(data, mode)) };
+    case "read_oem_power_mode": {
+      return { currentMode: p.currentMode, acMode: data.acMode, energy: unsupported ? null : energy(), availableModes,
+        softwareActive: false, blockedReason: modeBlocked, targets: availableModes.map(mode => modePreviewTarget(data, mode)) };
+    }
     case "read_oem_performance_options":
       if (data.performanceReadFault) throw new Error(data.performanceReadFault);
       return structuredClone({ ...p, appliesInCurrentMode,
@@ -99,7 +126,8 @@ export async function invokePerformance(data, command, args) {
       if (data.performanceFault) return { ok: false, message: data.performanceFault };
       return applyPerformanceOptions(data, args.request, quiet);
     case "apply_oem_power_mode":
-      if (blockedReason) return { ok: false, message: blockedReason };
+      if (modeBlocked) return { ok: false, message: modeBlocked };
+      if (!availableModes.includes(args.expected.mode)) return { ok: false, message: "固件未声明支持此电源模式" };
       if (args.expected.acMode !== args.expected.mode) return { ok: false, message: "插电偏好目标未预览" };
       if (JSON.stringify(args.expected.energy) !== JSON.stringify((await invokePerformance(data, "read_oem_power_mode", {})).targets.find(target => target.mode === args.expected.mode)?.energy)) return { ok: false, message: "固件节能目标已变化" };
       if (JSON.stringify(args.expected) !== JSON.stringify(modePreviewTarget(data, args.expected.mode))) return { ok: false, message: "模式联动条件已变化，请重新读取后再切换" };

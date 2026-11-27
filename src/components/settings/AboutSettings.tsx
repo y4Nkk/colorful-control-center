@@ -1,51 +1,40 @@
 import { BrandLogo } from "../BrandLogo";
-import { Icon } from "../Icon";
-import { Surface } from "../Surface";
+import { Loading } from "../Loading";
 import { Button } from "../Button";
 import { DetailsDialog } from "../DetailsDialog";
-import { useEffect, useId, useState } from "react";
-import { getBackendInfo, toCommandError, type BackendInfo } from "../../api/client";
+import { useApplicationUpdate } from "../../app/useApplicationUpdate";
 import { ChangelogHistory } from "./ChangelogHistory";
-import { ApplicationUpdate } from "./ApplicationUpdate";
+import { SettingRow, SettingsSection } from "./SettingsSection";
 
-export function AboutSettings({ active }: { active: boolean }) {
-  const id = useId();
-  const [info, setInfo] = useState<BackendInfo | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    if (!active) return;
-    let current = true;
-    setLoading(true);
-    setError(null);
-    void getBackendInfo().then((value) => {
-      if (current) setInfo(value);
-    }).catch((cause: unknown) => {
-      if (current) setError(toCommandError(cause).message);
-    }).finally(() => { if (current) setLoading(false); });
-    return () => { current = false; };
-  }, [active, attempt]);
+export function AboutSettings() {
+  const { version, retryVersion, state, checkOnEntry, activate } = useApplicationUpdate();
+  const checking = state.phase === "checking";
+  const currentVersion = version.status === "ready" ? version.version : undefined;
   return (
-    <Surface as="section" variant="group" className="ccc-settings-group" aria-labelledby={`${id}-heading`}>
-      <header className="ccc-panel-head"><h2 className="ccc-panel-title" id={`${id}-heading`}><Icon name="info" />关于</h2></header>
-      <div className="ccc-about-product">
-        <BrandLogo className="ccc-about-logo" />
-        <div className="ccc-about-copy"><h3>Colorful Control Center</h3></div>
-        <div className="ccc-about-version">
-          <span className="ccc-settings-status ccc-mono" role="status">{loading ? "读取版本…" : error ? "版本未知" : info ? `v${info.version}` : "版本未知"}</span>
-          <ApplicationUpdate currentVersion={info?.version} />
-          <DetailsDialog title="更新日志" icon="logs">
-            <ChangelogHistory appVersion={info?.version} />
-          </DetailsDialog>
+    <SettingsSection title="关于" icon="info">
+      <div className="ccc-settings-item ccc-setting-row">
+        <div className="ccc-about-product">
+          <BrandLogo className="ccc-about-logo" />
+          <div className="ccc-about-copy"><h4>Colorful Control Center</h4><p>社区项目 · 非官方</p></div>
+        </div>
+        <div className="ccc-setting-control">
+          {version.status === "loading" ? <Loading label="正在读取版本…" /> :
+            <span className="ccc-settings-status ccc-mono" role="status">{currentVersion ? `v${currentVersion}` : "版本未知"}</span>}
         </div>
       </div>
-      {error && <div className="ccc-settings-feedback">
-        <p className="ccc-settings-error" role="alert">版本读取失败：{error}</p>
-        <Button icon="refresh" type="button" className="ccc-settings-retry" disabled={loading}
-          onClick={() => setAttempt((value) => value + 1)}>重新读取版本</Button>
+      {version.status === "error" && <div className="ccc-settings-item ccc-settings-feedback">
+        <p className="ccc-settings-error" role="alert">版本读取失败：{version.message}</p>
+        <Button icon="refresh" variant="secondary" size="compact" onClick={retryVersion}>重新读取版本</Button>
       </div>}
-      <p className="ccc-settings-detail">社区项目 · 非官方</p>
-    </Surface>
+      <SettingRow label="应用更新">
+        <Button icon={checking ? undefined : "refresh"} variant="secondary" size="compact" aria-haspopup="dialog"
+          aria-disabled={checking || undefined} aria-busy={checking || undefined} onClick={() => activate("about")}>
+          {checking ? <Loading embedded label="正在检查更新" /> : checkOnEntry ? "检查更新" : "查看更新状态"}
+        </Button>
+        <DetailsDialog title="更新日志" icon="logs">
+          <ChangelogHistory appVersion={currentVersion} />
+        </DetailsDialog>
+      </SettingRow>
+    </SettingsSection>
   );
 }

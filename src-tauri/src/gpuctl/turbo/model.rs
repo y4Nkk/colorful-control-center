@@ -200,7 +200,7 @@ impl Snapshot {
     pub fn view(&self) -> Result<Current> {
         let devices = self.device_readings();
         let mut on_targets = Vec::new();
-        for mode in 0..=4 {
+        for mode in 0..ccc_core::oem_events::POWER_MODE_COUNT {
             for on_ac in [true, false] {
                 let mut candidate = self.clone();
                 candidate.source.mode = mode;

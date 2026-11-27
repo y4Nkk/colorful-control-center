@@ -39,8 +39,10 @@ export function SupplyModeRecovery({ value }: { value: Recovery }) {
     ]} />
     {value.planChanges.map(plan => <Surface key={plan.scheme} variant="inset" className="ccc-supply-mode-summary">
       <h3>{powerPlanName(plan.scheme)} · PCIe节能恢复</h3>
-      <p>插电：{aspm(plan.current[0])} → {aspm(plan.initial[0])}</p>
-      <p>电池：{aspm(plan.current[1])} → {aspm(plan.initial[1])}</p>
+      <FactList label="PCIe 节能变更" compact facts={[
+        { label: "插电", icon: "plug", value: `${aspm(plan.current[0])} → ${aspm(plan.initial[0])}` },
+        { label: "电池", icon: "battery", value: `${aspm(plan.current[1])} → ${aspm(plan.initial[1])}` },
+      ]} />
     </Surface>)}
     {value.initialGpuClocks && <Surface variant="inset" className="ccc-supply-mode-summary">
       <h3>GPU频率恢复</h3>

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { readMemoryCapacity, readSystemInventory, type HardwareCapacity, type SystemInventory } from "../api/client";
+import { readGpuDetails, readMemoryCapacity, readSystemInventory, type GpuDetails, type HardwareCapacity, type SystemInventory } from "../api/client";
 
 const MEMORY_INTERVAL_MS = 5_000;
 const INVENTORY_INTERVAL_MS = 30_000;
+const GPU_DETAILS_INTERVAL_MS = 5_000;
 export const MEMORY_HISTORY_MS = 5 * 60_000;
 export const MEMORY_MAX_GAP_MS = 2 * MEMORY_INTERVAL_MS;
 
@@ -22,7 +23,11 @@ function subscribeToVisibility(notify: () => void) {
 }
 const getVisibility = () => document.visibilityState === "visible";
 
-function useOverviewPolling<T>(active: boolean, interval: number, read: (first: boolean) => Promise<T>,
+export function useOverviewVisible() {
+  return useSyncExternalStore(subscribeToVisibility, getVisibility);
+}
+
+function useOverviewPolling<T>(active: boolean, interval: number | null, read: (first: boolean) => Promise<T>,
   record: (value: T | null) => void) {
   const inFlight = useRef<Promise<T> | null>(null);
   useEffect(() => {
@@ -45,17 +50,25 @@ function useOverviewPolling<T>(active: boolean, interval: number, read: (first: 
         }
       } finally {
         if (inFlight.current === request) inFlight.current = null;
-        if (!disposed) timer = setTimeout(() => void refresh(false), interval);
+        if (!disposed && interval !== null) timer = setTimeout(() => void refresh(false), interval);
       }
     };
-    void refresh(true);
+    queueMicrotask(() => void refresh(true));
     return () => { disposed = true; clearTimeout(timer); };
   }, [active, interval, read, record]);
 }
 
-export function useSystemOverview(active: boolean) {
-  const visible = useSyncExternalStore(subscribeToVisibility, getVisibility);
+export function useSystemInventory(overview: boolean, tuning: boolean) {
+  const visible = useOverviewVisible();
   const [inventory, setInventory] = useState<SystemInventory | null>(null);
+  const readInventory = useCallback((first: boolean) => readSystemInventory(overview && first), [overview]);
+  const needsInventory = overview || (tuning && !inventory?.cpu.name);
+  useOverviewPolling(visible && needsInventory, overview ? INVENTORY_INTERVAL_MS : null, readInventory, setInventory);
+  return inventory;
+}
+
+export function useSystemOverview(active: boolean, inventory: SystemInventory | null) {
+  const visible = useOverviewVisible();
   const [memoryHistory, setMemoryHistory] = useState<MemorySample[]>([]);
   const recordMemory = useCallback((capacity: HardwareCapacity | null) => {
     const atMs = Date.now();
@@ -65,7 +78,13 @@ export function useSystemOverview(active: boolean) {
     ]);
   }, []);
   useOverviewPolling(active && visible, MEMORY_INTERVAL_MS, readMemoryCapacity, recordMemory);
-  useOverviewPolling(active && visible, INVENTORY_INTERVAL_MS, readSystemInventory, setInventory);
   const overview: SystemOverview = { inventory, memory: memoryHistory[memoryHistory.length - 1]?.capacity ?? null };
   return { overview, memoryHistory };
+}
+
+export function useGpuDetails(connectionId: number) {
+  const [details, setDetails] = useState<GpuDetails | null>();
+  const readDetails = useCallback(() => readGpuDetails(connectionId), [connectionId]);
+  useOverviewPolling<GpuDetails | null>(true, GPU_DETAILS_INTERVAL_MS, readDetails, setDetails);
+  return details;
 }

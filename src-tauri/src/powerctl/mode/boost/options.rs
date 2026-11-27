@@ -84,9 +84,10 @@ impl Plan {
             command: plan.target.command(),
             ..before
         };
+        let fan = plan.option_fan();
         plan.remember(hal)?;
         let result: Result<()> = (|| {
-            if self.runtime && plan.before.fan.software_curves().is_some() {
+            if (self.runtime || fan.is_some()) && plan.before.fan.software_curves().is_some() {
                 change.fan = true;
                 crate::fanctl::software::stop_safely(hal)?;
             }
@@ -97,16 +98,16 @@ impl Plan {
                 change.saved = true;
                 hal.with_dchu(|io| write_target(io, target))?;
             }
-            if let Some(fan) = plan.option_fan() {
+            if let Some(fan) = fan {
                 change.fan = true;
-                fanctl::apply_mode_policy(hal, fan)?;
+                fanctl::apply_preset_policy(hal, fan, &plan.before.fan)?;
                 if plan.before.fan.entertainment_quiet().is_some() {
                     let quiet = Patch::new(
                         fanctl::saved::ENTERTAINMENT_QUIET_OFFSET,
                         [u8::from(fan.mode() == Some(FAN_MODE_NOISELESS))],
                     );
                     hal.with_dchu(|io| {
-                        settings::apply(io, 4, &[quiet], None).map_err(|e| anyhow!(e))
+                        settings::write_verified(io, 4, &[quiet], None).map_err(|e| anyhow!(e))
                     })?;
                 }
             }
@@ -172,7 +173,8 @@ fn recover_options(io: &impl ModeIo, before: CoreSnapshot) -> Result<()> {
         (4, 8, before.preferences[0]),
         (1, 32, before.preferences[1]),
     ] {
-        if let Err(error) = settings::apply(io, page, &[Patch::new(offset, [value])], None) {
+        if let Err(error) = settings::write_verified(io, page, &[Patch::new(offset, [value])], None)
+        {
             errors.push(error);
         }
     }

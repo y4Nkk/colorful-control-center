@@ -7,7 +7,7 @@ export function installConfigurationFixture(supply) {
     softwareActive: false, lastStart: null, startBlockedReason: null, scheduleBlockedReason: null };
   data.platform = { deepS5: true, warnings: [], powerDelivery: { revision: "pd-0", encoding: "adapterV1", currentLevel: 1, currentValid: true,
     availableLevels: [1, 2, 4], zeroBased: false, adapterWatts: 100, initial: null, restoreBlockedReason: null, blockedReason: null } };
-  data.usb = { revision: "usb-0", recommendation: true, supported: true, activePlan: "balanced",
+  data.usb = { revision: "usb-0", recommendation: true, supported: true, activePlan: "balanced", activeValues: { ac: true, dc: true },
     plans: ["balanced", "highPerformance", "powerSaver"].map(id => ({ id, ac: false, dc: true })),
     missing: [], initial: [], blockedReason: null, restoreBlockedReason: null, warnings: [] };
   const string = text => ({ kind: 1, bytes: [...text, "\0"].flatMap(letter => [letter.charCodeAt(0), 0]) });

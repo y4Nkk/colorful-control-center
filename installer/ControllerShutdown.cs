@@ -4,24 +4,39 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 using System.Text;
 using System.Threading;
+using Microsoft.Win32.SafeHandles;
 
 namespace ColorfulControlCenter.Installer
 {
-    internal static class ControllerShutdown
+    internal static partial class ControllerShutdown
     {
-        internal static void ReleaseExecutable(string directory, Action<string> log)
+        private const uint QueryLimitedInformation = 0x1000;
+        private const uint TokenQuery = 0x0008;
+
+        internal static bool ReleaseExecutable(string directory, Action<string> log)
         {
             string executable = Path.Combine(directory, Product.ApplicationFileStem + ".exe");
-            if (!IsExecutableInUse(executable)) return;
+            if (!IsExecutableInUse(executable)) return true;
 
             var controller = FindController(executable);
             if (controller.HasValue)
             {
                 log("Requesting normal controller exit. PID: " + controller.Value.Id);
+                bool elevate;
                 using (var shutdown = new RestartManagerSession())
-                    shutdown.RequestExit(controller.Value);
+                {
+                    shutdown.RegisterController(controller.Value);
+                    elevate = shutdown.PermissionDenied();
+                    if (!elevate) shutdown.Shutdown();
+                }
+                if (elevate)
+                {
+                    log("Restart Manager reports insufficient shutdown permission. Requesting administrator authorization.");
+                    if (!RequestElevatedExit(controller.Value, directory)) return false;
+                }
             }
             else log("No matching controller window. Waiting for the executable to be released.");
 
@@ -33,6 +48,7 @@ namespace ColorfulControlCenter.Installer
                 Thread.Sleep(500);
             }
             log("Controller executable released.");
+            return true;
         }
 
         private static bool IsExecutableInUse(string executable)
@@ -61,17 +77,20 @@ namespace ColorfulControlCenter.Installer
             int session;
             using (var current = Process.GetCurrentProcess()) session = current.SessionId;
             ProcessIdentity? match = null;
-            foreach (int id in ids)
+            using (var identity = WindowsIdentity.GetCurrent())
             {
-                var candidate = FindProcess(id, session, executable);
-                if (!candidate.HasValue) continue;
-                if (match.HasValue) throw new IOException("安装位置匹配多个控制台主进程。");
-                match = candidate;
+                foreach (int id in ids)
+                {
+                    var candidate = FindProcess(id, session, executable, identity.User);
+                    if (!candidate.HasValue) continue;
+                    if (match.HasValue) throw new IOException("安装位置匹配多个控制台主进程。");
+                    match = candidate;
+                }
             }
             return match;
         }
 
-        private static ProcessIdentity? FindProcess(int id, int session, string executable)
+        private static ProcessIdentity? FindProcess(int id, int session, string executable, SecurityIdentifier user)
         {
             try
             {
@@ -80,13 +99,40 @@ namespace ColorfulControlCenter.Installer
                     if (process.SessionId != session || !String.Equals(process.ProcessName,
                         Product.ApplicationFileStem, StringComparison.OrdinalIgnoreCase)) return null;
                     long started = process.StartTime.ToFileTimeUtc();
-                    if (!String.Equals(process.MainModule.FileName, executable, StringComparison.OrdinalIgnoreCase)) return null;
+                    if (!MatchesImageAndUser(id, executable, user)) return null;
                     return new ProcessIdentity { Id = (uint)id, CreatedLow = (uint)started, CreatedHigh = (uint)(started >> 32) };
                 }
             }
             catch (ArgumentException) { return null; }
             catch (InvalidOperationException) { return null; }
         }
+
+        private static bool MatchesImageAndUser(int id, string executable, SecurityIdentifier user)
+        {
+            using (var handle = OpenProcess(QueryLimitedInformation, false, id))
+            {
+                if (handle.IsInvalid) throw new Win32Exception();
+                var path = new StringBuilder(32768);
+                int length = path.Capacity;
+                if (!QueryFullProcessImageName(handle, 0, path, ref length)) throw new Win32Exception();
+                if (!String.Equals(path.ToString(), executable, StringComparison.OrdinalIgnoreCase)) return false;
+                SafeAccessTokenHandle token;
+                if (!OpenProcessToken(handle, TokenQuery, out token)) throw new Win32Exception();
+                using (token)
+                using (var identity = new WindowsIdentity(token.DangerousGetHandle()))
+                    return user.Equals(identity.User);
+            }
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern SafeProcessHandle OpenProcess(uint access, bool inheritHandle, int id);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool OpenProcessToken(SafeProcessHandle process, uint access, out SafeAccessTokenHandle token);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool QueryFullProcessImageName(SafeProcessHandle process, int flags, StringBuilder path,
+            ref int length);
 
         [StructLayout(LayoutKind.Sequential)]
         private struct ProcessIdentity
@@ -109,6 +155,7 @@ namespace ColorfulControlCenter.Installer
         private sealed class RestartManagerSession : IDisposable
         {
             private const int ErrorMoreData = 234;
+            private const uint RebootReasonPermissionDenied = 0x1;
             private readonly uint session;
 
             internal RestartManagerSession()
@@ -121,10 +168,22 @@ namespace ColorfulControlCenter.Installer
                 Check(RmRegisterResources(session, 1, new[] { executable }, 0, null, 0, IntPtr.Zero), "检查安装文件占用");
             }
 
-            internal void RequestExit(ProcessIdentity controller)
+            internal bool PermissionDenied()
             {
-                // Register just the verified controller. The file can also be held by recovery workers.
+                uint required, reasons, available = 0;
+                int code = RmGetList(session, out required, ref available, IntPtr.Zero, out reasons);
+                if (code != ErrorMoreData) Check(code, "检查控制台退出权限");
+                return (reasons & RebootReasonPermissionDenied) != 0;
+            }
+
+            internal void RegisterController(ProcessIdentity controller)
+            {
+                // The file can also be held by recovery workers, which must exit on their own.
                 Check(RmRegisterResources(session, 0, null, 1, new[] { controller }, 0, IntPtr.Zero), "选择要退出的控制台");
+            }
+
+            internal void Shutdown()
+            {
                 Check(RmShutdown(session, 0, IntPtr.Zero), "请求控制台正常退出");
             }
 
@@ -141,11 +200,7 @@ namespace ColorfulControlCenter.Installer
 
             private static void Check(int code, string operation)
             {
-                if (code == 0) return;
-                var error = new Win32Exception(code);
-                error.Data["Operation"] = operation;
-                error.Data["WindowsErrorCode"] = code;
-                throw error;
+                if (code != 0) throw NativeError(code, operation);
             }
 
             [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
@@ -164,6 +219,14 @@ namespace ColorfulControlCenter.Installer
 
             [DllImport("rstrtmgr.dll")]
             private static extern int RmEndSession(uint session);
+        }
+
+        private static Win32Exception NativeError(int code, string operation)
+        {
+            var error = new Win32Exception(code);
+            error.Data["Operation"] = operation;
+            error.Data["WindowsErrorCode"] = code;
+            return error;
         }
     }
 }

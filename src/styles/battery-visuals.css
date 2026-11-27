@@ -1,14 +1,20 @@
 .ccc-battery-overview {
   display: grid;
-  grid-template-columns: min(32%, 7rem) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) min(36%, 8rem);
   align-items: center;
   gap: var(--ccc-space-4);
   min-width: 0;
-  padding-block: var(--ccc-space-3);
+  padding: var(--ccc-space-4);
+  border-radius: var(--ccc-radius-utility);
+  background: var(--ccc-content-muted);
 }
-.ccc-battery-artwork { display: block; width: 100%; height: auto; color: var(--ccc-action); }
-.ccc-battery-overview:is([data-charge-state="charging"], [data-charge-state="full"]) > .ccc-battery-artwork { color: var(--ccc-safe); }
+.ccc-battery-artwork { display: block; width: 100%; height: auto; color: var(--ccc-chart-blue); }
+.ccc-battery-overview:is([data-charge-state="charging"], [data-charge-state="full"]) > .ccc-battery-artwork { color: var(--ccc-chart-teal); }
 .ccc-battery-readout { display: grid; gap: var(--ccc-space-1); min-width: 0; }
-.ccc-battery-level-value { font-size: var(--ccc-text-temperature); font-weight: 600; line-height: 1.1; }
-.ccc-battery-level-value small { font-size: var(--ccc-text-xl); margin-inline-start: var(--ccc-space-1); }
+.ccc-battery-level-value { color: var(--ccc-text); font-size: var(--ccc-text-temperature); font-weight: 600; line-height: 1.1; }
+.ccc-battery-level-value small {
+  margin-inline-start: var(--ccc-space-1);
+  color: var(--ccc-text-muted);
+  font: 500 var(--ccc-text-sm) var(--ccc-font-sans);
+}
 .ccc-battery-unavailable { font-size: var(--ccc-text-xl); font-weight: 600; overflow-wrap: anywhere; }

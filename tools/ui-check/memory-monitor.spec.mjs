@@ -35,6 +35,8 @@ test("原厂频率与系统容量分别显示，查看不写硬件或保存配�
   await expect(fact(page, "原厂报告频率")).toHaveText("2400 MHz");
   await expect(fact(page, "原厂参考频率")).toHaveText("3200 MHz");
   await expect(fact(page, "总容量")).toHaveText("16 GB");
+  await expect(fact(page, "已用内存插槽")).toHaveText("1/2");
+  await expect(fact(page, "DIMM 0")).toHaveText("DDR5 · 16 GB · 5200 MT/s · Isolated Memory · 16G-5200");
   await page.keyboard.press("Escape");
   await expect(chart(page)).toHaveCount(1);
   const writes = await page.evaluate(() => window.__uiFixture.calls.filter(({ command, args }) =>
@@ -65,6 +67,24 @@ test("系统配置速率缺失时保留未知，原厂报告仍独立显示", as
   await expect(fact(page, "原厂报告频率")).toHaveText("2400 MHz");
 });
 
+test("板载与部分资料独立显示，无法确认的插槽不展示占用", async ({ page }) => {
+  await page.clock.install();
+  await page.reload();
+  await expect(memory(page).getByLabel("内存频率", { exact: true })).toHaveText("5200 MT/s");
+  await page.evaluate(() => {
+    Object.assign(window.__uiFixture, {
+      memorySpeedMts: null, memorySlots: null,
+      memoryModules: [{ locator: null, capacityBytes: null, memoryType: "LPDDR5", manufacturer: null,
+        partNumber: null, configuredSpeedMts: 6400, soldered: true }],
+    });
+  });
+  await page.clock.fastForward(30_100);
+  await expect(memory(page).getByLabel("内存频率", { exact: true })).toHaveText("未知");
+  await openDetails(page);
+  await expect(fact(page, "已用内存插槽")).toHaveCount(0);
+  await expect(fact(page, "内存设备 1")).toHaveText("板载 · LPDDR5 · 6400 MT/s");
+});
+
 test("两个字段独立未知，连接失败清旧值，恢复后重新显示", async ({ page }) => {
   await openDetails(page);
   await publish(page, { reportedClockMhz: 2400, referenceClockMhz: null });
@@ -90,7 +110,7 @@ test("离线仍能阅读单位与共享报告说明", async ({ page }) => {
   await expect(details(page)).toContainText("DDR 有效传输速率");
 });
 
-test("内存趋势在指标上方，深浅主题与宽窄窗口的读数不溢出", async ({ page }) => {
+test("内存使用率与趋势图同高，窄窗纵排，深浅主题的读数不溢出", async ({ page }) => {
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   for (const theme of ["light", "dark"]) {
@@ -101,22 +121,38 @@ test("内存趋势在指标上方，深浅主题与宽窄窗口的读数不溢�
       const layout = await memory(page).evaluate(el => {
         const bounds = el.getBoundingClientRect();
         const style = getComputedStyle(el);
-        const panel = el.querySelector(".ccc-trend-panel").getBoundingClientRect();
-        const stats = el.querySelector(".ccc-memory-stats");
+        const header = el.querySelector(".ccc-hardware-identity").getBoundingClientRect();
+        const panel = el.querySelector(".ccc-overview-charts").getBoundingClientRect();
+        const utilization = el.querySelector(".ccc-overview-utilization").getBoundingClientRect();
+        const plot = el.querySelector(".ccc-trend-chart").getBoundingClientRect();
+        const sideBySide = utilization.right < plot.left;
+        const stats = el.querySelector(".ccc-overview-metric-grid");
+        const statsBounds = stats.getBoundingClientRect();
         const readings = [...stats.children];
         return { overflow: el.scrollWidth > el.clientWidth + 1,
           border: parseFloat(style.borderTopWidth), width: bounds.width, viewport: innerWidth,
           gap: parseFloat(getComputedStyle(el.parentElement).gap),
-          chartAbove: panel.bottom < stats.getBoundingClientRect().top,
+          statsBetween: header.bottom < statsBounds.top && statsBounds.bottom < panel.top,
+          sideBySide,
+          chartsAligned: sideBySide
+            ? utilization.top === plot.top && utilization.bottom === plot.bottom
+            : utilization.left === plot.left && utilization.bottom < plot.top,
+          matchingColor: getComputedStyle(el.querySelector(".ccc-meter-ring")).color
+            === getComputedStyle(el.querySelector(".ccc-trend-plot")).color,
           rows: new Set(readings.map(item => item.getBoundingClientRect().top)).size,
+          primaryPaired: readings[0].getBoundingClientRect().top === readings[1].getBoundingClientRect().top,
           readingsFit: readings.every(item => item.scrollWidth <= item.clientWidth + 1) };
       });
       expect(layout.overflow).toBe(false);
       expect(layout.border).toBeGreaterThan(0);
       expect(layout.gap).toBeGreaterThan(0);
       expect(layout.width).toBeLessThanOrEqual(layout.viewport);
-      expect(layout.chartAbove).toBe(true);
+      expect(layout.statsBetween).toBe(true);
+      expect(layout.sideBySide).toBe(width !== 360);
+      expect(layout.chartsAligned).toBe(true);
+      expect(layout.matchingColor).toBe(true);
       expect(layout.readingsFit).toBe(true);
+      expect(layout.primaryPaired).toBe(true);
       if (width !== 700) expect(layout.rows).toBe(width === 360 ? 2 : 1);
       if (width !== 700) await memory(page).screenshot({ path: `target/ui-check/memory-monitor-${theme}-${width}.png` });
     }

@@ -208,7 +208,7 @@ fn quiet_fan(io: &impl ModeIo, power_mode: u8, fan: u8, turbo: bool) -> Result<O
     }))
 }
 
-pub(crate) fn turbo_enabled(io: &impl ModeIo, mode: u8) -> Result<bool> {
+fn turbo_enabled(io: &impl ModeIo, mode: u8) -> Result<bool> {
     if mode == 3 {
         return Ok(runtime_options(io, mode)?[0]
             && io
@@ -354,7 +354,7 @@ pub(super) fn write_target(io: &impl ModeIo, target: CoreSnapshot) -> Result<()>
 pub(super) fn write_saved(io: &impl ModeIo, preferences: [u8; 2]) -> Result<()> {
     for (page, offset, value) in [(4, 8, preferences[0]), (1, 32, preferences[1])] {
         if byte(io, page, offset)? != value {
-            settings::apply(io, page, &[Patch::new(offset, [value])], None)
+            settings::write_verified(io, page, &[Patch::new(offset, [value])], None)
                 .map_err(|error| anyhow!(error))?;
         }
     }

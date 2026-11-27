@@ -1,4 +1,5 @@
 import { Icon } from "../Icon";
+import { Loading } from "../Loading";
 import { applyLanPolicy, previewLanPolicy, readLanPolicy, restoreLanPolicy, type LanField, type LanRequest } from "../../api/client";
 import { useState } from "react";
 import { Button } from "../Button";
@@ -30,7 +31,6 @@ export function LanPolicy({ active, revision }: { active: boolean; revision: num
   const request: LanRequest | null = profile && reviewing && canWake && !locked
     ? { expectedRevision: profile.revision, deviceId, powerSaving: null, applyWakePatch: true } : null;
   const preview = useLanWakePreview(active && !busy, request);
-  if (loaded && !profile && !error) return null;
   const changePower = (enabled: boolean) => {
     if (!profile || locked || !canEditPower || (currentPower === "1") === enabled) return;
     const target = { expectedRevision: profile.revision, deviceId, powerSaving: enabled, applyWakePatch: false };
@@ -46,17 +46,18 @@ export function LanPolicy({ active, revision }: { active: boolean; revision: num
     </div>
     {error && <p className="ccc-control-error" role="alert">{error}</p>}
     <OemConflictAction issues={[error, profile?.blockedReason, preview.error]} disabled={busy} onClosed={reread} />
-    {!profile ? <p className="ccc-control-caption">{error ? "读取失败" : "读取中…"}</p> : <>
-      <div className="ccc-display-controls">
+    {!profile ? !error && (loaded ? <p className="ccc-control-caption" role="status">固件未声明网络驱动策略。</p>
+      : <Loading label="正在读取…" />) : <>
+      {devices.length ? <div className="ccc-display-controls">
         <label className="ccc-config-field">网卡<Select label="网络策略设备" value={deviceId} options={devices} disabled={busy || !devices.length}
           onChange={id => { setSelected(id); setReviewing(false); }} /></label>
-        <label className="ccc-config-field">节能<Select label="网卡节能" value={canEditPower ? currentPower === "1" ? "on" : "off" : ""}
+        <label className="ccc-config-field">节能<Select label="网卡节能" value={currentPower === "1" ? "on" : currentPower === "0" ? "off" : ""}
           options={OPTIONS} disabled={locked || !canEditPower} placeholder="设置未知" onChange={value => changePower(value === "on")} /></label>
         {profile.frame.recommendation !== null && <Button className="ccc-inline-tool" variant="ghost" size="compact" disabled={locked || !canEditPower}
           onClick={() => changePower(profile.frame.recommendation!)}>使用原厂建议</Button>}
         {canWake && <Button className="ccc-inline-tool" variant="secondary" size="compact" disabled={locked} aria-expanded={reviewing}
           onClick={() => setReviewing(value => !value)}>关机唤醒补丁</Button>}
-      </div>
+      </div> : <p className="ccc-control-caption" role="status">未检测到可用网卡。</p>}
       {initial && !sameIdentity && <p className="ccc-control-caption">网卡或驱动已更换，初始记录不可恢复。</p>}
       {profile.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
       {preview.error && <p className="ccc-control-error" role="alert">{preview.error}</p>}

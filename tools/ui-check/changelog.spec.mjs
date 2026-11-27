@@ -31,7 +31,7 @@ test("关于在版本号旁打开离线日志，当前与历史版本可切换",
 });
 
 test("更新日志资源读取失败后可在弹窗内重试", async ({ page }) => {
-  const file = url => /\/CHANGELOG\.md$/.test(url.pathname) && !url.search;
+  const file = url => /\/CHANGELOG(?:-[\w-]+)?\.md$/.test(url.pathname) && !url.search;
   const fail = route => route.abort();
   await page.route(file, fail);
   await page.getByRole("button", { name: "更新日志", exact: true }).click();

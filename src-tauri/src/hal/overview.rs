@@ -1,4 +1,5 @@
 //! Windows 系统用量与设备资料，各自按变化频率读取。
+use super::smbios::memory::{self, MemoryInventory, MemoryModule, MemorySlots};
 use anyhow::{Result, anyhow};
 use serde::Serialize;
 use std::sync::Mutex;
@@ -30,19 +31,21 @@ pub struct SystemInventory {
     pub cpu: CpuIdentity,
     /// SMBIOS Type 17 已安装内存条共同报告的配置速率（MT/s）。
     pub memory_speed_mts: Option<u32>,
+    pub(crate) memory_modules: Option<Vec<MemoryModule>>,
+    pub(crate) memory_slots: Option<MemorySlots>,
     pub volumes: Option<Vec<volumes::Volume>>,
     pub warnings: Vec<String>,
 }
 
 struct InventoryReader {
     cpu: Option<CpuIdentity>,
-    memory_speed_mts: Option<u32>,
+    memory: Option<MemoryInventory>,
     volumes: volumes::MetadataCache,
 }
 
 static INVENTORY: Mutex<InventoryReader> = Mutex::new(InventoryReader {
     cpu: None,
-    memory_speed_mts: None,
+    memory: None,
     volumes: volumes::MetadataCache::new(),
 });
 
@@ -63,10 +66,10 @@ impl InventoryReader {
             }
             identity
         });
-        if self.memory_speed_mts.is_none() {
-            match crate::hal::smbios::read_memory_speed() {
-                Ok(speed) => self.memory_speed_mts = Some(speed),
-                Err(error) => warnings.push(format!("内存频率读取失败：{error:#}")),
+        if self.memory.is_none() {
+            match memory::read_inventory() {
+                Ok(inventory) => self.memory = Some(inventory),
+                Err(error) => warnings.push(format!("内存设备资料读取失败：{error:#}")),
             }
         }
         let volumes = self
@@ -76,7 +79,9 @@ impl InventoryReader {
             .ok();
         SystemInventory {
             cpu,
-            memory_speed_mts: self.memory_speed_mts,
+            memory_speed_mts: self.memory.as_ref().and_then(|memory| memory.speed_mts),
+            memory_modules: self.memory.as_ref().map(|memory| memory.modules.clone()),
+            memory_slots: self.memory.as_ref().and_then(|memory| memory.slots),
             volumes,
             warnings,
         }

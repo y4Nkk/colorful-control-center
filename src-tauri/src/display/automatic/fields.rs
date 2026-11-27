@@ -25,7 +25,7 @@ impl Transition {
         self.target.validate()?;
         let mut original = self.target.clone();
         original.frequency = self.before.frequency;
-        if original != self.before || self.mode > 4 {
+        if original != self.before || !ccc_core::oem_events::is_power_mode(self.mode) {
             bail!("自动刷新率事务只能改变刷新率");
         }
         Ok(())

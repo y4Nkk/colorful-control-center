@@ -1,6 +1,9 @@
 use anyhow::{Result, anyhow, bail};
 use serde::Serialize;
-use std::time::{Duration, Instant};
+use std::{
+    collections::BTreeMap,
+    time::{Duration, Instant},
+};
 
 #[cfg(not(test))]
 mod native;
@@ -15,15 +18,25 @@ const MAX_AGE_MS: u64 = 2500;
 #[serde(rename_all = "camelCase")]
 pub struct Reading {
     pub value_pct: f64,
-    /// PDH 标称基频 × 处理器性能百分比；基频计数缺失或无效时为空。
+    /// 同一窗口内按忙碌时间加权的活跃逻辑处理器频率估算。
     pub clock_mhz: Option<f64>,
+    pub max_active_clock_mhz: Option<f64>,
     pub sampled_at_ms: u64,
 }
-/// 同一次 PDH 采样的效用、性能百分比与标称基频；性能或基频计数缺失（系统未提供）时为 None。
+
+type CounterValue = (u32, f64);
+type ProcessorValues = BTreeMap<(u16, u16), CounterValue>;
+
+struct ClockSample {
+    logical_processors: usize,
+    busy: ProcessorValues,
+    performance: ProcessorValues,
+    base_clock: ProcessorValues,
+}
+
 pub(super) struct Sample {
-    utility: (u32, f64),
-    performance: Option<(u32, f64)>,
-    base_clock: Option<(u32, f64)>,
+    utility: CounterValue,
+    clocks: Option<ClockSample>,
 }
 trait Counter: Send {
     fn collect(&mut self) -> Result<Option<Sample>>;
@@ -101,7 +114,7 @@ impl Sampler {
             Err(error) => self.failure(format!("{error:#}")),
         }
     }
-    fn reset(&mut self) {
+    pub(super) fn reset(&mut self) {
         if let Some(source) = &mut self.source {
             source.reset();
         }
@@ -127,47 +140,45 @@ fn validate_value(status: u32, value: f64) -> Result<f64> {
     }
     Ok(value.min(100.0))
 }
-fn validate_performance(status: u32, value: f64) -> Result<f64> {
-    if ![0, 1].contains(&status) {
-        bail!("CPU性能计数器数据状态无效：{status:#010x}");
-    }
-    if !value.is_finite() || value < 0.0 {
-        bail!("CPU性能计数器数值无效：{value}");
-    }
-    // 性能百分比在睿频时超过 100，不设上限。
-    Ok(value)
+fn valid_counter((status, value): CounterValue) -> Option<f64> {
+    ([0, 1].contains(&status) && value.is_finite() && value >= 0.0).then_some(value)
 }
-fn validate_base_clock(status: u32, value: f64) -> Result<f64> {
-    if ![0, 1].contains(&status) {
-        bail!("CPU基频计数器数据状态无效：{status:#010x}");
+
+impl ClockSample {
+    fn estimate(&self) -> Option<(f64, f64)> {
+        if self.busy.len() != self.logical_processors {
+            return None;
+        }
+        let mut weighted_clock = 0.0;
+        let mut total_busy = 0.0;
+        let mut highest: f64 = 0.0;
+        for (id, value) in &self.busy {
+            let busy = valid_counter(*value).filter(|value| *value <= 100.0)?;
+            if busy == 0.0 {
+                continue;
+            }
+            let base = valid_counter(*self.base_clock.get(id)?)?;
+            let performance = valid_counter(*self.performance.get(id)?)?;
+            let clock = base * (performance / 100.0);
+            if !clock.is_finite() || clock <= 0.0 {
+                return None;
+            }
+            weighted_clock += clock * busy;
+            total_busy += busy;
+            highest = highest.max(clock);
+        }
+        let average = weighted_clock / total_busy;
+        (total_busy > 0.0 && average.is_finite()).then_some((average, highest))
     }
-    if !value.is_finite() || value <= 0.0 {
-        bail!("CPU基频计数器数值无效：{value}");
-    }
-    Ok(value)
 }
-/// 三项读数来自同一次采样；性能或基频计数无效只让 clock 为空，不拖垮效用读数。
+
 fn reading_from(sample: Sample, sampled_at_ms: u64) -> Result<Reading> {
     let value_pct = validate_value(sample.utility.0, sample.utility.1)?;
-    let performance = sample
-        .performance
-        .map(|(status, value)| validate_performance(status, value))
-        .transpose()
-        .ok()
-        .flatten();
-    let base_clock = sample
-        .base_clock
-        .map(|(status, value)| validate_base_clock(status, value))
-        .transpose()
-        .ok()
-        .flatten();
-    let clock_mhz = base_clock
-        .zip(performance)
-        .map(|(base, pct)| base * pct / 100.0)
-        .filter(|mhz| mhz.is_finite() && *mhz > 0.0);
+    let clocks = sample.clocks.and_then(|sample| sample.estimate());
     Ok(Reading {
         value_pct,
-        clock_mhz,
+        clock_mhz: clocks.map(|(average, _)| average),
+        max_active_clock_mhz: clocks.map(|(_, highest)| highest),
         sampled_at_ms,
     })
 }

@@ -12,7 +12,6 @@ pub struct Facts<'a> {
     pub product: u32,
     pub customer: u8,
     pub dc_mode_power: bool,
-    pub quiet_plus_default: bool,
     pub ac_mode: u8,
     pub available: &'a [u8],
     pub on_ac: Option<bool>,
@@ -34,8 +33,6 @@ pub fn target(facts: Facts<'_>) -> Result<Option<u8>, &'static str> {
             && facts.customer == 7
         {
             3
-        } else if facts.quiet_plus_default {
-            4
         } else if facts.available.contains(&1) {
             1
         } else {
@@ -46,7 +43,7 @@ pub fn target(facts: Facts<'_>) -> Result<Option<u8>, &'static str> {
     } else {
         3
     };
-    if !facts.available.contains(&target) {
+    if !crate::oem_events::is_power_mode(target) || !facts.available.contains(&target) {
         return Err("原厂供电目标模式未被当前固件声明支持");
     }
     Ok(Some(target))
@@ -60,9 +57,8 @@ mod tests {
             product: 20600,
             customer: 1,
             dc_mode_power: true,
-            quiet_plus_default: false,
             ac_mode: 2,
-            available: &[0, 1, 2, 3, 4],
+            available: &[0, 1, 2, 3],
             on_ac: Some(false),
             trigger: Trigger::SupplyChange,
         }
@@ -70,13 +66,6 @@ mod tests {
     #[test]
     fn dc_chooses_original_priority_and_ac_reads_saved_choice() {
         assert_eq!(target(base()), Ok(Some(1)));
-        assert_eq!(
-            target(Facts {
-                quiet_plus_default: true,
-                ..base()
-            }),
-            Ok(Some(4))
-        );
         assert_eq!(
             target(Facts {
                 available: &[0, 2, 3],
@@ -167,15 +156,15 @@ mod tests {
         assert!(
             target(Facts {
                 on_ac: Some(true),
-                ac_mode: 5,
+                ac_mode: 4,
+                available: &[0, 1, 2, 3, 4],
                 ..base()
             })
             .is_err()
         );
         assert!(
             target(Facts {
-                quiet_plus_default: true,
-                available: &[0, 1, 2, 3],
+                available: &[2, 3],
                 ..base()
             })
             .is_err()

@@ -1,7 +1,7 @@
 import { Icon } from "../Icon";
-import { applyBatteryCharge, readBatteryProfile, restoreBatteryCharge, type BatteryChargeValues } from "../../api/client";
+import { applyBatteryCharge, readBatteryProfile, type BatteryChargeValues } from "../../api/client";
 import { Button } from "../Button";
-import { ConfigurationAction } from "../ConfigurationAction";
+import { Loading } from "../Loading";
 import { Select } from "../Select";
 import { Surface } from "../Surface";
 import { Switch } from "../Switch";
@@ -15,7 +15,7 @@ const description = (value: BatteryChargeValues) => value.enabled ? `低于 ${va
 const choices = (values: number[], current: number) => [...new Set([...values, current])].map(value => ({ value: String(value), label: value === 0 ? "未设置" : `${value}%` }));
 
 export function BatterySettings({ active, revision: refreshRevision, onPolicyChanged }: { active: boolean; revision: number; onPolicyChanged: () => void }) {
-  const { profile, busy: chargeBusy, error, run, reread, refresh: refreshFacts } = useDeviceSettings(readBatteryProfile, active, refreshRevision, 5000);
+  const { profile, loaded, busy: chargeBusy, error, run, reread, refresh: refreshFacts } = useDeviceSettings(readBatteryProfile, active, refreshRevision, 5000);
   const [pending, setPending] = useState<{ revision: string; values: BatteryChargeValues } | null>(null);
   const [energyBusy, setEnergyBusy] = useState(false);
   const [calibrationBusy, setCalibrationBusy] = useState(false), [calibrationLocked, setCalibrationLocked] = useState(false);
@@ -44,7 +44,7 @@ export function BatterySettings({ active, revision: refreshRevision, onPolicyCha
           <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取电池" disabled={busy} onClick={reread} />
         </div>
       </div>
-      <BatteryOverview profile={profile} />
+      {loaded ? <BatteryOverview profile={profile} /> : <Loading label="正在读取电池状态…" />}
       {error && <p className="ccc-control-error" role="alert">{error}</p>}
       {profile && charge && values ? <div className="ccc-charge-board">
         <div className="ccc-power-setting">
@@ -67,15 +67,8 @@ export function BatterySettings({ active, revision: refreshRevision, onPolicyCha
         {editing && <p className="ccc-control-caption" role="status">开始值须低于停止值。阈值有效后自动生效。</p>}
         {power?.present !== true && <p className="ccc-control-caption">未确认电池存在，请重新读取后操作。</p>}
         {profile.chargeLockReason && <p className="ccc-control-caption">{profile.chargeLockReason}</p>}
-        <ConfigurationAction revision={revision ?? ""} label="充电保护" restore disabled={busy || !canWrite || !profile.canRestore}
-          onConfirm={() => {
-            setPending(null);
-            return revision ? run(() => restoreBatteryCharge(revision), "充电初始设置已恢复") : undefined;
-          }}>
-          <p>恢复首次修改前的充电保护范围。</p>
-        </ConfigurationAction>
       </div> : profile && power?.present !== false &&
-        <p className="ccc-control-caption">暂无可用的充电保护接口。</p>}
+        <p className="ccc-control-caption">{profile.chargeUnavailableReason ?? "本机未提供充电保护功能。"}</p>}
     </Surface>
     <div className="ccc-module-grid" data-module-layout="featured">
       <EnergyPolicySettings active={active} revision={refreshRevision} locked={chargeBusy || calibrationBusy || calibrationLocked || power?.present !== true} onChanged={refreshFacts} onBusy={setEnergyBusy} />

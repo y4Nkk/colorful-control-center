@@ -149,32 +149,19 @@ pub fn apply_preview(
     )
 }
 pub fn keep(app: &tauri::AppHandle, id: u64) -> Result<Application> {
-    let dir = crate::profiles::profiles_dir(app)?;
     let result = app.state::<Controller>().keep(
-        Runtime {
-            origin: Origin::Manual,
-            permission: None,
-            hal: &app.state::<Hal>(),
-            gpu: &app.state::<GpuController>(),
-            devices: Devices::from_app(app),
-            dir: &dir,
-        },
+        &app.state::<Hal>(),
+        &app.state::<GpuController>(),
+        Devices::from_app(app),
         id,
     )?;
     crate::profiles::application::log_application(&result);
     Ok(result)
 }
 pub fn cancel(app: &tauri::AppHandle, id: u64) -> Result<Application> {
-    let dir = crate::profiles::profiles_dir(app)?;
     let result = app.state::<Controller>().cancel(
-        Runtime {
-            origin: Origin::Manual,
-            permission: None,
-            hal: &app.state::<Hal>(),
-            gpu: &app.state::<GpuController>(),
-            devices: Devices::from_app(app),
-            dir: &dir,
-        },
+        &app.state::<Hal>(),
+        &app.state::<display::Controller>(),
         id,
     )?;
     crate::profiles::application::log_application(&result);

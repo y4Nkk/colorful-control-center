@@ -1,7 +1,7 @@
 use super::*;
 
 fn evidence() -> Evidence {
-    let targets = (0..=4)
+    let targets = (0..4)
         .map(|mode| Target {
             from_mode: None,
             gpu: None,
@@ -12,7 +12,7 @@ fn evidence() -> Evidence {
                 hardware_p_state: false,
                 energy_star: Some(match mode {
                     0 | 3 => 2,
-                    1 | 4 => 1,
+                    1 => 1,
                     2 => 0,
                     _ => unreachable!(),
                 }),
@@ -31,10 +31,9 @@ fn evidence() -> Evidence {
             customer: 1,
             dc_mode_power: true,
         },
-        quiet_plus_default: false,
         ac_mode: 2,
         current_mode: 1,
-        available: vec![0, 1, 2, 3, 4],
+        available: vec![0, 1, 2, 3],
         targets,
         on_ac: Some(false),
         energy: energy::State {
@@ -50,6 +49,10 @@ fn evidence() -> Evidence {
 fn preview_binds_saved_ac_and_complete_mode_effects() {
     let mut facts = evidence();
     let first = review(&facts, false).unwrap().unwrap();
+    assert_eq!(
+        first.device_identity,
+        "4cd7f2174359d86a2e92c95e7c6399cd6c2115ef992b940b18400f26232d5151"
+    );
     assert_eq!(
         (
             first.ac.as_ref().unwrap().mode,

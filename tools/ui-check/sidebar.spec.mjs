@@ -26,15 +26,15 @@ async function expectIndicatorAt(page, name) {
   }).toEqual([0, 0, 3, 16]);
 }
 
-test("40px 导航按钮保持固定图标轴线，折叠提示支持指针与键盘", async ({ page }) => {
+test("44px 导航按钮保持固定图标轴线，折叠提示支持指针与键盘", async ({ page }) => {
   const overview = entry(page, "概览");
   const glyph = overview.locator(".ccc-nav-glyph");
   const original = await overview.elementHandle();
   const expandedGlyph = await glyph.boundingBox();
   await expect(sidebar(page)).toHaveCSS("width", "224px");
-  await expect(overview).toHaveCSS("height", "40px");
-  await expect(overview).toHaveCSS("border-radius", "12px");
-  await expect(glyph.locator('[data-weight="fill"]')).toHaveCSS("color", "rgb(50, 121, 246)");
+  await expect(overview).toHaveCSS("height", "44px");
+  await expect(overview).toHaveCSS("border-radius", "8px");
+  await expect(glyph.locator('[data-weight="fill"]')).toHaveCSS("color", "rgb(58, 131, 247)");
   await expect(glyph.locator('[data-weight="regular"]')).toHaveCSS("opacity", "0");
   await expectIndicatorAt(page, "概览");
   const selectedFill = await overview.evaluate(button => getComputedStyle(button).backgroundColor);
@@ -48,8 +48,8 @@ test("40px 导航按钮保持固定图标轴线，折叠提示支持指针与键
   await page.mouse.up();
 
   await page.getByRole("button", { name: "收起侧边栏" }).click();
-  await expect(sidebar(page)).toHaveCSS("width", "56px");
-  await expect(overview).toHaveCSS("width", "40px");
+  await expect(sidebar(page)).toHaveCSS("width", "60px");
+  await expect(overview).toHaveCSS("width", "44px");
   expect(await glyph.boundingBox()).toEqual(expandedGlyph);
   expect(await original.evaluate(button => button.isConnected)).toBe(true);
   await overview.hover();
@@ -93,9 +93,27 @@ test("指示条拉伸、连续切页接续并与底部设置独立定位", async
   await expect(rail(page).locator(".ccc-nav-footer .ccc-nav-indicator")).toHaveCount(0);
 });
 
+test("反馈支持折叠和键盘操作，在系统浏览器打开项目 Issue 类型选择页", async ({ page }) => {
+  const feedback = entry(page, "反馈");
+  const update = entry(page, "检查更新");
+  const settings = entry(page, "设置");
+  const layout = await Promise.all([update.boundingBox(), feedback.boundingBox(), settings.boundingBox()]);
+  expect(layout.map(rect => rect.y)).toEqual([...layout].map(rect => rect.y).sort((a, b) => a - b));
+  await expect(feedback).toHaveCSS("height", "44px");
+  await feedback.hover();
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await page.getByRole("button", { name: "收起侧边栏" }).click();
+  await feedback.focus();
+  await expect(page.getByRole("tooltip")).toHaveText("反馈");
+  await feedback.press("Enter");
+  const calls = await page.evaluate(() => window.__uiFixture.calls.filter(item => item.command === "plugin:opener|open_url"));
+  expect(calls).toMatchObject([{ args: { url: "https://github.com/y4Nkk/colorful-control-center/issues/new/choose" } }]);
+  await expect(entry(page, "概览")).toHaveAttribute("aria-current", "page");
+});
+
 test("窄窗自动收起不覆盖偏好，短窗内蓝条随主列表滚动", async ({ page }) => {
   await page.setViewportSize({ width: 700, height: 220 });
-  await expect(sidebar(page)).toHaveCSS("width", "56px");
+  await expect(sidebar(page)).toHaveCSS("width", "60px");
   await expect(page.getByRole("button", { name: "展开侧边栏" })).toHaveCount(0);
   await entry(page, "设备配置").click();
   await expectIndicatorAt(page, "设备配置");
@@ -105,7 +123,7 @@ test("窄窗自动收起不覆盖偏好，短窗内蓝条随主列表滚动", as
   await expect(sidebar(page)).toHaveCSS("width", "224px");
   await page.getByRole("button", { name: "收起侧边栏" }).click();
   await page.reload();
-  await expect(sidebar(page)).toHaveCSS("width", "56px");
+  await expect(sidebar(page)).toHaveCSS("width", "60px");
   await expect(page.getByRole("button", { name: "展开侧边栏" })).toHaveAttribute("aria-expanded", "false");
 });
 
@@ -128,5 +146,5 @@ test("应用减少动效设置终止正在移动的指示条", async ({ page }) 
   await entry(page, "设置").click();
   await page.getByRole("radio", { name: "深色", exact: true }).click();
   await expect(root).toHaveAttribute("data-theme", "dark");
-  await expect(indicator(page)).toHaveCSS("background-color", "rgb(141, 180, 255)");
+  await expect(indicator(page)).toHaveCSS("background-color", "rgb(41, 151, 255)");
 });

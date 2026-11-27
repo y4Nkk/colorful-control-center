@@ -3,6 +3,7 @@ import { ProfileModeAuthorization, ProfileModeExecutionNotes } from "../profiles
 import { Select } from "../Select";
 import { ConfigurationAction } from "../ConfigurationAction";
 import { DetailsDialog } from "../DetailsDialog";
+import { Tooltip } from "../Tooltip";
 import { OemConflictAction } from "../OemConflictAction";
 import { ProfilePreview } from "../profiles/ProfilePreview";
 import { useStartupProfile } from "./useStartupProfile";
@@ -19,7 +20,9 @@ export function StartupProfilePicker({ active }: { active: boolean }) {
         <div>
           <div className="ccc-power-setting-label">
             <label htmlFor="startup-profile">启动档案</label>
-            <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取启动档案" title="重新读取启动档案" disabled={!ready || busy} onClick={reread} />
+            <Tooltip content="重新读取启动档案">
+              <Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取启动档案" disabled={!ready || busy} onClick={reread} />
+            </Tooltip>
           </div>
           {saved !== null && selected !== saved && <p className="ccc-control-caption">已保存 · {saved || "不应用档案"}</p>}
           {lastRun && <p className="ccc-control-caption" role="status">{lastRun}</p>}

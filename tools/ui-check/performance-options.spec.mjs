@@ -8,12 +8,15 @@ const confirmation = page => page.getByRole("dialog", { name: "确认散热策�
 const confirm = page => confirmation(page).getByRole("button", { name: "确认应用", exact: true }).click();
 const quietMode = p => p.getByRole("radio", { name: "寂静模式", exact: true });
 const quietPreference = p => p.getByRole("switch", { name: "娱乐档寂静偏好", exact: true });
+const switchTrack = control => control.locator("..").locator(".ccc-switch-track");
 
-async function expectPerformanceDescription(panel, status) {
+async function expectPerformanceStatus(panel, status = "") {
   for (const name of ["Turbo 风扇", "动态调校 DTT"]) {
     await expect(panel.getByRole("switch", { name, exact: true })).toHaveAccessibleDescription(status);
   }
-  await expect(panel.getByText(status, { exact: true }).filter({ visible: true })).toHaveCount(0);
+  const captions = panel.locator(".ccc-cooling-option .ccc-control-caption");
+  if (status) await expect(captions).toHaveText([status, status]);
+  else await expect(captions).toHaveCount(0);
 }
 
 test("散热控制统一回读风扇、Turbo 和 DTT", async ({ page }) => {
@@ -24,7 +27,7 @@ test("散热控制统一回读风扇、Turbo 和 DTT", async ({ page }) => {
   await expect(p.getByRole("switch", { name: "Turbo 风扇", exact: true })).toBeChecked();
   await p.getByRole("switch", { name: "动态调校 DTT", exact: true }).check();
   await expect(p.getByRole("switch", { name: "动态调校 DTT", exact: true })).toBeChecked();
-  await expectPerformanceDescription(p, "已应用");
+  await expectPerformanceStatus(p);
   await expect(page.getByRole("region", { name: "性能选项", exact: true })).toHaveCount(0);
   expect(await calls(page, "apply_oem_performance_options")).toBe(2);
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
@@ -43,7 +46,10 @@ test("娱乐模式独立保存性能偏好，切换到性能模式时预览生�
   await p.getByRole("switch", { name: "动态调校 DTT", exact: true }).check();
   await expect(p.getByRole("switch", { name: "Turbo 风扇", exact: true })).toBeChecked();
   await expect(p.getByRole("switch", { name: "动态调校 DTT", exact: true })).toBeChecked();
-  await expectPerformanceDescription(p, "仅保存");
+  await expectPerformanceStatus(p, "尚未生效");
+  for (const name of ["Turbo 风扇", "动态调校 DTT"]) {
+    await expect(switchTrack(p.getByRole("switch", { name, exact: true }))).toHaveCSS("background-color", "rgb(58, 131, 247)");
+  }
   expect(await page.evaluate(() => {
     const f = window.__uiFixture;
     return [f.performanceOptions.currentMode, f.fan.currentMode];
@@ -59,7 +65,7 @@ test("娱乐模式独立保存性能偏好，切换到性能模式时预览生�
   await expect(performance).toBeChecked();
   await expect(p.getByRole("switch", { name: "Turbo 风扇", exact: true })).toBeChecked();
   await expect(p.getByRole("switch", { name: "动态调校 DTT", exact: true })).toBeChecked();
-  await expectPerformanceDescription(p, "已应用");
+  await expectPerformanceStatus(p);
   expect(await calls(page, "apply_oem_power_mode")).toBe(1);
   expect(await page.evaluate(() => window.__uiFixture.calls.find(call => call.command === "apply_oem_power_mode").args.expected))
     .toMatchObject({ mode: 2, turbo: true, dtt: true });
@@ -101,7 +107,7 @@ test("娱乐档将缺少能力证据的开关标为未确认支持", async ({ pa
     data.performanceOptions.current = { turboFan: null, dtt: null };
   });
   await p.getByRole("button", { name: "重新读取散热控制", exact: true }).click();
-  await expectPerformanceDescription(p, "未确认支持");
+  await expectPerformanceStatus(p, "未确认支持");
   await expect(p.getByRole("switch", { name: "Turbo 风扇", exact: true })).toHaveAttribute("aria-disabled", "true");
   await expect(p.getByRole("switch", { name: "动态调校 DTT", exact: true })).toHaveAttribute("aria-disabled", "true");
   expect(await calls(page, "apply_oem_performance_options")).toBe(0);
@@ -173,6 +179,7 @@ test("性能模式的寂静模式与 Turbo 互斥", async ({ page }) => {
 });
 
 test("娱乐档寂静偏好、即时寂静和性能档记忆各自独立", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
   const p = panel(page);
   const quiet = quietMode(p);
   const preference = quietPreference(p);
@@ -190,16 +197,24 @@ test("娱乐档寂静偏好、即时寂静和性能档记忆各自独立", async
   await entertainment.click();
   await expect(entertainment).toBeChecked();
   await expect(preference).not.toBeChecked();
+  await expect(switchTrack(preference)).toHaveCSS("background-color", "rgb(122, 122, 122)");
   await quiet.click();
   await expect(quiet).toBeChecked();
   await expect(preference).not.toBeChecked();
   await preference.click();
   await confirm(page);
   await expect(preference).toBeChecked();
-  await expect(preference).toHaveAccessibleDescription("已保存");
-  await expect(p.getByText("已保存", { exact: true })).toBeHidden();
+  await expect(switchTrack(preference)).toHaveCSS("background-color", "rgb(58, 131, 247)");
+  await expect(preference).toHaveAccessibleDescription("");
+  await expect(p.getByText("已保存", { exact: true })).toHaveCount(0);
   await expect(turbo).toBeChecked();
-  await expect(turbo).toHaveAccessibleDescription("仅保存");
+  await expect(turbo).toHaveAccessibleDescription("尚未生效");
+  const auto = p.getByRole("radio", { name: "自动", exact: true });
+  await expect(quiet).toBeChecked();
+  await auto.click();
+  await expect(auto).toBeChecked();
+  await expect(preference).toBeChecked();
+  await expect(p.getByText("选择「自动」时会应用娱乐档寂静偏好。", { exact: true })).toHaveCount(0);
   const full = p.getByRole("radio", { name: "全速", exact: true });
   await full.click();
   await expect(full).toBeChecked();
@@ -217,8 +232,11 @@ test("娱乐档寂静偏好、即时寂静和性能档记忆各自独立", async
   await expect(entertainment).toBeChecked();
   await expect(turbo).not.toBeChecked();
   await expect(preference).toBeChecked();
+  await expect(quiet).toBeChecked();
   await preference.click();
   await confirm(page);
+  await expect(switchTrack(preference)).toHaveCSS("background-color", "rgb(122, 122, 122)");
+  await expect(p.getByText("已保存", { exact: true })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => {
     const f = window.__uiFixture;
     return [f.entertainmentQuiet, f.performanceFanMode, f.performanceOptions.current.turboFan];
@@ -267,13 +285,32 @@ test("拒绝过期选项修订并回读实际开关状态", async ({ page }) => 
   await expect(dtt).not.toBeChecked();
 });
 
-test("重新读取显示已保存选项和外部变更", async ({ page }) => {
+test("重新读取显示偏好与当前启停的差异", async ({ page }) => {
   const p = panel(page);
-  await p.getByRole("switch", { name: "动态调校 DTT", exact: true }).check();
-  await page.evaluate(() => { window.__uiFixture.performanceOptions.current.turboFan = true; });
-  await p.getByRole("button", { name: "重新读取散热控制", exact: true }).click();
-  await expect(p.getByRole("switch", { name: "Turbo 风扇", exact: true })).toBeChecked();
-  await expect(p.getByRole("switch", { name: "动态调校 DTT", exact: true })).toBeChecked();
+  const turbo = p.getByRole("switch", { name: "Turbo 风扇", exact: true });
+  const dtt = p.getByRole("switch", { name: "动态调校 DTT", exact: true });
+  const reload = p.getByRole("button", { name: "重新读取散热控制", exact: true });
+  await dtt.check();
+  await page.evaluate(() => {
+    const fixture = window.__uiFixture;
+    fixture.entertainmentOptions = true;
+    fixture.performanceOptions.currentMode = 3;
+    fixture.performanceOptions.current.turboFan = true;
+    fixture.modeOptionsCommand = 3 | 128;
+  });
+  await reload.click();
+  await expect(turbo).toBeChecked();
+  await expect(turbo).toHaveAccessibleDescription("尚未生效");
+  await expect(dtt).toBeChecked();
+  await expect(dtt).toHaveAccessibleDescription("");
+  await page.evaluate(() => {
+    const fixture = window.__uiFixture;
+    fixture.performanceOptions.current.turboFan = false;
+    fixture.modeOptionsCommand |= 64;
+  });
+  await reload.click();
+  await expect(turbo).not.toBeChecked();
+  await expect(turbo).toHaveAccessibleDescription("当前仍开启");
   expect(await calls(page, "apply_oem_performance_options")).toBe(1);
 });
 
@@ -289,7 +326,7 @@ for (const [mode, label] of [[3, "娱乐"], [2, "性能"]]) {
       f.entertainmentQuiet = mode === 3;
     }, mode);
     await p.getByRole("button", { name: "重新读取散热控制", exact: true }).click();
-    await expectPerformanceDescription(p, "未确认支持");
+    await expectPerformanceStatus(p, "未确认支持");
     await expect(p).not.toContainText("切换到性能模式后生效");
     const quiet = quietMode(p);
     await quiet.click();
@@ -307,7 +344,7 @@ for (const [mode, label] of [[3, "娱乐"], [2, "性能"]]) {
   });
 }
 
-test("只修改 DTT 不启用已保存的 Turbo，也不切换风扇 Tab 或档位", async ({ page }) => {
+test("只修改 DTT 时保留已保存的 Turbo、风扇档位和两路曲线", async ({ page }) => {
   const p = panel(page);
   await page.evaluate(() => {
     const data = window.__uiFixture;
@@ -318,16 +355,19 @@ test("只修改 DTT 不启用已保存的 Turbo，也不切换风扇 Tab 或档�
     data.fan.fans.push({ ...data.fan.fans[0], id: "gpu1" });
   });
   await p.getByRole("button", { name: "重新读取散热控制" }).click();
-  const gpu = p.getByRole("tab", { name: "GPU 1", exact: true });
+  await p.getByRole("button", { name: "编辑曲线", exact: true }).click();
+  const gpu = p.getByRole("group", { name: "GPU 1 曲线点" });
+  const cpu = p.getByRole("group", { name: "CPU 曲线点" });
   const turbo = p.getByRole("switch", { name: "Turbo 风扇", exact: true });
-  await gpu.click();
-  await expect(turbo).toHaveAccessibleDescription("仅保存");
+  await expect(gpu).toBeVisible();
+  await expect(turbo).toHaveAccessibleDescription("尚未生效");
   await expect(p.getByRole("button", { name: "应用已保存的性能选项", exact: true })).toHaveCount(0);
   await p.getByRole("switch", { name: "动态调校 DTT", exact: true }).click();
   await expect(confirmation(page)).not.toContainText("Turbo 风扇");
   await confirm(page);
   await expect(p.getByRole("switch", { name: "动态调校 DTT", exact: true })).toBeChecked();
-  await expect(turbo).toHaveAccessibleDescription("仅保存");
-  await expect(gpu).toHaveAttribute("aria-selected", "true");
+  await expect(turbo).toHaveAccessibleDescription("尚未生效");
+  await expect(gpu).toBeVisible();
+  await expect(cpu).toBeVisible();
   expect(await page.evaluate(() => [window.__uiFixture.modeOptionsCommand, window.__uiFixture.fan.currentMode])).toEqual([131, 6]);
 });

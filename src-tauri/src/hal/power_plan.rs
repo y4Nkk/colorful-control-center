@@ -1,7 +1,11 @@
 //! Windows 电源计划传输；测试实例不能退回真实系统 API。
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail, ensure};
+use std::{collections::BTreeSet, os::windows::ffi::OsStrExt, path::Path, ptr};
 use windows_sys::{
-    Win32::{Foundation::LocalFree, System::Power::*},
+    Win32::{
+        Foundation::{ERROR_FILE_NOT_FOUND, ERROR_MORE_DATA, ERROR_NO_MORE_ITEMS, LocalFree},
+        System::{Power::*, Registry::KEY_WRITE},
+    },
     core::GUID,
 };
 
@@ -56,6 +60,8 @@ pub trait PowerAccess: Send + Sync {
     fn active(&self) -> Result<u128>;
     fn battery_action(&self, scheme: u128, action: BatteryAction) -> Result<u32>;
     fn schemes(&self) -> Result<Vec<u128>>;
+    fn scheme_name(&self, scheme: u128) -> Result<String>;
+    fn check_active_scheme_write(&self) -> Result<()>;
     fn usb(&self, scheme: u128) -> Result<[u32; 2]>;
     fn set_usb(&self, scheme: u128, ac: bool, value: u32) -> Result<()>;
     fn aspm(&self, scheme: u128) -> Result<[u32; 2]>;
@@ -73,6 +79,32 @@ pub trait PowerAccess: Send + Sync {
     ) -> Result<()>;
 }
 pub struct NativePower;
+
+pub(crate) fn format_guid(id: u128) -> String {
+    let hex = format!("{id:032x}");
+    format!(
+        "{}-{}-{}-{}-{}",
+        &hex[..8],
+        &hex[8..12],
+        &hex[12..16],
+        &hex[16..20],
+        &hex[20..]
+    )
+}
+
+pub(crate) fn parse_guid(value: &str) -> Result<u128> {
+    ensure!(
+        value.len() == 36
+            && [8, 13, 18, 23]
+                .iter()
+                .all(|&index| value.as_bytes()[index] == b'-'),
+        "电源 GUID 格式无效"
+    );
+    let id = u128::from_str_radix(&value.replace('-', ""), 16).context("电源 GUID 无效")?;
+    ensure!(id != 0 && value == format_guid(id), "电源 GUID 不是规范值");
+    Ok(id)
+}
+
 fn scheme_id(guid: GUID) -> u128 {
     (u128::from(guid.data1) << 96)
         | (u128::from(guid.data2) << 80)
@@ -88,6 +120,38 @@ fn checked(status: u32, operation: &str) -> Result<()> {
     }
     Ok(())
 }
+
+impl NativePower {
+    pub(crate) fn import_scheme(&self, path: &Path, scheme: u128) -> Result<()> {
+        let path: Vec<_> = path.as_os_str().encode_wide().chain([0]).collect();
+        let mut guid = GUID::from_u128(scheme);
+        let wanted = &mut guid as *mut GUID;
+        let mut destination = wanted;
+        let status =
+            unsafe { PowerImportPowerScheme(ptr::null_mut(), path.as_ptr(), &mut destination) };
+        let imported =
+            (status == 0 && !destination.is_null()).then(|| scheme_id(unsafe { *destination }));
+        if !destination.is_null() && destination != wanted {
+            unsafe { LocalFree(destination.cast()) };
+        }
+        checked(status, "导入校准电源计划")?;
+        ensure!(
+            imported == Some(scheme),
+            "导入返回的电源计划标识不符合本次任务"
+        );
+        Ok(())
+    }
+
+    pub(crate) fn delete_inactive_scheme(&self, scheme: u128) -> Result<()> {
+        ensure!(self.active()? != scheme, "校准电源计划仍在使用，未删除");
+        let status = unsafe { PowerDeleteScheme(ptr::null_mut(), &GUID::from_u128(scheme)) };
+        if status == ERROR_FILE_NOT_FOUND {
+            return Ok(());
+        }
+        checked(status, "删除校准电源计划")
+    }
+}
+
 impl PowerAccess for NativePower {
     fn lid_action(&self, scheme: u128) -> Result<[u32; 2]> {
         let values = read_setting(scheme, &BUTTONS, &LID, "读取合盖计划动作")?;
@@ -140,8 +204,9 @@ impl PowerAccess for NativePower {
     }
     fn schemes(&self) -> Result<Vec<u128>> {
         let mut schemes = Vec::new();
-        for index in 0..1024 {
-            let mut guid: GUID = unsafe { std::mem::zeroed() };
+        let mut seen = BTreeSet::new();
+        for index in 0..=u32::MAX {
+            let mut guid = GUID::default();
             let mut size = std::mem::size_of::<GUID>() as u32;
             let status = unsafe {
                 PowerEnumerate(
@@ -154,7 +219,7 @@ impl PowerAccess for NativePower {
                     &mut size,
                 )
             };
-            if status == windows_sys::Win32::Foundation::ERROR_NO_MORE_ITEMS {
+            if status == ERROR_NO_MORE_ITEMS {
                 return Ok(schemes);
             }
             checked(status, "枚举电源计划")?;
@@ -162,12 +227,32 @@ impl PowerAccess for NativePower {
                 bail!("电源计划GUID长度无效");
             }
             let id = scheme_id(guid);
-            if schemes.contains(&id) {
-                bail!("系统报告重复电源计划");
-            }
+            ensure!(
+                id != 0 && seen.insert(id),
+                "Windows 返回无效或重复的电源计划 GUID"
+            );
             schemes.push(id);
         }
-        bail!("电源计划数量超过上限")
+        bail!("Windows 电源计划枚举索引耗尽")
+    }
+    fn scheme_name(&self, scheme: u128) -> Result<String> {
+        let guid = GUID::from_u128(scheme);
+        read_friendly_name(|buffer, size| unsafe {
+            PowerReadFriendlyName(
+                std::ptr::null_mut(),
+                &guid,
+                std::ptr::null(),
+                std::ptr::null(),
+                buffer,
+                size,
+            )
+        })
+    }
+    fn check_active_scheme_write(&self) -> Result<()> {
+        checked(
+            unsafe { PowerSettingAccessCheckEx(ACCESS_ACTIVE_SCHEME, ptr::null(), KEY_WRITE) },
+            "Windows 电源计划切换权限检查",
+        )
     }
     fn usb(&self, scheme: u128) -> Result<[u32; 2]> {
         read_setting(scheme, &USB, &SELECTIVE_SUSPEND, "读取USB 选择性暂停")
@@ -217,13 +302,43 @@ impl PowerAccess for NativePower {
     }
 }
 
+fn read_friendly_name(mut read: impl FnMut(*mut u8, &mut u32) -> u32) -> Result<String> {
+    let mut size = 0;
+    checked(read(ptr::null_mut(), &mut size), "读取电源计划名称长度")?;
+    for _ in 0..3 {
+        ensure!(size.is_multiple_of(2), "电源计划名称长度无效");
+        if size == 0 {
+            return Ok(String::new());
+        }
+        let capacity = size;
+        let mut text = vec![0u16; capacity as usize / 2];
+        let status = read(text.as_mut_ptr().cast(), &mut size);
+        if status == ERROR_MORE_DATA {
+            ensure!(size > capacity, "Windows 未返回增加后的电源计划名称长度");
+            continue;
+        }
+        checked(status, "读取电源计划名称")?;
+        ensure!(
+            size.is_multiple_of(2) && size <= capacity,
+            "电源计划名称长度无效"
+        );
+        let text = &text[..size as usize / 2];
+        let end = text
+            .iter()
+            .position(|&unit| unit == 0)
+            .unwrap_or(text.len());
+        return String::from_utf16(&text[..end]).context("电源计划名称不是有效的 UTF-16");
+    }
+    bail!("电源计划名称在读取时持续变化，请重新读取")
+}
+
 fn read_setting(scheme: u128, group: &GUID, setting: &GUID, operation: &str) -> Result<[u32; 2]> {
     Ok([
         read_value(scheme, group, setting, true, operation)?,
         read_value(scheme, group, setting, false, operation)?,
     ])
 }
-fn read_value(
+pub(crate) fn read_value(
     scheme: u128,
     group: &GUID,
     setting: &GUID,
@@ -295,6 +410,12 @@ impl PowerAccess for UnavailablePower {
     fn schemes(&self) -> Result<Vec<u128>> {
         self.active().map(|_| vec![])
     }
+    fn scheme_name(&self, _: u128) -> Result<String> {
+        bail!("隔离测试未注入电源计划名称")
+    }
+    fn check_active_scheme_write(&self) -> Result<()> {
+        bail!("隔离测试未注入电源计划写权限")
+    }
     fn usb(&self, _: u128) -> Result<[u32; 2]> {
         self.active().map(|_| [0; 2])
     }
@@ -316,35 +437,4 @@ impl PowerAccess for UnavailablePower {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::BatteryAction;
-
-    #[test]
-    fn battery_action_identifiers_match_the_oem_powerlife_binary() {
-        let low = BatteryAction::Low.guid();
-        assert_eq!(
-            (low.data1, low.data2, low.data3, low.data4),
-            (
-                0xd8742dcb,
-                0x3e6a,
-                0x4b3c,
-                [0xb3, 0xfe, 0x37, 0x46, 0x23, 0xcd, 0xcf, 0x06]
-            )
-        );
-        let critical = BatteryAction::Critical.guid();
-        assert_eq!(
-            (
-                critical.data1,
-                critical.data2,
-                critical.data3,
-                critical.data4
-            ),
-            (
-                0x637ea02f,
-                0xbbcb,
-                0x4015,
-                [0x8e, 0x2c, 0xa1, 0xc7, 0xb9, 0xc0, 0xb5, 0x46]
-            )
-        );
-    }
-}
+mod tests;

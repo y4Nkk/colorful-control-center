@@ -152,7 +152,8 @@ test("未声明节能能力时不显示可操作入口", async ({ page }) => {
   await expect(panel.getByRole("button", { name: "重新读取节能计划", exact: true })).toBeEnabled();
   await page.evaluate(() => { window.__uiFixture.energySupported = false; });
   await panel.getByRole("button", { name: "重新读取节能计划", exact: true }).click();
-  await expect(panel).toHaveCount(0);
+  await expect(panel.getByRole("status")).toHaveText("固件未声明电池节能计划。");
+  await expect(panel.getByRole("switch", { name: "启用节能计划" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "电池与充电", exact: true })).toBeVisible();
   expect(await writes(page)).toBe(0);
 });

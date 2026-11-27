@@ -40,6 +40,7 @@ test("双屏预览左右呈现当前与目标，初次确认只进入显示试�
   const review = await previewConfiguration(page);
   const preview = panel(page).getByLabel("档案显示配置");
   await expect(preview).toContainText("切换前 60 Hz → 目标");
+  await expect(preview.getByText("档案目标", { exact: true })).toHaveCount(2);
   await expect(preview).toContainText("内置屏"); await expect(preview).toContainText("外接屏");
   expect(await frequencies(page)).toEqual([60, 60]);
   await review.getByRole("button", { name: "应用档案", exact: true }).click();
@@ -175,7 +176,9 @@ test("保留请求执行期间显示处理状态，阻止重复确认", async ({
     };
   });
   await host(page).getByRole("button", { name: "保留显示并继续档案", exact: true }).click();
-  await expect(host(page)).toContainText("正在处理档案");
+  const status = host(page).getByRole("status").filter({ hasText: /^正在重新核对并处理档案…$/ });
+  await expect(status).toBeVisible();
+  await expect(status.locator('[data-icon="loading"]')).toHaveCount(1);
   await expect(host(page).getByRole("button", { name: "保留显示并继续档案", exact: true })).toBeDisabled();
   await expect(host(page).getByRole("button", { name: "恢复本次显示并停止", exact: true })).toBeDisabled();
   await page.evaluate(() => window.__uiFixture.releaseKeep());

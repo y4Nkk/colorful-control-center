@@ -60,6 +60,8 @@ fn token_is_elevated(token: &OwnedHandle) -> Result<bool> {
 pub(crate) const SAME_USER_ADMIN_REQUIRED: &str =
     "当前 Windows 账户没有可用的管理员权限，请使用管理员账户登录 Windows 后打开应用。";
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) enum AdministrativeAccess {
     Elevated,
     CanElevate,

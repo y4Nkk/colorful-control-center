@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { applyFanCurve, applyOemPerformanceOptions, applyRpmFanCurves, CUSTOM_FAN_MODE, readFanProfile,
-  readOemPerformanceOptions, restoreFanSettings, setFanMode, setFanOffset,
-  type FanId, type FanProfile, type FanRestoreTarget, type OemPerformanceChange, type OemPerformanceOptions, type OpResult, type RpmPoint } from "../../api/client";
+import { applyOemPerformanceOptions, CUSTOM_FAN_MODE, readFanProfile,
+  readOemPerformanceOptions, restoreFanSettings, saveCustomFanCurves, setFanMode, setFanOffset,
+  type FanCurveChanges, type FanProfile, type FanRestoreTarget, type OemPerformanceChange, type OemPerformanceOptions, type OpResult } from "../../api/client";
 import { useOemConflict } from "../OemConflictHost";
 import { toast } from "../use-toast";
-import { normalizeDraft, sameDraft, type CurveDraft } from "./curve";
 import { errText } from "./format";
-import { sameRpmCurve } from "./rpmCurve";
 
 type CoolingSource = "fan" | "options";
 type Reading<T> = { value: T | null; error: string | null };
@@ -28,6 +26,7 @@ export function useCoolingControl(active: boolean, revision: number, onSettled: 
   const refreshAfterWrite = useRef(false);
   const profile = fan.value;
   const readValid = profile !== null && fan.error === null;
+  const canEditCurves = readValid && !!profile.custom;
   const load = useCallback(async () => {
     const id = ++generation.current;
     pendingRead.current = true;
@@ -52,9 +51,11 @@ export function useCoolingControl(active: boolean, revision: number, onSettled: 
   }, [active, softwareRunning, load]);
   const conflict = useOemConflict();
   const retry = () => { if (active && !running.current) { setActionError(null); void load(); } };
-  const run = async (source: CoolingSource, action: () => Promise<OpResult>, success?: string) => {
-    if (!active || running.current || pendingRead.current) return;
-    if (source === "fan" ? !readValid || profile?.blockedReason : !options.value || options.error || options.value.blockedReason) return;
+  const run = async (source: CoolingSource | "curve", action: () => Promise<OpResult>, success?: string) => {
+    if (!active || running.current || pendingRead.current) return false;
+    if (source === "fan" && (!readValid || profile.blockedReason) ||
+        source === "curve" && !canEditCurves ||
+        source === "options" && (!options.value || options.error || options.value.blockedReason)) return false;
     running.current = true;
     setWriting(true);
     try {
@@ -62,12 +63,15 @@ export function useCoolingControl(active: boolean, revision: number, onSettled: 
       if (!result.ok) throw new Error(result.message);
       const refreshed = await load();
       setActionError(null);
-      if (refreshed?.[source] && success) toast({ kind: "success", title: success });
+      const confirmed = refreshed?.[source === "curve" ? "fan" : source] === true;
+      if (confirmed && success) toast({ kind: "success", title: success });
+      return confirmed;
     } catch (cause) {
       const message = errText(cause);
       await load();
       setActionError(message);
       if (source === "options") conflict.review([message], retry);
+      return false;
     } finally {
       running.current = false;
       setWriting(false);
@@ -75,37 +79,32 @@ export function useCoolingControl(active: boolean, revision: number, onSettled: 
         refreshAfterWrite.current = false;
         void load();
       }
-      onSettled(source);
+      if (source !== "curve") onSettled(source);
     }
   };
-  return { profile, readValid, fanError: fan.error, options, actionError, writing, busy: writing || reading, retry,
-    apply: (expected: string, change: OemPerformanceChange) => run("options", () => applyOemPerformanceOptions(expected, change)),
-    restore: (target: FanRestoreTarget, expectedRevision: string) =>
-      run("fan", () => restoreFanSettings(target, expectedRevision), "风扇设置已恢复"),
-    ...fanActions(profile, action => run("fan", async () => {
-      if (JSON.stringify(await readFanProfile()) !== JSON.stringify(profile)) {
-        throw new Error("风扇设置已变化，请重新调整");
-      }
+  const runFan = async (action: () => Promise<OpResult>) => {
+    await run("fan", async () => {
+      if (JSON.stringify(await readFanProfile()) !== JSON.stringify(profile)) throw new Error("风扇设置已变化，请重新调整");
       return action();
-    })),
+    });
+  };
+  return { profile, readValid, canEditCurves, fanError: fan.error, options, actionError, writing, busy: writing || reading, retry,
+    apply: (expected: string, change: OemPerformanceChange) => run("options", () => applyOemPerformanceOptions(expected, change)),
+    saveCurves: (expected: string, changes: FanCurveChanges) =>
+      run("curve", () => saveCustomFanCurves(expected, changes)),
+    async restore(target: FanRestoreTarget, expectedRevision: string) {
+      await run("fan", () => restoreFanSettings(target, expectedRevision), "风扇设置已恢复");
+    },
+    ...fanActions(profile, runFan),
   };
 }
 
 function fanActions(profile: FanProfile | null, run: (action: () => Promise<OpResult>) => Promise<void>) {
   return {
     setMode(mode: number) {
-      if (!profile?.availableModes.includes(mode) || mode === CUSTOM_FAN_MODE && (!profile.customSupported || profile.customBlockedReason)) return;
-      if (profile.software || mode !== profile.currentMode) return run(() => setFanMode(mode));
-    },
-    changeCurve(id: FanId, value: CurveDraft) {
-      const fan = profile?.fans.find(item => item.id === id && item.present);
-      if (!fan || !profile?.customSupported || profile.customBlockedReason || profile.software || sameDraft(normalizeDraft(fan, fan), value)) return;
-      return run(() => applyFanCurve(id === "cpu" ? value : null, id === "gpu1" ? value : null, id === "gpu2" ? value : null));
-    },
-    changeRpm(id: FanId, points: RpmPoint[]) {
-      const fan = profile?.rpmFans.find(item => item.id === id);
-      if (!fan || !profile?.customSupported || profile.customBlockedReason || profile.software || sameRpmCurve(fan.points, points)) return;
-      return run(() => applyRpmFanCurves({ [id]: points }));
+      const custom = mode === CUSTOM_FAN_MODE;
+      if (!profile?.availableModes.includes(mode) || custom && (!profile.custom || profile.customBlockedReason)) return;
+      if (profile.software || mode !== profile.currentMode || custom && profile.custom?.pending) return run(() => setFanMode(mode));
     },
     setOffset(offset: number) {
       if (profile?.offsetBlockedReason === null && offset !== profile.offsetPct) {

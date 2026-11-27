@@ -4,6 +4,8 @@ using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Markup;
@@ -12,6 +14,8 @@ using System.Windows.Shell;
 
 namespace ColorfulControlCenter.Installer
 {
+    internal enum InstallerStep { Confirm, Install, Complete }
+
     internal sealed partial class InstallerWindow : Window
     {
         private const double ShadowMargin = 16;
@@ -19,26 +23,27 @@ namespace ColorfulControlCenter.Installer
         private readonly Action<string> launch;
         private readonly string registeredDirectory;
         private string selectedDirectory;
+        private string locationEditStart;
         private string recoveryReason;
+        private string replacementDirectory;
         private InstallationRequest request;
         private Exception failure;
-        private string phaseText;
-        private double? fraction;
-        private bool busy;
-        private int step;
+        private bool busy, editingLocation;
+        private InstallerStep step;
         private StackPanel body;
         private TextBox directoryBox;
         private TextBlock locationError;
         private TextBlock heading;
-        private Button primary, secondary, back, close;
-        private readonly Label[] markers = new Label[4];
-        private int renderedStep = -1;
+        private TextBlock phaseStatus;
+        private ProgressBar progressBar;
+        private Button primary, secondary, changeLocation, close;
 
         internal InstallerWindow() : this(InstalledApplication.FindDirectory(),
             new InstallerEngine().Run, InstalledApplication.Launch) { }
 
         internal InstallerWindow(string installedDirectory,
-            Func<InstallationRequest, IProgress<InstallProgress>, Func<bool>, Task<bool>> install, Action<string> launch)
+            Func<InstallationRequest, IProgress<InstallProgress>, Func<bool>, Task<bool>> install, Action<string> launch,
+            Size? workArea = null)
         {
             this.install = install;
             this.launch = launch;
@@ -47,10 +52,16 @@ namespace ColorfulControlCenter.Installer
             ExitCode = 1;
             Resources.MergedDictionaries.Add(LoadDictionary("CCC.Palette"));
             Resources.MergedDictionaries.Add(LoadDictionary("CCC.Theme"));
-            Title = "Colorful Control Center · 安装";
+            if (SystemParameters.HighContrast) ApplyHighContrastPalette();
+            CheckRegisteredTarget();
+            editingLocation = recoveryReason != null;
             FontFamily = new FontFamily("Microsoft YaHei UI, Segoe UI");
-            Width = Math.Min(1040 + 2 * ShadowMargin, SystemParameters.WorkArea.Width);
-            Height = Math.Min(640 + 2 * ShadowMargin, SystemParameters.WorkArea.Height);
+            Size available = workArea ?? SystemParameters.WorkArea.Size;
+            SizeToContent = SizeToContent.Manual;
+            Width = Math.Min(960 + 2 * ShadowMargin, available.Width);
+            Height = Math.Min(520 + 2 * ShadowMargin, available.Height);
+            MinWidth = MaxWidth = Width;
+            MinHeight = MaxHeight = Height;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
@@ -65,9 +76,16 @@ namespace ColorfulControlCenter.Installer
             Render();
             Closing += OnClosing;
             PreviewKeyDown += delegate(object sender, KeyEventArgs args) {
-                if (args.Key == Key.Escape) { args.Handled = true; Close(); }
+                if (args.Key == Key.Escape && !args.Handled)
+                {
+                    args.Handled = true;
+                    if (busy) return;
+                    if (step == InstallerStep.Confirm && editingLocation && recoveryReason == null)
+                        ShowLocationSummary();
+                    else Close();
+                }
             };
-            Loaded += delegate { primary.Focus(); };
+            Loaded += delegate { heading.Focus(); };
         }
 
         internal int ExitCode { get; private set; }
@@ -78,36 +96,60 @@ namespace ColorfulControlCenter.Installer
             using (var input = Assembly.GetExecutingAssembly().GetManifestResourceStream(name))
             {
                 if (input == null) throw new InvalidDataException("缺少安装界面资源：" + name);
-                return (ResourceDictionary)XamlReader.Load(input);
+                var context = new ParserContext { XamlTypeMapper = new XamlTypeMapper(new string[0]) };
+                context.XamlTypeMapper.AddMappingProcessingInstruction("urn:ccc-installer",
+                    typeof(ButtonCorners).Namespace, typeof(ButtonCorners).Assembly.FullName);
+                return (ResourceDictionary)XamlReader.Load(input, context);
             }
+        }
+
+        private void ApplyHighContrastPalette()
+        {
+            Resources["Canvas"] = Resources["Surface"] = SystemColors.WindowBrush;
+            Resources["Ink"] = Resources["Muted"] = Resources["Error"] = SystemColors.WindowTextBrush;
+            Resources["MutedSurface"] = SystemColors.ControlBrush;
+            Resources["ControlHover"] = Resources["ControlPress"] = SystemColors.ControlBrush;
+            Resources["Hairline"] = Resources["FieldEdge"] = SystemColors.WindowTextBrush;
+            Resources["ActionInk"] = Resources["FocusInk"] = SystemColors.WindowTextBrush;
+            Resources["ActionFill"] = SystemColors.HighlightBrush;
+            Resources["OnAction"] = SystemColors.HighlightTextBrush;
         }
 
         private async void OnPrimary(object sender, RoutedEventArgs args)
         {
             if (busy) return;
-            if (step == 0)
-            {
-                if (Updating || request == null) CheckRegisteredTarget();
-                step = 1;
-                Render();
-                return;
-            }
-            if (step == 3) { Launch(); return; }
-            if (directoryBox != null) selectedDirectory = directoryBox.Text;
+            if (step == InstallerStep.Complete) { Launch(); return; }
             bool wasUpdating = Updating;
             var registeredTarget = Updating || request == null ? CheckRegisteredTarget() : null;
             if (wasUpdating != Updating)
             {
-                step = 1;
                 failure = null;
-                Render();
+                replacementDirectory = null;
+                editingLocation = !Updating;
+                ShowStep(InstallerStep.Confirm);
                 return;
             }
 
-            try { request = registeredTarget ?? InstallationRequest.Create(selectedDirectory, request); }
+            InstallationRequest target;
+            try { target = registeredTarget ?? InstallationRequest.Create(selectedDirectory, request); }
             catch (ArgumentException error) { ShowLocationError(error.Message); return; }
-            selectedDirectory = request.Directory;
+            selectedDirectory = target.Directory;
+            if (!Updating && target.ReplacesInstallation && !SameDirectory(request == null ? null : request.Directory, target.Directory)
+                && !SameDirectory(replacementDirectory, target.Directory))
+            {
+                replacementDirectory = target.Directory;
+                editingLocation = false;
+                ShowStep(InstallerStep.Confirm);
+                return;
+            }
+            request = target;
+            replacementDirectory = null;
             await Install();
+        }
+
+        private static bool SameDirectory(string left, string right)
+        {
+            return String.Equals(left, right, StringComparison.OrdinalIgnoreCase);
         }
 
         private InstallationRequest CheckRegisteredTarget()
@@ -130,42 +172,34 @@ namespace ColorfulControlCenter.Installer
 
         private void ShowLocationError(string message)
         {
-            if (step != 1)
+            if (step != InstallerStep.Confirm || !editingLocation)
             {
-                step = 1;
                 failure = null;
-                Render();
+                replacementDirectory = null;
+                editingLocation = true;
+                locationEditStart = selectedDirectory;
+                ShowStep(InstallerStep.Confirm);
             }
             locationError.Text = message;
             locationError.Visibility = Visibility.Visible;
+            directoryBox.Focus();
             locationError.BringIntoView();
+            Announce(locationError);
         }
 
         private async Task Install()
         {
             busy = true;
             failure = null;
-            step = 2;
-            phaseText = "正在检查安装条件…";
-            fraction = null;
-            Render();
-            try
-            {
-                bool installed = await install(request, new Progress<InstallProgress>(progress => {
-                    if (!busy || step != 2) return;
-                    phaseText = progress.Phase;
-                    fraction = progress.Fraction;
-                    RenderBody();
-                }), ConfirmControllerClose);
-                step = installed ? 3 : 1;
-                if (installed) ExitCode = 0;
-            }
-            catch (Exception error)
-            {
-                failure = error;
-            }
-            finally { busy = false; Render(); }
-            if (step == 1) primary.Focus();
+            ShowStep(InstallerStep.Install);
+            bool installed = false;
+            try { installed = await install(request, new Progress<InstallProgress>(UpdateProgress), ConfirmControllerClose); }
+            catch (Exception error) { failure = error; }
+            busy = false;
+            if (installed) ExitCode = 0;
+            editingLocation = recoveryReason != null;
+            ShowStep(failure != null ? InstallerStep.Install
+                : installed ? InstallerStep.Complete : InstallerStep.Confirm);
         }
 
         private void Launch()
@@ -176,60 +210,84 @@ namespace ColorfulControlCenter.Installer
                 launch(request.Directory);
                 Close();
             }
-            catch (Exception error) { failure = new IOException("安装已完成，启动未成功。" + error.Message, error); Render(); }
+            catch (Exception error)
+            {
+                failure = error;
+                Render();
+                primary.Focus();
+            }
         }
 
-        private void OnBack(object sender, RoutedEventArgs args)
+        private void EditLocation()
         {
-            if (busy) return;
-            if (directoryBox != null) selectedDirectory = directoryBox.Text;
-            step = step == 2 ? 1 : 0;
+            if (busy || Updating) return;
+            locationEditStart = selectedDirectory;
+            replacementDirectory = null;
+            editingLocation = true;
             failure = null;
+            ShowStep(InstallerStep.Confirm);
+            directoryBox.SelectAll();
+        }
+
+        private void ShowLocationSummary()
+        {
+            selectedDirectory = locationEditStart;
+            editingLocation = false;
             Render();
+            changeLocation.Focus();
+        }
+
+        private void ShowStep(InstallerStep next)
+        {
+            InstallerStep previous = step;
+            step = next;
+            Render();
+            bodyScroll.ScrollToTop();
+            AnimateStep(previous);
+            heading.Focus();
         }
 
         private void OnClosing(object sender, CancelEventArgs args)
         {
-            if (!busy) return;
-            args.Cancel = true;
-            phaseText = "安装正在进行，请等待完成后关闭。";
-            RenderBody();
+            args.Cancel = busy;
         }
 
         private void Render()
         {
-            int previousStep = renderedStep;
-            renderedStep = step;
-            for (int index = 0; index < 4; index++)
-            {
-                bool current = index == step;
-                bool completed = index < step;
-                UpdateMarker(markers[index], current && failure != null ? "Error"
-                    : current || completed ? "Action" : "Hairline", completed ? 0.35 : 1);
-                string name = new[] { "欢迎", "位置", "安装", "完成" }[index];
-                string status = completed ? "已完成" : current ? (failure == null ? "当前步骤" : "需要处理") : "等待中";
-                System.Windows.Automation.AutomationProperties.SetName(markers[index], name + "，" + status);
-            }
-            primary.Content = step == 0 ? "开始设置" : step == 1 ? (Updating ? "确认并更新" : "确认并安装")
-                : step == 2 ? (busy ? "正在安装…" : "重试安装") : failure == null ? "启动控制台" : "重试启动";
+            Title = Product.ControllerWindowTitle + (Updating ? " · 更新" : " · 安装");
+            primary.Content = step == InstallerStep.Confirm ? ConfirmAction
+                : step == InstallerStep.Complete ? (failure == null ? "打开控制台" : "重试打开")
+                : Updating ? "重试更新" : "重试安装";
+            AutomationProperties.SetName(primary, primary.Content.ToString());
             primary.IsEnabled = !busy;
-            System.Windows.Automation.AutomationProperties.SetName(primary, primary.Content.ToString());
-            primary.IsDefault = step != 3;
-            secondary.Content = step == 3 ? "完成" : "取消";
-            System.Windows.Automation.AutomationProperties.SetName(secondary, secondary.Content.ToString());
-            secondary.IsDefault = step == 3;
+            secondary.Content = step == InstallerStep.Confirm ? "取消" : "关闭";
+            AutomationProperties.SetName(secondary, secondary.Content.ToString());
             secondary.IsEnabled = !busy;
             close.IsEnabled = !busy;
-            back.Visibility = step == 1 || (step == 2 && !busy) ? Visibility.Visible : Visibility.Collapsed;
+            actions.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
             RenderBody();
-            AnimateStep(previousStep);
+        }
+
+        private string ConfirmAction
+        {
+            get
+            {
+                if (Updating) return "更新";
+                if (replacementDirectory != null) return "替换并安装";
+                return recoveryReason == null ? "安装" : "重新安装";
+            }
         }
 
         private void Browse(object sender, RoutedEventArgs args)
         {
             if (Updating)
             {
-                if (CheckRegisteredTarget() == null) { Render(); return; }
+                if (CheckRegisteredTarget() == null)
+                {
+                    editingLocation = true;
+                    ShowStep(InstallerStep.Confirm);
+                    return;
+                }
                 try { using (System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(selectedDirectory) {
                     UseShellExecute = true,
                 })) { } }
@@ -242,9 +300,31 @@ namespace ColorfulControlCenter.Installer
                 if (Directory.Exists(directoryBox.Text)) dialog.SelectedPath = directoryBox.Text;
                 if (dialog.ShowDialog(new FolderDialogOwner(this)) != System.Windows.Forms.DialogResult.OK) return;
                 directoryBox.Text = dialog.SelectedPath;
-                try { InstallationRequest.Create(directoryBox.Text, request); locationError.Visibility = Visibility.Collapsed; }
+                try { InstallationRequest.Create(directoryBox.Text, request); }
                 catch (ArgumentException error) { ShowLocationError(error.Message); }
             }
+        }
+
+        private void UpdateProgress(InstallProgress progress)
+        {
+            if (!busy || phaseStatus == null) return;
+            bool preparing = progress.Fraction.HasValue;
+            phaseStatus.Text = preparing ? progress.Phase.TrimEnd('…') + " " + progress.Fraction.Value.ToString("P0")
+                : progress.Phase;
+            if (progressBar.IsIndeterminate == preparing)
+            {
+                progressBar.IsIndeterminate = !preparing;
+                AutomationProperties.SetName(progressBar, preparing ? "准备安装文件进度" : "安装进行中");
+                Announce(phaseStatus);
+            }
+            else if (!preparing) Announce(phaseStatus);
+            progressBar.Value = progress.Fraction ?? 0;
+        }
+
+        private static void Announce(TextBlock text)
+        {
+            var peer = UIElementAutomationPeer.CreatePeerForElement(text);
+            if (peer != null) peer.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
         }
 
         private sealed class FolderDialogOwner : System.Windows.Forms.IWin32Window

@@ -1,4 +1,4 @@
-import { availableAction, configurationView, previewConfiguration } from "./configuration-review.mjs";
+import { availableAction } from "./configuration-review.mjs";
 import { openPowerArea } from "./workspace.mjs";
 import { test, expect } from "@playwright/test";
 import { MOCK_IPC } from "./mock-ipc.mjs";
@@ -9,7 +9,7 @@ async function choose(page, label, value) {
   await panel(page).getByRole("combobox", { name: label, exact: true }).click();
   await page.getByRole("option", { name: value, exact: true }).click();
 }
-test("充电开关和合法阈值立即提交，初始范围单独恢复", async ({ page }) => {
+test("充电开关和合法阈值立即提交，关闭开关即停止限制且不提供恢复入口", async ({ page }) => {
   const p = panel(page);
   await expect(p.getByRole("meter", { name: "当前电量", exact: true })).toHaveAttribute("aria-valuenow", "62");
   const limit = p.getByRole("switch", { name: "限制充电范围", exact: true });
@@ -26,11 +26,13 @@ test("充电开关和合法阈值立即提交，初始范围单独恢复", async
   await choose(page, "停止充电阈值", "80%");
   await expect(stop).toHaveText("80%");
   await expect(availableAction(page, "充电保护")).toHaveCount(0);
+  await expect(availableAction(page, "充电保护", true)).toHaveCount(0);
   expect(await calls(page, "apply_battery_charge")).toBe(3);
-  const restore = await previewConfiguration(page, "充电保护", true);
-  await restore.getByRole("button", { name: "确认恢复", exact: true }).click();
+  await limit.click();
   await expect(limit).not.toBeChecked();
   await expect(start).toHaveCount(0);
+  expect(await calls(page, "apply_battery_charge")).toBe(4);
+  expect(await calls(page, "restore_battery_charge")).toBe(0);
   expect(await page.evaluate(() => window.__uiFixture.faults)).toEqual([]);
 });
 test("空阈值等有效组合才写入，失败后回读实际状态", async ({ page }) => {
@@ -56,7 +58,7 @@ test("空阈值等有效组合才写入，失败后回读实际状态", async ({
 });
 test("未知和无电池读数显示文字状态并拒绝写入", async ({ page }) => {
   const p = panel(page);
-  await page.evaluate(() => { const b = window.__uiFixture.battery; b.power = { present: null, acOnline: null, charging: null, percent: null, remainingSeconds: null, windowsBatterySaver: null }; b.diagnostics = null; });
+  await page.evaluate(() => { const b = window.__uiFixture.battery; b.power = { present: null, acOnline: null, charging: null, percent: null, remainingSeconds: null }; b.diagnostics = null; });
   await p.getByRole("button", { name: "重新读取电池", exact: true }).click();
   await expect(p.getByText("暂无电量读数", { exact: true })).toBeVisible();
   await expect(p.getByRole("switch", { name: "限制充电范围", exact: true })).toHaveAttribute("aria-disabled", "true");
@@ -66,6 +68,24 @@ test("未知和无电池读数显示文字状态并拒绝写入", async ({ page 
   await expect(p).toContainText("未检测到电池"); await expect(p.getByRole("switch", { name: "限制充电范围", exact: true })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "电池节能计划", exact: true })
     .getByRole("switch", { name: "启用节能计划", exact: true })).toHaveAttribute("aria-disabled", "true");
+  expect(await calls(page, "apply_battery_charge")).toBe(0);
+});
+test("读不到充电保护和系统电量时各自显示原因，固件未提供时说明不支持", async ({ page }) => {
+  const p = panel(page);
+  const reread = () => p.getByRole("button", { name: "重新读取电池", exact: true }).click();
+  await page.evaluate(() => { const b = window.__uiFixture.battery; b.charge = null; b.revision = null; });
+  await reread();
+  await expect(p.getByText("本机未提供充电保护功能。", { exact: true })).toBeVisible();
+  await expect(p.getByRole("switch", { name: "限制充电范围", exact: true })).toHaveCount(0);
+  await page.evaluate(() => { window.__uiFixture.battery.chargeUnavailableReason = "未找到可用的原厂控制组件，无法读取充电保护设置。"; });
+  await reread();
+  await expect(p.getByText("未找到可用的原厂控制组件，无法读取充电保护设置。", { exact: true })).toBeVisible();
+  await expect(p.getByText("本机未提供充电保护功能。", { exact: true })).toHaveCount(0);
+  await page.evaluate(() => { const b = window.__uiFixture.battery; b.power = null; b.powerUnavailableReason = "无法读取 Windows 的电源状态。"; });
+  await reread();
+  await expect(p.getByText("无法读取 Windows 的电源状态。", { exact: true })).toBeVisible();
+  await expect(p.getByText("未找到可用的原厂控制组件，无法读取充电保护设置。", { exact: true })).toBeVisible();
+  await expect(p.getByText("暂无电量读数", { exact: true })).toHaveCount(0);
   expect(await calls(page, "apply_battery_charge")).toBe(0);
 });
 test("窄屏阈值用留白分组并保持卡片边界", async ({ page }) => {

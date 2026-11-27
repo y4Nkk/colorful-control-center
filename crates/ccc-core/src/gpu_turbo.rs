@@ -135,12 +135,6 @@ pub fn target(
     if event != 97 {
         return Err("未知原厂 GPU Turbo 事件".into());
     }
-    if mode == 4 {
-        return Ok(Target {
-            lock_mhz: None,
-            offsets: None,
-        });
-    }
     let (lock, saved_oc) = match mode {
         0 => (Some(limits.quiet_mhz), caps.all_mode_oc),
         1 => (Some(limits.saving_mhz), caps.all_mode_oc),

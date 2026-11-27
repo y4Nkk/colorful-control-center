@@ -1,5 +1,5 @@
 use super::preset_bitmap::PresetBitmap;
-use super::{Action, Control, Controls, FanAction, wide};
+use super::{Action, Control, Controls, FanAction, READING_HARDWARE, wide};
 use anyhow::{Context, Result};
 use std::{
     io,
@@ -67,7 +67,7 @@ impl Popup {
     fn presets(&mut self, state: &MenuState) -> Result<()> {
         self.item(MF_GRAYED, 0, "预设模式")?;
         let Some(controls) = &state.controls else {
-            return self.item(MF_GRAYED, 0, "正在读取硬件状态…");
+            return self.item(MF_GRAYED, 0, READING_HARDWARE);
         };
         match &controls.presets {
             Ok(presets) => {
@@ -81,11 +81,11 @@ impl Popup {
                     }
                 }
                 if let Some(reason) = &presets.blocked {
-                    self.note(reason)?;
+                    self.note(reason, "预设暂不可切换")?;
                 }
                 Ok(())
             }
-            Err(reason) => self.note(reason),
+            Err(reason) => self.note(reason, "预设状态读取失败"),
         }
     }
 
@@ -119,28 +119,27 @@ impl Popup {
                         control_flags(current, current || state.busy || fans.blocked.is_some());
                     let (id, label) = match action {
                         FanAction::Auto => (FAN_AUTO, "自动"),
-                        FanAction::FullSpeed => (FAN_FULL_SPEED, "全速…"),
+                        FanAction::FullSpeed => (FAN_FULL_SPEED, "全速（需确认）"),
                     };
                     submenu.item(flags, id, label)?;
                 }
                 if let Some(reason) = &fans.blocked {
-                    submenu.note(reason)?;
+                    submenu.note(reason, "风扇模式暂不可切换")?;
                 }
             }
-            Some(Err(reason)) => submenu.note(reason)?,
-            None => submenu.item(MF_GRAYED, 0, "正在读取硬件状态…")?,
+            Some(Err(reason)) => submenu.note(reason, "风扇状态读取失败")?,
+            None => submenu.item(MF_GRAYED, 0, READING_HARDWARE)?,
         }
-        submenu.item(MF_STRING, COOLING, "散热控制…")?;
+        submenu.item(MF_STRING, COOLING, "打开散热控制")?;
         self.submenu(submenu, "风扇散热")
     }
 
-    fn note(&self, reason: &str) -> Result<()> {
-        let mut chars = reason.chars();
-        let mut label = chars.by_ref().take(44).collect::<String>();
-        if chars.next().is_some() {
-            label.push('…');
+    fn note(&self, reason: &str, summary: &str) -> Result<()> {
+        if reason.chars().nth(44).is_some() || reason.contains('…') || reason.contains("...") {
+            log::warn!("[tray] {summary}：{reason}");
+            return self.item(MF_GRAYED, 0, summary);
         }
-        self.item(MF_GRAYED, 0, &label.replace(['\r', '\n', '\t'], " "))
+        self.item(MF_GRAYED, 0, &reason.replace(['\r', '\n', '\t'], " "))
     }
 
     fn submenu(&mut self, mut submenu: Self, label: &str) -> Result<()> {
@@ -168,7 +167,7 @@ fn control_flags(current: bool, disabled: bool) -> MENU_ITEM_FLAGS {
 fn build(state: &MenuState, closing: bool) -> Result<Popup> {
     let mut menu = Popup::new()?;
     if closing {
-        menu.item(MF_GRAYED, QUIT, "正在退出…")?;
+        menu.item(MF_GRAYED, QUIT, "正在退出")?;
     } else {
         menu.item(MF_STRING, SHOW, "显示主窗口")?;
         menu.presets(state)?;
@@ -224,7 +223,10 @@ fn action(selected: usize, state: &MenuState) -> Option<Action> {
                 .cloned()
                 .map(Action::Profile);
         }
-        id => Some(Control::Preset((id - FIRST_PRESET) as u8)),
+        id if id < FIRST_PRESET + ccc_core::oem_events::POWER_MODE_COUNT as usize => {
+            Some(Control::Preset((id - FIRST_PRESET) as u8))
+        }
+        _ => None,
     }?;
     Some(Action::Control(control))
 }
@@ -234,6 +236,28 @@ mod tests {
     use super::MenuState as State;
     use super::*;
     use windows_sys::Win32::Graphics::Gdi::{DIBSECTION, GetObjectW, HBITMAP};
+
+    fn menu_label(menu: HMENU, item: u32, flags: MENU_ITEM_FLAGS) -> String {
+        let mut label = [0u16; 128];
+        let len =
+            unsafe { GetMenuStringW(menu, item, label.as_mut_ptr(), label.len() as i32, flags) };
+        String::from_utf16(&label[..len as usize]).unwrap()
+    }
+
+    #[test]
+    fn tray_shows_the_same_loading_status_in_menu_and_tooltip() {
+        let menu = build(&State::default(), false).unwrap();
+        let fans = unsafe { GetSubMenu(menu.handle, 3) };
+        assert_eq!(
+            menu_label(menu.handle, 2, MF_BYPOSITION),
+            "正在读取硬件状态"
+        );
+        assert_eq!(menu_label(fans, 0, MF_BYPOSITION), "正在读取硬件状态");
+        assert_eq!(
+            super::super::State::default().tooltip(),
+            "Colorful Control Center\n正在读取硬件状态"
+        );
+    }
 
     #[test]
     fn tooltip_uses_independent_telemetry() {
@@ -266,10 +290,29 @@ mod tests {
     fn native_menu_indicates_exit_in_progress() {
         let menu = build(&State::default(), true).unwrap();
         assert_eq!(unsafe { GetMenuItemCount(menu.handle) }, 1);
+        assert_eq!(
+            menu_label(menu.handle, QUIT as u32, MF_BYCOMMAND),
+            "正在退出"
+        );
         assert_ne!(
             unsafe { GetMenuState(menu.handle, QUIT as u32, MF_BYCOMMAND) } & MF_GRAYED,
             0
         );
+    }
+
+    #[test]
+    fn native_menu_shows_complete_status_in_place_of_long_diagnostics() {
+        let mut view = four_preset_view();
+        let controls = view.controls.as_mut().unwrap();
+        controls.presets.as_mut().unwrap().blocked = Some("原厂软件仍在运行".into());
+        controls.fans = Err("风扇状态诊断".repeat(10));
+        let menu = build(&view, false).unwrap();
+        let fans = unsafe { GetSubMenu(menu.handle, 7) };
+        assert_eq!(
+            menu_label(menu.handle, 6, MF_BYPOSITION),
+            "原厂软件仍在运行"
+        );
+        assert_eq!(menu_label(fans, 0, MF_BYPOSITION), "风扇状态读取失败");
     }
 
     fn four_preset_view() -> State {
@@ -312,14 +355,19 @@ mod tests {
             );
         }
         assert_eq!(item(FIRST_PRESET + 4), u32::MAX);
+        assert!(action(FIRST_PRESET + 4, &view).is_none());
         let fans = unsafe { GetSubMenu(menu.handle, 6) };
         assert_eq!(unsafe { GetMenuItemCount(fans) }, 4);
         assert_eq!(unsafe { GetMenuItemID(fans, 3) } as usize, COOLING);
-        let mut label = [0u16; 32];
-        let len =
-            unsafe { GetMenuStringW(fans, FAN_AUTO as u32, label.as_mut_ptr(), 32, MF_BYCOMMAND) };
-        assert!(len > 0);
-        assert_eq!(String::from_utf16(&label[..len as usize]).unwrap(), "自动");
+        assert_eq!(menu_label(fans, FAN_AUTO as u32, MF_BYCOMMAND), "自动");
+        assert_eq!(
+            menu_label(fans, FAN_FULL_SPEED as u32, MF_BYCOMMAND),
+            "全速（需确认）"
+        );
+        assert_eq!(
+            menu_label(fans, COOLING as u32, MF_BYCOMMAND),
+            "打开散热控制"
+        );
         assert_eq!(item(FAN_FULL_SPEED) & MF_CHECKED, MF_CHECKED);
         assert!(matches!(
             action(FIRST_PRESET + 1, &view),
@@ -412,23 +460,6 @@ mod tests {
         );
         let state = unsafe { GetMenuState(menu.handle, (FIRST_PRESET + 2) as u32, MF_BYCOMMAND) };
         assert_eq!(state & (MF_CHECKED | MF_GRAYED), MF_CHECKED);
-    }
-
-    #[test]
-    fn native_menu_shows_quiet_plus_when_supplied_as_a_supported_preset() {
-        let mut view = four_preset_view();
-        let presets = view.controls.as_mut().unwrap().presets.as_mut().unwrap();
-        presets.choices.push((4, "静音增强"));
-        presets.current = 4;
-        presets.label = "静音增强";
-        let menu = build(&view, false).unwrap();
-        let state = unsafe { GetMenuState(menu.handle, (FIRST_PRESET + 4) as u32, MF_BYCOMMAND) };
-        assert_eq!(state & (MF_CHECKED | MF_GRAYED), MF_CHECKED);
-        let quiet = preset_item(&menu, 0);
-        let quiet_plus = preset_item(&menu, 4);
-        assert!(quiet_plus.hbmpItem.is_null());
-        assert_eq!(cells(quiet_plus.hbmpChecked), cells(quiet.hbmpChecked));
-        assert_eq!(cells(quiet_plus.hbmpUnchecked), cells(quiet.hbmpUnchecked));
     }
 
     #[test]

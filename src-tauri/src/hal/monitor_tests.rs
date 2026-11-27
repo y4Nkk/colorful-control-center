@@ -1,5 +1,6 @@
 use super::*;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::time::{Duration, Instant};
 static SHARED_FIXTURE: Mutex<()> = Mutex::new(());
 static FAIL: AtomicBool = AtomicBool::new(false);
 static MEMORY_READS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
@@ -71,13 +72,24 @@ fn display_snapshots_read_current_mode_and_keep_other_readings_when_it_fails() {
     }
     let io = oem_dchu::Dchu::test_io(healthy_buffer, read_mode, set, write);
     let hal = Hal::test_instance(io, None);
+    let mut sampling = DisplaySampling::default();
+    let now = Instant::now();
     assert!(hal.snapshot().oem_power_mode.is_none());
-    assert_eq!(hal.display_snapshot().oem_power_mode, Some(3));
+    assert_eq!(
+        hal.display_snapshot(&mut sampling, now).oem_power_mode,
+        Some(3)
+    );
     MODE.store(2, Ordering::SeqCst);
-    let changed = serde_json::to_value(hal.display_snapshot()).unwrap();
+    let changed = serde_json::to_value(hal.display_snapshot(&mut sampling, now)).unwrap();
     assert_eq!(changed["oemPowerMode"], 2);
+    MODE.store(4, Ordering::SeqCst);
+    assert!(
+        hal.display_snapshot(&mut sampling, now)
+            .oem_power_mode
+            .is_none()
+    );
     MODE.store(u8::MAX, Ordering::SeqCst);
-    let failed = hal.display_snapshot();
+    let failed = hal.display_snapshot(&mut sampling, now);
     assert!(failed.oem_power_mode.is_none());
     assert_eq!(failed.fan.cpu.temp_c, Some(60.0));
     assert!(
@@ -121,6 +133,82 @@ fn current_transport_failure_clears_availability_and_old_readings_then_can_recov
     assert_eq!(recovered.oem_memory.unwrap().reported_clock_mhz, Some(2400));
     assert_eq!(MEMORY_READS.load(Ordering::SeqCst), 4);
 }
+
+#[test]
+fn display_cache_reads_two_warm_fields_and_refreshes_independently() {
+    use std::cell::RefCell;
+    #[derive(Default)]
+    struct Fixture {
+        calls: Vec<i32>,
+        disconnected: bool,
+        report_error: bool,
+        clock: i32,
+    }
+    thread_local! { static DISPLAY: RefCell<Fixture> = RefCell::new(Fixture::default()); }
+    unsafe extern "system" fn packet(command: i32, output: *mut u8) -> i32 {
+        DISPLAY.with_borrow_mut(|fixture| {
+            fixture.calls.push(command);
+            if fixture.disconnected {
+                0
+            } else {
+                unsafe { healthy_buffer(command, output) }
+            }
+        })
+    }
+    unsafe extern "system" fn settings(
+        page: i32,
+        offset: i32,
+        length: i32,
+        output: *mut u8,
+    ) -> i32 {
+        DISPLAY.with_borrow_mut(|fixture| {
+            fixture.calls.push(offset);
+            let bytes = match (page, offset, length) {
+                (1, 1, 1) => vec![3],
+                (6, 23, 4) if !fixture.report_error => fixture.clock.to_le_bytes().to_vec(),
+                (6, 230, 2) => 3200u16.to_le_bytes().to_vec(),
+                _ => return 0,
+            };
+            unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), output, bytes.len()) };
+            4096
+        })
+    }
+    DISPLAY.with_borrow_mut(|fixture| fixture.clock = 2400);
+    let take = || DISPLAY.with_borrow_mut(|fixture| std::mem::take(&mut fixture.calls));
+    let hal = Hal::test_instance(oem_dchu::Dchu::test_io(packet, settings, set, write), None);
+    let t = Instant::now();
+    let mut sampling = DisplaySampling::default();
+    let mut sample =
+        |seconds| hal.display_snapshot(&mut sampling, t + Duration::from_secs(seconds));
+    assert_eq!(sample(0).oem_memory.unwrap().reported_clock_mhz, Some(2400));
+    assert_eq!(take(), [1, 12, 13, 23, 230]);
+    assert_eq!(sample(1).oem_memory.unwrap().reported_clock_mhz, Some(2400));
+    assert_eq!(take(), [1, 12]);
+    DISPLAY.with_borrow_mut(|fixture| fixture.report_error = true);
+    let memory = sample(5).oem_memory.unwrap();
+    assert_eq!(memory.reported_clock_mhz, None);
+    assert_eq!(memory.reference_clock_mhz, Some(3200));
+    assert_eq!(take(), [1, 12, 23]);
+    DISPLAY.with_borrow_mut(|fixture| {
+        fixture.report_error = false;
+        fixture.clock = 2600;
+    });
+    assert_eq!(sample(6).oem_memory.unwrap().reported_clock_mhz, Some(2600));
+    assert_eq!(take(), [1, 12, 23]);
+    DISPLAY.with_borrow_mut(|fixture| fixture.disconnected = true);
+    assert!(sample(7).oem_memory.is_none());
+    assert_eq!(take(), [1, 12]);
+    DISPLAY.with_borrow_mut(|fixture| {
+        fixture.disconnected = false;
+        fixture.clock = 2700;
+    });
+    assert_eq!(sample(8).oem_memory.unwrap().reported_clock_mhz, Some(2700));
+    assert_eq!(take(), [1, 12, 13, 23, 230]);
+    sample(38);
+    assert_eq!(take(), [1, 12, 13, 23, 230]);
+    hal.snapshot();
+    assert_eq!(take(), [12, 13, 23, 230]);
+}
 #[test]
 fn tooltip_temperature_does_not_read_fan_inventory_or_shared_memory() {
     use std::sync::atomic::AtomicUsize;
@@ -159,7 +247,7 @@ fn isolated_missing_providers_never_load_real_dll_or_nvml() {
     assert!(result.nvidia.is_none());
     assert!(result.oem_memory.is_none());
     assert!(hal.dchu.lock().unwrap().is_none());
-    assert!(hal.nvidia.lock().unwrap().is_none());
+    assert!(hal.nvidia.lock().unwrap().is_empty());
 }
 #[test]
 fn power_suspend_preserves_cpu_monitoring_and_marks_gpu_as_paused() {
@@ -173,7 +261,7 @@ fn power_suspend_preserves_cpu_monitoring_and_marks_gpu_as_paused() {
     assert_eq!(snapshot.oem_memory.unwrap().reported_clock_mhz, Some(2400));
     assert!(snapshot.nvidia_suspended);
     assert!(snapshot.nvidia.is_none());
-    assert!(hal.nvidia.lock().unwrap().is_none());
+    assert!(hal.nvidia.lock().unwrap().is_empty());
     hal.suspend_gpu(false).unwrap();
     assert!(!hal.snapshot().nvidia_suspended);
 }

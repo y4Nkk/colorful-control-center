@@ -1,6 +1,10 @@
 use super::*;
 use windows_sys::Win32::Graphics::Gdi::*;
 
+#[path = "display/embedded.rs"]
+mod embedded;
+pub(crate) use embedded::{EmbeddedPanel, embedded_panel};
+
 pub struct Native;
 fn wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(Some(0)).collect()

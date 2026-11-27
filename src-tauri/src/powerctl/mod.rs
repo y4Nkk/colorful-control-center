@@ -1,6 +1,7 @@
 //! PL 与电压调节：字段事务、MSR 回读、首次写入前基线恢复。
 pub mod mode;
 pub mod runtime;
+pub(crate) mod windows_plan;
 use crate::hal::Hal;
 use anyhow::{Result, anyhow, bail};
 use ccc_core::{

@@ -4,8 +4,8 @@ export function gpuTurboFixture() {
     { domain: 1, mode: 0, value: 0, unknown1: 0, unknown2: 0, unknown3: 0 }];
   const offsets = { coreKhz: 100000, memKhz: -1000 };
   const saved = [{ coreMhz: 100, memoryMhz: -1 }, { coreMhz: 1, memoryMhz: 0 }];
-  const onTargets = Array.from({ length: 5 }, (_, mode) => [true, false].map(onAc => ({ mode, onAc, unavailableReason: null, target: mode === 4
-    ? { lockMhz: null, offsets: null } : mode === 2 && !onAc ? { lockMhz: null, offsets: [{ coreMhz: 0, memoryMhz: 0 }] }
+  const onTargets = Array.from({ length: 4 }, (_, mode) => [true, false].map(onAc => ({ mode, onAc, unavailableReason: null, target:
+    mode === 2 && !onAc ? { lockMhz: null, offsets: [{ coreMhz: 0, memoryMhz: 0 }] }
       : { lockMhz: [700, 900, 1700, 1400][mode], offsets: [saved[0]] } }))).flat();
   return { identity: "isolated-gpu-turbo", current: { source: { mode: 2, onAc: true, supplyError: null,
     capabilities: { limitClock: true, allModeOc: true }, limits: { entertainmentMhz: 1400, performanceMhz: 1700, savingMhz: 900, quietMhz: 700, thermalMhz: 650 }, saved },

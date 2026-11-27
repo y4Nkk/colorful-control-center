@@ -1,5 +1,6 @@
 use crate::{
     battery::calibration::{self, Access, Baseline, Event, Facts, power_plan},
+    hal::power_plan::format_guid,
     storage,
 };
 use anyhow::{Result, bail};
@@ -49,7 +50,7 @@ impl FileIo {
     fn power(&self) -> Result<(FilePower, String)> {
         Ok((
             FilePower(self.0.clone()),
-            power_plan::format(power_plan::owned(OP)?),
+            format_guid(power_plan::owned(OP)?),
         ))
     }
 }

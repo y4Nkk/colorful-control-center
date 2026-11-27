@@ -35,7 +35,13 @@ fn platform_capture_and_strict_file_roundtrip_preserve_encoding_and_heterogeneou
         .usb_values
         .get_mut(&SCHEMES[2])
         .unwrap()[1] = 99;
-    let capture = crate::profiles::capture_current(&f.hal, &f.gpu, f.devices(), &crate::profiles::ProfileGroup::ALL).unwrap();
+    let capture = crate::profiles::capture_current(
+        &f.hal,
+        &f.gpu,
+        f.devices(),
+        &crate::profiles::ProfileGroup::ALL,
+    )
+    .unwrap();
     let target = capture.power_delivery.as_ref().unwrap();
     assert_eq!(target.level, 1);
     assert_eq!(
@@ -201,7 +207,7 @@ fn mode_authorized_plan_switch_precedes_usb_and_failure_restores_original_mode_p
         super::mode_tests::enable_policy(&f);
         f.device.0.lock().unwrap().fail_gpu = fail_gpu;
         let mut settings = wanted();
-        settings.oem_power_mode = Some(4);
+        settings.oem_power_mode = Some(0);
         if fail_gpu {
             settings.gpu = Some(crate::gpuctl::GpuClockSettings {
                 core_offset_mhz: Some(60),
@@ -216,7 +222,7 @@ fn mode_authorized_plan_switch_precedes_usb_and_failure_restores_original_mode_p
         );
         let state = f.device.0.lock().unwrap();
         assert_eq!(state.active_plan, SCHEMES[if fail_gpu { 0 } else { 2 }]);
-        assert_eq!(state.pages[1][1], if fail_gpu { 3 } else { 4 });
+        assert_eq!(state.pages[1][1], if fail_gpu { 3 } else { 0 });
         let first_usb = state
             .events
             .iter()
@@ -268,13 +274,13 @@ fn usb_single_profile_and_restore_share_first_field_baselines() {
     let f = Fixture::new();
     setup(&f);
     let before = f.device.0.lock().unwrap().usb_values.clone();
-    let revision = f.usb.read(&f.hal).unwrap().unwrap().revision;
+    let revision = f.usb.read(&f.hal).unwrap().revision;
     let request =
         serde_json::from_value(json!({"expectedRevision":revision,"values":{"ac":true,"dc":null}}))
             .unwrap();
     f.usb.apply(&f.hal, &request).unwrap();
     assert!(apply(&f, &wanted()).iter().all(|step| step.ok));
-    let revision = f.usb.read(&f.hal).unwrap().unwrap().revision;
+    let revision = f.usb.read(&f.hal).unwrap().revision;
     f.usb.restore(&f.hal, &revision).unwrap();
     assert_eq!(f.device.0.lock().unwrap().usb_values, before);
 }
@@ -317,7 +323,7 @@ fn usb_failed_local_compensation_is_retried_by_profile_and_initial_restore_remai
             .any(|step| step.step == "恢复 USB 选择性暂停" && step.ok)
     );
     assert_eq!(f.device.0.lock().unwrap().usb_values, original);
-    assert!(!f.usb.read(&f.hal).unwrap().unwrap().initial.is_empty());
+    assert!(!f.usb.read(&f.hal).unwrap().initial.is_empty());
 }
 
 #[test]

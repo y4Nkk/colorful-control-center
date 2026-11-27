@@ -1,6 +1,9 @@
 using System;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
+
+[assembly: DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
 
 namespace ColorfulControlCenter.Installer
 {
@@ -11,6 +14,8 @@ namespace ColorfulControlCenter.Installer
         {
             try
             {
+                if (args.Length > 0 && args[0] == ControllerShutdown.ExitCommand)
+                    return ControllerShutdown.RunExitCommand(args);
                 if (args.Length != 0) throw new ArgumentException("请直接打开安装向导，不需要命令行参数。");
                 bool created;
                 using (var mutex = new Mutex(true, @"Local\ColorfulControlCenter.Setup", out created))

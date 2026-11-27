@@ -1,4 +1,5 @@
-use anyhow::{Context, Result, bail};
+use crate::hal::power_plan::parse_guid;
+use anyhow::{Result, bail};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 #[path = "power_plan/native.rs"]
@@ -29,35 +30,13 @@ pub(crate) fn bundle() -> Result<Bundle> {
         bail!("校准电源资源与索引清单不一致");
     }
     for entry in &bundle.entries {
-        parse(&entry.subgroup)?;
-        parse(&entry.setting)?;
+        parse_guid(&entry.subgroup)?;
+        parse_guid(&entry.setting)?;
         if entry.ac.is_none() && entry.dc.is_none() {
             bail!("校准电源索引为空");
         }
     }
     Ok(bundle)
-}
-pub(crate) fn parse(value: &str) -> Result<u128> {
-    if value.len() != 36 || [8, 13, 18, 23].iter().any(|i| value.as_bytes()[*i] != b'-') {
-        bail!("电源计划标识格式无效");
-    }
-    let hex: String = value.chars().filter(|c| *c != '-').collect();
-    let number = u128::from_str_radix(&hex, 16).context("电源计划标识无效")?;
-    if number == 0 || format(number) != value {
-        bail!("电源计划标识不是规范值");
-    }
-    Ok(number)
-}
-pub(crate) fn format(value: u128) -> String {
-    let hex = format!("{value:032x}");
-    format!(
-        "{}-{}-{}-{}-{}",
-        &hex[..8],
-        &hex[8..12],
-        &hex[12..16],
-        &hex[16..20],
-        &hex[20..]
-    )
 }
 pub(crate) fn owned(operation: &str) -> Result<u128> {
     if operation.len() != 32 || !operation.bytes().all(|c| c.is_ascii_hexdigit()) {
@@ -86,8 +65,8 @@ pub(crate) fn enter(io: &impl Access, before: &str, target: &str) -> Result<()> 
     check(io, target)
 }
 pub(crate) fn prepare(io: &impl Access, before: &str, target: &str) -> Result<()> {
-    parse(before)?;
-    parse(target)?;
+    parse_guid(before)?;
+    parse_guid(target)?;
     if before == target || io.active()? != before {
         bail!("活动电源计划已变化，请重新预览");
     }
@@ -103,8 +82,8 @@ pub(crate) fn check(io: &impl Access, target: &str) -> Result<()> {
     io.verify(target)
 }
 pub(crate) fn restore(io: &impl Access, before: &str, target: &str) -> Result<()> {
-    parse(before)?;
-    parse(target)?;
+    parse_guid(before)?;
+    parse_guid(target)?;
     if before == target {
         bail!("校准恢复计划与临时计划不能相同");
     }

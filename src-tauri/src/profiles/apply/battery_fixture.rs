@@ -1,4 +1,6 @@
-use crate::battery::{self, ChargeState, ChargeValues, Diagnostics, Io, PowerStatus, energy};
+use crate::battery::{
+    self, ChargeState, ChargeUnavailable, ChargeValues, Diagnostics, Io, PowerStatus, energy,
+};
 use anyhow::{Context, Result, bail};
 use std::sync::{Arc, Mutex};
 
@@ -65,7 +67,7 @@ pub fn policy(enabled: bool) -> energy::Policy {
         "slots":[{"start":8,"end":18},{"start":20,"end":22}],"automatic":true,"limits":{"floor":95,"ceiling":100}})).unwrap()
 }
 impl Io for Memory {
-    fn charge(&self) -> Result<Option<ChargeState>> {
+    fn charge(&self) -> Result<Option<ChargeState>, ChargeUnavailable> {
         Ok(self.state.lock().unwrap().charge.clone())
     }
     fn power(&self) -> Result<PowerStatus> {

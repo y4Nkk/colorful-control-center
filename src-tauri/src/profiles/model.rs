@@ -7,15 +7,6 @@ pub use groups::ProfileGroup;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ProfileFanPoints {
-    pub t2: f64,
-    pub d2_pct: f64,
-    pub t3: f64,
-    pub d3_pct: f64,
-}
-
 #[derive(Serialize, Deserialize, Clone, Default, PartialEq)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct ProfileSettings {
@@ -24,7 +15,7 @@ pub struct ProfileSettings {
     pub fan_mode: Option<u8>,
     pub fan_software_curves: Option<ccc_core::software_fan::Curves>,
     pub fan_rpm_curves: Option<fanctl::rpm::Curves>,
-    pub fan_curves: Option<BTreeMap<String, ProfileFanPoints>>,
+    pub fan_curves: Option<BTreeMap<String, fanctl::CurvePoints>>,
     pub runtime_cpu: Option<powerctl::runtime::Settings>,
     pub pl1_w: Option<f64>,
     pub pl2_w: Option<f64>,
@@ -90,8 +81,11 @@ pub fn validate(settings: &ProfileSettings) -> Result<()> {
     if let Some(target) = &settings.runtime_cpu {
         powerctl::runtime::validate(target)?;
     }
-    if settings.oem_power_mode.is_some_and(|mode| mode > 4) {
-        bail!("OEM 电源模式须在 0–4 范围");
+    if settings
+        .oem_power_mode
+        .is_some_and(|mode| !ccc_core::oem_events::is_power_mode(mode))
+    {
+        bail!("OEM 电源模式须在 0–3 范围");
     }
     if let Some(mode) = settings.fan_mode {
         fanctl::validate_mode(mode)?;
@@ -289,7 +283,7 @@ pub fn capture_fan(
                 .map(|f| {
                     (
                         f.id.clone(),
-                        ProfileFanPoints {
+                        fanctl::CurvePoints {
                             t2: f.t2,
                             d2_pct: f.d2_pct,
                             t3: f.t3,
@@ -321,6 +315,17 @@ pub fn capture_fan(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn profile_settings_reject_an_oem_mode_outside_the_four_presets() {
+        let mut settings = ProfileSettings {
+            oem_power_mode: Some(0),
+            ..Default::default()
+        };
+        assert!(validate(&settings).is_ok());
+        settings.oem_power_mode = Some(4);
+        assert!(validate(&settings).is_err());
+    }
     #[test]
     fn software_profiles_are_exclusive_and_capture_the_live_configuration() {
         let mut fan = fanctl::FanProfile {

@@ -37,7 +37,6 @@ mod transaction_tests;
 #[derive(Clone)]
 struct Evidence {
     model: Model,
-    quiet_plus_default: bool,
     ac_mode: u8,
     current_mode: u8,
     available: Vec<u8>,
@@ -234,11 +233,7 @@ fn review(evidence: &Evidence, software_fan_active: bool) -> Result<Option<Revie
             targets.map(|target| target.as_ref().map(|target| target.mode)),
         )
     });
-    let device_identity = device_digest(
-        &evidence.model,
-        evidence.quiet_plus_default,
-        &evidence.available,
-    )?;
+    let device_identity = device_digest(&evidence.model, &evidence.available)?;
     let identity = stable_identity(evidence, &device_identity, &gpu, targets)?;
     let mut view = Review {
         device_identity,
@@ -308,7 +303,6 @@ fn choose(evidence: &Evidence, on_ac: bool, trigger: Trigger) -> Result<Option<T
         product: evidence.model.product,
         customer: evidence.model.customer,
         dc_mode_power: evidence.model.dc_mode_power,
-        quiet_plus_default: evidence.quiet_plus_default,
         ac_mode: evidence.ac_mode,
         available: &evidence.available,
         on_ac: Some(on_ac),
@@ -334,25 +328,21 @@ fn choose(evidence: &Evidence, on_ac: bool, trigger: Trigger) -> Result<Option<T
 fn digest(value: &impl Serialize) -> Result<String> {
     Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(value)?)))
 }
-fn device_digest(model: &Model, quiet: bool, available: &[u8]) -> Result<String> {
+fn device_digest(model: &Model, available: &[u8]) -> Result<String> {
     digest(&(
         "oem-supply-device-1",
         model.product,
         model.customer,
         model.dc_mode_power,
-        quiet,
+        // 已保存的四档设备恢复记录绑定这组摘要字段。
+        false,
         available,
     ))
 }
 pub(crate) fn device_identity(hal: &Hal) -> Result<String> {
     hal.with_dchu(|io| {
         let model = crate::hal::oem_identity::read(io)?;
-        let caps = io.read_bios_capabilities(0, 18)?;
-        if caps[..2] != [0, 0] && caps[..2] != [1, 0] {
-            bail!("原厂模式能力版本未知");
-        }
-        let quiet = caps[..2] == [1, 0] && caps[17] & 0x80 != 0;
-        device_digest(&model, quiet, &super::available(io)?)
+        device_digest(&model, &super::available(io)?)
     })
 }
 pub(crate) fn read(
@@ -360,17 +350,14 @@ pub(crate) fn read(
     gpu_devices: Vec<crate::gpu_power::Device>,
     scope: Scope,
 ) -> Result<Option<Review>> {
-    let (model, quiet_plus_default, ac_mode, gpu_supported) = hal.with_dchu(|io| {
+    let (model, gpu_supported) = hal.with_dchu(|io| {
         let model = crate::hal::oem_identity::read(io)?;
-        let caps = io.read_bios_capabilities(0, 18)?;
+        let caps = io.read_bios_capabilities(0, 20)?;
         if caps[..2] != [0, 0] && caps[..2] != [1, 0] {
             bail!("原厂模式能力版本未知");
         }
-        let quiet = caps[..2] == [1, 0] && caps[17] & 0x80 != 0;
-        let ac_mode = io.read_settings(1, 16, 1)?[0];
-        let gpu_supported =
-            crate::gpu_power::native::protocol::supported(&io.read_bios_capabilities(0, 20)?)?;
-        Ok((model, quiet, ac_mode, gpu_supported))
+        let gpu_supported = crate::gpu_power::native::protocol::supported(&caps)?;
+        Ok((model, gpu_supported))
     })?;
     if !model.dc_mode_power && model.customer != 22 {
         return Ok(None);
@@ -382,6 +369,7 @@ pub(crate) fn read(
     };
     let ModeProfile {
         current_mode,
+        ac_mode,
         available_modes,
         targets,
         software_active,
@@ -396,7 +384,6 @@ pub(crate) fn read(
     review(
         &Evidence {
             model,
-            quiet_plus_default,
             ac_mode,
             current_mode,
             available: available_modes,

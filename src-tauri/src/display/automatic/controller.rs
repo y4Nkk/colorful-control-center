@@ -90,6 +90,10 @@ pub(crate) struct Controller {
     pub(super) worker: Mutex<Option<JoinHandle<()>>>,
 }
 impl Controller {
+    pub(crate) fn owns_refresh(&self) -> Result<bool> {
+        Ok(self.store.load()?.is_some())
+    }
+
     pub(crate) fn mode_completed(
         &self,
         result: crate::powerctl::mode::supply::Applied,
@@ -122,16 +126,17 @@ impl Controller {
         }
     }
     pub fn read(&self, hal: &Hal, display: &display::Controller) -> Result<Status> {
-        let _gate = hal.begin_write()?;
         let io = Native { hal, display };
         let mut view = state::read(&io, &self.store)?;
+        let automatic_trial = display.automatic_trial_id()?;
+        let record = self.store.load()?;
         let runtime = self.shared.lock()?;
         let ready =
             runtime.scheduler.online && !runtime.scheduler.stopping && !runtime.scheduler.sleeping;
-        if let (Some((id, _)), Some(record), Some(facts)) =
-            (runtime.trial, self.store.load()?, view.current.as_ref())
+        if let (Some(id), Some(record), Some(facts)) =
+            (automatic_trial, record, view.current.as_ref())
         {
-            if display.automatic_trial_id()? == Some(id)
+            if runtime.trial.is_some_and(|trial| trial.0 == id)
                 && record.active()
                 && !record.interrupted()
                 && record.identity() == facts.identity

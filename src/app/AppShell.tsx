@@ -5,6 +5,7 @@ import { BackToTopButton } from "../components/BackToTopButton";
 import { BrandLogo } from "../components/BrandLogo";
 import { ScrollArea } from "../components/ScrollArea";
 import { toast } from "../components/use-toast";
+import { AdministratorHost } from "../components/AdministratorHost";
 import { pageTitle, workspaceLocationKey, type PageId, type WorkspaceLocation } from "./navigation";
 import { SideNav } from "./SideNav";
 import type { PreferencesModel } from "./useAppPreferences";
@@ -50,7 +51,7 @@ export function AppShell({ location, onPageChange, globalInfo, preferences, chil
       toast({ kind: "error", title: "保存侧边栏状态失败", description: String(error) });
     }
   };
-  return (
+  return <AdministratorHost>
     <div className={`ccc-shell${folded ? " is-collapsed" : ""}`}>
       <SideNav page={page} onPageChange={onPageChange} collapsed={folded} compact={compact}
         onToggle={toggleSidebar} />
@@ -73,5 +74,5 @@ export function AppShell({ location, onPageChange, globalInfo, preferences, chil
         {children}
       </ScrollArea>
     </div>
-  );
+  </AdministratorHost>;
 }

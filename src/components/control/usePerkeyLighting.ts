@@ -3,58 +3,56 @@ import { applyPerkeyLighting, readPerkeyLighting, restorePerkeyLighting, type Pe
 import { toast } from "../use-toast";
 import { preserveEditedFields } from "./settings-draft";
 
+type PatternDraft = { before: PerkeyPattern; edited: PerkeyPattern };
+
 export function usePerkeyLighting(active: boolean, revision = 0) {
-  const [profile, setProfile] = useState<PerkeyProfile | null>(null);
+  const [profile, setProfile] = useState<PerkeyProfile | null>();
   const [draft, setDraft] = useState<PerkeyValues | null>(null);
-  const [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false), [actionError, setActionError] = useState<string | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
   const running = useRef(false), generation = useRef(0), accepted = useRef<PerkeyValues | null>(null);
-  const patternDrafts = useRef(new Map<PerkeyPattern["kind"], { before: PerkeyPattern; edited: PerkeyPattern }>());
+  const patternDrafts = useRef(new Map<PerkeyPattern["kind"], PatternDraft>());
   const reading = useRef<Promise<PerkeyProfile> | null>(null);
   const reload = useCallback(async (reset: boolean, afterWrite = false) => {
     if (reading.current || running.current && !afterWrite) return;
     const id = ++generation.current;
     let next: PerkeyProfile;
     const pending = readPerkeyLighting(); reading.current = pending;
-    try { next = await pending; } catch (e) { if (id === generation.current) { setProfile(null); throw e; } else return; }
+    try { next = await pending; }
+    catch (error) {
+      if (id !== generation.current) return;
+      setProfile(null); setReadError(String(error)); throw error;
+    }
     finally { if (reading.current === pending) reading.current = null; }
     if (id !== generation.current) return;
-    setProfile(next);
+    setProfile(next); setReadError(null);
     const before = accepted.current; accepted.current = next.current;
     const cached = patternDrafts.current.get(next.current.pattern.kind);
-    setDraft(previous => {
-      const current = next.current;
-      if (reset || !previous || !before) return structuredClone(current);
-      const values = preserveEditedFields(before, previous, current);
-      const kept = before.pattern.kind === current.pattern.kind && previous.pattern.kind === current.pattern.kind
-        && usesCustomColors(before.pattern) === usesCustomColors(current.pattern);
-      values.pattern = kept ? preserveEditedFields(before.pattern, previous.pattern, current.pattern)
-        : before.pattern.kind !== current.pattern.kind && cached && usesCustomColors(cached.before) === usesCustomColors(current.pattern)
-          ? preserveEditedFields(cached.before, cached.edited, current.pattern) : current.pattern;
-      return values;
-    });
+    setDraft(previous => reset || !previous || !before
+      ? structuredClone(next.current) : reconcilePerkeyDraft(before, previous, next.current, cached));
   }, []);
   useEffect(() => {
     if (!active) return;
     let disposed = false;
-    void (async () => { await reading.current?.catch(() => undefined); if (!disposed) await reload(false); })().catch(e => setError(String(e)));
+    void (async () => { await reading.current?.catch(() => undefined); if (!disposed) await reload(false); })().catch(() => {});
     return () => { disposed = true; ++generation.current; };
   }, [active, revision, reload]);
   const reactive = !!profile && profile.current.enabled && ["ripple", "fn", "fade"].includes(profile.current.pattern.kind);
   useEffect(() => {
     if (!active || !reactive) return;
-    const timer = setInterval(() => { void reload(false).catch(e => setError(String(e))); }, 3000);
+    const timer = setInterval(() => { void reload(false).catch(() => {}); }, 3000);
     return () => clearInterval(timer);
   }, [active, reactive, reload]);
   const run = async (action: () => Promise<void>, reset = true) => {
     if (!active || running.current) return;
-    running.current = true; ++generation.current; setBusy(true); setError(null);
+    running.current = true; ++generation.current; setBusy(true); setActionError(null);
     try {
       await reading.current?.catch(() => undefined);
       await action(); await reload(reset, true); toast({ kind: "success", title: "逐键灯光已回读" });
     }
     catch (e) {
-      setError(String(e));
-      await reload(false, true).catch(readError => setError(previous => `${previous}；回读失败：${readError}`));
+      setActionError(String(e));
+      await reload(false, true).catch(() => {});
     }
     finally { running.current = false; setBusy(false); }
   };
@@ -70,8 +68,9 @@ export function usePerkeyLighting(active: boolean, revision = 0) {
     }
     return run(() => applyPerkeyLighting({ expectedRevision: profile.revision, values: { ...profile.current, ...patch } }), false);
   };
-  return { profile, draft, setDraft, busy, error, request, dirty,
-    reload: () => reload(false).catch(e => setError(String(e))),
+  return { profile: profile ?? null, loaded: profile !== undefined, draft, setDraft, busy, request, dirty,
+    error: actionError && readError ? `${actionError}；回读失败：${readError}` : actionError ?? readError,
+    reload: () => reload(false).catch(() => {}),
     change,
     apply: () => request ? run(async () => {
       await applyPerkeyLighting(request);
@@ -81,6 +80,16 @@ export function usePerkeyLighting(active: boolean, revision = 0) {
       await restorePerkeyLighting();
       patternDrafts.current.clear();
     }) };
+}
+
+function reconcilePerkeyDraft(before: PerkeyValues, draft: PerkeyValues, current: PerkeyValues, cached?: PatternDraft): PerkeyValues {
+  const values = preserveEditedFields(before, draft, current);
+  const samePattern = before.pattern.kind === current.pattern.kind && draft.pattern.kind === current.pattern.kind
+    && usesCustomColors(before.pattern) === usesCustomColors(current.pattern);
+  values.pattern = samePattern ? preserveEditedFields(before.pattern, draft.pattern, current.pattern)
+    : before.pattern.kind !== current.pattern.kind && cached && usesCustomColors(cached.before) === usesCustomColors(current.pattern)
+      ? preserveEditedFields(cached.before, cached.edited, current.pattern) : current.pattern;
+  return values;
 }
 
 function usesCustomColors(pattern: PerkeyValues["pattern"]) {

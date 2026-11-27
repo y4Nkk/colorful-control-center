@@ -92,7 +92,7 @@ fn start_gate(io: &impl Io, software: bool) -> Result<()> {
         .iter()
         .any(|v| !v.is_finite() || !(0.0..=50.0).contains(v))
     {
-        bail!("CPU和GPU风扇占空比均不超过50%时才能开始除尘");
+        bail!("CPU 和 GPU 风扇强度均不超过 50% 时才能开始除尘");
     }
     Ok(())
 }

@@ -1,5 +1,6 @@
 use super::{Io, model::*, protocol};
 use crate::hal::Hal;
+use crate::hal::oem_dchu::ComponentUnavailable;
 use anyhow::Result;
 use windows_sys::Win32::System::Power::{GetSystemPowerStatus, SYSTEM_POWER_STATUS};
 
@@ -23,11 +24,6 @@ pub fn power(raw: &SYSTEM_POWER_STATUS) -> PowerStatus {
             && ac_online == Some(false)
             && raw.BatteryLifeTime != u32::MAX)
             .then_some(raw.BatteryLifeTime),
-        windows_battery_saver: match raw.SystemStatusFlag {
-            0 => Some(false),
-            1 => Some(true),
-            _ => None,
-        },
     }
 }
 pub(super) fn system_power() -> Result<PowerStatus> {
@@ -37,13 +33,23 @@ pub(super) fn system_power() -> Result<PowerStatus> {
     }
     Ok(power(&raw))
 }
+/// 原厂组件自身的不可用与通道调用失败分开；其余传输错误都按通道无响应说明。
+pub(super) fn unavailable(error: anyhow::Error) -> ChargeUnavailable {
+    if error.downcast_ref::<ComponentUnavailable>().is_some() {
+        ChargeUnavailable::Component(error)
+    } else {
+        ChargeUnavailable::Transport(error)
+    }
+}
 impl Io for Native<'_> {
-    fn charge(&self) -> Result<Option<ChargeState>> {
-        self.hal.with_dchu(|io| {
-            let mut packet = [0; 256];
-            packet[0] = 30;
-            protocol::charge(&io.exchange_package(4, &packet)?)
-        })
+    fn charge(&self) -> Result<Option<ChargeState>, ChargeUnavailable> {
+        let mut packet = [0; 256];
+        packet[0] = 30;
+        let response = self
+            .hal
+            .with_dchu(|io| io.exchange_package(4, &packet))
+            .map_err(unavailable)?;
+        protocol::charge(&response).map_err(ChargeUnavailable::Firmware)
     }
     fn send(&self, values: &ChargeValues) -> Result<()> {
         self.hal.with_dchu(|io| {

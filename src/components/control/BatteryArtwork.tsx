@@ -8,8 +8,8 @@ export function BatteryArtwork({ percent, charging }: { percent: number | null; 
     <defs>
       <clipPath id={clip}><rect x="6" y="9" width={fillWidth} height="42" rx="7" /></clipPath>
     </defs>
-    <rect x="2" y="5" width="102" height="50" rx="11" fill="var(--ccc-content-muted)" stroke="var(--ccc-text-muted)" strokeWidth="2" />
-    <rect x="108" y="21" width="6" height="18" rx="3" fill="var(--ccc-text-muted)" />
+    <rect x="2" y="5" width="102" height="50" rx="11" fill="var(--ccc-chart-track)" />
+    <rect x="108" y="21" width="6" height="18" rx="3" fill="var(--ccc-chart-cursor)" />
     {percent !== null && <rect data-battery-fill="true" x="6" y="9" width={fillWidth * percent / 100} height="42"
       fill="currentColor" clipPath={`url(#${clip})`} />}
     {charging === true && <g data-battery-charging="true" transform="translate(88 39)">

@@ -14,7 +14,7 @@ export function LightBarPreview({ draft }: { draft: LightBarValues }) {
   return <div className="ccc-light-bar-preview" aria-label="灯条草稿示意">
     <svg viewBox="0 0 400 48" aria-hidden="true">{Array.from({ length: 12 }, (_, index) =>
       <rect key={index} x={index * 33 + 3} y="14" width="28" height="20" rx="4"
-        fill={enabled ? color ? hexOf(color) : "var(--ccc-action)" : "var(--ccc-hairline)"}
+        fill={enabled ? color ? hexOf(color) : "var(--ccc-action-ink)" : "var(--ccc-hairline)"}
         opacity={enabled ? 0.35 + draft.settings.brightness * 0.16 : 0.4} />)}</svg>
     <span className="ccc-control-caption">草稿示意 · 实际效果以设备为准</span>
   </div>;

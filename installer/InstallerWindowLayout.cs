@@ -3,8 +3,8 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Shell;
 
@@ -12,93 +12,79 @@ namespace ColorfulControlCenter.Installer
 {
     internal sealed partial class InstallerWindow
     {
+        private ScrollViewer bodyScroll;
+        private Border workspacePanel;
+
         private Brush Brush(string key) { return (Brush)FindResource(key); }
         private double Measure(string key) { return (double)FindResource(key); }
 
         private Grid BuildLayout()
         {
             var inset = new Thickness(ShadowMargin);
-            var layout = new Grid { Background = Brush("Canvas"), ClipToBounds = true, Margin = inset };
-            layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.55, GridUnitType.Star) });
-            var workspaceColumn = new ColumnDefinition { Width = new GridLength(0.45, GridUnitType.Star) };
-            layout.ColumnDefinitions.Add(workspaceColumn);
-            layout.Children.Add(BuildArtwork());
+            bool compact = Width - 2 * ShadowMargin < 760 || Height - 2 * ShadowMargin < 440
+                || SystemParameters.HighContrast;
+            var layout = new Grid { Background = Brush(compact ? "Surface" : "Canvas"), ClipToBounds = true, Margin = inset };
             double radius = Measure("PanelRadius");
-            var workspace = new Grid { Margin = new Thickness(radius, 8, 12, 8) };
-            workspace.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            workspace.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            layout.ColumnDefinitions.Add(new ColumnDefinition {
+                Width = compact ? new GridLength(0) : new GridLength(0.45, GridUnitType.Star),
+            });
+            layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.55, GridUnitType.Star) });
+            if (!compact) layout.Children.Add(BuildArtwork(radius));
+            var workspace = new Grid {
+                Margin = compact ? new Thickness(22, 62, 12, 10) : new Thickness(radius + 36, 96, 30, 24),
+                MaxWidth = compact ? 700 : Double.PositiveInfinity,
+            };
             workspace.RowDefinitions.Add(new RowDefinition());
             workspace.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            workspace.Children.Add(BuildHeader());
-            var navigation = BuildSteps();
-            Grid.SetRow(navigation, 1);
-            workspace.Children.Add(navigation);
-            body = new StackPanel { Margin = new Thickness(24, 32, 24, 24), RenderTransform = bodyOffset };
-            var scroll = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false };
-            Grid.SetRow(scroll, 2);
-            workspace.Children.Add(scroll);
+            body = new StackPanel { RenderTransform = bodyOffset };
+            bodyScroll = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false,
+                Padding = new Thickness(0, 0, 10, 0) };
+            workspace.Children.Add(bodyScroll);
             actions = BuildFooter();
-            Grid.SetRow(actions, 3);
+            Grid.SetRow(actions, 1);
             workspace.Children.Add(actions);
-            SizeChanged += delegate(object sender, SizeChangedEventArgs args) {
-                workspaceColumn.MinWidth = Math.Min(360, Math.Max(0, args.NewSize.Width - 2 * ShadowMargin));
-                bool compact = args.NewSize.Height - 2 * ShadowMargin < 440;
-                navigation.Margin = compact ? new Thickness(16, 12, 16, 0) : new Thickness(24, 24, 24, 0);
-                body.Margin = compact ? new Thickness(16, 8, 16, 12) : new Thickness(24, 32, 24, 24);
-                actions.Margin = compact ? new Thickness(16, 8, 16, 12) : new Thickness(24, 12, 24, 20);
+            workspacePanel = new Border {
+                Background = Brush("Surface"), Child = workspace,
+                Margin = new Thickness(compact ? 0 : -radius, 0, 0, 0),
+                CornerRadius = compact ? new CornerRadius(0) : new CornerRadius(radius, 0, 0, radius),
             };
-            workspacePanel = new Border { Background = Brush("Surface"),
-                CornerRadius = new CornerRadius(radius, 0, 0, radius),
-                Margin = new Thickness(-radius, 0, 0, 0), Child = workspace };
-            workspacePanel.SizeChanged += delegate {
-                workspacePanel.Clip = new RectangleGeometry(new Rect(0, 0,
-                    workspacePanel.ActualWidth + radius, workspacePanel.ActualHeight), radius, radius);
-            };
+            if (!compact)
+                workspacePanel.SizeChanged += delegate {
+                    workspacePanel.Clip = new RectangleGeometry(new Rect(0, 0,
+                        workspacePanel.ActualWidth + radius, workspacePanel.ActualHeight), radius, radius);
+                };
             Grid.SetColumn(workspacePanel, 1);
-            Panel.SetZIndex(workspacePanel, 1);
             layout.Children.Add(workspacePanel);
-            var shadow = new Border { Background = Brush("Canvas"), Margin = inset, IsHitTestVisible = false,
-                Effect = new DropShadowEffect {
-                    Color = ((SolidColorBrush)Brush("Ink")).Color, BlurRadius = 14,
-                    ShadowDepth = 2, Direction = 270, Opacity = 0.20,
-                } };
-            return new Grid { Children = { shadow, layout } };
+            var header = BuildHeader();
+            header.Margin = compact ? new Thickness(22, 4, 10, 0) : new Thickness(30, 12, 16, 0);
+            Grid.SetColumnSpan(header, 2);
+            layout.Children.Add(header);
+            var edge = new Border { BorderBrush = Brush("Hairline"), BorderThickness = new Thickness(1),
+                Margin = inset, IsHitTestVisible = false };
+            return new Grid { Children = { layout, edge } };
         }
 
-        private Grid BuildArtwork()
+        private Border BuildArtwork(double radius)
         {
-            var panel = new Grid { ClipToBounds = true, Background = Brush("Canvas") };
-            panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            panel.RowDefinitions.Add(new RowDefinition());
-            panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            var artwork = new Border { IsHitTestVisible = false, Margin = new Thickness(16, 0, Measure("PanelRadius"), 0),
-                Background = new ImageBrush(Image("CCC.Artwork")) {
-                Stretch = Stretch.Uniform,
-            } };
-            Grid.SetRow(artwork, 1);
-            panel.Children.Add(artwork);
-            var brand = new StackPanel { Orientation = Orientation.Horizontal };
-            brand.Children.Add(new Image { Source = Image("CCC.Icon"), Width = 32, Height = 32,
-                Margin = new Thickness(0, 0, 12, 0) });
-            var name = Text("Colorful Control Center", 19);
-            name.FontWeight = FontWeights.SemiBold;
-            name.VerticalAlignment = VerticalAlignment.Center;
-            brand.Children.Add(name);
-            panel.Children.Add(new Viewbox { Child = brand, StretchDirection = StretchDirection.DownOnly,
-                Margin = new Thickness(32), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top });
-            var version = Text("版本 " + Product.Version, 12, "Muted", new Thickness(32, 0, 20, 24));
-            version.VerticalAlignment = VerticalAlignment.Bottom;
-            Grid.SetRow(version, 2);
-            panel.Children.Add(version);
-            return panel;
+            return new Border { IsHitTestVisible = false, Margin = new Thickness(26, 68, radius + 26, 42),
+                Background = new ImageBrush(Image("CCC.Artwork")) { Stretch = Stretch.Uniform } };
         }
 
         private Grid BuildHeader()
         {
-            var header = new Grid { Height = 44, Margin = new Thickness(24, 0, 0, 0) };
+            var header = new Grid { Height = 44, VerticalAlignment = VerticalAlignment.Top };
             header.ColumnDefinitions.Add(new ColumnDefinition());
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var brand = new StackPanel { Orientation = Orientation.Horizontal };
+            brand.Children.Add(new Image { Source = Image("CCC.Icon"), Width = 28, Height = 28,
+                Margin = new Thickness(0, 0, 10, 0) });
+            var name = Text(Product.ControllerWindowTitle, 17);
+            name.FontWeight = FontWeights.SemiBold;
+            name.VerticalAlignment = VerticalAlignment.Center;
+            brand.Children.Add(name);
+            header.Children.Add(new Viewbox { Child = brand, StretchDirection = StretchDirection.DownOnly,
+                HorizontalAlignment = HorizontalAlignment.Left });
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var minimize = Action("−", delegate { WindowState = WindowState.Minimized; }, "最小化");
             minimize.Style = (Style)FindResource("Chrome");
@@ -111,27 +97,13 @@ namespace ColorfulControlCenter.Installer
             return header;
         }
 
-        private StackPanel BuildSteps()
-        {
-            var panel = new StackPanel { Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(24, 24, 24, 0) };
-            for (int index = 0; index < 4; index++)
-            {
-                markers[index] = new Label { Style = (Style)FindResource("StepDot"),
-                    Margin = new Thickness(0, 0, index < 3 ? 8 : 0, 0) };
-                panel.Children.Add(markers[index]);
-            }
-            return panel;
-        }
-
         private WrapPanel BuildFooter()
         {
-            var footer = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(24, 12, 24, 20) };
-            back = Action("上一步", OnBack, "上一步");
-            secondary = Action("取消", delegate { Close(); }, "结束或取消安装");
-            primary = Action("", OnPrimary, "继续安装向导");
+            var footer = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 10, 0) };
+            secondary = Action("取消", delegate { Close(); }, "取消");
+            primary = Action("", OnPrimary, "");
             primary.Style = (Style)FindResource("Primary");
-            foreach (var button in new[] { back, secondary, primary })
+            foreach (var button in new[] { secondary, primary })
             {
                 button.Margin = new Thickness(8, 0, 0, 8);
                 footer.Children.Add(button);
@@ -143,16 +115,24 @@ namespace ColorfulControlCenter.Installer
         {
             body.Children.Clear();
             directoryBox = null;
-            body.VerticalAlignment = failure == null ? VerticalAlignment.Center : VerticalAlignment.Top;
-            string[] titles = { "欢迎使用", "安装位置", failure == null ? "正在安装" : "安装未完成", "安装完成" };
-            heading = Text(titles[step], 32);
+            changeLocation = null;
+            phaseStatus = null;
+            progressBar = null;
+            string action = Updating ? "更新" : "安装";
+            string title = step == InstallerStep.Confirm ? action + " " + Product.ControllerWindowTitle
+                : step == InstallerStep.Complete ? action + "完成"
+                : busy ? "正在" + action : action + "未完成";
+            if (step == InstallerStep.Confirm && recoveryReason != null) title = "重新安装控制台";
+            heading = Text(title, 28);
             heading.FontWeight = FontWeights.SemiBold;
-            heading.LineHeight = 44;
+            heading.LineHeight = 36;
+            heading.Focusable = true;
+            KeyboardNavigation.SetIsTabStop(heading, false);
+            AutomationProperties.SetHeadingLevel(heading, AutomationHeadingLevel.Level1);
             body.Children.Add(heading);
-            if (step == 0) BuildWelcome();
-            else if (step == 1) BuildLocation();
-            else if (step == 2) { if (busy) BuildProgress(); }
-            else BuildComplete();
+            if (step == InstallerStep.Confirm) BuildLocation();
+            else if (busy) BuildProgress();
+            else if (step == InstallerStep.Complete && failure == null) BuildComplete();
             if (failure != null) BuildError();
         }
 
@@ -164,14 +144,16 @@ namespace ColorfulControlCenter.Installer
                 ResizeMode = ResizeMode.NoResize, Background = Brush("Surface"), FontFamily = FontFamily };
             dialog.Resources.MergedDictionaries.Add(Resources);
             var content = new StackPanel();
-            var title = Text("关闭控制台后安装", 20);
+            string action = Updating ? "更新" : "安装";
+            var title = Text("关闭控制台后" + action, 21);
             title.FontWeight = FontWeights.SemiBold;
             content.Children.Add(title);
-            content.Children.Add(Text("控制台正在运行。关闭后，安装会自动继续。", 14, "Muted", new Thickness(0, 10, 0, 22)));
+            content.Children.Add(Text("控制台关闭后会自动继续。" +
+                "如果控制台以管理员身份运行，Windows 会请求授权。", 14, "Muted", new Thickness(0, 10, 0, 22)));
             var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             var cancel = Action("取消", delegate { dialog.DialogResult = false; }, "取消");
             cancel.IsCancel = true;
-            var confirm = Action("关闭并安装", delegate { dialog.DialogResult = true; }, "关闭并安装");
+            var confirm = Action("关闭并" + action, delegate { dialog.DialogResult = true; }, "关闭并" + action);
             confirm.Style = (Style)FindResource("Primary");
             confirm.Margin = new Thickness(10, 0, 0, 0);
             actions.Children.Add(cancel);
@@ -182,63 +164,117 @@ namespace ColorfulControlCenter.Installer
             return dialog.ShowDialog() == true;
         }
 
-        private void BuildWelcome()
-        {
-            body.Children.Add(Text("你的游戏本控制台。", 15, "Muted", new Thickness(0, 12, 0, 0)));
-        }
-
         private void BuildLocation()
         {
-            string description = Updating ? "更新至原位置，保留你的设置。" : "仅为当前用户安装。";
-            if (recoveryReason != null) description = "原安装位置不可用，请选择目录重新安装。";
-            body.Children.Add(Text(description, 14, "Muted", new Thickness(0, 8, 0, 8)));
-            directoryBox = new TextBox { Text = selectedDirectory, IsReadOnly = Updating,
-                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8), MinHeight = 48 };
-            AutomationProperties.SetName(directoryBox, "安装文件夹");
-            body.Children.Add(directoryBox);
-            var browse = Action(Updating ? "打开安装目录" : "选择安装位置…", Browse,
-                Updating ? "打开当前安装目录" : "选择安装位置");
-            browse.HorizontalAlignment = HorizontalAlignment.Left;
-            body.Children.Add(browse);
-            var feedback = Text("", 13, "Error", new Thickness(0, 8, 0, 0));
-            feedback.Visibility = Visibility.Collapsed;
-            locationError = feedback;
-            directoryBox.TextChanged += delegate { feedback.Visibility = Visibility.Collapsed; };
-            body.Children.Add(feedback);
-            if (recoveryReason != null) body.Children.Add(Text(recoveryReason, 12, "Muted", new Thickness(0, 8, 0, 0)));
-            if (!Updating) body.Children.Add(Text("请选择空文件夹，或输入新目录的完整路径。", 12, "Muted", new Thickness(0, 8, 0, 0)));
-            body.Children.Add(Text("需要时将联网安装 WebView2。", 12, "Muted", new Thickness(0, 8, 0, 0)));
+            string description = Updating ? "将更新到 " + Product.Version + "，保留你的设置。"
+                : "版本 " + Product.Version + " · 仅为当前用户安装";
+            body.Children.Add(Text(description, 14, "Muted", new Thickness(0, 8, 0, 12)));
+            if (recoveryReason != null)
+                body.Children.Add(Text("原安装位置不可用。" + recoveryReason, 14, "Error", new Thickness(0, 0, 0, 8)));
+            var label = Text("安装位置", 14);
+            label.FontWeight = FontWeights.SemiBold;
+            body.Children.Add(label);
+            if (editingLocation) BuildLocationEditor(label);
+            else BuildLocationSummary();
+            if (replacementDirectory != null)
+                body.Children.Add(Text("此目录已有控制台。继续会替换原程序文件。", 14, "Muted", new Thickness(0, 4, 0, 0)));
+            body.Children.Add(Text("如缺少 WebView2，安装时需要联网。", 14, "Muted", new Thickness(0, 6, 0, 0)));
+        }
+
+        private void BuildLocationSummary()
+        {
+            var row = new Grid { Margin = new Thickness(0, 0, 0, 2) };
+            row.ColumnDefinitions.Add(new ColumnDefinition());
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var path = Text(selectedDirectory, 14, "Ink", new Thickness(0, 4, 12, 4));
+            path.VerticalAlignment = VerticalAlignment.Center;
+            path.TextWrapping = TextWrapping.NoWrap;
+            path.TextTrimming = TextTrimming.CharacterEllipsis;
+            row.Children.Add(path);
+            changeLocation = Updating ? QuietAction("打开目录", Browse) :
+                QuietAction("更改…", delegate { EditLocation(); });
+            AutomationProperties.SetName(changeLocation, Updating ? "打开安装目录" : "更改安装位置");
+            Grid.SetColumn(changeLocation, 1);
+            row.Children.Add(changeLocation);
+            body.Children.Add(row);
+        }
+
+        private void BuildLocationEditor(TextBlock label)
+        {
+            var row = new Grid { Margin = new Thickness(0, 4, 0, 0) };
+            row.ColumnDefinitions.Add(new ColumnDefinition());
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            directoryBox = new TextBox { Text = selectedDirectory, TextWrapping = TextWrapping.NoWrap,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
+                Margin = new Thickness(0, 0, 8, 0), MinHeight = 42 };
+            AutomationProperties.SetLabeledBy(directoryBox, label);
+            row.Children.Add(directoryBox);
+            var browse = QuietAction("浏览…", Browse);
+            AutomationProperties.SetName(browse, "浏览安装文件夹");
+            Grid.SetColumn(browse, 1);
+            browse.VerticalAlignment = VerticalAlignment.Center;
+            row.Children.Add(browse);
+            body.Children.Add(row);
+            locationError = Text("", 14, "Error", new Thickness(0, 4, 0, 0));
+            locationError.Visibility = Visibility.Collapsed;
+            AutomationProperties.SetLiveSetting(locationError, AutomationLiveSetting.Polite);
+            body.Children.Add(locationError);
+            directoryBox.TextChanged += delegate {
+                selectedDirectory = directoryBox.Text;
+                locationError.Visibility = Visibility.Collapsed;
+            };
+            body.Children.Add(Text("可选择空文件夹，或输入新目录的完整路径。", 14, "Muted", new Thickness(0, 6, 0, 0)));
         }
 
         private void BuildProgress()
         {
-            body.Children.Add(Text(phaseText, 14, "Muted", new Thickness(0, 16, 0, 24)));
-            var progress = new ProgressBar { Height = 6, Minimum = 0, Maximum = 1,
-                IsIndeterminate = !fraction.HasValue, Value = fraction ?? 0,
-                Foreground = Brush("Action"), Background = Brush("MutedSurface") };
-            AutomationProperties.SetName(progress, fraction.HasValue ? "准备文件进度" : "安装进行中，等待引擎完成");
-            body.Children.Add(progress);
-            if (fraction.HasValue) body.Children.Add(Text(Math.Round(fraction.Value * 100) + "%",
-                13, "Muted", new Thickness(0, 12, 0, 24)));
+            phaseStatus = Text("正在检查安装条件…", 14, "Muted", new Thickness(0, 12, 0, 14));
+            AutomationProperties.SetLiveSetting(phaseStatus, AutomationLiveSetting.Polite);
+            body.Children.Add(phaseStatus);
+            progressBar = new ProgressBar { Height = 6, Minimum = 0, Maximum = 1,
+                IsIndeterminate = true, BorderThickness = new Thickness(0),
+                Foreground = Brush("ActionFill"), Background = Brush("MutedSurface") };
+            AutomationProperties.SetName(progressBar, "安装进行中");
+            body.Children.Add(progressBar);
         }
 
         private void BuildComplete()
         {
-            body.Children.Add(Text("可以打开控制台了。", 15, "Muted", new Thickness(0, 12, 0, 0)));
+            body.Children.Add(Text("已" + (Updating ? "更新至" : "安装") + "版本 " + Product.Version + "。",
+                14, "Muted", new Thickness(0, 8, 0, 0)));
         }
 
         private void BuildError()
         {
-            body.Children.Add(Text(failure.Message, 13, "Error", new Thickness(0, 20, 0, 12)));
+            string message = step == InstallerStep.Complete ? "控制台未能打开。可重试，或稍后从开始菜单打开。"
+                : failure.Message;
+            body.Children.Add(Text(message, 14, "Error", new Thickness(0, 8, 0, 12)));
+            if (step == InstallerStep.Install && !Updating)
+                body.Children.Add(QuietAction("更改安装位置…", delegate { EditLocation(); }));
+            var details = new StackPanel { Margin = new Thickness(16, 6, 0, 0) };
             var installFailure = failure as InstallFailure;
-            if (installFailure != null) body.Children.Add(new Expander { Header = "诊断日志",
-                Content = Text(installFailure.LogPath, 12, "Muted"), Margin = new Thickness(0, 0, 0, 12) });
-            var copy = Action("复制诊断", delegate {
-                try { Clipboard.SetText(InstallerDiagnostics.Describe(failure)); }
-                catch (Exception error) { MessageBox.Show(this, error.Message, "未能复制诊断"); }
-            }, "复制安装诊断");
-            copy.HorizontalAlignment = HorizontalAlignment.Left;
-            body.Children.Add(copy);
+            if (installFailure != null)
+                details.Children.Add(Text(installFailure.LogPath, 14, "Muted"));
+            var feedback = Text("", 14, "Muted");
+            feedback.Visibility = Visibility.Collapsed;
+            AutomationProperties.SetLiveSetting(feedback, AutomationLiveSetting.Polite);
+            var copy = QuietAction("复制诊断", delegate {
+                try { Clipboard.SetText(InstallerDiagnostics.Describe(failure)); feedback.Text = "已复制诊断。"; }
+                catch (Exception) { feedback.Text = "无法复制诊断，请重试。"; }
+                feedback.Visibility = Visibility.Visible;
+                Announce(feedback);
+            });
+            details.Children.Add(copy);
+            details.Children.Add(feedback);
+            body.Children.Add(new Expander { Header = "诊断详情", Content = details, Margin = new Thickness(0, 4, 0, 0) });
+        }
+
+        private Button QuietAction(string label, RoutedEventHandler handler)
+        {
+            var button = Action(label, handler, label);
+            button.Style = (Style)FindResource("Quiet");
+            button.HorizontalAlignment = HorizontalAlignment.Left;
+            return button;
         }
 
         private TextBlock Text(string text, double size, string color = "Ink", Thickness? margin = null)

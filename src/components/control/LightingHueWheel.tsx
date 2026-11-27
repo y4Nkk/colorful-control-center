@@ -1,4 +1,5 @@
 import type { CSSProperties, KeyboardEvent, PointerEvent } from "react";
+import { HueSpectrum } from "../RgbSpectrum";
 import type { RgbColor } from "../../api/client";
 import { hexOf, hsvOf, rgbOfHsv } from "../../lib/color";
 import { ColorPicker } from "../ColorPicker";
@@ -51,8 +52,12 @@ export function LightingHueWheel({ label, color, disabled, onChange }: ColorCont
           pick(event);
         }}
         onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) pick(event); }}>
+        <HueSpectrum circular />
         {hue !== null && <span className="ccc-lighting-hue-marker" aria-hidden="true"
-          style={{ "--hue-angle": `${hue}deg`, "--hue-color": hex } as CSSProperties} />}
+          style={{ "--hue-angle": `${hue}deg` } as CSSProperties}>
+          <svg viewBox="0 0 16 16" focusable="false"><circle cx="8" cy="8" r="7" fill="black" />
+            <circle cx="8" cy="8" r="6" fill={hex} stroke="white" /></svg>
+        </span>}
       </div>
       <div className="ccc-lighting-wheel-center">
         <ColorPicker key={label} label={label} value={color} disabled={disabled} onChange={onChange} swatchOnly />

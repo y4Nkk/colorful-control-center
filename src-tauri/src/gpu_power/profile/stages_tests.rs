@@ -54,7 +54,7 @@ fn closed_gpu_saving_mode_and_final_enable_share_three_continuous_frozen_stages(
 fn stage_graph_covers_all_modes_supplies_independent_targets_and_dependency_needs() {
     for enabled in [false, true] {
         for automatic in [false, true] {
-            for mode in [None, Some(0), Some(1), Some(2), Some(3), Some(4)] {
+            for mode in [None, Some(0), Some(1), Some(2), Some(3)] {
                 for wanted in [
                     None,
                     Some((true, false)),

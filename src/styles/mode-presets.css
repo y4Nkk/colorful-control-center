@@ -1,3 +1,16 @@
+.ccc-preset-panel { position: relative; isolation: isolate; }
+.ccc-preset-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  inline-size: 100%;
+  block-size: 100%;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+}
+@media (forced-colors: active) { .ccc-preset-backdrop { display: none; } }
+
 .ccc-preset-artwork {
   display: block;
   align-self: center;
@@ -13,26 +26,9 @@
   margin: 0;
   font-size: var(--ccc-text-reading);
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.15;
   text-align: center;
   overflow-wrap: anywhere;
-}
-
-@media (forced-colors: none) {
-  @supports (background-clip: text) {
-    .ccc-preset-label:not([data-preset-palette="neutral"]) {
-      background-image: linear-gradient(105deg,
-        light-dark(var(--ccc-preset-deep), var(--ccc-preset-light)),
-        light-dark(color-mix(in srgb, var(--ccc-preset-low) 70%, var(--ccc-preset-deep)), var(--ccc-preset-mid)));
-      background-clip: text;
-      color: transparent;
-    }
-
-    .ccc-preset-switcher .ccc-segmented-option:has(.ccc-radio:disabled) .ccc-preset-label {
-      background-image: none;
-      color: inherit;
-    }
-  }
 }
 
 .ccc-preset-switcher {
@@ -41,80 +37,60 @@
   align-self: center;
   inline-size: min(100%, 21rem);
 }
-.ccc-preset-switcher:has(> :nth-child(5)) { grid-template-columns: repeat(5, minmax(0, 1fr)); inline-size: min(100%, 26rem); }
-
-@container ccc-control (max-width: 24rem) {
-  .ccc-preset-switcher:has(> :nth-child(5)) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
 @media (max-height: 680px) {
   .ccc-preset-artwork { max-block-size: var(--ccc-preset-artwork-compact-height); }
 }
 
-.ccc-preset-stream > path { opacity: 0; }
-
 @media (prefers-reduced-motion: no-preference) {
   :root:not([data-motion="reduce"]) .ccc-preset-artwork[data-active] {
-    .ccc-preset-stream > path {
-      stroke: light-dark(var(--ccc-preset-low), var(--ccc-preset-mid));
-      stroke-dasharray: 48 110;
-      animation: ccc-preset-stream var(--ccc-motion-preset-loop) linear infinite;
-      &:nth-child(2) { animation-delay: calc(var(--ccc-motion-preset-loop) * -.46); }
-    }
     .ccc-preset-leaf {
-      transform-origin: 125px 165px;
+      transform-origin: 207px 155px;
       animation: ccc-preset-sway var(--ccc-motion-preset-loop) ease-in-out infinite;
-      &[data-leaf="rear"] {
-        transform-origin: 280px 145px;
-        animation-delay: calc(var(--ccc-motion-preset-loop) * -.16);
-      }
+      &[data-leaf="rear"] { animation-delay: calc(var(--ccc-motion-preset-loop) * -.18); }
     }
-    .ccc-preset-moon {
-      transform-origin: 246px 91px;
-      animation: ccc-preset-float var(--ccc-motion-preset-loop) ease-in-out infinite;
-    }
-    :is(.ccc-preset-ripples, .ccc-preset-stars) > path {
+
+    :is(.ccc-preset-moon, .ccc-preset-water, .ccc-preset-planet) {
       transform-box: fill-box;
       transform-origin: center;
     }
-    .ccc-preset-ripples > path {
-      animation: ccc-preset-ripple var(--ccc-motion-preset-loop) ease-in-out infinite;
-      &:nth-child(2) { animation-delay: calc(var(--ccc-motion-preset-loop) * -.18); }
-      &:nth-child(3) { animation-delay: calc(var(--ccc-motion-preset-loop) * -.36); }
+
+    .ccc-preset-moon {
+      animation: ccc-preset-float var(--ccc-motion-preset-loop) ease-in-out infinite;
     }
-    .ccc-preset-stars > path {
-      animation: ccc-preset-star var(--ccc-motion-preset-loop) ease-in-out infinite;
-      &:nth-child(2) { animation-delay: calc(var(--ccc-motion-preset-loop) * -.5); }
+
+    .ccc-preset-water {
+      animation: ccc-preset-water var(--ccc-motion-preset-loop) ease-in-out infinite;
     }
+
     .ccc-preset-planet {
-      transform-origin: 240px 100px;
       animation: ccc-preset-planet-drift var(--ccc-motion-preset-loop) ease-in-out infinite;
     }
+
     .ccc-preset-orbit-light {
-      stroke: light-dark(var(--ccc-preset-deep), var(--ccc-preset-light));
-      stroke-dasharray: 18 4 3 75;
+      stroke: light-dark(var(--ccc-preset-low), var(--ccc-preset-light));
+      stroke-dasharray: 18 82;
       animation: ccc-preset-orbit var(--ccc-motion-preset-loop) linear infinite;
+      &[data-orbit="rear"] {
+        animation-direction: reverse;
+        animation-delay: calc(var(--ccc-motion-preset-loop) * -.35);
+      }
     }
-    .ccc-preset-orbit-front {
-      animation-delay: calc(var(--ccc-motion-preset-loop) / -2);
+
+    .ccc-preset-glint {
+      stroke: var(--ccc-preset-light);
+      stroke-dasharray: 24 100;
+      animation: ccc-preset-glint var(--ccc-motion-preset-loop) ease-in-out infinite;
     }
-    .ccc-preset-orbit-outer {
-      stroke: light-dark(var(--ccc-preset-low), var(--ccc-preset-mid));
-      animation-duration: calc(var(--ccc-motion-preset-loop) * 1.25);
-      animation-direction: reverse;
-      animation-delay: calc(var(--ccc-motion-preset-loop) * -.35);
-    }
+
     .ccc-preset-wind-blade {
       animation: ccc-preset-thrust var(--ccc-motion-preset-loop) var(--ccc-easing) infinite;
     }
-    :is(.ccc-preset-vein-light, .ccc-preset-wind-light) {
-      stroke-dasharray: 28 110;
-      animation: ccc-preset-glint var(--ccc-motion-preset-loop) ease-in-out infinite;
-    }
-    [data-wind="rear"] :is(.ccc-preset-wind-blade, .ccc-preset-wind-light) {
+
+    [data-wind="rear"] :is(.ccc-preset-wind-blade, .ccc-preset-glint) {
       animation-delay: calc(var(--ccc-motion-preset-loop) * -.28);
     }
-    [data-wind="main"] :is(.ccc-preset-wind-blade, .ccc-preset-wind-light) {
+
+    [data-wind="main"] :is(.ccc-preset-wind-blade, .ccc-preset-glint) {
       animation-delay: calc(var(--ccc-motion-preset-loop) * -.14);
     }
 
@@ -137,77 +113,63 @@
 
 @keyframes ccc-preset-reveal {
   from { opacity: 0; transform: var(--ccc-preset-entry); }
-  72% { opacity: 1; transform: scale(1.025); }
+  72% { opacity: 1; transform: scale(1.015); }
   to { opacity: 1; transform: none; }
 }
 
 @keyframes ccc-preset-exit {
   from { opacity: 1; }
-  68%, to { opacity: 0; transform: translate(-28px, 13px) scale(.88); }
+  68%, to { opacity: 0; transform: translate(-24px, 10px) scale(.92); }
 }
 
 @keyframes ccc-preset-wind-in {
-  from { opacity: 0; transform: translate(-44px, 23px); }
+  from { opacity: 0; transform: translate(-32px, 15px); }
   to { opacity: 1; transform: none; }
 }
 
 @keyframes ccc-preset-sway {
   0%, 100% { transform: none; }
-  35% { transform: translate(8px, -8px) rotate(9deg) scale(1.04); }
-  72% { transform: rotate(-4deg) scale(.99); }
+  42% { transform: translateY(-7px) rotate(-4deg); }
+  76% { transform: rotate(2deg); }
 }
 
 @keyframes ccc-preset-float {
   0%, 100% { transform: none; }
-  35% { transform: translate(-18px, 5px) rotate(-8deg); }
-  70% { transform: translate(17px, -17px) rotate(8deg) scale(1.07); }
+  38% { transform: translate(-6px, -4px) rotate(-4deg); }
+  68% { transform: translate(5px, -11px) rotate(3deg); }
 }
 
-@keyframes ccc-preset-ripple {
-  0%, 100% { opacity: .38; transform: translateY(-3px) scaleX(.8); }
-  50% { opacity: 1; transform: translateY(4px) scaleX(1.23); }
-}
-
-@keyframes ccc-preset-star {
-  0%, 100% { opacity: .55; transform: scale(.8); }
-  50% { opacity: 1; transform: rotate(36deg) scale(1.75); }
+@keyframes ccc-preset-water {
+  0%, 100% { transform: none; }
+  50% { transform: translateY(3px) scaleX(1.045); }
 }
 
 @keyframes ccc-preset-planet-drift {
   0%, 100% { transform: none; }
-  32% { transform: translate(12px, -9px) rotate(14deg); }
-  68% { transform: translate(-10px, 7px) rotate(-12deg); }
+  35% { transform: translate(6px, -5px); }
+  70% { transform: translate(-5px, 3px); }
 }
 
 @keyframes ccc-preset-orbit {
-  from { opacity: 1; stroke-dashoffset: 25; }
-  to { opacity: 1; stroke-dashoffset: -75; }
+  from { opacity: 0; stroke-dashoffset: 18; }
+  22%, 78% { opacity: .72; }
+  to { opacity: 0; stroke-dashoffset: -82; }
 }
 
 @keyframes ccc-preset-thrust {
   0%, 100% { transform: none; }
-  24% { transform: translate(-10px, 5px); }
-  49% { transform: translate(28px, -14px); }
-  72% { transform: translate(12px, -6px); }
+  25% { transform: translate(-8px, 4px); }
+  53% { transform: translate(16px, -8px); }
+  76% { transform: translate(6px, -3px); }
 }
 
 @keyframes ccc-preset-glint {
-  0%, 12% { opacity: 0; stroke-dashoffset: 28; }
-  29%, 62% { opacity: .98; }
-  84%, 100% { opacity: 0; stroke-dashoffset: -100; }
-}
-
-@keyframes ccc-preset-stream {
-  0%, 6% { opacity: 0; stroke-dashoffset: 48; }
-  23%, 56% { opacity: .84; }
-  88%, 100% { opacity: 0; stroke-dashoffset: -100; }
+  0%, 12% { opacity: 0; stroke-dashoffset: 24; }
+  28%, 58% { opacity: .82; }
+  85%, 100% { opacity: 0; stroke-dashoffset: -100; }
 }
 
 .ccc-mode-art { display: block; width: 100%; height: auto; aspect-ratio: 1; pointer-events: none; }
-.ccc-mode-art[data-mode-art="eco"] { color: var(--ccc-mode-art-eco); }
-.ccc-mode-art[data-mode-art="quiet"] { color: var(--ccc-mode-art-quiet); }
-.ccc-mode-art[data-mode-art="entertainment"] { color: var(--ccc-mode-art-entertainment); }
-.ccc-mode-art[data-mode-art="performance"] { color: var(--ccc-mode-art-performance); }
 
 .ccc-panel.ccc-current-mode { gap: var(--ccc-space-1); }
 .ccc-current-mode > output {

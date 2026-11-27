@@ -8,14 +8,14 @@ const savedSettings = page => page.evaluate(() => window.__uiFixture.calls.find(
 const saveButton = page => page.getByRole("button", { name: "保存当前配置", exact: true });
 const fileInput = page => page.getByLabel("导入配置档案", { exact: true });
 const mutations = page => page.evaluate(() => window.__uiFixture.calls
-  .filter(call => /^(apply_profile|save_profile|delete_profile)$/.test(call.command)).map(call => call.command));
+  .filter(call => /^(apply_profile|apply_builtin_profile|save_profile|delete_profile)$/.test(call.command)).map(call => call.command));
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
   await page.goto("/");
 });
 
-test("空库只展示真实入口，保存性能组不受其他设备失败影响", async ({ page }, testInfo) => {
+test("空库展示内置档案，保存性能组不受其他设备失败影响", async ({ page }, testInfo) => {
   await page.evaluate(() => {
     const data = window.__uiFixture;
     data.profile = null;
@@ -24,8 +24,8 @@ test("空库只展示真实入口，保存性能组不受其他设备失败影�
     data.fan.currentMode = 6;
   });
   await openProfiles(page);
-  await expect(page.getByRole("heading", { name: "还没有配置档案" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "档案列表", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "档案列表", exact: true })).toContainText("还没有个人档案");
+  await expect(page.getByRole("region", { name: "内置档案", exact: true }).getByRole("button")).toHaveCount(3);
   await expect(profilePanel(page)).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("profiles-empty.png") });
   await saveButton(page).click();
@@ -33,6 +33,7 @@ test("空库只展示真实入口，保存性能组不受其他设备失败影�
   await expect(editor.getByRole("checkbox", { name: "性能与散热" })).toBeChecked();
   await expect(editor.getByRole("checkbox", { name: "显示与显卡" })).not.toBeChecked();
   await editor.getByRole("textbox", { name: "档案名" }).fill("夜间静音");
+  await expect(editor.locator("dl[aria-label='已读取的配置']")).toHaveAttribute("data-layout", "inline");
   await expect(editor.getByRole("button", { name: "查看已读取的参数" })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("profiles-capture.png") });
   await editor.getByRole("button", { name: "保存档案", exact: true }).click();
@@ -44,10 +45,13 @@ test("空库只展示真实入口，保存性能组不受其他设备失败影�
     window.__uiFixture.fan.fans[0].t2 = 55;
   });
   await page.getByRole("region", { name: "档案列表" }).getByRole("button", { name: /夜间静音/ }).click();
-  const row = profilePanel(page).locator(".ccc-profile-values-list > div").filter({ hasText: "持续功耗上限 · 保存值" });
+  const row = profilePanel(page).locator("dl[aria-label='档案设置差异'] > div").filter({ hasText: "持续功耗上限 · 保存值" });
   await expect(row).toContainText("45 W");
   await expect(row).toContainText("65 W");
-  await expect(profilePanel(page).getByRole("img", { name: "CPU 当前与档案曲线" }).locator("path")).toHaveCount(2);
+  const curve = profilePanel(page).getByRole("img", { name: "CPU 当前与档案曲线" });
+  await expect(curve.locator("..").locator("figcaption")).toContainText("风扇强度");
+  await expect(curve.locator(".ccc-profile-curve-current")).toBeVisible();
+  await expect(curve.locator(".ccc-profile-curve-target")).toBeVisible();
   const details = profilePanel(page).getByRole("button", { name: "查看全部设置" });
   await expect(details).toHaveAttribute("aria-expanded", "false");
   await details.click();
@@ -98,11 +102,20 @@ test("导入先预览再保存，删除须确认所见版本", async ({ page }) 
   await page.evaluate(() => { window.__uiFixture.profile = null; });
   await openProfiles(page);
   const file = { version: 1, name: "测试导入", savedAtMs: 1, settings: { pl1W: 50 } };
-  await fileInput(page).setInputFiles({ name: "fixture.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+  const input = { name: "fixture.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) };
+  await fileInput(page).setInputFiles(input);
   const preview = profilePanel(page);
+  await expect(preview.getByRole("heading", { name: "测试导入" })).toBeFocused();
   await expect(preview.getByText("待导入", { exact: true })).toBeVisible();
-  await expect(preview).toContainText("50 W");
+  const targets = preview.locator("dl[aria-label='档案目标值']");
+  await expect(targets).toHaveAttribute("data-layout", "rows");
+  await expect(targets).toContainText("50 W");
+  await expect(targets.getByRole("group", { name: "当前值" })).toHaveCount(0);
   expect(await mutations(page)).toEqual([]);
+  await preview.getByRole("button", { name: "取消导入", exact: true }).click();
+  await expect(preview).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "导入档案", exact: true })).toBeFocused();
+  await fileInput(page).setInputFiles(input);
   await preview.getByRole("button", { name: "导入档案", exact: true }).click();
   await expect(preview.getByRole("button", { name: "应用档案", exact: true })).toBeVisible();
   expect(await mutations(page)).toEqual(["save_profile"]);
@@ -111,7 +124,8 @@ test("导入先预览再保存，删除须确认所见版本", async ({ page }) 
   const confirm = page.getByRole("dialog", { name: "删除档案", exact: true });
   await expect(confirm).toContainText("删除「测试导入」？");
   await confirm.getByRole("button", { name: "删除档案", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "还没有配置档案" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "档案列表", exact: true })).toContainText("还没有个人档案");
+  await expect(preview).toHaveCount(0);
   expect(await mutations(page)).toEqual(["save_profile", "delete_profile"]);
 });
 
@@ -119,7 +133,7 @@ test("档案加载失败显示重试入口", async ({ page }) => {
   await page.evaluate(() => { window.__uiFixture.profileListFault = "隔离目录读取失败"; });
   await openProfiles(page);
   await expect(page.getByRole("alert")).toContainText("隔离目录读取失败");
-  await expect(page.getByRole("heading", { name: "还没有配置档案" })).toHaveCount(0);
+  await expect(page.getByText("还没有个人档案", { exact: true })).toHaveCount(0);
   await page.evaluate(() => { window.__uiFixture.profileListFault = null; });
   await page.getByRole("button", { name: "重新读取档案" }).click();
   await expect(profilePanel(page).getByRole("heading", { name: "隔离档案" })).toBeVisible();

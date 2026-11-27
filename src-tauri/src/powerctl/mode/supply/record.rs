@@ -172,7 +172,7 @@ impl Record {
             {
                 bail!("供电模式 EnergyStar 目标无效");
             }
-            if attempt.previous_mode > 4 {
+            if !ccc_core::oem_events::is_power_mode(attempt.previous_mode) {
                 bail!("供电模式前态无效");
             }
             validate_clock_attempt(attempt)?;
@@ -283,7 +283,6 @@ fn validate_target(target: &Target) -> Result<()> {
         || target.gpu.is_some()
         || target.revision.is_some()
         || target.unavailable_reason.is_some()
-        || target.mode > 4
         || target
             .aspm
             .is_some_and(|values| values.iter().any(|value| *value > 2))

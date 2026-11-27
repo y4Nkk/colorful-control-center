@@ -54,5 +54,6 @@ internal static class ControllerFixture
             }
             base.WndProc(ref message);
         }
+
     }
 }

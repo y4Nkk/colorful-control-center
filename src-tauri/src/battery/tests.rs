@@ -39,9 +39,9 @@ impl Fake {
     }
 }
 impl Io for Fake {
-    fn charge(&self) -> Result<Option<ChargeState>> {
+    fn charge(&self) -> Result<Option<ChargeState>, ChargeUnavailable> {
         if self.charge_error.get() {
-            bail!("隔离固件读取失败");
+            return Err(ChargeUnavailable::Transport(anyhow!("隔离固件读取失败")));
         }
         Ok(self.state.borrow().clone())
     }
@@ -102,23 +102,17 @@ fn malformed_firmware_does_not_open_policy_controls() {
     assert!(protocol::charge(&raw).is_err());
 }
 #[test]
-fn apply_changes_firmware_after_preview_and_restores_initial_values() {
+fn apply_changes_firmware_after_preview() {
     let io = Fake::new();
-    let initial = current(&io).unwrap();
-    let mut base = None;
     let request = io.request(true, 70, 80);
-    apply(&io, &mut base, &request).unwrap();
+    apply(&io, &request).unwrap();
     assert_eq!(current(&io).unwrap().current, request.values);
-    assert_eq!(base, Some(initial.clone()));
-    restore(&io, &mut base, &current(&io).unwrap().revision()).unwrap();
-    assert_eq!(current(&io).unwrap(), initial);
-    assert!(base.is_some());
 }
 #[test]
 fn out_of_candidates_and_inverted_thresholds_never_send() {
     let io = Fake::new();
     for (start, stop) in [(69, 80), (70, 81), (80, 80), (95, 60), (0, 100)] {
-        assert!(apply(&io, &mut None, &io.request(true, start, stop)).is_err());
+        assert!(apply(&io, &io.request(true, start, stop)).is_err());
     }
     assert!(io.sent.borrow().is_empty());
 }
@@ -127,12 +121,10 @@ fn stale_preview_and_capability_changes_refuse_before_write() {
     let io = Fake::new();
     let request = io.request(true, 70, 80);
     io.state.borrow_mut().as_mut().unwrap().current.start = 80;
-    assert!(apply(&io, &mut None, &request).is_err());
-    assert!(io.sent.borrow().is_empty());
-    let mut base = Some(current(&io).unwrap());
+    assert!(apply(&io, &request).is_err());
+    let request = io.request(true, 70, 80);
     io.state.borrow_mut().as_mut().unwrap().stop_values.pop();
-    let expected = current(&io).unwrap().revision();
-    assert!(restore(&io, &mut base, &expected).is_err());
+    assert!(apply(&io, &request).is_err());
     assert!(io.sent.borrow().is_empty());
 }
 #[test]
@@ -140,10 +132,10 @@ fn missing_battery_and_unknown_power_fail_without_sending() {
     let io = Fake::new();
     for present in [Some(false), None] {
         io.power.borrow_mut().present = present;
-        assert!(apply(&io, &mut None, &io.request(true, 70, 80)).is_err());
+        assert!(apply(&io, &io.request(true, 70, 80)).is_err());
     }
     io.power_error.set(true);
-    assert!(apply(&io, &mut None, &io.request(true, 70, 80)).is_err());
+    assert!(apply(&io, &io.request(true, 70, 80)).is_err());
     assert!(io.sent.borrow().is_empty());
 }
 #[test]
@@ -151,73 +143,71 @@ fn partial_write_and_readback_mismatch_compensate_to_actual_before() {
     for partial in [true, false] {
         let io = Fake::new();
         let initial = current(&io).unwrap();
-        let mut base = None;
         if partial {
             io.fail.borrow_mut().insert(1);
         } else {
             io.drop.borrow_mut().insert(1);
         }
-        let error = apply(&io, &mut base, &io.request(true, 70, 80)).unwrap_err();
+        let error = apply(&io, &io.request(true, 70, 80)).unwrap_err();
         assert!(error.to_string().contains("充电设置失败"));
         assert_eq!(current(&io).unwrap(), initial);
         assert_eq!(io.sent.borrow().len(), 2);
-        assert!(base.is_some());
     }
 }
 #[test]
-fn failed_compensation_retains_baseline_for_explicit_retry() {
+fn failed_compensation_can_be_corrected_by_a_new_explicit_apply() {
     let io = Fake::new();
     let initial = current(&io).unwrap();
-    let mut base = None;
     io.fail.borrow_mut().insert(1);
     io.drop.borrow_mut().insert(2);
-    let error = apply(&io, &mut base, &io.request(true, 70, 80))
+    let error = apply(&io, &io.request(true, 70, 80))
         .unwrap_err()
         .to_string();
     assert!(error.contains("恢复失败"));
     assert_ne!(current(&io).unwrap(), initial);
     io.fail.borrow_mut().clear();
     io.drop.borrow_mut().clear();
-    restore(&io, &mut base, &current(&io).unwrap().revision()).unwrap();
+    apply(
+        &io,
+        &io.request(
+            initial.current.enabled,
+            initial.current.start,
+            initial.current.stop,
+        ),
+    )
+    .unwrap();
     assert_eq!(current(&io).unwrap(), initial);
 }
 #[test]
-fn later_failure_preserves_first_baseline_and_successful_previous_policy() {
+fn later_failure_keeps_successful_previous_policy() {
     let io = Fake::new();
-    let initial = current(&io).unwrap();
-    let mut base = None;
-    apply(&io, &mut base, &io.request(true, 70, 80)).unwrap();
+    apply(&io, &io.request(true, 70, 80)).unwrap();
     let previous = current(&io).unwrap();
     io.fail.borrow_mut().insert(2);
-    assert!(apply(&io, &mut base, &io.request(true, 80, 90)).is_err());
+    assert!(apply(&io, &io.request(true, 80, 90)).is_err());
     assert_eq!(current(&io).unwrap(), previous);
-    assert_eq!(base, Some(initial));
 }
 #[test]
-fn disabled_zero_threshold_baseline_restores_exactly_without_invented_defaults() {
+fn disabled_zero_threshold_state_enables_with_chosen_candidates() {
     let io = Fake::new();
     io.state.borrow_mut().as_mut().unwrap().current = ChargeValues {
         enabled: false,
         start: 0,
         stop: 0,
     };
-    let initial = current(&io).unwrap();
-    let mut base = None;
-    apply(&io, &mut base, &io.request(true, 70, 80)).unwrap();
-    restore(&io, &mut base, &current(&io).unwrap().revision()).unwrap();
-    assert_eq!(current(&io).unwrap(), initial);
+    let request = io.request(true, 70, 80);
+    apply(&io, &request).unwrap();
+    assert_eq!(current(&io).unwrap().current, request.values);
+    assert_eq!(*io.sent.borrow(), [request.values]);
 }
 #[test]
-fn unsupported_and_noop_do_not_claim_a_restorable_write() {
+fn noop_and_unsupported_never_send() {
     let io = Fake::new();
-    let mut base = None;
-    apply(&io, &mut base, &io.request(false, 95, 100)).unwrap();
-    assert!(base.is_none());
+    apply(&io, &io.request(false, 95, 100)).unwrap();
     *io.state.borrow_mut() = None;
     assert!(
         apply(
             &io,
-            &mut base,
             &ChargeRequest {
                 expected_revision: "".into(),
                 values: ChargeValues {
@@ -235,11 +225,45 @@ fn unsupported_and_noop_do_not_claim_a_restorable_write() {
 fn profile_keeps_windows_readings_when_oem_transport_fails() {
     let io = Fake::new();
     io.charge_error.set(true);
-    let p = read(&io, &None);
+    let p = read(&io);
     assert!(p.charge.is_none());
     assert!(p.revision.is_none());
     assert_eq!(p.power.unwrap().percent, Some(60));
-    assert!(p.warnings[0].contains("固件读取失败"));
+    assert_eq!(
+        p.charge_unavailable_reason.as_deref(),
+        Some("原厂通道没有响应，无法读取充电保护设置。")
+    );
+}
+#[test]
+fn unreadable_windows_power_reports_its_own_reason() {
+    let io = Fake::new();
+    io.power_error.set(true);
+    let p = read(&io);
+    assert!(p.power.is_none());
+    assert_eq!(
+        p.power_unavailable_reason.as_deref(),
+        Some("无法读取 Windows 的电源状态。")
+    );
+    assert!(p.charge.is_some());
+    assert!(p.charge_unavailable_reason.is_none());
+}
+#[test]
+fn component_failures_are_told_apart_from_unresponsive_channels() {
+    use crate::hal::oem_dchu::ComponentUnavailable;
+    let component = || anyhow!(ComponentUnavailable("InsydeDCHU.dll 缺少必需导出".into()));
+    assert!(matches!(
+        native::unavailable(component()),
+        ChargeUnavailable::Component(_)
+    ));
+    // 外层附带上下文时仍按原始类别说明。
+    assert!(matches!(
+        native::unavailable(component().context("加载原厂组件")),
+        ChargeUnavailable::Component(_)
+    ));
+    assert!(matches!(
+        native::unavailable(anyhow!("SetDCHU_DataEx(cmd=0x4) 失败：期望 0x4，status=0x0")),
+        ChargeUnavailable::Transport(_)
+    ));
 }
 #[test]
 fn windows_unknown_is_never_misreported_as_empty_or_discharging() {

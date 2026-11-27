@@ -39,7 +39,7 @@ pub(super) fn snapshot(
     offset: u8,
     energy: crate::powerctl::mode::EnergyState,
 ) -> StoredModeSnapshot {
-    serde_json::from_value(serde_json::json!({"core":{"mode":mode,"command":if mode == 4 { 0 } else { mode },"preferences":[0,0],"acMode":null},
+    serde_json::from_value(serde_json::json!({"core":{"mode":mode,"command":mode,"preferences":[0,0],"acMode":null},
         "fan":{"software":null,"package":null,"rpmPairs":null,"fields":[{"offset":5,"data":[0]}, {"offset":7,"data":[offset]}],"mode":0,
             "offsetRaw":ccc_core::fan::oem_duty_byte(f64::from(offset))},
         "system":{"active":format!("{:032x}", crate::hal::power_plan::SCHEMES[0]),"aspm":{"381b4222f69441f09685ff5bb260df2e":[0,1]}},
@@ -50,7 +50,7 @@ fn energy(mode: u8) -> crate::powerctl::mode::energy::State {
         hardware_p_state: false,
         energy_star: Some(match mode {
             0 | 3 => 2,
-            1 | 4 => 1,
+            1 => 1,
             2 => 0,
             _ => unreachable!(),
         }),

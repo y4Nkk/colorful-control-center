@@ -2,7 +2,16 @@ import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { onHardwareSnapshot, updateHardwareMonitoring, toCommandError, type HardwareSnapshot } from "../api/client";
 
 export const HARDWARE_HISTORY_MS = 5 * 60_000;
+export const HARDWARE_HISTORY_GAP_MS = 5_000;
+export const CPU_READING_MAX_AGE_MS = 2_500;
 const STALE_MS = 3_000;
+
+export function freshCpuReading(sample: HardwareSnapshot | null) {
+  const reading = sample?.cpuUtility;
+  if (!sample || !reading) return null;
+  const age = sample.sampledAtMs - reading.sampledAtMs;
+  return age >= 0 && age <= CPU_READING_MAX_AGE_MS ? reading : null;
+}
 
 interface History {
   live: HardwareSnapshot | null;

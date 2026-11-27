@@ -7,11 +7,12 @@ const panelOf = page => page.getByRole("region", { name: "风扇除尘", exact: 
 const writes = page => page.evaluate(() => window.__uiFixture.calls.filter(c => /^(start_fan_dust|apply_fan_dust_schedule|restore_fan_dust_schedule)$/.test(c.command)));
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
-  await page.addInitScript(() => {
+  await page.goto("/");
+  await page.evaluate(() => {
     window.__uiFixture.dust = { revision: "dust-0", running: false, current: null, initial: null, softwareActive: false,
       lastStart: null, startBlockedReason: null, scheduleBlockedReason: null };
   });
-  await page.goto("/"); await openWorkspace(page, "性能与散热");
+  await openWorkspace(page, "性能与散热");
 });
 test("除尘启动预览确认，只报告请求和固件状态，不伪造停止或进度", async ({ page }) => {
   const panel = panelOf(page);
@@ -28,7 +29,8 @@ test("除尘启动预览确认，只报告请求和固件状态，不伪造停�
   await expect(fan).toContainText("固件正在除尘");
   await expect(fan.getByRole("radio", { name: "全速", exact: true })).toBeDisabled();
   await expect(fan.getByRole("slider", { name: "加速偏移", exact: true })).toBeDisabled();
-  await expect(fan.getByRole("spinbutton", { name: "T2 温度", exact: true })).toBeDisabled();
+  await expect(fan.getByRole("spinbutton", { name: "T2 温度", exact: true })).toHaveCount(0);
+  await expect(fan.getByRole("heading", { name: "风扇转速", exact: true })).toBeVisible();
   await expect(availableAction(page, "风扇设置", true)).toHaveCount(0);
   await expect(panel.getByRole("button", { name: /停止|取消除尘/ })).toHaveCount(0);
   await expect(panel.getByRole("progressbar")).toHaveCount(0);
@@ -71,12 +73,13 @@ test("外部计划通过回读更新每个控件", async ({ page }) => {
   await expect(panel.getByRole("combobox", { name: "除尘执行时间" })).toHaveText("22:00");
   expect(await writes(page)).toHaveLength(1);
 });
-test("高占空比、软件曲线及校准互斥在界面明确显示", async ({ page }) => {
+test("风扇强度过高、软件曲线及校准互斥在界面明确显示", async ({ page }) => {
   const panel = panelOf(page);
-  await page.evaluate(() => { window.__uiFixture.dust.startBlockedReason = "风扇占空比超过50%"; });
+  const blocked = "CPU 和 GPU 风扇强度均不超过 50% 时才能开始除尘";
+  await page.evaluate(message => { window.__uiFixture.dust.startBlockedReason = message; }, blocked);
   await panel.getByRole("button", { name: "重新读取除尘状态" }).click();
   await expect(panel.getByRole("button", { name: "立即除尘", exact: true })).toBeDisabled();
-  await expect(panel).toContainText("超过50%");
+  await expect(panel).toContainText(blocked);
   await page.evaluate(() => { window.__uiFixture.fan.software = { cpu: { points: [{ tempC:40,dutyPct:30 },{ tempC:90,dutyPct:100 }], hysteresisC:3, rampPctPerS:10 } }; });
   await panel.getByRole("button", { name: "重新读取除尘状态" }).click();
   await expect(panel.getByRole("switch", { name: "按星期除尘", exact: true })).toBeDisabled();

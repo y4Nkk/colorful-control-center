@@ -1,8 +1,9 @@
 import { applyMicrophones, readMicrophones, type MicrophoneSnapshot } from "../../api/client";
 import { Button } from "../Button";
 import { DetailsDialog } from "../DetailsDialog";
-import { FactList } from "../FactList";
+import { FactList, FactStatus, type Fact } from "../FactList";
 import { Icon } from "../Icon";
+import { Loading } from "../Loading";
 import { OemConflictAction } from "../OemConflictAction";
 import { SegmentedControl } from "../SegmentedControl";
 import { Surface } from "../Surface";
@@ -14,17 +15,19 @@ const savedText = (saved: number) => saved > 1 ? "未识别" : stateText(saved !
 const options = [{ value: "true", label: "全部静音" }, { value: "false", label: "取消静音" }];
 const TITLE = "麦克风静音";
 
-function microphoneFacts(snapshot: MicrophoneSnapshot) {
+function microphoneFacts(snapshot: MicrophoneSnapshot): Fact[] {
   return [
-    ...snapshot.endpoints.map((endpoint, index) => ({
-      label: endpoint.name || `麦克风 ${index + 1}`, value: stateText(endpoint.muted),
+    ...snapshot.endpoints.map<Fact>((endpoint, index) => ({
+      label: endpoint.name || `麦克风 ${index + 1}`, icon: "microphone",
+      value: <FactStatus>{stateText(endpoint.muted)}</FactStatus>,
     })),
-    { label: "电脑保存的静音设置", value: savedText(snapshot.saved) },
+    { label: "电脑保存的静音设置", icon: "save",
+      value: <FactStatus tone={snapshot.saved > 1 ? "warning" : "neutral"}>{savedText(snapshot.saved)}</FactStatus> },
   ];
 }
 
 export function MicrophoneSettings({ active, revision }: { active: boolean; revision: number }) {
-  const { profile, busy, error, run, reread } = useDeviceSettings(readMicrophones, active, revision, 5000);
+  const { profile, loaded, busy, error, run, reread } = useDeviceSettings(readMicrophones, active, revision, 5000);
   const current = profile?.current;
   const endpoints = current?.endpoints ?? [];
   const mutedCount = endpoints.filter(endpoint => endpoint.muted).length;
@@ -51,7 +54,8 @@ export function MicrophoneSettings({ active, revision }: { active: boolean; revi
     </div>
     <div className="ccc-device-status" aria-label="当前麦克风状态">
       <InputDeviceVisual kind="microphone" />
-      <div>{summary && <strong>{summary}</strong>}{endpoints.length > 0 && <p className="ccc-control-caption">{endpoints.length} 个设备</p>}</div>
+      <div>{!loaded ? <Loading label="正在读取麦克风状态…" /> : summary && <strong>{summary}</strong>}
+        {endpoints.length > 0 && <p className="ccc-control-caption">{endpoints.length} 个设备</p>}</div>
     </div>
     {profile?.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
     <OemConflictAction issues={[error, profile?.blockedReason]} disabled={busy} onClosed={reread} />

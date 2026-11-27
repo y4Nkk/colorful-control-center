@@ -2,6 +2,7 @@ import { applyGraphicsMode, readGraphicsMode, rebootForGraphicsMode } from "../.
 import { Button } from "../Button";
 import { ConfirmButton } from "../ConfirmButton";
 import { Icon } from "../Icon";
+import { Loading } from "../Loading";
 import { Surface } from "../Surface";
 import { GraphicsModeArtwork } from "./GraphicsModeArtwork";
 import { useDeviceSettings } from "./useDeviceSettings";
@@ -56,6 +57,7 @@ export function GraphicsModeSettings({ active, revision }: { active: boolean; re
         {supports(current.availableMask, last.target) ? `可再次选择${modeName(last.target)}。` : "固件已不提供上次选择的模式。"}
       </p>}
       {last?.verification === "confirmed" && <p className="ccc-control-caption" role="status">重启后已确认</p>}
-    </> : <p className="ccc-control-caption">{profile ? "本机未提供模式切换接口。" : error ? "请重新读取显卡模式。" : "正在读取显卡模式。"}</p>}
+    </> : profile ? <p className="ccc-control-caption">本机未提供模式切换接口。</p>
+      : error ? <p className="ccc-control-caption">请重新读取显卡模式。</p> : <Loading label="正在读取显卡模式…" />}
   </Surface>;
 }

@@ -3,6 +3,7 @@ import { closeFnKey, findOemConflict, readFnKeyCloseTarget, type FnKeyIdentity }
 import { Button } from "./Button";
 import { Dialog, WorkspaceActivity } from "./Dialog";
 import { Icon } from "./Icon";
+import { Loading } from "./Loading";
 import { toast } from "./use-toast";
 
 type Prompt = { conflict: string; onClosed?: () => void } | { mode: string; confirm: () => Promise<void> };
@@ -101,12 +102,12 @@ function OemConflictDialog({ prompt, inspection, busy, onClose, onConfirm }: {
   const actionLabel = mode ? "关闭并切换" : "关闭 FnKey";
   return <Dialog title="关闭原厂 FnKey" width="narrow" open={prompt !== null} busy={busy} onClose={onClose}
     actions={<><Button variant="secondary" disabled={busy} onClick={onClose}>{ready || inspection.checking ? "取消" : "知道了"}</Button>
-      {ready && <Button icon={busy ? "loading" : undefined} disabled={busy} aria-busy={busy || undefined} onClick={() => void onConfirm()}>
+      {ready && <Button busy={busy} onClick={() => void onConfirm()}>
         {busy ? `正在${actionLabel}…` : actionLabel}
       </Button>}</>}>
     {mode && <p>关闭原厂 FnKey 后，控制台会切换到「{mode}」。</p>}
     {conflict && !inspection.message && <p>{conflict}</p>}
-    {inspection.checking && <p role="status">正在核对原厂进程…</p>}
+    {inspection.checking && <Loading label="正在核对原厂进程…" />}
     {inspection.message && <p role={inspection.failed ? "alert" : "status"} className={inspection.failed ? "ccc-control-error" : undefined}>{inspection.failed && <Icon name="error" size={16} />}{inspection.message}</p>}
     {ready && <p>部分原厂 Fn 热键和屏显会暂停。要恢复，请在设置中关闭「自动关闭原厂软件」，再从开始菜单打开「Fn hotkeys and OSD」。</p>}
   </Dialog>;

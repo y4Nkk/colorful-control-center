@@ -5,41 +5,19 @@ pub(super) struct Plan {
     target: ChargeState,
 }
 impl Plan {
-    pub fn profile(
-        before: ChargeState,
-        baseline: &Option<ChargeState>,
-        target: &ChargeTarget,
-    ) -> Result<Self> {
+    pub fn profile(before: ChargeState, target: &ChargeTarget) -> Result<Self> {
         target.validate()?;
-        if let Some(initial) = baseline {
-            before.same_capabilities(initial)?;
-        }
-        Self::restore(before, &target.state())
+        before.same_capabilities(&target.state())?;
+        Ok(Self {
+            before,
+            target: target.state(),
+        })
     }
-    pub fn prepare(
-        before: ChargeState,
-        baseline: &Option<ChargeState>,
-        values: &ChargeValues,
-    ) -> Result<Self> {
-        if let Some(initial) = baseline {
-            before.same_capabilities(initial)?;
-        }
+    pub fn prepare(before: ChargeState, values: &ChargeValues) -> Result<Self> {
         let target = before.target(values)?;
         Ok(Self { before, target })
     }
-    pub fn restore(before: ChargeState, initial: &ChargeState) -> Result<Self> {
-        before.same_capabilities(initial)?;
-        Ok(Self {
-            before,
-            target: initial.clone(),
-        })
-    }
-    pub fn execute(
-        &self,
-        io: &dyn Io,
-        baseline: &mut Option<ChargeState>,
-        touched: &mut bool,
-    ) -> Result<()> {
+    pub fn execute(&self, io: &dyn Io, touched: &mut bool) -> Result<()> {
         if io.power()?.present != Some(true) {
             bail!("未确认电池存在，未修改充电保护");
         }
@@ -49,7 +27,6 @@ impl Plan {
         if self.before == self.target {
             return Ok(());
         }
-        baseline.get_or_insert_with(|| self.before.clone());
         *touched = true;
         if let Err(error) = write(io, &self.target) {
             let recovered = self.rollback(io);

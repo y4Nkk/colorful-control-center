@@ -20,6 +20,19 @@ test.beforeEach(async ({ page }) => {
   await expect(card(page).getByRole("switch", { name: "启用自动刷新率" })).toBeEnabled();
 });
 
+test("离开设备配置后的全局试用检查不触发显示模式枚举", async ({ page }) => {
+  await openWorkspace(page, "概览");
+  await expect(card(page)).not.toBeVisible();
+  const inventories = (await calls(page, "read_display_modes")).length;
+  const trials = (await calls(page, "read_automatic_display_trial")).length;
+  await expect.poll(async () => {
+    const idleReads = await calls(page, "read_automatic_display_trial");
+    const modeReads = await calls(page, "read_display_modes");
+    return idleReads.length + modeReads.length;
+  }).toBeGreaterThan(inventories + trials);
+  expect(await calls(page, "read_display_modes")).toHaveLength(inventories);
+});
+
 test("开关直接启用，跨页面保留试用后关闭并恢复启用前状态", async ({ page }) => {
   await enable(page);
   await expect(trial(page)).toContainText("60 Hz");
@@ -105,19 +118,42 @@ test("频率无需变化时直接启用并恢复策略，全程没有显示试�
 });
 
 test("模块边框和全局确认适配宽窄及深浅主题", async ({ page }) => {
-  await expect(card(page).locator(".ccc-refresh-screen")).toContainText("60 Hz");
-  await expect(card(page).locator(".ccc-refresh-rates")).toContainText(/低刷新率.*恢复刷新率/s);
+  const readout = card(page).locator(".ccc-refresh-readout");
+  const targets = readout.locator(".ccc-refresh-rates");
+  const artwork = readout.locator("svg.ccc-refresh-target-art");
+  await expect(readout.locator(".ccc-refresh-screen")).toHaveText(/^当前主屏\s*60 Hz$/);
+  await expect(readout.locator("[data-icon]")).toHaveCount(0);
+  await expect(targets.locator("dt")).toHaveText(["低刷新率", "恢复刷新率"]);
+  await expect(targets.locator("dd")).toHaveText(["60 Hz", "144 Hz"]);
+  await expect(artwork).toHaveAttribute("aria-hidden", "true");
+  await expect(artwork).toHaveAttribute("focusable", "false");
+  await expect(artwork).toHaveCSS("pointer-events", "none");
   for (const theme of ["light", "dark"]) {
     await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
     for (const width of [360, 760, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await card(page).scrollIntoViewIfNeeded();
-      const geometry = await card(page).evaluate(element => ({
-        width: element.clientWidth, scroll: element.scrollWidth,
-        border: parseFloat(getComputedStyle(element).borderTopWidth),
-      }));
+      const geometry = await card(page).evaluate(element => {
+        const footer = element.querySelector(".ccc-refresh-control");
+        const style = getComputedStyle(element);
+        return {
+          width: element.clientWidth, scroll: element.scrollWidth,
+          border: parseFloat(style.borderTopWidth),
+          footerLast: footer === element.lastElementChild,
+          footerInset: element.getBoundingClientRect().bottom - footer.getBoundingClientRect().bottom
+            - parseFloat(style.borderBottomWidth),
+          padding: parseFloat(style.paddingBottom),
+        };
+      });
       expect(geometry.scroll).toBeLessThanOrEqual(geometry.width + 1);
       expect(geometry.border).toBeGreaterThan(0);
+      expect(geometry.footerLast).toBe(true);
+      expect(geometry.footerInset).toBeCloseTo(geometry.padding, 0);
+      const gap = await targets.evaluate(element => {
+        const [low, restore] = [...element.children].map(rate => rate.getBoundingClientRect());
+        return restore.left - low.right;
+      });
+      expect(gap).toBeCloseTo(0, 1);
       if (width === 1440) {
         const display = await page.getByRole("region", { name: "屏幕显示", exact: true }).boundingBox();
         const auto = await card(page).boundingBox();
@@ -227,6 +263,7 @@ test("读数未知或离开活动页时扫描纹理静止", async ({ page }) => 
   });
   await expect(card(page).getByRole("alert")).toContainText("隔离读取失败");
   await expect(card(page).locator(".ccc-refresh-screen")).toContainText("—");
+  await expect(card(page).locator(".ccc-refresh-targets")).toHaveCount(0);
   await expect(scan).not.toHaveAttribute("data-active", "true");
   expect(await scanAnimations(page)).toEqual([]);
 });

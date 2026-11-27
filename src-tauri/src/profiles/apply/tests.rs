@@ -9,6 +9,8 @@ mod display_tests;
 mod dust_tests;
 #[path = "energy_tests.rs"]
 mod energy_tests;
+#[path = "fan_mode_confirmation_tests.rs"]
+mod fan_mode_confirmation_tests;
 #[path = "fan_transaction_tests.rs"]
 mod fan_transaction_tests;
 #[path = "fixtures.rs"]

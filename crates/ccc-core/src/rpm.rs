@@ -124,13 +124,12 @@ fn encode_points(
     power_mode: u8,
     points: &[RpmPoint; LEVELS],
 ) -> Result<Table, String> {
-    if fan_index >= FAN_IDS.len() || power_mode > 4 {
+    if fan_index >= FAN_IDS.len() || !crate::oem_events::is_power_mode(power_mode) {
         return Err("未知风扇或电源模式".into());
     }
     let maximum = maximum_rpm(before)?;
-    let profile = if power_mode == 4 { 0 } else { power_mode };
     let mut table = *before;
-    table[0] = 128 + fan_index as u8 * 16 + profile;
+    table[0] = 128 + fan_index as u8 * 16 + power_mode;
     for (index, point) in points.iter().enumerate() {
         table[22 + index] = if index == 0 {
             0

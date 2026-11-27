@@ -5,6 +5,7 @@ import { Button } from "./Button";
 import { ColorPickerEditor } from "./ColorPickerEditor";
 import { ColorSwatch } from "./ColorSwatch";
 import { WorkspaceActivity } from "./Dialog";
+import { Tooltip } from "./Tooltip";
 
 export function ColorPicker({ label, value, onChange, swatchOnly, disabled }: {
   label: string; value: RgbColor; onChange: (color: RgbColor) => void; swatchOnly?: boolean; disabled?: boolean;
@@ -30,11 +31,13 @@ export function ColorPicker({ label, value, onChange, swatchOnly, disabled }: {
   }, [open]);
 
   return <>
-    <Button ref={trigger} className="ccc-color-picker-trigger" variant="field" size={swatchOnly ? "icon" : "default"}
-      disabled={blocked} aria-label={label} aria-description={hex} title={hex}
-      aria-haspopup="dialog" aria-expanded={open} popoverTarget={id}>
-      <ColorSwatch color={value} />{!swatchOnly && <span>{label}</span>}
-    </Button>
+    <Tooltip content={open ? undefined : hex}>
+      <Button ref={trigger} className="ccc-color-picker-trigger" variant="field" size={swatchOnly ? "icon" : "default"}
+        disabled={blocked} aria-label={label} aria-description={hex}
+        aria-haspopup="dialog" aria-expanded={open} popoverTarget={id}>
+        <ColorSwatch color={value} />{!swatchOnly && <span>{label}</span>}
+      </Button>
+    </Tooltip>
     <div ref={panel} id={id} className="ccc-color-picker-panel" popover="auto" role="dialog" aria-labelledby={`${id}-title`}
       onToggle={event => setOpen(event.newState === "open")}>
       {open && <>

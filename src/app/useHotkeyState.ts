@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { acknowledgeHotkeyNavigation, dismissBatteryColdWarning, onHotkeyStatus, readHotkeyStatus, type BatteryColdWarning, type HotkeyStatus, type HotkeyNavigationRequest } from "../api/client";
 import { toast } from "../components/use-toast";
 
-export function useHotkeyState() {
+export function useHotkeyState(enabled: boolean) {
   const [warning, setWarning] = useState<BatteryColdWarning | null>(null);
   const [navigationRequest, setNavigationRequest] = useState<HotkeyNavigationRequest | null>(null);
   const latestNavigation = useRef<number | null>(null);
   useEffect(() => {
+    if (!enabled) return;
     let disposed = false, received = false, unlisten: (() => void) | undefined;
     const accept = (status: HotkeyStatus) => {
       setWarning(status.coldWarning);
@@ -22,7 +23,7 @@ export function useHotkeyState() {
       if (!disposed && !received) accept(current);
     }).catch(error => { if (!disposed) toast({ kind: "error", title: "热键状态连接失败", description: String(error) }); });
     return () => { disposed = true; unlisten?.(); };
-  }, []);
+  }, [enabled]);
   const dismiss = async () => {
     if (!warning) return;
     const id = warning.id;

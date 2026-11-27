@@ -58,10 +58,13 @@ pub struct State {
     pub ignore_energy_write: bool,
     pub fail_fan_mode: bool,
     pub fan_command: Option<u8>,
+    pub fan_readbacks: std::collections::VecDeque<u8>,
+    pub fan_readbacks_on_preset: std::collections::VecDeque<u8>,
+    pub fan_readbacks_on_commands: std::collections::VecDeque<std::collections::VecDeque<u8>>,
     pub fan_mode: u8,
     pub offset_raw: u8,
     pub fan_curves: [[u8; 14]; 3],
-    pub ignore_fan_write: bool,
+    pub ignored_fan_writes: usize,
     pub fail_curve_commands: usize,
     pub fail_rpm_write: bool,
     direct_control: [DirectControl; 2],
@@ -238,10 +241,13 @@ impl Device {
             ignore_energy_write: false,
             fail_fan_mode: false,
             fan_command: None,
+            fan_readbacks: Default::default(),
+            fan_readbacks_on_preset: Default::default(),
+            fan_readbacks_on_commands: Default::default(),
             fan_mode: 0,
             offset_raw: 0,
             fan_curves: device_io::FACTORY_CURVES,
-            ignore_fan_write: false,
+            ignored_fan_writes: 0,
             fail_curve_commands: 0,
             fail_rpm_write: false,
             direct_control: [DirectControl::Firmware; 2],
@@ -261,10 +267,7 @@ impl Device {
     }
 }
 impl Fixture {
-    pub(super) fn restore_fan(
-        &self,
-        target: crate::fanctl::RestoreTarget,
-    ) -> anyhow::Result<()> {
+    pub(super) fn restore_fan(&self, target: crate::fanctl::RestoreTarget) -> anyhow::Result<()> {
         let expected = crate::fanctl::read_restore_view(&self.hal)?.restore_revision;
         crate::fanctl::restore(&self.hal, target, &expected)
     }

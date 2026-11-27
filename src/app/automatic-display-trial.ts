@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { cancelDisplayTrial, keepDisplayMode, readDisplayModes, type DisplayPending } from "../api/client";
+import { cancelDisplayTrial, keepDisplayMode, readAutomaticDisplayTrial, type DisplayPending } from "../api/client";
 
 interface State { pending: DisplayPending | null; busy: boolean; error: string | null; readError: string | null }
 let state: State = { pending: null, busy: false, error: null, readError: null };
@@ -16,9 +16,8 @@ export async function refreshAutomaticDisplayTrial(clearActionError = false) {
   if (clearActionError) update({ ...state, error: null });
   const id = ++generation;
   try {
-    const profile = await readDisplayModes();
+    const pending = await readAutomaticDisplayTrial();
     if (id !== generation) return Boolean(state.pending);
-    const pending = profile.pending?.automatic ? profile.pending : null;
     update({ ...state, pending, readError: null, error: pending?.trialId === state.pending?.trialId ? state.error : null });
   } catch (error) {
     if (id === generation) update({ ...state, readError: String(error) });

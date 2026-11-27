@@ -89,46 +89,6 @@ fn active_energy_capture_owns_charge_and_does_not_create_conflicting_manual_targ
 }
 
 #[test]
-fn charge_profile_and_single_restore_share_the_first_baseline() {
-    let f = Fixture::new();
-    f.battery.enable();
-    let initial = f.battery.controller.read(&f.hal).unwrap().revision.unwrap();
-    f.battery
-        .controller
-        .apply(
-            &f.hal,
-            &battery::ChargeRequest {
-                expected_revision: initial,
-                values: charge(&f, true, 70, 90).values,
-            },
-        )
-        .unwrap();
-    let settings = ProfileSettings {
-        battery_charge: Some(charge(&f, true, 80, 100)),
-        ..Default::default()
-    };
-    assert!(apply(&f, &settings).iter().all(|step| step.ok));
-    let revision = f.battery.controller.read(&f.hal).unwrap().revision.unwrap();
-    f.battery.controller.restore(&f.hal, &revision).unwrap();
-    assert_eq!(
-        f.battery
-            .io
-            .state
-            .lock()
-            .unwrap()
-            .charge
-            .as_ref()
-            .unwrap()
-            .current,
-        battery::ChargeValues {
-            enabled: true,
-            start: 60,
-            stop: 80
-        }
-    );
-}
-
-#[test]
 fn enabling_energy_profile_keeps_persistent_first_charge_and_stop_recovers_it() {
     let f = Fixture::new();
     f.battery.enable();
@@ -172,7 +132,7 @@ fn enabling_energy_profile_keeps_persistent_first_charge_and_stop_recovers_it() 
 }
 
 #[test]
-fn stopping_energy_precedes_manual_charge_and_manual_restore_uses_projected_stop_state() {
+fn stopping_energy_precedes_profile_charge() {
     let f = Fixture::new();
     f.battery.enable();
     set_energy(&f, true);
@@ -183,27 +143,10 @@ fn stopping_energy_precedes_manual_charge_and_manual_restore_uses_projected_stop
         ..Default::default()
     };
     assert!(apply(&f, &settings).iter().all(|step| step.ok));
-    {
-        let state = f.battery.io.state.lock().unwrap();
-        assert_eq!(
-            &state.events[state.events.len() - 2..],
-            ["CHARGE:true:60:80", "CHARGE:true:70:90"]
-        );
-    }
-    let revision = f.battery.controller.read(&f.hal).unwrap().revision.unwrap();
-    f.battery.controller.restore(&f.hal, &revision).unwrap();
+    let state = f.battery.io.state.lock().unwrap();
     assert_eq!(
-        f.battery
-            .io
-            .state
-            .lock()
-            .unwrap()
-            .charge
-            .as_ref()
-            .unwrap()
-            .current
-            .start,
-        60
+        &state.events[state.events.len() - 2..],
+        ["CHARGE:true:60:80", "CHARGE:true:70:90"]
     );
 }
 

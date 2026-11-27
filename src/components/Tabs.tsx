@@ -7,7 +7,6 @@ interface TabsProps<Value extends string | number> {
   onChange: (value: Value) => void;
   disabled?: boolean;
   busy?: boolean;
-  divider?: boolean;
   keepAlive?: boolean;
 }
 
@@ -24,7 +23,7 @@ function moveFocus(event: KeyboardEvent<HTMLDivElement>) {
   buttons[next].focus();
 }
 
-export function Tabs<Value extends string | number>({ label, value, tabs, onChange, disabled, busy, keepAlive, divider = true }: TabsProps<Value>) {
+export function Tabs<Value extends string | number>({ label, value, tabs, onChange, disabled, busy, keepAlive }: TabsProps<Value>) {
   const id = useId();
   const [focused, setFocused] = useState<Value | null>(null);
   const [visited, setVisited] = useState<ReadonlySet<Value>>(() => new Set());
@@ -33,7 +32,7 @@ export function Tabs<Value extends string | number>({ label, value, tabs, onChan
   }, [value, keepAlive]);
   const tabStop = focused !== null && tabs.some(tab => tab.value === focused) ? focused : value;
   return <>
-    <div role="tablist" aria-label={label} className="ccc-tabs-list" data-no-divider={!divider || undefined}
+    <div role="tablist" aria-label={label} className="ccc-tabs-list"
       onKeyDown={moveFocus} onBlur={event => {
         if (!event.currentTarget.contains(event.relatedTarget)) setFocused(null);
       }}>

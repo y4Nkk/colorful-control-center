@@ -107,6 +107,8 @@ fn clean_up(app: &AppHandle) -> i32 {
             failed = true;
         }
     };
+    // 初始化仍可能登记领域控制器，先等待交接再获取退出所需的状态。
+    record("应用初始化", startup::wait_for_preparation(app));
     record("主窗口唤回", startup::stop_activation(app));
     #[cfg(not(test))]
     let supply = app.try_state::<crate::powerctl::mode::supply::Controller>();

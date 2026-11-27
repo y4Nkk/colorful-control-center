@@ -63,6 +63,7 @@ unsafe extern "system" fn capabilities(command: i32, _: *const u8, _: i32, outpu
     unsafe {
         std::ptr::write_bytes(output, 0, 257);
         output.write(1);
+        output.add(20).write(1);
         output.add(256).write(1);
     }
     command
@@ -120,4 +121,32 @@ fn full_speed_cancels_without_writes_and_rejects_a_changed_confirmation_context(
     let fans = read_fans(&hal, None).unwrap();
     assert_eq!(fans.active, Some(FanAction::Auto));
     assert_eq!(fans.label, "自动");
+}
+
+#[test]
+fn tray_selects_standard_auto_from_entertainment_noiseless_mode() {
+    PAGES.with(|pages| {
+        let mut pages = pages.borrow_mut();
+        *pages = [[0; 256]; 8];
+        pages[1][1] = 3;
+        pages[4][9] = 1;
+    });
+    FAN_MODE.set(FAN_MODE_NOISELESS);
+    WRITES.set(0);
+    let hal = Hal::test_instance(
+        Dchu::test_io(read_packet, read_settings, send, save).with_test_exchange(capabilities),
+        None,
+    );
+
+    let before = read_fans(&hal, None).unwrap();
+    assert_eq!(before.active, None);
+    assert_eq!(before.label, fanctl::NOISELESS_FAN_LABEL);
+    assert!(before.choices.contains(&FanAction::Auto));
+
+    let applied = switch_fan(&hal, FanAction::Auto, |_, _| panic!("自动档应直接提交")).unwrap();
+    assert_eq!(applied, Some(FAN_MODE_AUTO));
+    let after = read_fans(&hal, None).unwrap();
+    assert_eq!(after.active, Some(FanAction::Auto));
+    assert_eq!(after.label, "自动");
+    PAGES.with(|pages| assert_eq!(pages.borrow()[4][9], 1));
 }

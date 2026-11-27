@@ -1,47 +1,42 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
-  applyProfile, deleteProfile, exportProfile, loadProfile, previewProfileApplication, previewProfileImport, saveProfile,
-  type ManualProfilePreview, type ProfileApplication, type ProfileFile, type ProfileMeta, type ProfileSettings,
+  applyBuiltinProfile, applyProfile, deleteProfile, exportProfile, previewProfileImport, saveProfile,
+  type ProfileApplication, type ProfileFile, type ProfileMeta, type ProfileSettings,
 } from "../api/client";
 import { useOemConflict } from "../components/OemConflictHost";
 import { toast } from "../components/use-toast";
 import { useProfileList } from "./useProfileReads";
 import { runProfileApplication, useProfileApplicationState } from "./profile-application";
 import { useProfileReferences } from "./useProfileReferences";
+import { useBuiltinProfiles } from "./useBuiltinProfiles";
+import { useProfilePreview, useProfileTarget, type ProfileRequest, type ProfileTarget, type ReviewedProfile } from "./useProfilePreview";
 
-interface ReviewedProfile { file: ProfileFile; review: ManualProfilePreview }
-type Target = { name: string };
-
-export function useProfiles(active: boolean, requested?: Target | null) {
+export function useProfiles(active: boolean, requested?: ProfileRequest | null) {
   const conflict = useOemConflict();
-  const [target, choose] = useState<Target | null>(null);
   const [imported, setImported] = useState<ProfileFile | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const running = useRef(false);
-  const consumed = useRef<Target | null>(null);
   const catalog = useProfileList(active, setListError);
+  const builtin = useBuiltinProfiles(active);
   const refs = useProfileReferences(active, catalog.profiles);
   const { report, busy: applying } = useProfileApplicationState();
   const pending = !!report?.pending;
   const working = busy || applying;
-  const detail = useManualProfile(active && !imported && !applying && !pending, target, report);
-  useEffect(() => {
-    if (!active || working || catalog.status !== "ready") return;
-    if (requested && consumed.current !== requested) {
-      consumed.current = requested;
-      setImported(null);
-      choose(requested);
-    } else if (!target && !imported && catalog.profiles.length) {
-      choose({ name: catalog.profiles[0].name });
-    }
-  }, [active, working, catalog.status, catalog.profiles, requested, imported, target]);
+  const savedDefault = catalog.profiles[0];
+  const fallback: ProfileTarget | null = !imported && savedDefault ? { kind: "saved", name: savedDefault.name } : null;
+  const { target, choose } = useProfileTarget(active && !working && catalog.status === "ready", requested, fallback, setImported);
+  const detail = useProfilePreview(active && !imported && !working && !pending, target, target?.kind === "builtin" ? builtin.choice : null, report);
 
-  const select = (name: string) => {
+  const select = (target: ProfileTarget) => {
     setError(null);
     setImported(null);
-    choose({ name });
+    choose({ ...target });
+  };
+  const retry = () => {
+    if (target?.kind === "builtin") void builtin.reload();
+    if (target) select(target);
   };
   const reload = async () => {
     setListError(null);
@@ -56,23 +51,23 @@ export function useProfiles(active: boolean, requested?: Target | null) {
     catch (error) {
       const message = String(error);
       setError(message);
-      conflict.review([message], target ? () => select(target.name) : undefined);
+      conflict.review([message], retry);
       return false;
     } finally { running.current = false; setBusy(false); }
   };
-  const persist = (name: string, settings: ProfileSettings, existing: ProfileMeta | undefined, source: "save" | "import") =>
+  const persist = (name: string, settings: ProfileSettings, existing: ProfileMeta | undefined, source: "save" | "import" | "copy") =>
     run(async () => {
       const result = await saveProfile(name, settings, existing?.revision ?? null);
       await reload();
       if (!result.ok) throw new Error(result.message);
-      select(name);
-      toast({ kind: "success", title: source === "import" ? "档案已导入" : "档案已保存" });
+      select({ kind: "saved", name });
+      toast({ kind: "success", title: source === "import" ? "档案已导入" : source === "copy" ? "档案副本已保存" : "档案已保存" });
     });
   const remove = (profile: ProfileMeta) => run(async () => {
     const result = await deleteProfile(profile.name, profile.revision);
     await reload();
-    if (!result.ok) { choose({ name: profile.name }); throw new Error(result.message); }
-    choose(null);
+    if (!result.ok) { choose({ kind: "saved", name: profile.name }); throw new Error(result.message); }
+    choose(undefined);
     toast({ kind: "success", title: "档案已删除" });
   });
   const stageImport = (file: File) => run(async () => {
@@ -81,40 +76,18 @@ export function useProfiles(active: boolean, requested?: Target | null) {
     setImported(candidate);
   });
   const apply = (selection: ReviewedProfile) => run(async () => {
-    const { file, review } = selection;
-    if (review.blocked || pending) return;
-    const result = await runProfileApplication(() => applyProfile(file, review.modeTarget, review.displayReview,
-      review.gpuPowerReview, review.graphicsModeReview));
-    conflict.review([result.pending?.error, ...result.steps.filter(step => !step.ok).map(step => step.message)], () => select(file.name));
+    const { file, review, builtin } = selection;
+    if (review.blocked || pending || detail.loading || detail.selection !== selection) return;
+    const result = await runProfileApplication(() => builtin
+      ? applyBuiltinProfile(builtin, file, review.modeTarget, review.displayReview)
+      : applyProfile(file, review.modeTarget, review.displayReview, review.gpuPowerReview, review.graphicsModeReview));
+    conflict.review([result.pending?.error, ...result.steps.filter(step => !step.ok).map(step => step.message)], retry);
     presentApplication(result, setError);
   });
-  return { ...catalog, ...detail, reload, select, selectedName: target?.name, imported, dismissImport: () => setImported(null),
+  return { ...catalog, ...detail, reload, retry, select, target, builtin, imported, dismissImport: () => setImported(null),
+    dismissPreview: () => { choose(null); setError(null); },
     ...refs, error, clearError: () => setError(null), listError, busy: working, report, pending, persist, remove, stageImport, apply,
     download: (name: string) => run(() => downloadProfile(name)) };
-}
-
-function useManualProfile(active: boolean, target: Target | null, report: ProfileApplication | null) {
-  const [value, setValue] = useState<{ target: Target; selection: ReviewedProfile | null; issue: string | null } | null>(null);
-  const [loading, setLoading] = useState(false);
-  useEffect(() => {
-    if (!active || !target) return;
-    const { name } = target;
-    let disposed = false;
-    setLoading(true);
-    async function load() {
-      const file = await loadProfile(name);
-      const review = await previewProfileApplication(file.settings).catch((error): ManualProfilePreview => ({
-        before: null, modeTarget: null, displayReview: null, gpuPowerReview: null, graphicsModeReview: null, blocked: String(error),
-      }));
-      return { file, review };
-    }
-    load().then(selection => { if (!disposed) setValue({ target, selection, issue: null }); })
-      .catch(error => { if (!disposed) setValue({ target, selection: null, issue: String(error) }); })
-      .finally(() => { if (!disposed) setLoading(false); });
-    return () => { disposed = true; };
-  }, [active, target, report?.id, report?.revision]);
-  const current = value?.target === target ? value : null;
-  return { selection: current?.selection ?? null, readError: current?.issue ?? null, loading: loading || !!target && !current };
 }
 
 function presentApplication(result: ProfileApplication, reportError: (message: string) => void) {

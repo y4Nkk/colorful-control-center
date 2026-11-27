@@ -2,10 +2,10 @@
 import {
   Layers, Settings, ChevronsLeft, ChevronRight, ChevronDown, ChevronUp, Pin, Minus, Square, Copy, X,
   Check, CircleCheck, Info, TriangleAlert, CircleX, RotateCcw, RefreshCw, Save, Download,
-  Upload, Plus, Trash2, Play, Pause, SquarePen, Search, ShieldCheck, LoaderCircle,
+  Upload, Plus, Trash2, Play, Pause, SquarePen, Search, ShieldCheck, ShieldOff, LoaderCircle,
   Cpu, Gpu, Fan, HardDrive, Keyboard, MousePointer2, Mic, Monitor, Battery, BatteryCharging, Activity, MemoryStick,
   PlugZap, Usb, Network, Palette, Thermometer, Gauge, Zap, Power, Sparkles, Moon,
-  SunMoon, PanelsTopLeft, ScrollText, Volume2, VolumeX, Plane, ArrowRight, ArrowUpToLine,
+  SunMoon, PanelsTopLeft, ScrollText, Volume2, VolumeX, Plane, ArrowRight, ArrowUpToLine, Tag,
   type LucideIcon,
 } from "lucide-react";
 import { SquaresFourIcon } from "@phosphor-icons/react/dist/csr/SquaresFour";
@@ -14,6 +14,7 @@ import { KeyboardIcon } from "@phosphor-icons/react/dist/csr/Keyboard";
 import { LightningIcon } from "@phosphor-icons/react/dist/csr/Lightning";
 import { MonitorIcon } from "@phosphor-icons/react/dist/csr/Monitor";
 import { GearSixIcon } from "@phosphor-icons/react/dist/csr/GearSix";
+import { ChatCircleDotsIcon } from "@phosphor-icons/react/dist/csr/ChatCircleDots";
 
 const ICONS = {
   airplane: Plane,
@@ -27,13 +28,14 @@ const ICONS = {
   undo: RotateCcw, refresh: RefreshCw, save: Save, download: Download, upload: Upload,
   add: Plus, delete: Trash2, play: Play, pause: Pause, edit: SquarePen, search: Search,
   confirm: ShieldCheck, loading: LoaderCircle, apply: Check,
+  "shield-check": ShieldCheck, "shield-off": ShieldOff,
   cpu: Cpu, gpu: Gpu, fan: Fan, storage: HardDrive, keyboard: Keyboard, touchpad: MousePointer2,
   activity: Activity, memory: MemoryStick,
   microphone: Mic, display: Monitor, battery: Battery, charging: BatteryCharging,
   plug: PlugZap, usb: Usb, network: Network, lighting: Palette,
   temperature: Thermometer, performance: Gauge, power: Zap, shutdown: Power,
   effects: Sparkles, sleep: Moon,
-  appearance: SunMoon, window: PanelsTopLeft, logs: ScrollText,
+  appearance: SunMoon, window: PanelsTopLeft, logs: ScrollText, tag: Tag,
 } satisfies Record<string, LucideIcon>;
 
 const NAVIGATION_ICONS = {
@@ -43,6 +45,7 @@ const NAVIGATION_ICONS = {
   power: LightningIcon,
   display: MonitorIcon,
   settings: GearSixIcon,
+  feedback: ChatCircleDotsIcon,
 };
 
 export type NavigationIconName = keyof typeof NAVIGATION_ICONS;

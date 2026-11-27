@@ -22,20 +22,20 @@ const volumes = [
   volume("R:", "离线卷", 0, 0),
 ];
 
-async function setup(page) {
+async function setup(page, storageVolumes = volumes) {
   await page.addInitScript({ content: MOCK_IPC });
-  await page.addInitScript(volumes => {
+  await page.addInitScript(storageVolumes => {
     const original = window.__TAURI_INTERNALS__.invoke;
     window.__TAURI_INTERNALS__.invoke = async (command, args) => {
       const reply = await original(command, args);
-      if (command === "read_system_inventory") return { ...reply, volumes };
+      if (command === "read_system_inventory") return { ...reply, volumes: storageVolumes };
       if (command === "read_memory_capacity" && window.__overviewMemory !== undefined) {
         if (window.__overviewMemory === null) throw new Error("隔离内存读取失败");
         return window.__overviewMemory;
       }
       return reply;
     };
-  }, volumes);
+  }, storageVolumes);
   await page.goto("/");
 }
 
@@ -62,13 +62,13 @@ test("当前模式按采样更新插画，空值、未知编码和停采显示�
   await expect(art).toHaveCount(1);
   await expect(art).toHaveAttribute("aria-hidden", "true");
   await expect(mode).toHaveText("性能");
-  await expect(mode).toHaveCSS("background-image", /linear-gradient/);
+  await expect(mode).toHaveCSS("background-image", "none");
   await expect(art).toHaveAttribute("data-preset-palette", "performance");
-  for (const [value, name, palette] of [[0, "安静", "quiet"], [99, "未知", "neutral"], [null, "未知", "neutral"], [4, "静音增强", "quiet"]]) {
+  for (const [value, name, kind] of [[0, "安静", "quiet"], [4, "未知", "neutral"], [99, "未知", "neutral"], [null, "未知", "neutral"]]) {
     await page.clock.fastForward(30);
     await publishMode(page, value);
     await expect(mode).toHaveText(name);
-    await expect(art).toHaveAttribute("data-preset-palette", palette);
+    await expect(art).toHaveAttribute("data-preset-palette", kind);
   }
   await page.clock.fastForward(4_000);
   await expect(mode).toHaveText("未知");
@@ -126,7 +126,7 @@ test("概览插画嵌入大卡正中，回读后入场且短窗保留温度趋�
   await card.screenshot({ path: test.info().outputPath("overview-preset-reveal.png") });
   await art.evaluate(svg => { for (const animation of svg.getAnimations({ subtree: true })) animation.play(); });
   await expect(art).not.toHaveAttribute("data-switching", "true");
-  expect(await incoming.locator(".ccc-preset-orbit-front").evaluate(path => path.getAnimations()[0].animationName))
+  expect(await incoming.locator(".ccc-preset-orbit-light:not([data-orbit])").evaluate(path => path.getAnimations()[0].animationName))
     .toBe("ccc-preset-orbit");
 
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -138,86 +138,142 @@ test("概览插画嵌入大卡正中，回读后入场且短窗保留温度趋�
   expect((await art.boundingBox()).height).toBeLessThanOrEqual(149);
   for (const part of ["CPU", "GPU"]) {
     const plot = temperature(page, part);
-    await plot.scrollIntoViewIfNeeded();
-    await expect(plot).toBeInViewport({ ratio: 1 });
+    await plot.evaluate(element => element.scrollIntoView({ block: "center" }));
+    await expect(plot).toBeInViewport({ ratio: .99 });
   }
   await page.setViewportSize({ width: 360, height: 800 });
   await expectCenteredArtwork(card);
   await card.screenshot({ path: test.info().outputPath("overview-chip-dark-360.png") });
 });
 
-test("温度趋势与图标读数分区，规格与详情使用可键盘操作的文字入口", async ({ page }) => {
+async function expectHardwareHeader(panel, kind, brand) {
+  const header = panel.locator(".ccc-hardware-identity");
+  await expect(header.locator(".ccc-hardware-art")).toHaveCount(1);
+  const mark = header.locator(".ccc-hardware-mark");
+  if (brand) {
+    await expect(mark.getByRole("img", { name: brand, exact: true })).toBeVisible();
+  } else {
+    await expect(mark.locator(`[data-icon="${kind}"]`)).toBeVisible();
+    await expect(mark.getByRole("img")).toHaveCount(0);
+  }
+  const layout = await header.evaluate(element => {
+    const artwork = element.querySelector(".ccc-hardware-emblem").getBoundingClientRect();
+    const description = element.querySelector(".ccc-hardware-description").getBoundingClientRect();
+    const mark = element.querySelector(".ccc-hardware-mark").firstElementChild.getBoundingClientRect();
+    const action = element.querySelector(".ccc-hardware-action button").getBoundingClientRect();
+    return {
+      topRow: artwork.right <= description.left && artwork.top < description.bottom && description.top < artwork.bottom,
+      bottomRow: artwork.bottom < mark.top && description.bottom < action.top && mark.right <= action.left
+        && mark.top < action.bottom && action.top < mark.bottom,
+      leftAligned: Math.abs(artwork.left + artwork.right - mark.left - mark.right) < 2,
+      rightAligned: Math.abs(description.left - action.left) < 1,
+      fits: element.scrollWidth <= element.clientWidth + 1,
+    };
+  });
+  expect(layout).toEqual({ topRow: true, bottomRow: true, leftAligned: true, rightAligned: true, fits: true });
+}
+
+async function expectCapacityHeader(panel) {
+  const header = panel.locator(".ccc-hardware-identity");
+  await expect(header.locator(".ccc-hardware-art")).toHaveCount(1);
+  await expect(header.locator(".ccc-hardware-mark")).toHaveCount(0);
+  const [bounds, artwork, title, button] = await Promise.all([
+    header.boundingBox(),
+    header.locator(".ccc-hardware-emblem").boundingBox(),
+    header.getByRole("heading").boundingBox(),
+    header.getByRole("button").boundingBox(),
+  ]);
+  expect(artwork.x + artwork.width).toBeLessThan(title.x);
+  expect(title.x + title.width).toBeLessThan(button.x);
+  expect(button.x + button.width).toBeCloseTo(bounds.x + bounds.width, 0);
+  expect(button.y + button.height / 2).toBeCloseTo(title.y + title.height / 2, 0);
+}
+
+async function expectDetailsEntry(page, panel, label, title, iconOnly) {
+  const info = panel.getByRole("button", { name: label, exact: true });
+  await expect(info).toHaveText(iconOnly ? "" : label);
+  await expect(info.locator("svg")).toHaveCount(iconOnly ? 1 : 0);
+  await info.focus();
+  if (iconOnly) {
+    await expect(info.locator("svg")).toHaveAttribute("data-icon", "info");
+    await expect(page.getByRole("tooltip")).toHaveText(title);
+  }
+  await info.press("Enter");
+  await expect(page.getByRole("dialog", { name: title, exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(info).toBeFocused();
+}
+
+test("概览卡头、绘图区和读数栏对齐，详情可用键盘打开", async ({ page }) => {
   await setup(page);
   const cpu = sensor(page, "CPU");
   const gpu = sensor(page, "GPU");
-  const panels = [[cpu, "CPU 规格", "CPU 硬件参数"], [gpu, "GPU 规格", "GPU 硬件参数"],
-    [memory(page), "内存详情", "内存详细信息"], [storage(page), "存储详情", "存储详细信息"]];
+  const panels = [[cpu, "CPU 规格", "CPU 硬件参数", false], [gpu, "GPU 规格", "GPU 硬件参数", false],
+    [memory(page), "内存详情", "内存详细信息", true], [storage(page), "存储详情", "存储详细信息", true]];
   await expect(cpu.getByRole("meter", { name: "CPU 利用率" })).toBeVisible();
   const sampleLayout = () => page.evaluate(async () => {
     const sample = window.__uiHardwareSnapshot();
     window.__uiEmit("hardware-snapshot", { ...sample, oemPowerMode: 3, fan: { ...sample.fan, cpu: { ...sample.fan.cpu, dutyPct: 100 } },
-      nvidia: { ...sample.nvidia, memUsedMb: 2171, memTotalMb: 8192 } });
+      nvidia: { ...sample.nvidia, name: "NVIDIA GeForce RTX 4060 Laptop GPU", memTotalMb: 8192 } });
   });
   await sampleLayout();
-  const vram = gpu.getByRole("meter", { name: "显存占用", exact: true });
-  await expect(vram).toHaveAttribute("aria-valuetext", "2.12 GB / 8 GB");
-  await expect(vram.locator("output")).toHaveText("2.12 GB");
-  await expect(vram.getByText("共 8 GB", { exact: true })).toHaveCount(0);
+  await expect(gpu.getByText("显存占用", { exact: true })).toHaveCount(0);
   await expect(overview(page).getByText(/^采样 \d{2}:\d{2}:\d{2}$/)).toHaveCount(0);
-  for (const [panel, label, title] of panels) {
-    const info = panel.getByRole("button", { name: label, exact: true });
-    await expect(info).toHaveText(label);
-    await expect(info.locator("svg")).toHaveCount(0);
-    await info.focus();
-    await info.press("Enter");
-    await expect(page.getByRole("dialog", { name: title, exact: true })).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(info).toBeFocused();
-  }
+  for (const [panel, label, title, iconOnly] of panels) await expectDetailsEntry(page, panel, label, title, iconOnly);
 
   for (const [theme, width] of [["light", 1440], ["dark", 360]]) {
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
     await page.setViewportSize({ width, height: 900 });
-    for (const [panel, artCount, textCount] of [[cpu, 2, 4], [gpu, 2, 4], [memory(page), 1, 2]]) {
-      const layout = await panel.locator(".ccc-hardware-identity").evaluate(header => {
-        const art = [...header.querySelectorAll(".ccc-hardware-art, .ccc-hardware-brand")].map(el => el.getBoundingClientRect());
-        const text = [...header.querySelectorAll(".ccc-hardware-description > :is(h3, p, button)")].map(el => el.getBoundingClientRect());
-        return { art: art.length, text: text.length, artOnLeft: art.every(box => box.right < text[0].left),
-          stacked: text.every((box, i) => i === 0 || (box.top >= text[i - 1].bottom && Math.abs(box.left - text[0].left) < 1)) };
+    await expectHardwareHeader(cpu, "cpu", "Intel");
+    await expectHardwareHeader(gpu, "gpu", "NVIDIA");
+    await expectCapacityHeader(memory(page));
+    await expectCapacityHeader(storage(page));
+    for (const [panel, labels, narrowRows] of [
+      [cpu, ["当前温度", "活跃频率", "风扇强度"], 3],
+      [gpu, ["当前温度", "当前频率", "风扇强度"], 3],
+      [memory(page), ["已用内存", "可用", "总容量", "频率"], 2],
+    ]) {
+      await expect(panel.locator(".ccc-meter-ring")).toHaveCount(1);
+      const readouts = panel.locator(".ccc-overview-metrics");
+      await expect(readouts.locator(".ccc-meter-label")).toHaveText(labels);
+      const [header, grid, chart] = await Promise.all([
+        panel.locator(".ccc-hardware-identity").boundingBox(),
+        readouts.boundingBox(),
+        panel.locator(".ccc-trend-chart").boundingBox(),
+      ]);
+      const trend = panel.locator(".ccc-trend-chart");
+      const surface = await panel.locator(".ccc-overview-utilization").evaluate(node => {
+        const { backgroundColor, borderRadius } = getComputedStyle(node);
+        return { backgroundColor, borderRadius };
       });
-      expect(layout).toEqual({ art: artCount, text: textCount, artOnLeft: true, stacked: true });
-    }
-    for (const [panel, count] of [[cpu, 3], [gpu, 4]]) {
-      await expect(panel.locator(".ccc-meter-ring")).toHaveCount(0);
-      const icons = panel.locator(".ccc-meter-compact .ccc-meter-heading > svg");
-      await expect(icons).toHaveCount(count);
-      expect(await icons.evaluateAll(items => items.map(icon => icon.dataset.icon)))
-        .toEqual(count === 3 ? ["activity", "performance", "fan"] : ["activity", "performance", "fan", "memory"]);
-      await expect(icons.first()).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-      const chart = await panel.locator(".ccc-trend-panel").boundingBox();
-      const grid = await panel.locator(".ccc-sensor-metrics").boundingBox();
+      expect(surface.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+      await expect(trend).toHaveCSS("background-color", surface.backgroundColor);
+      await expect(trend).toHaveCSS("border-radius", surface.borderRadius);
+      expect(await trend.locator(".ccc-trend-tick").evaluateAll(ticks => ticks.every(tick => {
+        const outer = tick.closest(".ccc-trend-chart").getBoundingClientRect();
+        const inner = tick.getBoundingClientRect();
+        return inner.right < outer.right && inner.top > outer.top && inner.bottom < outer.bottom;
+      }))).toBe(true);
       const cells = await panel.locator(".ccc-meter-compact").evaluateAll(items => items.map(item => ({
         y: item.getBoundingClientRect().top, bottom: item.querySelector("output").getBoundingClientRect().bottom,
         fits: item.scrollWidth <= item.clientWidth + 1,
       })));
-      expect(grid.y).toBeGreaterThan(chart.y + chart.height);
+      expect(grid.y).toBeGreaterThan(header.y + header.height);
+      expect(chart.y).toBeGreaterThan(grid.y + grid.height);
       expect(cells.every(cell => cell.fits)).toBe(true);
       const rows = new Map(cells.map(({ y, bottom }) => [y, bottom]));
-      expect(rows.size).toBe(width === 1440 ? 1 : 2);
+      expect(rows.size).toBe(width === 1440 ? 1 : narrowRows);
       expect(cells.every(({ y, bottom }) => Math.abs(rows.get(y) - bottom) < 1)).toBe(true);
-      const card = await panel.boundingBox();
-      expect(card.y + card.height - Math.max(...cells.map(cell => cell.bottom))).toBeCloseTo(13, 0);
+      expect(grid.y + grid.height).toBeGreaterThan(Math.max(...cells.map(cell => cell.bottom)));
     }
     if (width === 1440) {
-      for (const selector of [".ccc-trend-plot", ".ccc-sensor-metrics"]) {
+      for (const selector of [".ccc-trend-plot", ".ccc-overview-metrics"]) {
         const [left, right] = await Promise.all([cpu.locator(selector).boundingBox(), gpu.locator(selector).boundingBox()]);
         expect(left.y).toBeCloseTo(right.y, 0);
       }
-      for (const panel of [cpu, gpu, memory(page)]) {
-        const [chart, readout] = await Promise.all([panel.locator(".ccc-trend-plot").boundingBox(),
-          panel.locator(".ccc-sensor-metric-grid, .ccc-memory-stats > :first-child").boundingBox()]);
-        expect(chart.x).toBeCloseTo(readout.x, 0);
-      }
+      const [chart, readout] = await Promise.all([memory(page).locator(".ccc-overview-charts").boundingBox(),
+        memory(page).locator(".ccc-overview-metrics").boundingBox()]);
+      expect(chart.x).toBeCloseTo(readout.x, 0);
     }
     const modeCard = overview(page).getByRole("region", { name: "当前模式", exact: true });
     await sampleLayout();
@@ -233,9 +289,16 @@ test("温度趋势按采样时刻定位，标出高温且缺测时断开折线�
   const latestGpu = sensor(page, "GPU").getByLabel("GPU 当前温度");
   const cpuPlot = temperature(page, "CPU"), gpuPlot = temperature(page, "GPU");
   const cpuLine = cpuPlot.locator(".ccc-trend-line"), gpuLine = gpuPlot.locator(".ccc-trend-line");
-  await expect(latestCpu).toHaveText("50°C");
+  await expect(latestCpu).toHaveText("50 °C");
   await expect(cpuPlot.locator(".ccc-trend-marker")).toHaveCount(1);
   await expect(cpuPlot.locator(".ccc-trend-area")).toHaveCount(0);
+  await page.evaluate(() => {
+    const sample = window.__uiHardwareSnapshot();
+    window.__uiEmit("hardware-snapshot", { ...sample, sampledAtMs: sample.sampledAtMs + 100,
+      fan: { ...sample.fan, cpu: { ...sample.fan.cpu, tempC: 95 } } });
+  });
+  await expect(latestCpu).toHaveText("95 °C");
+  await expect(latestCpu).toHaveAttribute("data-alert", "true");
   await page.evaluate(async () => {
     const sample = window.__uiHardwareSnapshot();
     const start = sample.sampledAtMs + 301_000;
@@ -248,21 +311,28 @@ test("温度趋势按采样时刻定位，标出高温且缺测时断开折线�
       });
     }
   });
-  await expect(latestCpu).toHaveText("94.8°C");
-  await expect(latestCpu).not.toHaveClass(/is-hot/);
-  await expect(latestGpu).toHaveText("89°C");
-  await expect(sensor(page, "CPU").locator(".ccc-trend-peak")).toContainText("98 °C");
-  await expect(cpuPlot.getByText("5 分钟前", { exact: true })).toBeVisible();
-  await expect(cpuPlot.getByText("现在", { exact: true })).toBeVisible();
-  await expect(cpuPlot.locator(".ccc-temperature-limit")).toHaveAttribute("d", "M0 16.667H100");
-  for (const degree of [98, 95]) {
-    const marker = cpuPlot.locator(".ccc-trend-marker").and(cpuPlot.locator(`[title$=" · ${degree} °C"]`));
-    await expect(marker).toHaveAttribute("data-hot", "true");
+  await expect(latestCpu).toHaveText("94.8 °C");
+  await expect(latestCpu).not.toHaveAttribute("data-alert");
+  await expect(latestGpu).toHaveText("89 °C");
+  for (const part of ["CPU", "GPU"]) {
+    const card = sensor(page, part);
+    await expect(card.locator(".ccc-trend-peak")).toHaveCount(0);
+    await expect(card.getByText(/^(5 分钟最高|5 分钟前|现在)$/)).toHaveCount(0);
   }
+  await expect(cpuPlot.locator(".ccc-temperature-limit")).toHaveAttribute("d", "M0 16.667H100");
+  await expect(cpuPlot.locator(".ccc-trend-marker[data-hot]")).toHaveCount(2);
   await expect(gpuPlot.locator(".ccc-trend-marker[data-hot]")).toHaveCount(0);
   await expect(cpuLine).toHaveAttribute("d", /^M95\.500 [\d.]+ L95\.667 100\.000 M96\.333 [\d.]+ M99\.333 [\d.]+ L99\.667 [\d.]+ L100\.000 [\d.]+$/);
   await expect(gpuLine).toHaveAttribute("d", /^M95\.500 [\d.]+ M96\.000 [\d.]+ L96\.333 [\d.]+ M99\.333 [\d.]+ L99\.667 [\d.]+ L100\.000 [\d.]+$/);
   await expect(cpuPlot.locator(".ccc-trend-area")).toHaveAttribute("d", /L95\.667 100 L95\.500 100 Z M99\.333 .*L100\.000 100 L99\.333 100 Z$/);
+  await expect(cpuPlot.locator(".ccc-trend-area")).toHaveAttribute("fill", /^url\(#/);
+  const plot = cpuPlot.locator(".ccc-trend-plot");
+  const { width, height } = await plot.boundingBox();
+  await plot.hover({ position: { x: width * .99333, y: height / 2 } });
+  await expect(cpuPlot.locator(".ccc-trend-tooltip")).toContainText("98 °C");
+  await expect(cpuPlot.locator(".ccc-trend-cursor")).toHaveAttribute("d", "M99.333 0V100");
+  await plot.hover({ position: { x: width * .97833, y: height / 2 } });
+  await expect(cpuPlot.locator(".ccc-trend-tooltip")).toHaveCount(0);
   await page.evaluate(() => {
     const sample = window.__overviewSnapshot;
     window.__uiEmit("hardware-snapshot", {
@@ -272,29 +342,34 @@ test("温度趋势按采样时刻定位，标出高温且缺测时断开折线�
   });
   await expect(latestCpu).toHaveText("—");
   await expect(latestGpu).toHaveText("—");
+  const missingGpu = sensor(page, "GPU").getByRole("img", { name: "GPU 利用率：暂无读数", exact: true });
+  await expect(missingGpu.locator("output")).toHaveText("—");
+  await expect(missingGpu.locator(".ccc-meter-ring-fill")).toHaveCount(0);
   await expect(cpuLine).toHaveAttribute("d", /L99\.667 [\d.]+$/);
   await expect(gpuLine).toHaveAttribute("d", /L99\.667 [\d.]+$/);
+  await expectHardwareHeader(sensor(page, "GPU"), "gpu");
 });
 
-test("每个磁盘卷的横条、详情和显存沿用真实容量与统一单位", async ({ page }) => {
+test("磁盘卷、详情和显存总量沿用真实容量与统一单位", async ({ page }) => {
   await setup(page);
   const disks = storage(page);
   await expect(disks.getByRole("listitem")).toHaveCount(6);
   await expect(disks.getByRole("heading", { name: "系统 (C:)", exact: true })).toBeVisible();
-  await expect(disks.getByRole("heading", { name: "本地磁盘 (E:)", exact: true })).toBeVisible();
+  await disks.getByRole("heading", { name: "本地磁盘 (E:)", exact: true }).hover();
+  await expect(page.getByRole("tooltip")).toHaveText("本地磁盘 (E:)");
   await expect(disks.getByText("213 GB 可用 · 共 460 GB", { exact: true })).toBeVisible();
   await expect(disks.getByText("852 MB 可用 · 共 922 MB", { exact: true })).toBeVisible();
   await expect(disks.getByText("2 KB 可用 · 共 4 KB", { exact: true })).toBeVisible();
   const meter = mount => disks.getByRole("meter", { name: `${mount} 使用量`, exact: true });
   await expect(meter("C:")).toHaveAttribute("aria-valuenow", String(247 * GB));
-  const width = await meter("C:").locator(".ccc-capacity-fill").getAttribute("width");
-  expect(Number(width)).toBeCloseTo(247 / 460 * 100, 3);
-  await expect(meter("E:").locator(".ccc-capacity-fill")).toHaveAttribute("width", "0");
+  const usedShare = mount => meter(mount).locator(".ccc-capacity-fill").evaluate(fill =>
+    fill.getBoundingClientRect().width / fill.parentElement.getBoundingClientRect().width);
+  expect(await usedShare("C:")).toBeCloseTo(247 / 460, 3);
+  expect(await usedShare("E:")).toBe(0);
   await expect(disks.getByText("1 TB 可用 · 共 1 TB", { exact: true })).toBeVisible();
   await expect(meter("R:")).toHaveCount(0);
   await expect(disks.getByText("容量未知", { exact: true })).toBeVisible();
   await expect(memory(page).getByLabel("内存已用容量")).toHaveText("8 GB");
-  await expect(page.getByRole("meter", { name: "显存占用", exact: true })).toHaveAttribute("aria-valuetext", "1000 MB / 7.81 GB");
   await expect(overview(page)).not.toContainText(/(?:Ki|Mi|Gi|Ti)B\b/);
   await disks.getByRole("button", { name: "存储详情", exact: true }).click();
   const detail = page.getByRole("dialog", { name: "存储详细信息", exact: true });
@@ -305,27 +380,64 @@ test("每个磁盘卷的横条、详情和显存沿用真实容量与统一单�
   await expect(page.getByRole("dialog", { name: "GPU 硬件参数" }).getByText("7.81 GB", { exact: true })).toBeVisible();
 });
 
+test("磁盘卷的容量条与百分比按显示的已用百分比分档着色", async ({ page }) => {
+  await setup(page, [
+    volume("B:", null, 1000 * GB, 206 * GB), volume("W:", null, 1000 * GB, 204 * GB),
+    volume("X:", null, 1000 * GB, 106 * GB), volume("Y:", null, 1000 * GB, 104 * GB),
+    volume("R:", "离线卷", 0, 0),
+  ]);
+  const disks = storage(page);
+  const item = mount => disks.locator("li").filter({ hasText: `(${mount})` });
+  const colors = mount => item(mount).evaluate(el => {
+    const probe = document.createElement("span");
+    el.append(probe);
+    const token = name => { probe.style.color = `var(${name})`; return getComputedStyle(probe).color; };
+    const value = {
+      fill: getComputedStyle(el.querySelector(".ccc-capacity-fill")).backgroundColor,
+      percent: getComputedStyle(el.querySelector(".ccc-storage-heading > .ccc-capacity-available")).color,
+      caption: getComputedStyle(el.querySelector(".ccc-storage-info > .ccc-capacity-available")).color,
+      blue: token("--ccc-chart-blue"), warning: token("--ccc-chart-warning"), alert: token("--ccc-chart-alert"), label: token("--ccc-chart-label"),
+    };
+    probe.remove();
+    return value;
+  });
+  for (const [mount, percent, level, fill, ink] of [["B:", "79%", null, "blue", "label"], ["W:", "80%", "warning", "warning", "warning"], ["X:", "89%", "warning", "warning", "warning"], ["Y:", "90%", "alert", "alert", "alert"]]) {
+    await expect(item(mount).locator(".ccc-storage-heading > .ccc-capacity-available")).toHaveText(percent);
+    if (level) await expect(item(mount)).toHaveAttribute("data-usage", level);
+    else await expect(item(mount)).not.toHaveAttribute("data-usage", /.+/);
+    const actual = await colors(mount);
+    expect(actual).toMatchObject({ fill: actual[fill], percent: actual[ink], caption: actual.label });
+  }
+  await expect(item("R:")).not.toHaveAttribute("data-usage", /.+/);
+  await disks.getByRole("button", { name: "存储详情", exact: true }).click();
+  const detail = page.getByRole("dialog", { name: "存储详细信息", exact: true });
+  await expect(detail.getByText("用到 80% 起提醒留意，90% 起建议清理空间。")).toBeVisible();
+});
+
 test("内存趋势随回读改变，保留采样缺口和五分钟时间范围", async ({ page }) => {
   await page.clock.install();
   await setup(page);
   const ram = memory(page);
   const chart = memoryChart(page);
-  const rate = ram.getByLabel("当前内存使用率");
-  const peak = ram.locator(".ccc-trend-peak strong");
+  const utilization = ram.locator(".ccc-overview-utilization");
+  const meter = utilization.getByRole("meter", { name: "当前内存使用率", exact: true });
+  const fill = utilization.locator(".ccc-meter-ring-fill");
+  const rate = utilization.locator("output");
   const line = chart.locator('path[data-series="内存"]');
   const area = chart.locator(".ccc-trend-area");
-  await expect(rate).toHaveText("50%");
-  await expect(peak).toHaveText("50%");
-  await expect(chart.getByText("5 分钟前", { exact: true })).toBeVisible();
-  await expect(chart.getByText("现在", { exact: true })).toBeVisible();
+  await expect(rate).toHaveText("50 %");
+  await expect(meter).toHaveAttribute("aria-valuenow", "50");
+  await expect(fill).toHaveAttribute("stroke-dasharray", "50 100");
+  await expect(chart.getByText("当前使用率", { exact: true })).toHaveCount(0);
+  await expect(ram.getByText(/^(?:5 分钟前|现在)$/)).toHaveCount(0);
   await expect(chart.getByText(/^采样 \d{2}:\d{2}:\d{2}$/)).toHaveCount(0);
   await expect(chart.getByText(/^\d{2}:\d{2}:\d{2}$/)).toHaveCount(0);
   await expect(line).toHaveAttribute("d", "M100.000 50.000");
   await expect(area).toHaveCount(0);
   await expect(ram.getByText("总容量", { exact: true })).toBeVisible();
   await sampleMemory(page, 4 * GB);
-  await expect(rate).toHaveText("75%");
-  await expect(peak).toHaveText("75%");
+  await expect(rate).toHaveText("75 %");
+  await expect(fill).toHaveAttribute("stroke-dasharray", "75 100");
   await expect(line).toHaveAttribute("d", /^M[\d.]+ 50\.000 L100\.000 25\.000$/);
   await expect(area).toHaveAttribute("d", / L100\.000 100 L[\d.]+ 100 Z$/);
   await expect(ram.getByLabel("内存已用容量")).toHaveText("12 GB");
@@ -333,21 +445,23 @@ test("内存趋势随回读改变，保留采样缺口和五分钟时间范围",
 
   await sampleMemory(page, null);
   await expect(rate).toHaveText("—");
-  await expect(peak).toHaveText("75%");
+  await expect(utilization.getByRole("img", { name: "当前内存使用率：暂无读数", exact: true })).toBeVisible();
+  await expect(fill).toHaveCount(0);
   await expect(ram.getByLabel("内存已用容量")).toHaveText("未知");
   await expect(ram.getByLabel("内存频率", { exact: true })).toHaveText("5200 MT/s");
   await expect(line).toHaveAttribute("d", /^M[\d.]+ 50\.000 L[\d.]+ 25\.000$/);
 
   await sampleMemory(page, 12 * GB);
-  await expect(rate).toHaveText("25%");
+  await expect(rate).toHaveText("25 %");
   await expect(line).toHaveAttribute("d", /25\.000 M100\.000 75\.000$/);
   await page.clock.fastForward(20_000);
   await expect(line).toHaveAttribute("d", /75\.000 M100\.000 75\.000$/);
 
   await page.evaluate(gigabyte => { window.__overviewMemory = { totalBytes: 16 * gigabyte, availableBytes: 16 * gigabyte }; }, GB);
   await page.clock.fastForward(300_001);
-  await expect(rate).toHaveText("0%");
-  await expect(peak).toHaveText("0%");
+  await expect(rate).toHaveText("0 %");
+  await expect(meter).toHaveAttribute("aria-valuenow", "0");
+  await expect(fill).toHaveCount(0);
   await expect(line).toHaveAttribute("d", "M100.000 100.000");
   await expect(area).toHaveCount(0);
 });
@@ -371,7 +485,7 @@ test("多磁盘时内存与存储上下排列，磁盘卷随宽度排布", async
         fan: { ...sample.fan, cpu: { ...sample.fan.cpu, tempC: cpuTemp } }, nvidia: { ...sample.nvidia, tempC } });
     }
   });
-  await expect(sensor(page, "CPU").getByLabel("CPU 当前温度")).toHaveClass(/is-hot/);
+  await expect(sensor(page, "CPU").getByLabel("CPU 当前温度")).toHaveAttribute("data-alert", "true");
   for (const theme of ["light", "dark"]) {
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
     for (const width of [360, 900, 1440]) {

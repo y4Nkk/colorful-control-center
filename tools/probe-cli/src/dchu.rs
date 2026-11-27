@@ -1,4 +1,4 @@
-//! 探测复用桌面 HAL。写入仅开放带即时回读的风扇档位和偏移，不改 AppSettings。
+//! 探测复用桌面 HAL。写入仅开放带即时回读的风扇档位和偏移、以及带恢复的充电保护阈值，不改 AppSettings。
 #[allow(dead_code)]
 #[path = "../../../src-tauri/src/hal/firmware.rs"]
 mod firmware;
@@ -21,6 +21,10 @@ impl Dchu {
     pub fn read_package(&self, command: i32) -> Result<[u8; 256]> {
         self.0.read_package(command)
     }
+    /// 原厂双向包传输；桌面应用读写充电保护走的就是这一通道。
+    pub fn exchange_package(&self, command: i32, package: &[u8; 256]) -> Result<[u8; 256]> {
+        self.0.exchange_package(command, package)
+    }
     pub fn read_settings(&self, page: i32, offset: i32, length: usize) -> Result<Vec<u8>> {
         self.0.read_settings(page, offset, length)
     }
@@ -32,6 +36,9 @@ impl Dchu {
     }
     pub fn set_fan_mode(&self, mode: u8) -> Result<()> {
         self.0.set_fan_mode_verified(mode)
+    }
+    pub fn restore_fan_mode(&self, mode: u8) -> Result<()> {
+        self.0.force_restore_fan_mode(mode)
     }
     pub fn set_fan_offset(&self, raw: u8) -> Result<()> {
         self.0

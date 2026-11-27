@@ -33,12 +33,11 @@ internal static partial class InstallerChecks
                     "Both hidden controller windows became available");
                 Assert(CheckNativeGuard() == Product.ControllerRunningExitCode, "NSIS still blocks occupied files before authorization");
                 var update = Window(target, path => { throw new Exception("Must not launch"); });
-                Click(update, "primary");
                 RespondToClosePrompt(update, false);
                 Wait(update);
-                Assert(Field<int>(update, "step") == 1 && Field<Exception>(update, "failure") == null,
+                Assert(Stage(update) == InstallerStep.Confirm && Field<Exception>(update, "failure") == null,
                     "Cancel returns to the verified update location without an error");
-                Assert(Field<TextBox>(update, "directoryBox").Text == target, "Cancel preserves update location");
+                Assert(Field<string>(update, "selectedDirectory") == target, "Cancel preserves update location");
                 Assert(!controller.HasExited && !File.Exists(marker + ".queried"), "Cancel never requests controller exit");
                 Assert(File.ReadAllText(sentinel) == "original installation", "Cancel leaves the installation intact");
 
@@ -52,7 +51,7 @@ internal static partial class InstallerChecks
                 Wait(update);
                 Assert(holder.WaitForExit(3000) && holder.ExitCode == 0, "The recovery worker exits on its own signal");
                 Assert(CheckNativeGuard() == 0, "NSIS removes the write block only after all processes release the file");
-                Assert(Field<int>(update, "step") == 3 && update.ExitCode == 0, "Confirmed shutdown automatically continues to a complete install");
+                Assert(Stage(update) == InstallerStep.Complete && update.ExitCode == 0, "Confirmed shutdown automatically continues to a complete install");
                 Assert(File.ReadAllText(sentinel) == "isolated NSIS output", "NSIS actually ran after the lock cleared");
                 Click(update, "secondary");
             }
@@ -76,16 +75,15 @@ internal static partial class InstallerChecks
             {
                 WaitForCondition(() => File.Exists(marker + ".ready"), "Controller that refuses shutdown is running");
                 var update = Window(target, path => { throw new Exception("Must not launch"); });
-                Click(update, "primary");
                 RespondToClosePrompt(update, true);
                 Wait(update);
                 var failure = Field<Exception>(update, "failure") as InstallFailure;
-                Assert(failure != null && failure.Message.Contains("系统托盘"), "Refusal shows manual exit guidance");
+                Assert(failure != null && failure.Message.Contains("系统托盘"), "An application veto returns an actionable failure");
                 Assert(!controller.HasExited && File.Exists(marker + ".queried") && !File.Exists(marker + ".cleaned"),
                     "The wizard respects a refused shutdown");
                 string log = File.ReadAllText(failure.LogPath);
-                Assert(log.Contains("NSIS exit code: " + Product.ControllerRunningExitCode) && log.Contains("WindowsErrorCode"),
-                    "The failure log retains the guard result and native exit error");
+                Assert(log.Contains("WindowsErrorCode") && !log.Contains("administrator authorization"),
+                    "An application veto preserves its diagnostics without requesting elevation");
                 Capture(update, "10-close-refused");
                 Click(update, "secondary");
             }
@@ -93,11 +91,18 @@ internal static partial class InstallerChecks
         }
     }
 
+    private static void CheckElevatedExitScope()
+    {
+        string command = ControllerShutdown.ExitCommand;
+        Assert(ControllerShutdown.RunExitCommand(new[] { command, "1" }) == 87, "Incomplete helper requests are rejected");
+        Assert(ControllerShutdown.RunExitCommand(new[] { command, "1", "1", "S-1-5-18", root }) == 5,
+            "The helper rejects a request from a different Windows account");
+    }
+
     private static string SeedController(string target)
     {
         var initial = Window(null, path => { throw new Exception("Must not launch"); });
-        Click(initial, "primary");
-        Field<TextBox>(initial, "directoryBox").Text = target;
+        SelectLocation(initial, target);
         Click(initial, "primary");
         Wait(initial);
         Assert(initial.ExitCode == 0, "Existing fixture first installs successfully");
@@ -121,7 +126,7 @@ internal static partial class InstallerChecks
                 var buttons = (StackPanel)content.Children[content.Children.Count - 1];
                 var cancel = (Button)buttons.Children[0];
                 var closeAndInstall = (Button)buttons.Children[1];
-                Assert(cancel.IsCancel && (string)closeAndInstall.Content == "关闭并安装", "Modal offers cancel and explicit shutdown");
+                Assert(cancel.IsCancel && (string)closeAndInstall.Content == "关闭并更新", "Modal offers cancel and explicit shutdown");
                 Assert(Field<bool>(update, "busy") && !Field<Button>(update, "primary").IsEnabled, "Modal cannot repeat the install action");
                 if (capture != null)
                 {

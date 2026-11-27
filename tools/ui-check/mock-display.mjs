@@ -14,8 +14,11 @@ export async function invokeDisplay(data, command, args) {
     return profile;
   }
   switch (command) {
-    case "read_display_modes": {
+    case "read_display_modes":
+    case "read_automatic_display_trial": {
+      const automaticOnly = command === "read_automatic_display_trial";
       const pending = data.display.pending;
+      if (automaticOnly && !pending?.automatic) return null;
       if (pending?.profileSession != null) { syncProfileApplication(data); return snapshot(); }
       if (pending) {
         pending.remainingMs = Math.max(0, data.displayExpiresAt - Date.now());
@@ -24,6 +27,7 @@ export async function invokeDisplay(data, command, args) {
           data.display.pending = null;
         }
       }
+      if (automaticOnly) return structuredClone(data.display.pending);
       return snapshot();
     }
     case "apply_display_refresh":

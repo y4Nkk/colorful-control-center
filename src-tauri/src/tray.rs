@@ -68,6 +68,13 @@ fn menu_data(app: &AppHandle) -> MenuData {
 pub(crate) fn bind_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let close = window.clone();
+        let exits = |snapshot: preferences::Snapshot| {
+            snapshot.settings.close_behavior == preferences::model::CloseBehavior::Exit
+        };
+        let exit_during_preparation = app
+            .state::<preferences::Controller>()
+            .snapshot()
+            .is_ok_and(exits);
         window.on_window_event(move |event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
@@ -75,10 +82,14 @@ pub(crate) fn bind_window(app: &AppHandle) {
                     return;
                 }
                 let app = close.app_handle();
-                let preferences = app.state::<preferences::Controller>().snapshot();
-                if preferences.is_ok_and(|s| {
-                    s.settings.close_behavior == preferences::model::CloseBehavior::Exit
-                }) {
+                let exit = if crate::startup::ready(app) {
+                    app.state::<preferences::Controller>()
+                        .snapshot()
+                        .is_ok_and(exits)
+                } else {
+                    exit_during_preparation
+                };
+                if exit {
                     shutdown::request();
                 } else if let Err(error) = close.hide() {
                     log::error!("[tray] 隐藏失败：{error}");

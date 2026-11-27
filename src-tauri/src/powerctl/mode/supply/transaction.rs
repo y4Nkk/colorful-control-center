@@ -128,11 +128,12 @@ pub(super) fn execute(
         &mut |write, origin, driver| clocks::checkpoint(store, &mut record, write, origin, driver),
         permit,
     ) {
-        let recovery = clear_if_unchanged(io, store, &mut record, &capture, &attempt.before);
-        return Err(anyhow!(ccc_core::msr::with_recovery(
-            format!("{error:#}"),
-            recovery.map_err(|error| format!("{error:#}"))
-        )));
+        if let Err(record_error) =
+            clear_if_unchanged(io, store, &mut record, &capture, &attempt.before)
+        {
+            bail!("{error:#}；供电事务记录核对失败：{record_error:#}");
+        }
+        return Err(error);
     }
     finish(io, store, &mut record, &review, &target, &capture)?;
     Ok(Some(Applied {
@@ -388,12 +389,10 @@ fn equivalent_after_own_change(before: &Review, after: &Review, applied: &Target
         if old == new {
             return true;
         }
-        let same_slot = old.mode == applied.mode
-            || [0, 4].contains(&old.mode) && [0, 4].contains(&applied.mode);
         use crate::fanctl::{FAN_MODE_AUTO, FAN_MODE_FULL_SPEED, FAN_MODE_NOISELESS, ModePolicy};
         let mut adjusted = old.clone();
         adjusted.fan = new.fan;
-        same_slot
+        old.mode == applied.mode
             && old.fan
                 == ModePolicy::explicit(
                     FAN_MODE_FULL_SPEED,

@@ -62,9 +62,11 @@ export function syncProfileApplication(data) {
   }
   return structuredClone(report ?? null);
 }
-export async function beginProfileApplication(data, args) {
+export async function beginProfileApplication(data, args, builtin = null) {
   if (syncProfileApplication(data)?.pending) throw new Error("先结束当前档案显示确认或恢复");
-  if (JSON.stringify(args.expected) !== JSON.stringify(profileFiles(data).find(file => file.name === args.expected.name))) throw new Error("档案已变化，请重新预览后确认");
+  const actual = builtin ? builtinFile(data, builtin) : profileFiles(data).find(file => file.name === args.expected.name);
+  if (builtin) requireBuiltinPower(data, builtin);
+  if (JSON.stringify(args.expected) !== JSON.stringify(actual)) throw new Error("档案已变化，请重新预览后确认");
   if (JSON.stringify(args.expectedMode) !== JSON.stringify(await previewProfileMode(data, args.expected.settings))) throw new Error("模式联动已变化，请重新预览");
   const review = previewProfileDisplay(data, args.expected.settings);
   if (JSON.stringify(args.expectedDisplay) !== JSON.stringify(review)) throw new Error("档案显示预览已变化");
@@ -77,7 +79,7 @@ export async function beginProfileApplication(data, args) {
   data.profileApplication = { id, revision: 1, origin: "manual", targetsApplied: false, name: args.expected.name, steps: [], pending: null };
   const changes = review?.displays.filter(change => change.before.frequency !== change.target.frequency) ?? [];
   if (changes.length) {
-    data.profileApplicationSession = { file: structuredClone(args.expected), mode: structuredClone(args.expectedMode), review, gpuReview, muxReview };
+    data.profileApplicationSession = { file: structuredClone(args.expected), mode: structuredClone(args.expectedMode), review, gpuReview, muxReview, builtin };
     for (const change of changes) data.display.displays.find(display => display.current.device === change.target.device).current = structuredClone(change.target);
     data.profileTrialDeadline = Date.now() + 15_000;
     data.profileApplication.pending = { before: changes.map(change => change.before), targets: changes.map(change => change.target), rotation: false, automatic: false, trialId: id, remainingMs: 15_000, profileSession: id, error: null };
@@ -103,7 +105,9 @@ export async function invokeProfileApplication(data, command, args) {
     try {
       const session = data.profileApplicationSession;
       if (report.steps.some(step => !step.ok)) throw new Error("请先恢复本次显示变更");
-      if (JSON.stringify(profileFiles(data).find(file => file.name === session.file.name)) !== JSON.stringify(session.file)) throw new Error("档案已变化");
+      if (session.builtin) requireBuiltinPower(data, session.builtin);
+      const actual = session.builtin ? builtinFile(data, session.builtin) : profileFiles(data).find(file => file.name === session.file.name);
+      if (JSON.stringify(actual) !== JSON.stringify(session.file)) throw new Error("档案已变化");
       if (JSON.stringify(await previewProfileMode(data, session.file.settings)) !== JSON.stringify(session.mode)) throw new Error("模式联动已变化");
       reviewProfileLan(data, session.file.settings.lanPolicy);
       if (JSON.stringify(previewProfileGpuPower(data, session.file.settings)) !== JSON.stringify(session.gpuReview)) throw new Error("独显预览已变化");

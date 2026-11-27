@@ -1,6 +1,7 @@
 import type { BatteryLowActionProfile } from "../../api/client";
 import { Surface } from "../Surface";
 import { DetailsDialog } from "../DetailsDialog";
+import { FactList } from "../FactList";
 import { Icon } from "../Icon";
 
 const action = (value: number) => ["不操作", "睡眠", "休眠", "按电源计划关机"][value] ?? "未知";
@@ -12,8 +13,10 @@ export function BatteryLowActionFacts({ profile, powerSummary }: { profile: Batt
       <Surface variant="inset" className="ccc-battery-action-part">
         <strong>当前电池计划</strong>
         {current ? <>
-          <p>低电量：{action(current.low)}</p>
-          <p>严重电量：{action(current.critical)}</p>
+          <FactList label="电池计划动作" compact facts={[
+            { label: "低电量", icon: "battery", value: action(current.low) },
+            { label: "严重电量", icon: "battery", value: action(current.critical) },
+          ]} />
           {powerSummary && <p className="ccc-control-caption">{powerSummary}</p>}
         </> : <p className="ccc-control-caption">当前电池计划动作不可读取。</p>}
         {profile.error && <p className="ccc-control-error"><Icon name="error" size={16} />{profile.error}</p>}

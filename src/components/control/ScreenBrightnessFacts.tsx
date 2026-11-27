@@ -10,13 +10,13 @@ export function ScreenBrightnessFacts({ profile }: { profile: ScreenBrightnessPr
     <strong>屏幕亮度策略</strong>
     {current ? <>
       <div className="ccc-screen-brightness-current">
-      <MetricReadout label="实际亮度" value={current.reading.current} maximum={100} unit="%" colorVar="var(--ccc-action)" />
-      <FactList compact facts={[
-        { label: "当前供电", value: current.reading.onAc ? "插电" : "电池" },
-        { label: "活动计划", value: powerPlanName(current.plan) },
-        { label: "计划插电亮度", value: `${current.levels[0]}%` },
-        { label: "计划电池亮度", value: `${current.levels[1]}%` },
-      ]} />
+        <MetricReadout label="实际亮度" value={current.reading.current} maximum={100} unit="%" />
+        <FactList compact layout="tiles" facts={[
+          { label: "当前供电", value: current.reading.onAc ? "插电" : "电池" },
+          { label: "活动计划", value: powerPlanName(current.plan) },
+          { label: "计划插电亮度", value: `${current.levels[0]}%` },
+          { label: "计划电池亮度", value: `${current.levels[1]}%` },
+        ]} />
       </div>
       <p className="ccc-control-caption" aria-label="原厂屏幕亮度触发目标">
         触发时电脑会设置的亮度：{current.targets.map((value, index) => `第${index + 1}项 ${value}%`).join(" · ")}

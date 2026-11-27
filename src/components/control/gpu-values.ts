@@ -8,7 +8,7 @@ export function gpuModeError(review: OemModeGpuReview | null): string | null {
   return target.clocks.driverError ?? target.clocks.candidate.unavailableReason;
 }
 
-export const gpuSkipReason = (reason: GpuModeSkipReason) => ({ resume: "从睡眠唤醒时，按原厂规则不调整频率", quietPlus: "静音增强模式下不调整 GPU 频率", notReady: "原厂显卡信息还没准备好，这次不调整频率", unsupported: "这台电脑不支持随模式调整 GPU 频率" })[reason];
+export const gpuSkipReason = (reason: GpuModeSkipReason) => ({ resume: "从睡眠唤醒时，按原厂规则不调整频率", notReady: "原厂显卡信息还没准备好，这次不调整频率", unsupported: "这台电脑不支持随模式调整 GPU 频率" })[reason];
 
 export const gpuMhz = (value: number | null) => value === null ? "未知" : `${value / 1000} MHz`;
 export const gpuOffsets = (value: GpuTurboOffsets) => `核心 ${gpuMhz(value.coreKhz)} · 显存 ${gpuMhz(value.memKhz)}`;

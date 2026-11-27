@@ -1,33 +1,31 @@
 import { Icon } from "../Icon";
+import { Loading } from "../Loading";
 import { Surface } from "../Surface";
 import { Button } from "../Button";
 import { Tabs } from "../Tabs";
 import { ConfigurationAction } from "../ConfigurationAction";
-import { DetailsDialog } from "../DetailsDialog";
 import { DiffPreview } from "./DiffPreview";
 import { ScaleSlider } from "./ScaleSlider";
 import { CPU_PL_MAX, CPU_PL_MIN, usePowerControl } from "./usePowerControl";
 import { ParameterDescriptions } from "./ParameterHelp";
 import { CPU_TUNING_HELP } from "./parameterDescriptions";
+import { TuningPanelHeader } from "./TuningPanelHeader";
 
 const TITLE = "CPU 功耗与电压";
 
-export function PowerPanel({ active, revision }: { active: boolean; revision: number }) {
+export function PowerPanel({ active, revision, cpuName }: { active: boolean; revision: number; cpuName: string | null }) {
   const model = usePowerControl(active, revision);
   const { profile, draft, dirty, busy, readError } = model;
   const blocked = busy || readError !== null;
   return (
     <Surface as="section" variant="group" className="ccc-panel" aria-label={TITLE} aria-busy={busy || undefined}>
-      <div className="ccc-tuning-head">
-        <h2 className="ccc-panel-title"><Icon name="power" />{TITLE}</h2>
-        <div className="ccc-tuning-meta"><DetailsDialog title="CPU 参数与诊断" label="说明与诊断" icon={null}>
-          <ParameterDescriptions items={CPU_TUNING_HELP} />
-          {profile && [...profile.warnings, ...profile.runtimeWarnings, profile.msrRuntimeError].filter(Boolean)
-            .map((warning, index) => <p key={index} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{warning}</p>)}
-        </DetailsDialog></div>
-      </div>
+      <TuningPanelHeader title={TITLE} icon="power" hardwareName={cpuName} detailsTitle="CPU 参数与诊断">
+        <ParameterDescriptions items={CPU_TUNING_HELP} />
+        {profile && [...profile.warnings, ...profile.runtimeWarnings, profile.msrRuntimeError].filter(Boolean)
+          .map((warning, index) => <p key={index} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{warning}</p>)}
+      </TuningPanelHeader>
       {profile && draft && dirty ? <CpuControls model={model} /> :
-        <p className="ccc-control-caption">{model.error ? "读取失败" : "读取中…"}</p>
+        model.error ? <p className="ccc-control-caption">读取失败</p> : <Loading label="正在读取…" />
       }
       {model.error && <p className="ccc-control-error" role="alert">{model.error}</p>}
       {readError !== null && <div className="ccc-tuning-scope">

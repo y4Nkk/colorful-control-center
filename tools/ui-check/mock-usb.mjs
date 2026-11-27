@@ -1,15 +1,17 @@
 export function invokeUsb(data, command, args) {
   if (command === "read_usb_policy") {
     if (data.usbReadFault) throw new Error(data.usbReadFault);
-    const value = structuredClone(data.usb ?? null);
-    if (value && (data.calibration.workerRunning || data.calibration.recoveryRequired)) {
+    const value = structuredClone(data.usb);
+    const active = value.plans.find(plan => plan.id === value.activePlan);
+    if (active) value.activeValues = { ac: active.ac, dc: active.dc };
+    if (data.calibration.workerRunning || data.calibration.recoveryRequired) {
       value.blockedReason = value.restoreBlockedReason = "电池校准期间不能修改系统电源计划";
     }
     return value;
   }
   const profile = data.usb;
   const expected = args.request?.expectedRevision ?? args.expectedRevision;
-  if (!profile || expected !== profile.revision) throw new Error("USB 选择性暂停、系统计划或固件建议已变化，请重新读取后重试");
+  if (expected !== profile.revision) throw new Error("USB 选择性暂停、系统计划或固件建议已变化，请重新读取后重试");
   const restoring = command === "restore_usb_policy";
   if (restoring ? profile.restoreBlockedReason : profile.blockedReason) throw new Error(restoring ? profile.restoreBlockedReason : profile.blockedReason);
   if (data.calibration.workerRunning || data.calibration.recoveryRequired) throw new Error("电池校准期间不能修改系统电源计划");

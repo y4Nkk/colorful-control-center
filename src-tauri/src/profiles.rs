@@ -2,6 +2,7 @@
 pub mod application;
 mod apply;
 pub(crate) mod authorization;
+pub(crate) mod builtins;
 mod capture;
 mod devices;
 mod listing;

@@ -2,7 +2,7 @@ import { invokeDisplay } from "./mock-display.mjs";
 import { invokeAirplane } from "./mock-airplane.mjs";
 import { invokeAutoRefresh } from "./mock-auto-refresh.mjs";
 import { invokeSupplyMode } from "./mock-supply-mode.mjs";
-import { applyPerformanceOptions, fanProfile, invokePerformance } from "./mock-performance.mjs";
+import { applyFanTargets, applyPerformanceOptions, fanProfile, fanView, invokePerformance } from "./mock-performance.mjs";
 import { modeGpuReview, appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, rememberMode, applyModeFan, applyModeGpu } from "./mock-mode-state.mjs";
 import { initPowerPolicy, savePowerPolicy, invokePowerPolicy } from "./mock-profile-policy.mjs";
 import { invokeLightingOptions, applyProfileLightingOptions } from "./mock-lighting-options.mjs";
@@ -14,8 +14,10 @@ import { stopHotkeysFixture, restoreBatteryAlertFixture, batteryThresholdFixture
 import { invokeLightBar } from "./mock-lightbar.mjs";
 import { invokeUsb } from "./mock-usb.mjs";
 import { invokeLan } from "./mock-lan.mjs";
+import { invokePlatform } from "./mock-platform-power.mjs";
 import { captureProfileDevices, captureProfilePower, captureProfileLighting, captureProfileInputs, profileFields, profileGroups, emptyProfileSettings } from "./mock-profile-capture.mjs";
 import { invokeProfileStorage, profileFiles } from "./mock-profile-storage.mjs";
+import { builtinCatalog, requireBuiltinPower, builtinFile, previewBuiltinFixture } from "./mock-builtin-profiles.mjs";
 import { previewProfileMode, applyProfileMode, profileNodeStages } from "./mock-profile-mode.mjs";
 import { profileDigest, backgroundProfileBinding, previewProfileAuthorization, invokeStartup } from "./mock-profile-authorization.mjs";
 import { captureProfileLan, reviewProfileLan } from "./mock-profile-lan.mjs";
@@ -26,7 +28,7 @@ import { previewProfileDisplay, previewManualProfile, profileApplicationSteps, r
 function fixtureData() {
   const settings = { ...emptyProfileSettings(), fanMode: 0 };
   const color = { r: 0, g: 100, b: 255 };
-  window.__uiFixture = { calls: [], faults: [], fanKind: "twoPoint", family: "zoneRgb", delay: 0, acMode: 2, modeInitial: null, modeEnergy: { hardwarePState: false, energyStar: 2 },
+  window.__uiFixture = { calls: [], faults: [], administratorAccess: "canElevate", fanKind: "twoPoint", family: "zoneRgb", delay: 0, acMode: 2, modeInitial: null, modeEnergy: { hardwarePState: false, energyStar: 2 },
     preferences: { theme: "light", interfaceFont: "system", interfaceScale: 100, motion: "reduce", closeBehavior: "hideToTray",
       alwaysOnTop: false, startMinimized: false, closeOemOnStartup: true, startupPage: "dashboard", globalShortcut: "", runtimeLogLevel: "info", hardwareAcceleration: true },
     profile: { version: 1, name: "隔离档案", savedAtMs: 1, settings }, otherProfiles: [],
@@ -36,7 +38,7 @@ function fixtureData() {
     power: { pl1W: 65, pl2W: 100, plTimeS: 28, coreOffsetMv: 0, gtOffsetMv: 0, defaultPl1W: 65, defaultPl2W: 100,
       defaultCoreOffsetMv: 0, msrRuntimeAvailable: true, msrRuntimeError: null, canRestore: true, runtimeWarnings: [], warnings: ["隔离功耗诊断"],
       runtime: { pl1W: 65, pl2W: 100, coreOffsetMv: 0, gtOffsetMv: 0 } },
-    gpu: { available: true, unavailableReason: null, writeBlock: null, gpuName: "Isolated GPU", coreOffsetMhz: 0, memOffsetMhz: 0, coreEditable: true,
+    gpu: { available: true, unavailableReason: null, writeBlockedReason: null, gpuName: "Isolated GPU", coreOffsetMhz: 0, memOffsetMhz: 0, coreEditable: true,
       memEditable: true, coreMinMhz: -100, coreMaxMhz: 200, memMinMhz: -200, memMaxMhz: 1000, baseline: null, warnings: [] },
     keyboard: { available: true, unavailableReason: null, detectedType: 6, detectedFamily: "zoneRgb", detectionSource: "隔离夹具", baseline: null, warnings: [],
       current: { brightnessLevel: 3, enabled: true, rawMode: 0, effect: "zones", allColor: color, zones: [0, 1, 2].map(() => ({ enabled: true, color })) } },
@@ -53,7 +55,11 @@ function fixtureData() {
       capabilities: { keyboardType: 6, peripheralSupportKnown: true, bootOverride: true, logo: false, lightBar: false , topCover: false}, canRestore: false, initial: null },
     multiZone: null, multiZoneRevision: 0, multiZoneReadFault: null, multiZoneWriteFault: null,
     lightingOptionsRevision: 0, lightingOptionsFault: null, lightingOptionsReadFault: null,
-    dust: null, dustRevision: 0, dustFault: null, dustReadFault: null, usb: null, lan: null,
+    dust: null, dustRevision: 0, dustFault: null, dustReadFault: null,
+    usb: { revision: "usb-0", recommendation: null, supported: false, activePlan: null, activeValues: { ac: true, dc: true },
+      plans: [], missing: ["balanced", "highPerformance", "powerSaver"], initial: [],
+      blockedReason: "固件未声明 USB 选择性暂停，Windows 设置为只读。", restoreBlockedReason: null, warnings: [] },
+    lan: null,
     keymap: null, keymapRevision: 0, keymapReadFault: null, keymapFault: null,
     platform: { powerDelivery: null, deepS5: null, warnings: [] }, pdRevision: 0, pdFault: null, platformReadFault: null,
     gpuPower: { devices: [{ id: "ACPI\\NVDA0820\\ISOLATED", name: "隔离原厂独显控制器", enabled: true,
@@ -61,10 +67,11 @@ function fixtureData() {
     graphicsMode: { current: { mode: 3, availableMask: 15 }, revision: "graphics-0", lastRequest: null },
     graphicsRevision: 0, graphicsReboots: 0, graphicsModeFault: null, graphicsRebootFault: null,
     battery: { charge: { current: { enabled: false, start: 95, stop: 100 }, startValues: [40, 50, 60, 70, 80, 95], stopValues: [60, 70, 80, 90, 100] },
-      revision: "battery-0", chargeLockReason: null, power: { present: true, acOnline: true, charging: false, percent: 62, remainingSeconds: null, windowsBatterySaver: false },
+      revision: "battery-0", chargeLockReason: null, chargeUnavailableReason: null, powerUnavailableReason: null,
+      power: { present: true, acOnline: true, charging: false, percent: 62, remainingSeconds: null },
       diagnostics: { version: 1, manufacturedOn: "2024-02-29", cycleCount: 123, fullCapacityRaw: 4800, designCapacityRaw: 5000,
-        capacityPct: 96, batteryStatus: 0, permanentFailureStatus: 0, operationStatus: 0, stopChargingThreshold: 80 }, canRestore: false, warnings: [] },
-    batteryInitial: { enabled: false, start: 95, stop: 100 }, batteryRevision: 0, batteryFault: null,
+        capacityPct: 96, batteryStatus: 0, permanentFailureStatus: 0, operationStatus: 0, stopChargingThreshold: 80 } },
+    batteryRevision: 0, batteryFault: null,
     calibrationSupported: false, calibrationFault: null, calibrationRevision: 0,
     calibration: { revision: "calibration-0", task: null, workerRunning: false, controlAcquired: false, canStart: true, canStop: false,
       recoveryRequired: false, stopThreshold: 80, restoreCharge: { enabled: false, start: 95, stop: 100 },
@@ -91,10 +98,6 @@ function fixtureData() {
 
 function installIpc() {
   const data = window.__uiFixture, callbacks = new Map(), listeners = new Map();
-  const fanView = () => {
-    const profile = fanProfile(data);
-    return { ...profile, restoreRevision: JSON.stringify([profile, data.fanRestoreGeneration ?? 0]) };
-  };
   const emit = window.__uiEmit = (event, payload) => {
     for (const [id, listener] of listeners) if (listener.event === event) callbacks.get(listener.handler)?.({ event, id, payload: structuredClone(payload) });
   };
@@ -109,6 +112,9 @@ function installIpc() {
     invoke: async (command, args = {}) => {
       data.calls.push({ command, args });
       switch (command) {
+        case "read_application_preparation": return { stage: "ready", appearance: data.preferences, ...data.preparation };
+        case "read_administrator_access": return data.administratorAccess;
+        case "open_startup_logs": case "exit_application": return null;
         case "read_oem_supply_mode": case "enable_oem_supply_mode": case "resume_oem_supply_mode":
         case "pause_oem_supply_mode": case "restore_oem_supply_mode":
         case "archive_invalid_oem_supply_record": return invokeSupplyMode(data, command, args);
@@ -118,6 +124,7 @@ function installIpc() {
         case "read_osd": case "preview_osd": case "read_hotkeys": case "read_hotkey_status": case "dismiss_battery_cold_warning": case "acknowledge_hotkey_navigation": case "apply_hotkeys": case "restore_hotkeys": case "reset_invalid_hotkeys": case "stop_hotkeys": case "restore_screen_brightness": case "restore_battery_alert_audio": case "restore_low_battery_brightness": case "end_panel_hotkey": case "restore_gpu_turbo": case "restore_battery_thresholds": case "restore_pd_event": return invokeHotkeys(data, command, args, emit);
         case "plugin:event|listen": { const id = nextId++; listeners.set(id, args); return id; }
         case "plugin:event|unlisten": return null;
+        case "plugin:opener|open_url": return null;
         case "read_power_profile_policy": case "save_power_profile_policy": case "set_power_profile_policy_enabled": case "pause_power_profile_policy":
         case "restore_power_profile_policy": case "reload_power_profile_policy": case "reset_power_profile_policy": return invokePowerPolicy(data, command, args);
         case "update_hardware_monitoring":
@@ -125,20 +132,31 @@ function installIpc() {
           if (!data.pauseHardwareSnapshots) emitSnapshot();
           return null;
         case "read_memory_capacity": return { totalBytes: 17179869184, availableBytes: 8589934592 };
-        case "read_system_inventory": return { cpu: { vendor: "intel", name: "Isolated CPU" },
-          memorySpeedMts: data.memorySpeedMts === undefined ? 5200 : data.memorySpeedMts, volumes: [], warnings: [] };
-        case "read_fan_profile": return structuredClone(fanView());
-        case "apply_fan_curve": {
-          if (data.fanWriteFault === command || data.dust?.running) return { ok: false, message: "隔离风扇写入失败" };
-          for (const fan of data.fan.fans) if (args[fan.id]) Object.assign(fan, args[fan.id]);
-          data.fan.currentMode = 6; data.fan.software = null;
-          return { ok: true, message: "风扇曲线已写入" };
+        case "read_system_inventory": return { cpu: { vendor: "intel", name: "Isolated CPU",
+          physicalCores: null, logicalProcessors: null, baseClockMhz: null, maxClockMhz: null },
+          memorySpeedMts: data.memorySpeedMts === undefined ? 5200 : data.memorySpeedMts,
+          memoryModules: data.memoryModules === undefined ? [{
+            locator: "DIMM 0", capacityBytes: 17179869184, memoryType: "DDR5", manufacturer: "Isolated Memory",
+            partNumber: "16G-5200", configuredSpeedMts: 5200, soldered: false,
+          }] : structuredClone(data.memoryModules),
+          memorySlots: data.memorySlots === undefined ? { used: 1, total: 2 } : structuredClone(data.memorySlots),
+          volumes: [], warnings: [] };
+        case "read_gpu_details": {
+          if (!data.gpuPower.devices[0].enabled || args.connectionId !== (data.gpuConnectionId ?? 1)) return null;
+          return data.gpuDetails === undefined ? {
+            encoderUtilizationPct: 0, decoderUtilizationPct: 34, performanceState: 3,
+            pcieLinkGeneration: 3, pcieLinkWidth: 8, pcieMaxLinkGeneration: 4, pcieMaxLinkWidth: 8,
+            clockLimitReasons: ["powerCap"], memoryTemperatureC: null, fanTargetRpm: null,
+          } : structuredClone(data.gpuDetails);
         }
-        case "apply_rpm_fan_curves": {
-          if (data.fanWriteFault === command || data.dust?.running) return { ok: false, message: "隔离风扇写入失败" };
-          data.fan.rpmFans = fanProfile(data).rpmFans.map(fan => ({ ...fan, points: args.curves[fan.id] ?? fan.points }));
-          data.fan.currentMode = 6; data.fan.software = null;
-          return { ok: true, message: "转速曲线已写入" };
+        case "read_fan_profile": return structuredClone(fanView(data));
+        case "save_custom_fan_curves": {
+          const custom = fanView(data).custom;
+          if (args.expectedRevision !== custom?.revision) return { ok: false, message: "风扇曲线配置已变化，请重新打开编辑" };
+          if (data.fanWriteFault === command) return { ok: false, message: "隔离曲线保存失败" };
+          const { kind, curves } = args.changes;
+          data.customFanCurves = { kind, curves: { ...(custom.saved?.kind === kind ? custom.saved.curves : {}), ...curves } };
+          return { ok: true, message: "自定义曲线已保存" };
         }
         case "set_fan_mode": {
           if (data.fanWriteFault === command) return { ok: false, message: "隔离风扇写入失败" };
@@ -146,9 +164,8 @@ function installIpc() {
           const fan = fanProfile(data);
           if (args.mode === 6 && fan.customBlockedReason) return { ok: false, message: fan.customBlockedReason };
           if (args.mode === 8 && fan.customBlockedReason) return { ok: false, message: "Turbo 风扇与寂静模式不能同时开启" };
-          const quiet = args.mode === 0 && data.performanceOptions.currentMode === 3 && data.entertainmentQuiet &&
-            fan.availableModes.includes(8) && !(entertainmentCommand(data) & 64);
-          data.fan.currentMode = quiet ? 8 : args.mode;
+          if (args.mode === 6 && data.customFanCurves) applyFanTargets(data, data.customFanCurves);
+          data.fan.currentMode = args.mode;
           data.fan.software = null;
           if (data.performanceOptions.currentMode === 2 && data.performanceFanMode !== null) data.performanceFanMode = args.mode === 1 ? 0 : args.mode;
           return { ok: true, message: "风扇模式已写入" };
@@ -183,7 +200,7 @@ function installIpc() {
         case "restore_fan_settings": {
           const { target, expectedRevision } = args.request ?? {};
           if (!["initial", "firmwareDefault", "initialAndFirmwareDefault"].includes(target)) throw new Error("未知风扇恢复目标");
-          if (expectedRevision !== fanView().restoreRevision) return { ok: false, message: "风扇恢复目标已变化，请重新查看后确认" };
+          if (expectedRevision !== fanView(data).restoreRevision) return { ok: false, message: "风扇恢复目标已变化，请重新查看后确认" };
           return { ok: true, message: "隔离恢复完成" };
         }
         case "read_multi_zone_lighting": case "apply_multi_zone_lighting": case "restore_multi_zone_lighting": case "read_lighting_options":
@@ -197,12 +214,12 @@ function installIpc() {
           return invokeCalibration(data, command, args);
         case "read_energy_policy": case "apply_energy_policy": case "restore_energy_policy":
           return invokeEnergy(data, command, args);
-        case "read_battery_profile": case "apply_battery_charge": case "restore_battery_charge":
+        case "read_battery_profile": case "apply_battery_charge":
           return invokeBattery(data, command, args);
         case "read_oem_power_mode": case "read_oem_performance_options":
         case "apply_oem_performance_options": case "apply_oem_power_mode":
           return invokePerformance(data, command, args);
-        case "read_display_modes": case "apply_display_refresh": case "apply_display_rotation":
+        case "read_display_modes": case "read_automatic_display_trial": case "apply_display_refresh": case "apply_display_rotation":
         case "keep_display_mode": case "cancel_display_trial":
           return invokeDisplay(data, command, args);
         case "read_automatic_refresh": case "enable_automatic_refresh": case "restore_automatic_refresh":
@@ -213,11 +230,13 @@ function installIpc() {
           return invokeGpuPower(data, command, args, emitSnapshot);
         case "get_startup_profile": case "set_startup_profile": case "get_autostart": case "set_autostart": case "get_oem_startup_notice":
         case "get_backend_info": case "list_profiles": case "load_profile": case "preview_profile_import": case "preview_profile_application": case "preview_profile_authorization":
+        case "read_builtin_profiles": case "preview_builtin_profile": case "apply_builtin_profile":
         case "capture_profile_settings": case "save_profile": case "apply_profile": case "export_profile": case "delete_profile":
         case "preview_profile_display": case "preview_profile_graphics_mode": case "preview_profile_gpu_power": case "read_profile_application": case "keep_profile_display": case "cancel_profile_application":
         case "get_app_preferences": case "set_app_preferences":
         case "list_system_fonts": case "set_shortcut_recording": return invokeSoftware(data, command, args);
         case "read_platform_power": case "apply_pd_level": case "restore_pd_level":
+        case "read_windows_power_plans": case "apply_windows_power_plan":
           return invokePlatform(data, command, args);
         case "read_fan_dust": case "start_fan_dust": case "apply_fan_dust_schedule": case "restore_fan_dust_schedule":
           return invokeDust(data, command, args);
@@ -350,13 +369,8 @@ async function invokeBattery(data, command, args) {
       if (data.battery.power.present !== true) throw new Error("未确认电池存在");
       if (values.enabled && (!data.battery.charge.startValues.includes(values.start) || !data.battery.charge.stopValues.includes(values.stop) || values.start >= values.stop)) throw new Error("充电阈值无效");
       data.battery.charge.current = structuredClone(values); data.battery.revision = `battery-${++data.batteryRevision}`;
-      data.battery.canRestore = true; return null;
+      return null;
     }
-    case "restore_battery_charge":
-      if (lock) throw new Error(lock);
-      if (args.expectedRevision !== data.battery.revision) throw new Error("恢复预览已变化");
-      if (data.batteryFault) throw new Error(data.batteryFault);
-      data.battery.charge.current = structuredClone(data.batteryInitial); data.battery.revision = `battery-${++data.batteryRevision}`; return null;
   }
 }
 
@@ -410,6 +424,9 @@ async function invokeSoftware(data, command, args) {
     case "list_profiles": case "load_profile": case "preview_profile_import":
     case "save_profile": case "export_profile": case "delete_profile": return invokeProfileStorage(data, command, args);
     case "preview_profile_application": return previewManualProfile(data, args.settings);
+    case "read_builtin_profiles": return builtinCatalog(data);
+    case "preview_builtin_profile": return previewBuiltinFixture(data, args.request);
+    case "apply_builtin_profile": return beginProfileApplication(data, { ...args, expectedGpuPower: null, expectedGraphicsMode: null }, args.request);
     case "preview_profile_authorization": return previewProfileAuthorization(data, args.settings);
     case "capture_profile_settings": return captureProfileDevices(data, args.groups);
     case "apply_profile": case "preview_profile_display": case "preview_profile_graphics_mode": case "preview_profile_gpu_power": case "read_profile_application":
@@ -423,37 +440,19 @@ async function invokeSoftware(data, command, args) {
   }
 }
 
-async function invokePlatform(data, command, args) {
-  const pd = data.platform.powerDelivery;
-  const blocked = data.calibration.workerRunning || data.calibration.recoveryRequired;
-  switch (command) {
-    case "read_platform_power":
-      if (data.platformReadFault) throw new Error(data.platformReadFault);
-      return structuredClone({ ...data.platform, powerDelivery: pd ? { ...pd, blockedReason: blocked ? "电池校准期间不能更改PD档位" : pd.blockedReason } : null });
-    case "apply_pd_level": {
-      if (!pd || blocked || args.request.expectedRevision !== pd.revision || !pd.availableLevels.includes(args.request.level)) throw new Error("PD预览已变化");
-      pd.initial ??= { value: pd.currentLevel, zeroBased: pd.zeroBased };
-      pd.currentLevel = args.request.level; pd.currentValid = true; pd.revision = `pd-${++data.pdRevision}`;
-      if (data.pdFault) { const error = data.pdFault; data.pdFault = null; throw new Error(error); }
-      return null;
-    }
-    case "restore_pd_level":
-      if (!pd?.initial || blocked || pd.restoreBlockedReason || args.expectedRevision !== pd.revision) throw new Error("PD恢复预览已变化");
-      pd.currentLevel = pd.initial.value; pd.currentValid = true; pd.revision = `pd-${++data.pdRevision}`; return null;
-  }
-}
-
 function hardwareSnapshot(data) {
   const sampledAtMs = Date.now();
   const missing = { tempC: null, rpm: null, dutyPct: null };
   return { dchuAvailable: true, oemPowerMode: data.performanceOptions.currentMode,
     sampledAtMs, warnings: ["隔离监控诊断"],
-    cpuUtility: data.cpuUtility === undefined ? { valuePct: 42, clockMhz: 2900, sampledAtMs } : structuredClone(data.cpuUtility),
+    cpuUtility: data.cpuUtility === undefined ? { valuePct: 42, clockMhz: 2900, maxActiveClockMhz: 4700, sampledAtMs } : structuredClone(data.cpuUtility),
     oemMemory: data.oemMemory === undefined ? { reportedClockMhz: 2400, referenceClockMhz: 3200 } : structuredClone(data.oemMemory),
     fan: { cpu: { tempC: 50, rpm: 1800, dutyPct: 30 }, gpu1: { tempC: 45, rpm: 1500, dutyPct: 25 },
       gpu2: { ...missing }, sys: { ...missing } },
     nvidiaSuspended: !data.gpuPower.devices[0].enabled,
-    nvidia: data.gpuPower.devices[0].enabled ? { name: "Isolated GPU", tempC: 45, fanPct: 25, utilizationPct: 30, graphicsClockMhz: 1800, memUsedMb: 1000, memTotalMb: 8000 } : null };
+    nvidia: data.gpuPower.devices[0].enabled ? { connectionId: data.gpuConnectionId ?? 1, name: "Isolated GPU",
+      tempC: 45, utilizationPct: 30, memoryUsedPct: 12.5, memTotalMb: 8000, graphicsClockMhz: 1800,
+      memoryClockMhz: null, powerDrawW: null, powerLimitW: null, cudaCores: null, memoryBusWidthBits: null } : null };
 }
 function dustProfile(data) {
   const dust = data.dust;
@@ -492,5 +491,4 @@ async function invokeDust(data, command, args) {
   if (data.dustFault) { const error = data.dustFault; data.dustFault = null; if (command === "start_fan_dust") dust.lastStart = "uncertain"; throw new Error(error); }
   return null;
 }
-export const MOCK_IPC = `(() => {${[invokeAirplane, modeGpuReview, appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, rememberMode, applyModeFan, applyModeGpu, invokeSupplyMode, profileDigest, backgroundProfileBinding, previewProfileAuthorization, invokeStartup, initPowerPolicy, savePowerPolicy, invokePowerPolicy, fixtureData, installIpc, invokeTouchpad, applyTouchpadTarget, applyProfileTouchpad, invokeMicrophones, applyMicrophoneTarget, applyProfileMicrophones, invokeLightingOptions, applyProfileLightingOptions, invokeLighting, invokeCalibration, invokeEnergy, invokeBattery, applyPerformanceOptions, invokePerformance, invokeDisplay, invokeAutoRefresh, invokeGraphics, invokeGpuPower, invokeSoftware, invokePlatform, hardwareSnapshot, fanProfile, dustProfile, invokeDust, invokeKeymap, batteryThresholdFixture, restoreBatteryThresholdFixture, lowBatteryBrightnessFixture, restoreLowBatteryBrightnessFixture, restorePdEventFixture, dismissColdWarningFixture, acknowledgeNavigationFixture, gpuTurboFixture, initializeHotkeys, invokeHotkeys, invokeLightBar, invokeUsb, invokeLan, invokeMultiZone, captureMultiZone, applyProfileMultiZone, profileFields, profileGroups, emptyProfileSettings, captureProfileDevices, captureProfilePower, captureProfileLighting, captureProfileInputs, profileFiles, invokeProfileStorage, captureProfileGraphicsMode, previewProfileGraphicsMode, applyProfileGraphicsMode, restoreProfileGraphicsMode, captureProfileGpuPower, previewProfileGpuPower, applyProfileGpuPower, commitProfileTargets, profileNodeStages, previewProfileMode, applyProfileMode, captureProfileLan, reviewProfileLan, previewProfileDisplay, previewManualProfile, profileApplicationSteps, recoverProfileDisplay, syncProfileApplication, beginProfileApplication, invokeProfileApplication, restoreBatteryAlertFixture, stopHotkeysFixture].map(fn => fn.toString()).join("\n")}; fixtureData(); installIpc();})();`;
-
+export const MOCK_IPC = `(() => {${[invokeAirplane, modeGpuReview, appliesPerformanceOptions, optionCommand, entertainmentCommand, modePreviewTarget, rememberMode, applyModeFan, applyModeGpu, invokeSupplyMode, profileDigest, backgroundProfileBinding, previewProfileAuthorization, invokeStartup, initPowerPolicy, savePowerPolicy, invokePowerPolicy, fixtureData, installIpc, invokeTouchpad, applyTouchpadTarget, applyProfileTouchpad, invokeMicrophones, applyMicrophoneTarget, applyProfileMicrophones, invokeLightingOptions, applyProfileLightingOptions, invokeLighting, invokeCalibration, invokeEnergy, invokeBattery, applyFanTargets, applyPerformanceOptions, invokePerformance, invokeDisplay, invokeAutoRefresh, invokeGraphics, invokeGpuPower, invokeSoftware, invokePlatform, hardwareSnapshot, fanProfile, fanView, dustProfile, invokeDust, invokeKeymap, batteryThresholdFixture, restoreBatteryThresholdFixture, lowBatteryBrightnessFixture, restoreLowBatteryBrightnessFixture, restorePdEventFixture, dismissColdWarningFixture, acknowledgeNavigationFixture, gpuTurboFixture, initializeHotkeys, invokeHotkeys, invokeLightBar, invokeUsb, invokeLan, invokeMultiZone, captureMultiZone, applyProfileMultiZone, profileFields, profileGroups, emptyProfileSettings, captureProfileDevices, captureProfilePower, captureProfileLighting, captureProfileInputs, profileFiles, invokeProfileStorage, captureProfileGraphicsMode, previewProfileGraphicsMode, applyProfileGraphicsMode, restoreProfileGraphicsMode, captureProfileGpuPower, previewProfileGpuPower, applyProfileGpuPower, commitProfileTargets, profileNodeStages, previewProfileMode, applyProfileMode, captureProfileLan, reviewProfileLan, previewProfileDisplay, previewManualProfile, profileApplicationSteps, recoverProfileDisplay, syncProfileApplication, beginProfileApplication, invokeProfileApplication, builtinCatalog, requireBuiltinPower, builtinFile, previewBuiltinFixture, restoreBatteryAlertFixture, stopHotkeysFixture].map(fn => fn.toString()).join("\n")}; fixtureData(); installIpc();})();`;

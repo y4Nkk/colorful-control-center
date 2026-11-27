@@ -36,7 +36,8 @@ test("PL 保存值未上报时锚定出厂默认并整组首写", async ({ page 
 
   await pl1.fill("120");
   await expect(pl1).toHaveAttribute("aria-valuetext", "120 W");
-  await expect(panel.locator(".ccc-range-marker[title='当前 135 W']")).toHaveCount(1);
+  await panel.locator(".ccc-range-marker").hover();
+  await expect(page.getByRole("tooltip")).toHaveText("当前 135 W");
 
   const view = await previewConfiguration(page, "保存设置 · CPU");
   await expect(view.getByText("未上报")).toHaveCount(2);

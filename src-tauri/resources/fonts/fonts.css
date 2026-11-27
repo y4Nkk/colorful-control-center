@@ -1,0 +1,15 @@
+@font-face {
+  font-family: "Google Sans Code";
+  src: url("./google-sans-code.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 300 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "WenQuanYi Zen Hei";
+  src: url("./wqy-zenhei.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}

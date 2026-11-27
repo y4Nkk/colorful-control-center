@@ -238,12 +238,9 @@ mod tests {
             view.resume_battery.decision.unwrap().skipped,
             Some(SkipReason::Resume)
         );
-        let quiet_plus = review(policy, [Some(4); 6]);
-        assert!(quiet_plus.available());
-        assert_eq!(
-            quiet_plus.ac.decision.unwrap().skipped,
-            Some(SkipReason::QuietPlus)
-        );
+        let unknown = review(policy, [Some(4); 6]);
+        assert!(!unknown.available());
+        assert!(unknown.ac.decision.is_none());
     }
 }
 

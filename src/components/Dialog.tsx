@@ -30,9 +30,10 @@ function wrapTabFocus(event: KeyboardEvent<HTMLDialogElement>, heading: HTMLHead
   (checked ?? next ?? heading)?.focus();
 }
 
-export function Dialog({ title, open, busy, onClose, children, actions, width = "standard", dismissOnBackdrop = false }: {
+export function Dialog({ title, open, busy, onClose, children, actions, width = "standard", layout, dismissOnBackdrop = false }: {
   title: string; open: boolean; busy?: boolean; onClose: () => void;
-  children?: ReactNode; actions?: ReactNode; width?: "standard" | "wide" | "narrow"; dismissOnBackdrop?: boolean;
+  children?: ReactNode; actions?: ReactNode; width?: "standard" | "wide" | "narrow";
+  layout?: "confirmation"; dismissOnBackdrop?: boolean;
 }) {
   const panel = useRef<HTMLDialogElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -66,7 +67,7 @@ export function Dialog({ title, open, busy, onClose, children, actions, width = 
     };
   }, [open, active, busy, dismissOnBackdrop]);
 
-  return <dialog ref={panel} className="ccc-dialog" data-width={width}
+  return <dialog ref={panel} className="ccc-dialog" data-width={width} data-layout={layout}
     aria-labelledby={titleId} aria-busy={busy || undefined}
     onKeyDown={event => wrapTabFocus(event, heading.current)}
     onCancel={event => {
@@ -82,7 +83,8 @@ export function Dialog({ title, open, busy, onClose, children, actions, width = 
     {open && active && <div className="ccc-dialog-frame">
       <header className="ccc-dialog-header">
         <h2 id={titleId} ref={heading} tabIndex={-1}>{title}</h2>
-        <Button icon="close" variant="ghost" size="icon" aria-label="关闭弹窗" disabled={busy} onClick={onClose} />
+        {layout !== "confirmation" && <Button icon="close" variant="ghost" size="icon"
+          aria-label="关闭弹窗" disabled={busy} onClick={onClose} />}
       </header>
       {children && <ScrollArea className="ccc-dialog-body" aria-label={title}>{children}</ScrollArea>}
       {actions && <footer className="ccc-dialog-footer">{actions}</footer>}

@@ -1,9 +1,24 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
+import { inspectAppleDesign } from "./check-apple-design.mjs";
 import { inspectUiSource, inspectUiStyles } from "./check-ui-boundaries.mjs";
 
 const source = text => inspectUiSource("src/components/control/Example.tsx", text);
 const styles = (text, scope) => inspectUiStyles("src/styles/example.css", text, scope);
+
+test("界面遵循共享设计尺度，允许操作蓝、图表、管理员标识和事实状态使用专属配色", () => {
+  const reference = readFileSync(new URL("../docs/design-references/apple/DESIGN.md", import.meta.url), "utf8");
+  assert.deepEqual(inspectAppleDesign(reference, [["theme.css", `:root {
+    --ccc-radius-card: 18px; --ccc-text-md: 14px; --ccc-action-fill: #3a83f7;
+    --ccc-display-art-metal: #a5b6cf; --ccc-chart-track: #ebebeb; --ccc-chart-blue: #3392ff;
+    --ccc-administrator-elevated: light-dark(#1e8e3e, #4cd964);
+    --ccc-fact-success: light-dark(#1e8e3e, #30d158); --ccc-fact-warning: light-dark(#b25000, #ff9f0a);
+  }`]]), []);
+  const invalid = inspectAppleDesign(reference, [["theme.css",
+    ":root { --ccc-radius-card: 16px; --ccc-text-md: 15px; --ccc-focus-color: #1e8e3e; } .control { border: 4px solid; box-shadow: 0 2px 3px; }"]]);
+  assert.equal(invalid.length, 5);
+});
 
 test("图标库只通过全局语义组件接入", () => {
   assert.equal(source('import { Fan } from "lucide-react";').violations.length, 1);
@@ -13,7 +28,16 @@ test("图标库只通过全局语义组件接入", () => {
   assert.deepEqual(source('import { Icon } from "../Icon"; <Icon name="fan" />').violations, []);
 });
 
-for (const tag of ["button", "input", "select", "option", "textarea", "details", "summary", "dialog"]) {
+test("应用内提示只通过全局 Tooltip 接入", () => {
+  for (const markup of ['<span title="提示" />', '<svg><title>提示</title></svg>', '<span role="tooltip" />',
+    'import { Button as Action } from "../Button"; <Action title="提示" />', 'import * as Tooltip from "@radix-ui/react-tooltip";']) {
+    assert.equal(source(markup).violations.length, 1, markup);
+  }
+  assert.deepEqual(source('<Dialog title="弹窗标题" />; <DetailsDialog title="详情标题" />;').violations, []);
+  assert.deepEqual(inspectUiSource("src/components/Tooltip.tsx", 'import * as RadixTooltip from "@radix-ui/react-tooltip";').violations, []);
+});
+
+for (const tag of ["button", "input", "select", "option", "textarea", "details", "summary", "dialog", "progress"]) {
   test(`拒绝业务直接拼 ${tag}`, () => assert.equal(source(`<${tag} />`).violations.length, 1));
 }
 test("接受全局原语自己的原生结构", () => {
@@ -31,6 +55,13 @@ test("页签角色与按钮由全局 Tabs 提供", () => {
     assert.equal(source(`<div role="${role}" />`).violations.length, 1);
   }
   assert.deepEqual(inspectUiSource("src/components/Tabs.tsx", '<button role="tab" />').violations, []);
+});
+test("进度条与等待由全局 Progress 和 Loading 提供", () => {
+  for (const markup of ['<div role="progressbar" />', "<progress />", '<div className="ccc-loading" />', '<div className="ccc-progress" />']) {
+    assert.equal(source(markup).violations.length, 1, markup);
+  }
+  assert.deepEqual(inspectUiSource("src/components/Progress.tsx", '<div role="progressbar" className="ccc-progress" />').violations, []);
+  assert.equal(styles(".ccc-progress { width: 100%; }").length, 1);
 });
 test("拒绝全局私有类和子部件在业务中直接拼装", () => {
   for (const name of ["ccc-surface", "ccc-select-option", "ccc-checkbox-box", "ccc-field", "ccc-color-picker-panel", "ccc-color-swatch", "ccc-tabs-tab"]) {

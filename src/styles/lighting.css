@@ -2,21 +2,25 @@
 .ccc-lighting-controls {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: center;
+  align-items: start;
   gap: var(--ccc-space-5);
 }
-.ccc-lighting-controls[data-editable-color="true"] { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
-/* 主控件在中间轨道，上下等高的轨道随标签和附属控件扩展。 */
+.ccc-lighting-controls[data-editable-color="true"] { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; }
 .ccc-lighting-mode, .ccc-lighting-color, .ccc-lighting-brightness {
   display: grid;
-  grid-template-rows: 1fr auto 1fr;
   gap: var(--ccc-space-2);
   min-width: 0;
 }
+/* 同色模式的等高轨道让色环、灯效选择和亮度在同一条中心线上。 */
+.ccc-lighting-controls[data-editable-color="true"] > * { grid-template-rows: 1fr auto 1fr; }
 .ccc-lighting-mode { justify-items: start; }
-.ccc-lighting-mode > span:first-child, .ccc-lighting-brightness-head { align-self: end; font-weight: 600; }
-.ccc-lighting-zone-editor { display: grid; gap: var(--ccc-space-3); }
-.ccc-lighting-zone-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--ccc-space-4); }
+.ccc-lighting-mode > span:first-child, .ccc-lighting-brightness-head { align-self: end; font-weight: 600; line-height: 1.4; }
+.ccc-lighting-zone-editor, .ccc-lighting-zone-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ccc-space-3) var(--ccc-space-5);
+}
 .ccc-lighting-brightness-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--ccc-space-2); }
 .ccc-lighting-brightness-levels {
   display: grid;
@@ -37,30 +41,27 @@
   flex-wrap: wrap;
   gap: var(--ccc-space-1) var(--ccc-space-2);
 }
-.ccc-lighting-color-caption .ccc-mono { font-size: var(--ccc-text-xs); }
+.ccc-lighting-color-caption .ccc-mono { color: var(--ccc-text); font-size: inherit; }
 .ccc-lighting-wheel { grid-row: 2; position: relative; width: var(--ccc-lighting-wheel-size); max-width: 100%; aspect-ratio: 1; }
+.ccc-lighting-zone-controls .ccc-lighting-color { display: flex; align-items: center; gap: var(--ccc-space-3); }
+.ccc-lighting-zone-controls .ccc-lighting-wheel { width: calc(var(--ccc-lighting-wheel-size) - var(--ccc-space-5)); }
+.ccc-lighting-zone-controls .ccc-lighting-color-caption { flex-direction: column; align-items: flex-start; }
 .ccc-lighting-hue {
   position: absolute;
   inset: 0;
   border-radius: var(--ccc-radius-full);
-  background: conic-gradient(var(--ccc-color-hue-stops));
   touch-action: none;
   cursor: crosshair;
 }
 .ccc-lighting-hue[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 .ccc-lighting-hue-marker { position: absolute; inset: 0; transform: rotate(var(--hue-angle)); pointer-events: none; }
-.ccc-lighting-hue-marker::before {
-  content: "";
+.ccc-lighting-hue-marker > svg {
   position: absolute;
   top: 10%;
   left: 50%;
   width: var(--ccc-space-4);
   aspect-ratio: 1;
   transform: translate(-50%, -50%);
-  border: 2px solid var(--ccc-lighting-deck-text);
-  border-radius: var(--ccc-radius-full);
-  background: var(--hue-color);
-  box-shadow: 0 0 0 var(--ccc-border-width) var(--ccc-lighting-deck);
 }
 .ccc-lighting-wheel-center {
   position: absolute;
@@ -71,42 +72,43 @@
   background: var(--ccc-content);
 }
 
-.ccc-lighting-board {
-  display: grid;
-  gap: var(--ccc-space-3);
-  padding: clamp(var(--ccc-space-2), 2.3cqi, var(--ccc-space-5));
+.ccc-lighting-board { display: grid; gap: var(--ccc-space-3); min-inline-size: 0; }
+.ccc-lighting-board-head { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: var(--ccc-space-1) var(--ccc-space-3); }
+.ccc-lighting-board-head > h3 { margin: 0; font-size: var(--ccc-text-md); font-weight: 600; }
+.ccc-lighting-board-head > span { font-size: var(--ccc-text-xs); color: var(--ccc-text-muted); }
+.ccc-lighting-board-deck {
+  padding: clamp(var(--ccc-space-2), 2.1cqi, var(--ccc-space-5));
   border-radius: var(--ccc-radius-card);
   background: var(--ccc-lighting-deck);
-  color: var(--ccc-lighting-deck-text);
 }
-.ccc-lighting-board-head { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: var(--ccc-space-1) var(--ccc-space-3); }
-.ccc-lighting-board-head > span { font-size: var(--ccc-text-xs); color: var(--ccc-lighting-deck-muted); }
-.ccc-lighting-board-keys { position: relative; container-type: inline-size; }
-.ccc-lighting-board-zone { position: absolute; inset: 0; }
-.ccc-lighting-board-zone[data-selected="true"]::after {
-  content: "";
-  position: absolute;
-  left: calc(var(--key-zone-start) + var(--ccc-space-1));
-  bottom: calc(-1 * var(--ccc-space-2));
-  width: calc(100% / 3 - var(--ccc-space-2));
-  height: 2px;
-  border-radius: var(--ccc-radius-full);
-  background: var(--ccc-lighting-deck-selected);
+.ccc-lighting-board-keys {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--ccc-radius-control);
+  background: var(--ccc-lighting-well);
 }
-.ccc-lighting-board-key {
-  position: absolute;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  white-space: nowrap;
-  font-family: var(--ccc-font-mono);
-  font-size: clamp(3px, 1.25cqi, var(--ccc-text-xs));
-  line-height: 1;
-  border: var(--ccc-border-width) solid color-mix(in srgb, var(--key-light) calc(var(--key-intensity) * 85%), var(--ccc-lighting-cap-edge));
-  border-radius: min(0.65cqi, calc(var(--ccc-radius-control) / 2));
-  background: color-mix(in srgb, var(--key-light) calc(var(--key-intensity) * 9%), var(--ccc-lighting-cap));
-  box-shadow: inset 0 -2px 0 var(--ccc-lighting-deck), 0 0 min(0.7cqi, var(--ccc-space-2))
-    color-mix(in srgb, var(--key-light) calc(var(--key-intensity) * 36%), transparent);
+.ccc-lighting-board-zone {
+  --cap-surface: var(--ccc-lighting-cap);
+}
+.ccc-lighting-board-zone[data-selected="true"] {
+  --cap-surface: color-mix(in srgb, var(--ccc-lighting-cap), var(--ccc-lighting-legend) 12%);
+}
+.ccc-lighting-key-label {
+  font-family: var(--ccc-font-sans);
+  font-weight: 600;
+  fill: color-mix(in srgb, var(--ccc-lighting-legend), var(--key-light) calc(var(--key-intensity) * 18%));
+}
+.ccc-lighting-key-face {
+  fill: color-mix(in srgb, var(--cap-surface), var(--key-light) calc(var(--key-intensity) * 20%));
+}
+@media (forced-colors: active) {
+  .ccc-lighting-board-deck { border: var(--ccc-border-width) solid CanvasText; }
+  .ccc-lighting-board-zone[data-selected="true"] .ccc-lighting-key-face {
+    forced-color-adjust: none;
+    fill: Highlight;
+  }
+  .ccc-lighting-board-zone[data-selected="true"] .ccc-lighting-key-label { forced-color-adjust: none; fill: HighlightText; }
 }
 
 .ccc-keyboard-summary { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--ccc-space-2); }
@@ -132,6 +134,9 @@
 }
 @container ccc-control (max-width: 390px) {
   .ccc-lighting-controls, .ccc-lighting-controls[data-editable-color="true"] { grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-4); }
-  .ccc-lighting-mode, .ccc-lighting-color, .ccc-lighting-brightness { grid-template-rows: none; }
+  .ccc-lighting-controls[data-editable-color="true"] > * { grid-template-rows: none; }
   .ccc-lighting-wheel, .ccc-lighting-color-caption { grid-row: auto; }
+  .ccc-lighting-zone-controls { column-gap: var(--ccc-space-3); }
+  .ccc-lighting-zone-controls .ccc-lighting-color { flex-direction: column; gap: var(--ccc-space-2); }
+  .ccc-lighting-zone-controls .ccc-lighting-color-caption { flex-direction: row; align-items: baseline; }
 }

@@ -16,13 +16,7 @@ fn mode_and_offset_share_oem_slots_and_full_speed_is_not_remembered() {
     pages[7][0] = 1;
     pages[7][20] = 0x40;
     let io = Memory(RefCell::new(pages));
-    for (power_mode, mode_at, offset_at) in [
-        (0, 70, 74),
-        (1, 71, 75),
-        (2, 72, 76),
-        (3, 73, 77),
-        (4, 70, 74),
-    ] {
+    for (power_mode, mode_at, offset_at) in [(0, 70, 74), (1, 71, 75), (2, 72, 76), (3, 73, 77)] {
         io.0.borrow_mut()[1][1] = power_mode;
         let fields = mode(&io, 1).unwrap();
         assert_eq!(fields, [Patch::new(5, [1]), Patch::new(mode_at, [0])]);
@@ -43,8 +37,10 @@ fn no_capability_changes_no_slots_and_unknown_mode_never_selects_a_slot() {
     assert!(capture_slots(&io).unwrap().is_empty());
     io.0.borrow_mut()[7][0] = 1;
     io.0.borrow_mut()[7][20] = 0x10;
-    io.0.borrow_mut()[1][1] = 255;
-    assert!(slot(&io).is_err());
+    for unknown in [4, 255] {
+        io.0.borrow_mut()[1][1] = unknown;
+        assert!(slot(&io).is_err());
+    }
 }
 #[test]
 fn fields_and_memory_slot_roll_back_together_on_partial_write_failure() {

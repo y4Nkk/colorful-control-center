@@ -1,6 +1,5 @@
 using System;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 
@@ -10,7 +9,6 @@ namespace ColorfulControlCenter.Installer
     {
         private readonly TranslateTransform bodyOffset = new TranslateTransform();
         private FrameworkElement actions;
-        private Border workspacePanel;
         private int transitionSerial;
 
         private bool MotionAllowed
@@ -18,10 +16,9 @@ namespace ColorfulControlCenter.Installer
             get { return SystemParameters.ClientAreaAnimation && !SystemParameters.HighContrast
                 && Measure("MotionMilliseconds") > 0; }
         }
-
-        private void AnimateStep(int previousStep)
+        private void AnimateStep(InstallerStep previousStep)
         {
-            if (previousStep < 0 || !IsLoaded || !MotionAllowed)
+            if (previousStep == step || !IsLoaded || !MotionAllowed)
             {
                 transitionSerial++;
                 body.BeginAnimation(OpacityProperty, null);
@@ -29,7 +26,6 @@ namespace ColorfulControlCenter.Installer
                 actions.BeginAnimation(OpacityProperty, null);
                 return;
             }
-            if (previousStep == step) return;
             int serial = ++transitionSerial;
             double distance = Measure("MotionDistance") * (step > previousStep ? 1 : -1);
             var fade = Tween(0, 1, "MotionMilliseconds");
@@ -50,27 +46,5 @@ namespace ColorfulControlCenter.Installer
             };
         }
 
-        private void UpdateMarker(Label marker, string color, double opacity)
-        {
-            var previous = marker.Background as SolidColorBrush;
-            var target = new SolidColorBrush(((SolidColorBrush)Brush(color)).Color);
-            double previousOpacity = marker.Opacity;
-            marker.Background = target;
-            marker.Opacity = opacity;
-            if (previous == null || !IsLoaded || !MotionAllowed)
-            {
-                marker.BeginAnimation(OpacityProperty, null);
-                return;
-            }
-            var fade = Tween(previousOpacity, opacity, "FastMotionMilliseconds");
-            var tint = new ColorAnimation(previous.Color, target.Color,
-                TimeSpan.FromMilliseconds(Measure("FastMotionMilliseconds"))) { FillBehavior = FillBehavior.Stop };
-            fade.Completed += delegate {
-                if (ReferenceEquals(marker.Background, target)) marker.BeginAnimation(OpacityProperty, null);
-            };
-            tint.Completed += delegate { target.BeginAnimation(SolidColorBrush.ColorProperty, null); };
-            marker.BeginAnimation(OpacityProperty, fade, HandoffBehavior.SnapshotAndReplace);
-            target.BeginAnimation(SolidColorBrush.ColorProperty, tint, HandoffBehavior.SnapshotAndReplace);
-        }
     }
 }

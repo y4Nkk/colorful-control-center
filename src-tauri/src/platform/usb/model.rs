@@ -70,6 +70,7 @@ pub struct Profile {
     pub recommendation: Option<bool>,
     pub supported: bool,
     pub active_plan: Option<PlanId>,
+    pub active_values: Targets,
     pub plans: Vec<PlanState>,
     pub missing: Vec<PlanId>,
     pub initial: Vec<PlanState>,

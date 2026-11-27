@@ -3,6 +3,7 @@ import type { RgbColor } from "../api/client";
 import { hexOf, hsvOf, parseHex, rgbOfHsv, sameColor, type HsvColor } from "../lib/color";
 import { Input } from "./Input";
 import { Slider } from "./Slider";
+import { SaturationSpectrum } from "./RgbSpectrum";
 
 const CHANNELS = ["r", "g", "b"] as const;
 const unit = (value: number) => Math.min(1, Math.max(0, value));
@@ -30,7 +31,7 @@ export function ColorPickerEditor({ value, onChange }: { value: RgbColor; onChan
   };
   return <div className="ccc-color-picker-editor">
     <div className="ccc-color-picker-plane" aria-hidden="true"
-      style={{ "--picker-hue": hsv.h, "--picker-saturation": `${hsv.s * 100}%`, "--picker-darkness": `${(1 - hsv.v) * 100}%` } as CSSProperties}
+      style={{ "--picker-saturation": `${hsv.s * 100}%`, "--picker-darkness": `${(1 - hsv.v) * 100}%` } as CSSProperties}
       onPointerDown={event => {
         if (event.button !== 0 || !event.isPrimary) return;
         event.preventDefault();
@@ -38,6 +39,7 @@ export function ColorPickerEditor({ value, onChange }: { value: RgbColor; onChan
         pick(event);
       }}
       onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) pick(event); }}>
+      <SaturationSpectrum hue={hsv.h} />
       <span className="ccc-color-picker-marker" />
     </div>
     <Slider appearance="hue" aria-label="色相" min={0} max={359} value={Math.round(hsv.h) % 360}

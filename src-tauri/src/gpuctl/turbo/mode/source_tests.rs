@@ -70,6 +70,9 @@ fn setup(version: u8) -> (MutexGuard<'static, ()>, Hal) {
     let serial = SERIAL.lock().unwrap();
     let mut packet = [0; 256];
     packet[0] = version;
+    if version == 0 {
+        packet[17] = 0x0f;
+    }
     let mut page = [0; 256];
     page[0..2].copy_from_slice(&0x28a0u16.to_le_bytes());
     page[6] = 2;

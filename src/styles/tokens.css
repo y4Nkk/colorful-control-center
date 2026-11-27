@@ -9,38 +9,66 @@
 :root,
 [data-preview-theme="light"] {
   color-scheme: light;
-  /* 核心色板 */
-  --ccc-action: #0a84ff;
+  /* 界面色值来自 docs/design-references/apple/DESIGN.md；操作蓝为产品决定的浅蓝，不取参考色板。 */
+  --ccc-action-fill: #3a83f7;
+  --ccc-action-ink: var(--ccc-action-fill);
+  --ccc-focus-color: #0071e3;
   --ccc-text-on-action: #ffffff;
-  --ccc-focus-ring: rgba(10, 132, 255, 0.42);
-  --ccc-safe: #30d158;
-  --ccc-safe-text: #1e8e3e;
-  --ccc-warning: #b25000;
-  --ccc-danger: #d70015;
-  --ccc-danger-fill: var(--ccc-danger);
+  --ccc-safe: var(--ccc-text);
+  --ccc-safe-text: var(--ccc-text);
+  --ccc-warning: var(--ccc-text);
+  --ccc-danger: var(--ccc-text);
+  --ccc-danger-fill: #1d1d1f;
 
   /* 语义色 —— 浅色主题 */
-  --ccc-canvas: #f6f7fb;
-  --ccc-chrome-bg: hsl(240 12% 93% / 0.6);
-  --ccc-content: #fafafa;
-  --ccc-content-muted: #f3f3f6;
-  --ccc-text: #14161b;
-  --ccc-text-muted: rgba(20, 22, 27, 0.62);
-  --ccc-hairline: rgba(20, 22, 27, 0.12);
-  --ccc-hairline-strong: rgba(20, 22, 27, 0.2);
-  --ccc-nav-selected: color-mix(in srgb, var(--ccc-action) 8%, white);
-  --ccc-rail-selected: rgba(20, 22, 27, 0.08);
-  --ccc-rail-selected-icon: #3279f6;
-  --ccc-danger-tint: rgba(215, 0, 21, 0.08);
-  --ccc-overlay-shadow: 0 12px 40px rgba(7, 23, 37, 0.18);
-  --ccc-overlay-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.55);
-  --ccc-overlay-backdrop: rgba(20, 22, 27, 0.32);
-  --ccc-scrollbar-thumb: rgba(20, 22, 27, 0.26);
-  --ccc-scrollbar-thumb-hover: rgba(20, 22, 27, 0.44);
-  --ccc-scrollbar-thumb-active: rgba(20, 22, 27, 0.62);
+  --ccc-canvas: #f5f5f7;
+  --ccc-chrome-solid: var(--ccc-canvas);
+  --ccc-chrome-bg: rgba(245, 245, 247, 0.8);
+  --ccc-workspace-bg: var(--ccc-canvas);
+  --ccc-content: #ffffff;
+  --ccc-content-muted: #fafafc;
+  --ccc-content-recessed: #f0f0f0;
+  --ccc-content-overlay: var(--ccc-content);
+  --ccc-text: #1d1d1f;
+  --ccc-text-muted: #333333;
+  --ccc-hairline: #e0e0e0;
+  --ccc-control-edge: #7a7a7a;
+  --ccc-field-edge: #d2d2d7;
+  --ccc-control-hover: var(--ccc-content-recessed);
+  --ccc-control-press: var(--ccc-hairline);
+  --ccc-control-selected: var(--ccc-content-recessed);
+  --ccc-rail-icon: var(--ccc-text-muted);
+  --ccc-danger-tint: var(--ccc-content-recessed);
+  --ccc-overlay-backdrop: rgba(0, 0, 0, 0.22);
+  --ccc-scrollbar-thumb: #d2d2d7;
+  --ccc-scrollbar-thumb-hover: var(--ccc-control-edge);
+  --ccc-scrollbar-thumb-active: var(--ccc-text-muted);
 }
 
 :root {
+  --ccc-administrator-elevated: light-dark(#1e8e3e, #4cd964);
+  --ccc-button-neutral-bg: color-mix(in srgb, var(--ccc-content) 92%, var(--ccc-text));
+
+  --ccc-fact-label-text: color-mix(in srgb, var(--ccc-text-muted) 77%, var(--ccc-content));
+  --ccc-fact-value-text: color-mix(in srgb, var(--ccc-text) 74%, var(--ccc-fact-label-text));
+  --ccc-fact-link: light-dark(#0066cc, var(--ccc-action-ink));
+  --ccc-fact-success: light-dark(#1e8e3e, #30d158);
+  --ccc-fact-warning: light-dark(#b25000, #ff9f0a);
+
+  /* BoardUI 图表轨道、参考线和分类色阶。 */
+  --ccc-chart-track: light-dark(#ebebeb, oklch(26.9% 0 0));
+  --ccc-chart-cursor: light-dark(oklch(87% 0 0), oklch(37.1% 0 0));
+  --ccc-chart-label: light-dark(oklch(43.9% 0 0), oklch(70.8% 0 0));
+  --ccc-chart-blue: light-dark(oklch(62.3% 0.214 259.815), #3392ff);
+  --ccc-chart-teal: light-dark(oklch(60% 0.118 184.704), oklch(77.7% 0.152 181.912));
+  --ccc-chart-pink: light-dark(oklch(59.2% 0.249 0.584), oklch(71.8% 0.202 349.761));
+  --ccc-chart-purple: light-dark(oklch(62.7% 0.265 303.9), oklch(71.4% 0.203 305.504));
+  --ccc-chart-warning: light-dark(oklch(55.8% 0.156 66.5), oklch(79.5% 0.184 86.047));
+  --ccc-chart-alert: light-dark(oklch(57.7% 0.245 27.325), oklch(70.4% 0.191 22.216));
+  --ccc-chart-zone: color-mix(in srgb, var(--ccc-chart-alert) 7%, transparent);
+  --ccc-chart-height: 112px;
+  --ccc-chart-height-wide: 144px;
+  --ccc-fan-dial-size: 180px;
 
   /* 自绘硬件材质；品牌图片保留资源自身配色。 */
   --ccc-hardware-art-board: #416d66;
@@ -59,16 +87,9 @@
   --ccc-hardware-art-label: #1b1d21;
   --ccc-hardware-art-label-accent: #b84739;
   --ccc-brand-surface: #ffffff;
-  --ccc-brand-dark-surface: #20242b;
+  --ccc-brand-dark-surface: #1d1d1f;
 
   /* 模式小图标与预设插画配色。 */
-  --ccc-mode-art-ink: color-mix(in srgb, var(--ccc-text) 79%, var(--ccc-content));
-  --ccc-mode-art-eco: #2e816a;
-  --ccc-mode-art-quiet: #5874be;
-  --ccc-mode-art-entertainment: #8261a6;
-  --ccc-mode-art-performance: #b56d3b;
-  --ccc-mode-art-tint: color-mix(in srgb, currentColor 24%, transparent);
-  --ccc-mode-art-mark: color-mix(in srgb, currentColor 64%, var(--ccc-text));
   --ccc-preset-light: light-dark(#bfc9d5, #a4b5cb);
   --ccc-preset-mid: light-dark(#8a99ab, #7286a0);
   --ccc-preset-low: light-dark(#59697d, #435672);
@@ -77,54 +98,59 @@
   --ccc-preset-artwork-compact-height: 148px;
 
   /* 键盘示意的实体材质与选色色谱。实际灯光颜色由灯效草稿提供。 */
-  --ccc-lighting-deck: #171b23;
-  --ccc-lighting-cap: #252b36;
-  --ccc-lighting-cap-edge: #484f5d;
-  --ccc-lighting-deck-text: #e1e6ef;
-  --ccc-lighting-deck-muted: #a8b2c2;
-  --ccc-lighting-deck-selected: #91c5ff;
+  --ccc-lighting-deck: #252527;
+  --ccc-lighting-well: #1d1d1f;
+  --ccc-lighting-cap: #333333;
+  --ccc-lighting-legend: #cccccc;
   --ccc-lighting-wheel-size: 144px;
 
-  --ccc-color-hue-stops: #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00;
+  /* 设备配置的屏幕玻璃、光学背景与硬件通路示意。 */
+  --ccc-display-art-metal-light: light-dark(#eef4fc, #7c8da5);
+  --ccc-display-art-metal: light-dark(#a5b6cf, #364459);
+  --ccc-display-art-depth: #152846;
+  --ccc-display-art-blue: #346fcb;
+  --ccc-display-art-ice: #a1dfff;
+  --ccc-display-art-violet: #7169c9;
+
   --ccc-color-black: #000;
   --ccc-color-white: #fff;
   --ccc-color-picker-width: 304px;
   --ccc-color-point-size: 16px;
 
   /* 字体 */
-  --ccc-font-sans: "Noto Sans SC", "Microsoft YaHei UI", system-ui, sans-serif;
-  --ccc-font-mono: "Cascadia Mono", Consolas, "Sarasa Mono SC", monospace;
+  --ccc-font-default: "WenQuanYi Zen Hei", system-ui, sans-serif;
+  --ccc-font-sans: var(--ccc-font-default);
+  --ccc-font-mono: "Google Sans Code", "WenQuanYi Zen Hei", monospace;
 
   /* 字阶 */
   --ccc-text-xs: 12px;
-  --ccc-text-sm: 13px;
+  --ccc-text-sm: 14px;
   --ccc-text-md: 14px;
-  --ccc-text-lg: 15px;
+  --ccc-text-lg: 17px;
   --ccc-text-xl: 17px;
-  --ccc-text-title: 20px;
+  --ccc-text-title: 21px;
   --ccc-text-reading: 24px;
-  --ccc-text-temperature: 32px;
-  --ccc-text-mode: 36px;
-  --ccc-control-font: 400 var(--ccc-text-lg)/1.55 var(--ccc-font-sans);
-  --ccc-dialog-title-font: 600 18px/1.25 var(--ccc-font-sans);
-  --ccc-fact-label-font: 400 var(--ccc-text-sm)/1.4 var(--ccc-font-sans);
+  --ccc-text-temperature: 34px;
+  --ccc-text-mode: 40px;
+  --ccc-control-font: 400 var(--ccc-text-md)/1.29 var(--ccc-font-sans);
+  --ccc-dialog-title-font: 600 var(--ccc-text-title)/1.19 var(--ccc-font-sans);
+  --ccc-fact-label-font: 400 var(--ccc-text-md)/1.43 var(--ccc-font-sans);
 
   /* 圆角档（唯一尺度；形状语义见 DESIGN.md） */
-  --ccc-radius-control: 12px;
-  --ccc-radius-card: 16px;
-  --ccc-radius-group: 24px;
-  --ccc-radius-panel: 28px;
-  --ccc-radius-full: 999px;
+  --ccc-radius-inline: 5px;
+  --ccc-radius-control: 8px;
+  --ccc-radius-utility: 11px;
+  --ccc-radius-card: 18px;
+  --ccc-radius-full: 9999px;
 
   /* 控件与表面共享边框 */
   --ccc-border-width: 1px;
+  --ccc-focus-width: 2px;
   --ccc-border-clear: var(--ccc-border-width) solid transparent;
   --ccc-range-track: 24px;
   --ccc-range-thumb: 28px;
-  --ccc-range-cavity: rgba(20, 22, 27, 0.09);
-  --ccc-range-edge: inset 0 0 0 var(--ccc-border-width) rgba(20, 22, 27, 0.26);
-  --ccc-range-shadow: 0 1px 3px rgba(20, 22, 27, 0.16);
-  --ccc-range-shadow-hover: 0 2px 7px rgba(20, 22, 27, 0.2);
+  --ccc-range-tick: light-dark(color-mix(in srgb, var(--ccc-control-edge) 55%, transparent), var(--ccc-control-edge));
+  --ccc-range-tick-filled: color-mix(in srgb, var(--ccc-color-white) 40%, transparent);
   --ccc-handle-target: 24px;
   --ccc-handle-dot: 8px;
   --ccc-handle-dot-active: 14px;
@@ -133,6 +159,9 @@
   --ccc-select-gap: 4px;
   --ccc-select-edge: 8px;
   --ccc-select-layer: 1000;
+  --ccc-tooltip-layer: 60;
+  --ccc-tooltip-max-width: 280px;
+  --ccc-tooltip-bg: #1d1d1f;
 
   /* 间距档 */
   --ccc-space-1: 4px;
@@ -143,23 +172,23 @@
   --ccc-space-6: 32px;
 
   /* 控件尺寸 */
-  --ccc-control-height: 40px;
+  --ccc-control-height: 44px;
   --ccc-control-height-compact: 32px;
   --ccc-button-gap: 6px;
   --ccc-button-min-width: 72px;
   --ccc-sidebar-width: 224px;
-  --ccc-sidebar-collapsed-width: 56px;
-  --ccc-rail-tooltip-bg: #14161b;
+  --ccc-sidebar-collapsed-width: 60px;
   --ccc-rail-indicator-width: 3px;
   --ccc-rail-indicator-height: 16px;
   --ccc-rail-glyph-pop: 1.1;
-  --ccc-topbar-height: 64px;
+  --ccc-topbar-height: 52px;
   --ccc-icon-size-small: 16px;
   --ccc-icon-size-xs: 14px;
   --ccc-icon-size: 20px;
   --ccc-icon-size-nav: 24px;
   --ccc-settings-width: 960px;
   --ccc-workspace-width: 1320px;
+  --ccc-dialog-confirmation: 348px;
   --ccc-dialog-narrow: 440px;
   --ccc-dialog-width: 620px;
   --ccc-dialog-wide: 1000px;
@@ -176,21 +205,22 @@
 
   /* 窗口材质 */
   --ccc-chrome-blur: 24px;
-  --ccc-chrome-saturation: 1.2;
 
   /* 动效 */
   --ccc-motion-press: 120ms;
+  --ccc-button-press-scale: 0.95;
   --ccc-motion-fast: 180ms;
   --ccc-motion-range: 220ms;
   --ccc-motion: 240ms;
   --ccc-motion-rail: 250ms;
-  --ccc-motion-rail-indicator: 320ms;
+  --ccc-motion-rail-indicator-ms: 320;
   --ccc-motion-slow: 400ms;
   --ccc-motion-preset: 620ms;
   --ccc-motion-scan-loop: 3.6s;
+  --ccc-motion-progress: 1.6s;
+  --ccc-motion-spin: 800ms;
   --ccc-scrollbar-idle-delay: 900ms;
   --ccc-easing: cubic-bezier(0.4, 0, 0.2, 1);
-  --ccc-easing-press: cubic-bezier(0.34, 1.56, 0.64, 1);
 
 }
 
@@ -233,62 +263,70 @@
 :root[data-theme="dark"],
 [data-preview-theme="dark"] {
   color-scheme: dark;
-  --ccc-safe-text: #4cd964;
-  --ccc-warning: #ff9f0a;
-  --ccc-danger: #ff453a;
-  --ccc-danger-fill: #cd332a;
-
-  --ccc-canvas: #071725;
-  --ccc-chrome-bg: rgba(17, 30, 43, 0.6);
-  --ccc-content: #0d2133;
-  --ccc-content-muted: #10293f;
-  --ccc-text: #edf0f7;
-  --ccc-text-muted: rgba(237, 240, 247, 0.6);
-  --ccc-hairline: rgba(237, 240, 247, 0.14);
-  --ccc-hairline-strong: rgba(237, 240, 247, 0.26);
-  --ccc-nav-selected: color-mix(in srgb, var(--ccc-action) 16%, var(--ccc-content));
-  --ccc-rail-selected: rgba(237, 240, 247, 0.08);
-  --ccc-rail-selected-icon: #8db4ff;
-  --ccc-danger-tint: rgba(255, 69, 58, 0.16);
-  --ccc-overlay-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  --ccc-overlay-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --ccc-scrollbar-thumb: rgba(237, 240, 247, 0.3);
-  --ccc-scrollbar-thumb-hover: rgba(237, 240, 247, 0.48);
-  --ccc-scrollbar-thumb-active: rgba(237, 240, 247, 0.66);
+  --ccc-action-ink: #2997ff;
+  --ccc-canvas: #252527;
+  --ccc-chrome-bg: rgba(39, 39, 41, 0.8);
+  --ccc-content: #2a2a2c;
+  --ccc-content-muted: #272729;
+  --ccc-content-recessed: #1d1d1f;
+  --ccc-content-overlay: var(--ccc-content);
+  --ccc-text: #ffffff;
+  --ccc-text-muted: #cccccc;
+  --ccc-hairline: #333333;
+  --ccc-control-edge: #7a7a7a;
+  --ccc-field-edge: var(--ccc-control-edge);
+  --ccc-control-hover: #333333;
+  --ccc-control-press: #252527;
+  --ccc-control-selected: var(--ccc-content-recessed);
+  --ccc-scrollbar-thumb: #7a7a7a;
+  --ccc-scrollbar-thumb-hover: #cccccc;
+  --ccc-scrollbar-thumb-active: #e0e0e0;
 }
 
 :root,
 [data-preview-theme] {
-  --ccc-workspace-bg: var(--ccc-content);
-  --ccc-row-hover: color-mix(in srgb, var(--ccc-text) 3%, var(--ccc-content));
-  --ccc-rail-hover: color-mix(in srgb, var(--ccc-text) 5%, transparent);
-  --ccc-rail-press: color-mix(in srgb, var(--ccc-text) 10%, transparent);
-  --ccc-action-hover: color-mix(in srgb, var(--ccc-action) 88%, var(--ccc-text));
+  --ccc-row-hover: var(--ccc-control-hover);
+  --ccc-control-selected-press: var(--ccc-control-press);
+  --ccc-rail-hover: var(--ccc-control-hover);
+  --ccc-rail-press: var(--ccc-control-press);
   --ccc-border: var(--ccc-border-width) solid var(--ccc-hairline);
-  --ccc-border-strong: var(--ccc-border-width) solid var(--ccc-hairline-strong);
-  --ccc-focus-shadow: 0 0 0 3px var(--ccc-focus-ring);
+  --ccc-border-control: var(--ccc-border-width) solid var(--ccc-control-edge);
+  --ccc-border-field: var(--ccc-border-width) solid var(--ccc-field-edge);
+  --ccc-focus-outline: var(--ccc-focus-width) solid var(--ccc-focus-color);
 }
+
+@media (prefers-contrast: more) {
+  :root,
+  [data-preview-theme] { --ccc-field-edge: var(--ccc-control-edge); }
+}
+
+:is(.ccc-fan-workspace, .ccc-profile-curves) [data-fan="cpu"] { --ccc-fan-color: var(--ccc-chart-blue); }
+:is(.ccc-fan-workspace, .ccc-profile-curves) [data-fan="gpu1"] { --ccc-fan-color: var(--ccc-chart-teal); }
+:is(.ccc-fan-workspace, .ccc-profile-curves) [data-fan="gpu2"] { --ccc-fan-color: var(--ccc-chart-pink); }
+:is(.ccc-fan-workspace, .ccc-profile-curves) [data-fan="sys"] { --ccc-fan-color: var(--ccc-chart-purple); }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
+    --ccc-button-press-scale: 1;
     --ccc-motion-press: 0ms;
     --ccc-motion-fast: 0ms;
     --ccc-motion-range: 0ms;
     --ccc-motion: 0ms;
     --ccc-motion-rail: 0ms;
-    --ccc-motion-rail-indicator: 0ms;
+    --ccc-motion-rail-indicator-ms: 0;
     --ccc-motion-slow: 0ms;
     --ccc-motion-preset: 0ms;
   }
 }
 
 :root[data-motion="reduce"] {
+  --ccc-button-press-scale: 1;
   --ccc-motion-press: 0ms;
   --ccc-motion-fast: 0ms;
   --ccc-motion-range: 0ms;
   --ccc-motion: 0ms;
   --ccc-motion-rail: 0ms;
-  --ccc-motion-rail-indicator: 0ms;
+  --ccc-motion-rail-indicator-ms: 0;
   --ccc-motion-slow: 0ms;
   --ccc-motion-preset: 0ms;
 }

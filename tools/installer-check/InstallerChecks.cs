@@ -33,6 +33,7 @@ internal static partial class InstallerChecks
         {
             CheckTransitions();
             CheckCompactLocation();
+            CheckReplacementConfirmation();
             if (arguments.Length > 1 && arguments[1] == "render")
             {
                 CheckLayout();
@@ -49,6 +50,7 @@ internal static partial class InstallerChecks
             CheckFailure("tampered");
             CheckControllerShutdown();
             CheckControllerVeto();
+            CheckElevatedExitScope();
             CheckNativeUninstall();
             CheckFixtureBoundary();
             File.WriteAllText(Path.Combine(root, "result.json"),
@@ -67,23 +69,26 @@ internal static partial class InstallerChecks
     {
         var completion = new System.Threading.Tasks.TaskCompletionSource<bool>();
         var window = Window(null, path => { throw new Exception("Preview must not launch"); }, (request, progress, confirm) => {
-            progress.Report(new InstallProgress { Phase = "正在安装程序与运行组件…" });
+            progress.Report(new InstallProgress { Phase = "正在准备安装文件…", Fraction = 0.35 });
             return completion.Task;
         });
-        Capture(window, "01-welcome");
+        var size = new Size(window.ActualWidth, window.ActualHeight);
+        Capture(window, "01-confirm");
+        CheckButtonCorners(Field<Button>(window, "primary"), (CornerRadius)window.FindResource("ActionCorner"));
+        CheckButtonCorners(Field<Button>(window, "secondary"), (CornerRadius)window.FindResource("ActionCorner"));
+        CheckButtonCorners(Field<Button>(window, "changeLocation"), (CornerRadius)window.FindResource("ControlCorner"));
+        SelectLocation(window, Path.Combine(root, "中文安装位置-用于验证长路径省略"));
+        Capture(window, "02-edit-location");
+        CheckFixedSize(window, size);
         Click(window, "primary");
-        Field<TextBox>(window, "directoryBox").Text = Path.Combine(root, "中文安装位置-用于验证长路径换行");
-        Capture(window, "02-location");
-        window.Width = 760;
-        window.Height = 500;
-        Capture(window, "03-small", 1.5);
-        window.Width = 1040;
-        window.Height = 640;
-        Click(window, "primary");
-        Capture(window, "04-installing");
+        Capture(window, "03-installing");
+        CheckFixedSize(window, size);
+        Assert(Field<TextBlock>(window, "phaseStatus").Text.Contains("准备安装文件")
+            && Field<TextBlock>(window, "phaseStatus").Text.Contains("35"), "Real percentage is scoped to file preparation");
         completion.SetResult(true);
         Wait(window);
-        Capture(window, "05-complete");
+        Capture(window, "04-complete");
+        CheckFixedSize(window, size);
         window.Close();
         var failure = Window(null, path => { throw new Exception("Preview must not launch"); }, (request, progress, confirm) => {
             var task = new System.Threading.Tasks.TaskCompletionSource<bool>();
@@ -91,11 +96,31 @@ internal static partial class InstallerChecks
                 Path.Combine(root, "preview-install.log")));
             return task.Task;
         });
+        SelectLocation(failure, Path.Combine(root, "failure-preview"));
         Click(failure, "primary");
-        Field<TextBox>(failure, "directoryBox").Text = Path.Combine(root, "failure-preview");
-        Click(failure, "primary");
-        Capture(failure, "06-failure");
+        Capture(failure, "05-failure");
+        CheckFixedSize(failure, size);
+        Field<StackPanel>(failure, "body").Children.OfType<Expander>().Single().IsExpanded = true;
+        Capture(failure, "06-diagnostics");
+        CheckFixedSize(failure, size);
         failure.Close();
+    }
+
+    private static void CheckFixedSize(InstallerWindow window, Size size)
+    {
+        Assert(window.SizeToContent == SizeToContent.Manual && window.MinWidth == window.MaxWidth
+            && window.MinHeight == window.MaxHeight, "The installer fixes its window bounds at startup");
+        Assert(new Size(window.ActualWidth, window.ActualHeight) == size,
+            "Window size remains unchanged at " + Field<TextBlock>(window, "heading").Text);
+    }
+
+    private static void CheckButtonCorners(Button button, CornerRadius requested)
+    {
+        var surface = (Border)button.Template.FindName("Surface", button);
+        var focusRing = (Border)button.Template.FindName("FocusRing", button);
+        var expected = new CornerRadius(Math.Min(requested.TopLeft, Math.Min(surface.ActualWidth, surface.ActualHeight) / 2));
+        Assert(surface.CornerRadius == expected && focusRing.CornerRadius == expected,
+            "The button surface and focus ring use the shared radius within rendered bounds: " + button.Content);
     }
 
     private static void CheckPaths()
@@ -162,9 +187,10 @@ internal static partial class InstallerChecks
     }
 
     private static InstallerWindow Window(string existing, Action<string> launch,
-        Func<InstallationRequest, IProgress<InstallProgress>, Func<bool>, System.Threading.Tasks.Task<bool>> run = null)
+        Func<InstallationRequest, IProgress<InstallProgress>, Func<bool>, System.Threading.Tasks.Task<bool>> run = null,
+        Size? workArea = null)
     {
-        var window = new InstallerWindow(existing, run ?? new InstallerEngine().Run, launch) {
+        var window = new InstallerWindow(existing, run ?? new InstallerEngine().Run, launch, workArea) {
             ShowActivated = false, ShowInTaskbar = false, Left = -20000, Top = -20000,
             WindowStartupLocation = WindowStartupLocation.Manual,
         };
@@ -180,16 +206,13 @@ internal static partial class InstallerChecks
             launches++;
             if (launches == 1) throw new IOException("模拟启动失败");
         });
-        Capture(window, "01-welcome");
-        Click(window, "primary");
+        Capture(window, "01-confirm");
+        Assert(Stage(window) == InstallerStep.Confirm && (string)Field<Button>(window, "primary").Content == "安装"
+            && Field<TextBox>(window, "directoryBox") == null, "First page presents a direct install action and folder summary");
         string target = Path.Combine(root, "中文 安装位置");
-        Field<TextBox>(window, "directoryBox").Text = target;
-        Click(window, "back");
+        SelectLocation(window, "relative");
         Click(window, "primary");
-        Assert(Field<TextBox>(window, "directoryBox").Text == target, "Back preserves directory draft");
-        Field<TextBox>(window, "directoryBox").Text = "relative";
-        Click(window, "primary");
-        Assert(Field<int>(window, "step") == 1 && Field<TextBlock>(window, "locationError").Visibility == Visibility.Visible,
+        Assert(Stage(window) == InstallerStep.Confirm && Field<TextBlock>(window, "locationError").Visibility == Visibility.Visible,
             "Path failure is displayed on the editable location page");
         Capture(window, "02-invalid-path");
         Field<TextBox>(window, "directoryBox").Text = target;
@@ -198,15 +221,19 @@ internal static partial class InstallerChecks
         Environment.SetEnvironmentVariable("CCC_INSTALLER_CHECK_GATE", "wait");
         Click(window, "primary");
         Assert(Field<bool>(window, "busy") && !Field<Button>(window, "primary").IsEnabled,
-            "Install locks duplicate action; state=" + Field<int>(window, "step") + "; " + Field<Exception>(window, "failure"));
+            "Install locks duplicate action; state=" + Stage(window) + "; " + Field<Exception>(window, "failure"));
+        Assert(!Field<Button>(window, "primary").IsVisible && !Field<Button>(window, "secondary").IsVisible,
+            "Installing exposes only status and progress");
         window.Close();
         Assert(window.IsVisible, "Closing is blocked while engine is active");
         Capture(window, "04-installing");
         File.WriteAllText(Path.Combine(root, "release-engine"), "continue isolated engine");
         Environment.SetEnvironmentVariable("CCC_INSTALLER_CHECK_GATE", null);
         Wait(window);
-        Assert(Field<int>(window, "step") == 3 && window.ExitCode == 0, "Real fixture process reaches completion");
+        Assert(Stage(window) == InstallerStep.Complete && window.ExitCode == 0, "Real fixture process reaches completion");
         Assert(launches == 0, "Completion never launches automatically");
+        Assert(!Field<Button>(window, "primary").IsDefault && !Field<Button>(window, "secondary").IsDefault
+            && (string)Field<Button>(window, "secondary").Content == "关闭", "Completion acts only on the focused button");
         Assert(File.Exists(Path.Combine(target, "colorful-control-center.exe")), "Native NSIS honors /D with spaces and Chinese");
         Capture(window, "05-complete");
         Click(window, "primary");
@@ -214,11 +241,9 @@ internal static partial class InstallerChecks
         Capture(window, "06-launch-failed");
         Click(window, "primary");
         Assert(launches == 2 && !window.IsVisible, "Explicit launch can retry");
-        var update = Window(target, path => { throw new Exception("Must not launch"); });
-        Click(update, "primary");
-        Assert(Field<TextBox>(update, "directoryBox").IsReadOnly, "Existing installation keeps its location");
-        update.Width = 760;
-        update.Height = 500;
+        var update = Window(target, path => { throw new Exception("Must not launch"); }, workArea: new Size(760, 500));
+        Assert(Field<TextBox>(update, "directoryBox") == null && (string)Field<Button>(update, "primary").Content == "更新"
+            && FindButton((DependencyObject)update.Content, "打开目录") != null, "Existing installation keeps its location");
         Capture(update, "07-existing-small", 1.5);
         update.Close();
         File.WriteAllText(Path.Combine(target, "colorful-control-center.exe"), "changed");
@@ -233,14 +258,13 @@ internal static partial class InstallerChecks
         string keep = Path.Combine(old, "keep.txt");
         File.WriteAllText(keep, "unrelated");
         var window = Window(old, path => { throw new Exception("Must not launch"); });
-        Click(window, "primary");
         var box = Field<TextBox>(window, "directoryBox");
-        Assert(!box.IsReadOnly && box.Text.Length == 0 && FindButton((DependencyObject)window.Content, "选择安装位置…") != null,
+        Assert(!box.IsReadOnly && box.Text.Length == 0 && FindButton((DependencyObject)window.Content, "浏览…") != null,
             "An unavailable registered location offers a different directory");
         Capture(window, "location-recovery");
         box.Text = old;
         Click(window, "primary");
-        Assert(Field<int>(window, "step") == 1 && Field<TextBlock>(window, "locationError").Text.Contains("空文件夹"),
+        Assert(Stage(window) == InstallerStep.Confirm && Field<TextBlock>(window, "locationError").Text.Contains("空文件夹"),
             "Recovery will not reuse a directory containing unrelated files");
         string target = Path.Combine(root, "恢复 中文目录");
         box.Text = target;
@@ -261,19 +285,37 @@ internal static partial class InstallerChecks
             Assert(request.Directory == old, "Restored installation receives an in-place update");
             return System.Threading.Tasks.Task.FromResult(false);
         });
-        Click(window, "primary");
-        Assert(Field<TextBox>(window, "directoryBox").IsReadOnly, "Usable registered location is read-only");
+        Assert(Field<TextBox>(window, "directoryBox") == null, "Usable registered location is read-only");
         File.Delete(Path.Combine(old, Product.ApplicationFileStem + ".exe"));
         Click(window, "primary");
-        Assert(calls == 0 && !Field<TextBox>(window, "directoryBox").IsReadOnly,
+        Assert(calls == 0 && Field<TextBox>(window, "directoryBox") != null,
             "A location lost before confirmation becomes editable without submitting");
         SeedInstalledFiles(old);
         Field<TextBox>(window, "directoryBox").Text = Path.Combine(root, "alternative");
         Click(window, "primary");
-        Assert(calls == 0 && Field<TextBox>(window, "directoryBox").Text == old
-            && Field<TextBox>(window, "directoryBox").IsReadOnly, "Recovery rechecks the original before accepting a replacement");
+        Assert(calls == 0 && Field<string>(window, "selectedDirectory") == old
+            && Field<TextBox>(window, "directoryBox") == null, "Recovery rechecks the original before accepting a replacement");
         Click(window, "primary");
         Assert(calls == 1, "Updating the restored location requires explicit confirmation");
+        window.Close();
+    }
+
+    private static void CheckReplacementConfirmation()
+    {
+        string folder = Path.Combine(root, "unregistered-installation");
+        SeedInstalledFiles(folder);
+        int submits = 0;
+        var window = Window(null, path => { throw new Exception("Must not launch"); }, (request, progress, confirm) => {
+            submits++;
+            Assert(request.Directory == folder && request.ReplacesInstallation, "Explicit replacement targets the reviewed folder");
+            return System.Threading.Tasks.Task.FromResult(false);
+        });
+        SelectLocation(window, folder);
+        Click(window, "primary");
+        Assert(submits == 0 && Stage(window) == InstallerStep.Confirm
+            && (string)Field<Button>(window, "primary").Content == "替换并安装", "Existing files require an explicit replacement action");
+        Click(window, "primary");
+        Assert(submits == 1, "Confirming the replacement invokes the installer once");
         window.Close();
     }
 
@@ -288,11 +330,10 @@ internal static partial class InstallerChecks
     {
         Environment.SetEnvironmentVariable("CCC_INSTALLER_CHECK_RESULT", mode);
         var window = Window(null, path => { throw new Exception("Must not launch"); });
-        Click(window, "primary");
-        Field<TextBox>(window, "directoryBox").Text = Path.Combine(root, mode);
+        SelectLocation(window, Path.Combine(root, mode));
         Click(window, "primary");
         Wait(window);
-        Assert(Field<int>(window, "step") == 2 && window.ExitCode != 0, mode + " is never completed");
+        Assert(Stage(window) == InstallerStep.Install && window.ExitCode != 0, mode + " is never completed");
         var error = Field<Exception>(window, "failure") as InstallFailure;
         Assert(error != null && File.Exists(error.LogPath), mode + " preserves structured log location");
         if (mode == "failure") Assert(error.EngineExitCode == 23, "Unclassified engine failure retains its exit code");
@@ -316,12 +357,12 @@ internal static partial class InstallerChecks
         Environment.SetEnvironmentVariable("CCC_INSTALLER_CHECK_RESULT", null);
         if (mode == "missing")
         {
-            Click(window, "back");
+            FindButton((DependencyObject)window.Content, "更改安装位置…").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Assert(Field<TextBox>(window, "directoryBox").Text == Path.Combine(root, mode), "Return keeps partial-install target");
         }
         Click(window, "primary");
         Wait(window);
-        Assert(Field<int>(window, "step") == 3 && window.ExitCode == 0, mode + " retries successfully");
+        Assert(Stage(window) == InstallerStep.Complete && window.ExitCode == 0, mode + " retries successfully");
         Click(window, "secondary");
         Assert(!window.IsVisible, "Finish closes without application launch");
     }
@@ -346,8 +387,7 @@ internal static partial class InstallerChecks
     {
         string target = Path.Combine(root, "原生卸载 路径");
         var window = Window(null, path => { throw new Exception("Must not launch"); });
-        Click(window, "primary");
-        Field<TextBox>(window, "directoryBox").Text = target;
+        SelectLocation(window, target);
         Click(window, "primary");
         Wait(window);
         Assert(window.ExitCode == 0, "Native uninstall fixture was installed and verified");
@@ -385,7 +425,8 @@ internal static partial class InstallerChecks
         if (settle) Settle(window);
         Pump();
         CaptureContent(window, name, scale);
-        Assert(Field<Button>(window, "primary").ActualHeight >= 40, "Action remains visible: " + name);
+        if (!Field<bool>(window, "busy"))
+            Assert(Field<Button>(window, "primary").ActualHeight >= 40, "Action remains visible: " + name);
     }
 
     private static void CaptureContent(Window window, string name, double scale)
@@ -403,6 +444,17 @@ internal static partial class InstallerChecks
     private static T Field<T>(object instance, string name)
     {
         return (T)instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(instance);
+    }
+
+    private static InstallerStep Stage(InstallerWindow window)
+    {
+        return Field<InstallerStep>(window, "step");
+    }
+
+    private static void SelectLocation(InstallerWindow window, string directory)
+    {
+        Click(window, "changeLocation");
+        Field<TextBox>(window, "directoryBox").Text = directory;
     }
 
     private static void Click(InstallerWindow window, string name)

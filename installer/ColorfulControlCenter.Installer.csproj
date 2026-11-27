@@ -25,8 +25,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="InstallationRequest.cs" /><Compile Include="InstalledApplication.cs" /><Compile Include="ControllerShutdown.cs" />
+    <Compile Include="ControllerShutdown.Elevation.cs" />
     <Compile Include="InstallerEngine.cs" /><Compile Include="InstallerFailure.cs" /><Compile Include="InstallerWindow.cs" />
     <Compile Include="InstallerWindowLayout.cs" /><Compile Include="InstallerWindowMotion.cs" /><Compile Include="Program.cs" />
+    <Compile Include="ButtonCorners.cs" />
     <Compile Include="$(InstallerBuildDirectory)\Product.cs" />
     <Compile Include="$(InstallerTestSource)" Condition="'$(InstallerTestSource)' != ''" />
     <Compile Include="..\tools\installer-check\InstallerMotionChecks.cs" Condition="'$(InstallerTestSource)' != ''" />

@@ -16,18 +16,21 @@
   height: var(--ccc-range-track);
   overflow: hidden;
   border-radius: var(--ccc-radius-full);
-  background: var(--ccc-range-cavity);
-  box-shadow: var(--ccc-range-edge);
+  background: var(--ccc-content-recessed);
   transform: translateY(-50%);
 }
-.ccc-range[data-appearance="hue"] .ccc-range-track {
-  background: linear-gradient(to right, var(--ccc-color-hue-stops));
+.ccc-range-track::before {
+  position: absolute;
+  inset: 0;
+  border: var(--ccc-border);
+  border-radius: inherit;
+  content: "";
 }
 .ccc-range-fill {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: var(--ccc-action);
+  background: var(--ccc-action-fill);
   clip-path: inset(0 calc(100% - var(--range-fill)) 0 0);
   transition: clip-path var(--range-motion) var(--ccc-easing);
 }
@@ -46,29 +49,28 @@
 .ccc-range-tick {
   width: var(--ccc-space-1);
   height: var(--ccc-space-1);
-  background: color-mix(in srgb, var(--ccc-text) 20%, transparent);
-  transition: opacity var(--ccc-motion-range) var(--ccc-easing), scale var(--ccc-motion-fast) var(--ccc-easing-press);
+  background: var(--ccc-range-tick);
+  transition: background-color var(--range-motion) var(--ccc-easing);
 }
-.ccc-range-tick[data-filled="true"] { opacity: 0; }
-.ccc-range:hover:not([data-disabled], [data-busy]) .ccc-range-tick[data-filled="false"] { scale: 1.08; }
+.ccc-range-tick[data-filled="true"] { background: var(--ccc-range-tick-filled); }
 .ccc-range-thumb {
   left: var(--range-position);
   width: var(--ccc-range-thumb);
   height: var(--ccc-range-thumb);
-  border: var(--ccc-border-strong);
+  border: var(--ccc-border-field);
   background: var(--ccc-color-white);
-  box-shadow: var(--ccc-range-shadow);
-  transition: left var(--range-motion) var(--ccc-easing), box-shadow var(--ccc-motion-fast) var(--ccc-easing), scale var(--ccc-motion-fast) var(--ccc-easing-press);
+  transition: left var(--range-motion) var(--ccc-easing), border-color var(--ccc-motion-fast) var(--ccc-easing);
 }
 .ccc-range-marker {
+  pointer-events: auto;
   width: var(--ccc-space-3);
   height: var(--ccc-space-3);
   border: 2px solid var(--ccc-text-muted);
 }
-.ccc-range:hover:not([data-disabled], [data-busy]) .ccc-range-thumb { box-shadow: var(--ccc-range-shadow-hover); }
+.ccc-range:hover:not([data-disabled], [data-busy]) .ccc-range-thumb { border-color: var(--ccc-action-ink); }
 .ccc-range[data-dragging] { --range-motion: 0ms; }
-.ccc-range[data-dragging] .ccc-range-thumb { scale: 0.96; }
-.ccc-range:has(.ccc-range-input:focus-visible) .ccc-range-thumb { box-shadow: var(--ccc-range-shadow), var(--ccc-focus-shadow); }
+.ccc-range[data-dragging] .ccc-range-thumb { border-color: var(--ccc-action-fill); }
+.ccc-range:has(.ccc-range-input:focus-visible) .ccc-range-thumb { outline: var(--ccc-focus-outline); outline-offset: 2px; }
 .ccc-range-input {
   position: absolute;
   inset: 0;
@@ -78,4 +80,12 @@
   opacity: 0;
   pointer-events: none;
   cursor: inherit;
+}
+
+@media (forced-colors: active) {
+  .ccc-range-track { forced-color-adjust: none; background: Canvas; }
+  .ccc-range-track::before { border-color: CanvasText; }
+  .ccc-range-fill { background: Highlight; }
+  .ccc-range-tick { background: CanvasText; }
+  .ccc-range-tick[data-filled="true"] { background: HighlightText; }
 }

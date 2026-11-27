@@ -154,7 +154,7 @@ fn confirmed_custom_curve_handoff_applies_quiet_in_both_modes() {
 }
 
 #[test]
-fn entertainment_noiseless_remembers_its_own_preference_across_mode_changes() {
+fn manual_auto_preserves_entertainment_noiseless_preference_for_preset_entry() {
     let f = setup();
     {
         let mut state = f.device.0.lock().unwrap();
@@ -184,12 +184,37 @@ fn entertainment_noiseless_remembers_its_own_preference_across_mode_changes() {
     assert_eq!(quiet.current_mode, FAN_MODE_NOISELESS);
     assert_eq!(f.device.0.lock().unwrap().pages[4][5], FAN_MODE_AUTO);
     assert_eq!(quiet.offset_slot, Some(3));
+
+    fanctl::set_mode(&f.hal, FAN_MODE_AUTO).unwrap();
+    assert_eq!(
+        fanctl::read_profile(&f.hal).unwrap().current_mode,
+        FAN_MODE_AUTO
+    );
+    let quiet = read(&f.hal).unwrap().quiet_fan.unwrap();
+    assert!(quiet.enabled && !quiet.active);
+    {
+        let state = f.device.0.lock().unwrap();
+        assert_eq!(state.fan_command, Some(FAN_MODE_AUTO));
+        assert_eq!(
+            (state.pages[4][5], state.pages[4][9], state.pages[4][73]),
+            (0, 1, 0)
+        );
+    }
+
     super::super::checkpoint(&f.hal, 2)
         .unwrap()
         .execute(&f.hal)
         .unwrap();
     assert!(read(&f.hal).unwrap().quiet_fan.unwrap().enabled);
     assert_eq!(f.device.0.lock().unwrap().pages[4][9], 1);
+    super::super::checkpoint(&f.hal, 3)
+        .unwrap()
+        .execute(&f.hal)
+        .unwrap();
+    assert_eq!(
+        fanctl::read_profile(&f.hal).unwrap().current_mode,
+        FAN_MODE_NOISELESS
+    );
 }
 
 #[test]

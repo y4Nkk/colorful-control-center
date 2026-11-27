@@ -1,8 +1,12 @@
 //! 硬件监控与系统概览命令层。
 
-use tauri::{State, WebviewWindow};
+use tauri::{Manager, State, WebviewWindow};
 
-use crate::hal::overview::{self, Capacity, SystemInventory};
+use crate::hal::{
+    Hal,
+    nvidia::GpuDetails,
+    overview::{self, Capacity, SystemInventory},
+};
 use crate::monitoring::Controller;
 
 #[tauri::command]
@@ -31,4 +35,23 @@ pub(crate) async fn read_system_inventory(
         .await
         .and_then(|result| result)
         .map_err(|error| format!("系统设备资料读取失败：{error}"))
+}
+
+#[tauri::command]
+pub(crate) async fn read_gpu_details(
+    window: WebviewWindow,
+    connection_id: u32,
+) -> Result<Option<GpuDetails>, String> {
+    if window.label() != "main" {
+        return Err("只有主窗口可以读取 GPU 详情".into());
+    }
+    crate::shutdown::blocking(move || {
+        if !window.is_visible()? || window.is_minimized()? {
+            return Ok(None);
+        }
+        window.state::<Hal>().read_gpu_details(connection_id)
+    })
+    .await
+    .and_then(|result| result)
+    .map_err(|error| format!("GPU 详情读取失败：{error:#}"))
 }

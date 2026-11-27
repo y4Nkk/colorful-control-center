@@ -135,7 +135,7 @@ fn unknown_modes_and_unsupported_capabilities_never_write() {
 
 #[test]
 fn unknown_initial_mode_rejects_before_write() {
-    let io = Memory::new(5);
+    let io = Memory::new(4);
     assert!(capture(&io, true).is_err());
     assert!(io.commands.borrow().is_empty());
 }
@@ -160,25 +160,18 @@ fn recovery_failure_is_reported() {
 }
 
 #[test]
-fn quiet_plus_is_distinct_saved_mode_with_quiet_immediate_command() {
-    let io = Memory::new(4);
+fn capability_bits_outside_the_four_presets_cannot_activate_or_hide_a_mode() {
+    let io = Memory::new(0);
     io.pages.borrow_mut()[7][17] = 0x8f;
-    assert_eq!(available(&io).unwrap(), [1, 2, 3, 4]);
-    let target = policy::target(&io, 4, hardware_energy()).unwrap();
-    assert_eq!(target.mode, 4);
-    assert_eq!(target.command(), 0);
-    let before = capture(&io, true).unwrap();
-    io.pages.borrow_mut()[1][1] = 2;
-    recover(&io, before).unwrap();
-    assert_eq!(*io.commands.borrow(), [0]);
-    assert_eq!(byte(&io, 1, 1).unwrap(), 4);
+    assert_eq!(available(&io).unwrap(), [0, 1, 2, 3]);
+    assert!(policy::target(&io, 4, hardware_energy()).is_err());
+    assert!(io.commands.borrow().is_empty());
 }
 #[test]
-fn policy_uses_distinct_quiet_plus_aspm_and_power_plan_slots() {
+fn policy_uses_each_presets_fan_aspm_and_power_plan_slots() {
     let io = Memory::new(3);
     {
         let mut pages = io.pages.borrow_mut();
-        pages[7][17] = 0x8f;
         pages[7][16] = 8;
         pages[7][19] = 2;
         pages[7][20] = 0x40;
@@ -190,9 +183,9 @@ fn policy_uses_distinct_quiet_plus_aspm_and_power_plan_slots() {
     plan[..5].copy_from_slice(&[29, 1, 0, 2, 0]);
     io.tables.borrow_mut().insert(15, aspm);
     io.tables.borrow_mut().insert(29, plan);
-    let target = policy::target(&io, 4, hardware_energy()).unwrap();
+    let target = policy::target(&io, 0, hardware_energy()).unwrap();
     assert_eq!(target.fan, fanctl::ModePolicy::explicit(8, 8, Some(12)));
-    assert_eq!(target.aspm, Some([1, 2]));
+    assert_eq!(target.aspm, Some([2, 0]));
     assert_eq!(target.power_plan, Some(2));
     assert_eq!(target.command(), 0);
     let perf = policy::target(&io, 2, hardware_energy()).unwrap();
@@ -246,8 +239,7 @@ fn fixed_aspm_capability_uses_original_modes_without_requiring_an_extended_table
         let mut pages = io.pages.borrow_mut();
         pages[7][11] = 2;
     }
-    for mode in 0..=4 {
-        io.pages.borrow_mut()[7][17] = if mode == 4 { 0x8f } else { 0x0f };
+    for mode in 0..POWER_MODE_COUNT {
         let target = policy::target(&io, mode, hardware_energy()).unwrap();
         assert_eq!(target.aspm, Some([if mode == 2 { 0 } else { 2 }; 2]));
         assert!(target.power_plan.is_none());
@@ -281,7 +273,7 @@ fn extended_aspm_overrides_fixed_policy_and_invalid_values_never_use_fixed_polic
 }
 
 #[test]
-fn legacy_header_never_infers_new_companion_or_quiet_plus_bits() {
+fn legacy_header_never_infers_new_companion_bits() {
     let io = Memory::new(3);
     {
         let mut pages = io.pages.borrow_mut();

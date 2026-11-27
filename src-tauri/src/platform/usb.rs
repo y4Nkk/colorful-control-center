@@ -27,15 +27,14 @@ pub(crate) trait Io {
     fn power(&self) -> &dyn PowerAccess;
     fn ensure_write(&self) -> Result<()>;
 }
-fn capture(io: &(impl Io + ?Sized), recovering: bool) -> Result<Option<Frame>> {
+fn read_firmware(io: &(impl Io + ?Sized)) -> Result<Option<u8>> {
     let firmware = io.firmware()?;
-    if firmware.is_none() && !recovering {
-        return Ok(None);
-    }
     if firmware.is_some_and(|v| v > 2) {
         bail!("固件USB建议未知");
     }
-    let power = io.power();
+    Ok(firmware)
+}
+fn read_frame(power: &dyn PowerAccess, firmware: Option<u8>) -> Result<Frame> {
     let schemes = power.schemes()?;
     if schemes.iter().collect::<BTreeSet<_>>().len() != schemes.len() {
         bail!("电源计划枚举重复");
@@ -49,17 +48,45 @@ fn capture(io: &(impl Io + ?Sized), recovering: bool) -> Result<Option<Frame>> {
         .filter(|id| schemes.contains(&id.guid()))
         .map(|id| power.usb(id.guid()).map(|values| (id, values)))
         .collect::<Result<_>>()?;
-    Ok(Some(Frame {
+    Ok(Frame {
         firmware,
         active,
         plans,
-    }))
+    })
 }
-fn profile(io: &(impl Io + ?Sized), baseline: &Baseline) -> Result<Option<Profile>> {
-    let Some(frame) = capture(io, !baseline.is_empty())? else {
+fn capture(io: &(impl Io + ?Sized), recovering: bool) -> Result<Option<Frame>> {
+    let firmware = read_firmware(io)?;
+    if firmware.is_none() && !recovering {
         return Ok(None);
+    }
+    read_frame(io.power(), firmware).map(Some)
+}
+fn read_active_values(
+    power: &dyn PowerAccess,
+    frame: &Frame,
+    plan: Option<model::PlanId>,
+) -> Result<model::Targets> {
+    let [ac, dc] = plan
+        .and_then(|id| frame.plans.get(&id).copied())
+        .map_or_else(|| power.usb(frame.active), Ok)?;
+    Ok(model::Targets {
+        ac: model::flag(ac),
+        dc: model::flag(dc),
+    })
+}
+fn profile(io: &(impl Io + ?Sized), baseline: &Baseline) -> Result<Profile> {
+    let (firmware, firmware_error) = match read_firmware(io) {
+        Ok(value) => (value, None),
+        Err(error) => (None, Some(format!("固件 USB 建议读取失败：{error:#}"))),
     };
-    let blocked = io.ensure_write().err().map(|e| format!("{e:#}"));
+    let power = io.power();
+    let frame = read_frame(power, firmware)?;
+    let blocked = firmware_error.or_else(|| {
+        if firmware.is_none() && baseline.is_empty() {
+            return None;
+        }
+        io.ensure_write().err().map(|e| format!("{e:#}"))
+    });
     let mut warnings = Vec::new();
     let plans = frame
         .plans
@@ -75,7 +102,20 @@ fn profile(io: &(impl Io + ?Sized), baseline: &Baseline) -> Result<Option<Profil
             }
         })
         .collect();
-    Ok(Some(Profile {
+    let active_plan = PLANS.into_iter().find(|id| id.guid() == frame.active);
+    let active_values = read_active_values(power, &frame, active_plan).unwrap_or_else(|error| {
+        warnings.push(format!("活动计划 USB 设置读取失败：{error:#}"));
+        model::Targets::default()
+    });
+    let capability_block = firmware.is_none().then(|| {
+        if baseline.is_empty() {
+            "固件未声明 USB 选择性暂停，Windows 设置为只读。".into()
+        } else {
+            "固件未声明 USB 选择性暂停，仅保留初始恢复。".into()
+        }
+    });
+    let no_plans = frame.plans.is_empty().then_some("没有可接管的标准计划。");
+    Ok(Profile {
         revision: frame.revision()?,
         recommendation: frame.firmware.and_then(|v| match v {
             1 => Some(true),
@@ -83,7 +123,8 @@ fn profile(io: &(impl Io + ?Sized), baseline: &Baseline) -> Result<Option<Profil
             _ => None,
         }),
         supported: frame.firmware.is_some(),
-        active_plan: PLANS.into_iter().find(|id| id.guid() == frame.active),
+        active_plan,
+        active_values,
         plans,
         missing: PLANS
             .into_iter()
@@ -108,20 +149,10 @@ fn profile(io: &(impl Io + ?Sized), baseline: &Baseline) -> Result<Option<Profil
             }
         }),
         blocked_reason: blocked
-            .or_else(|| {
-                frame
-                    .firmware
-                    .is_none()
-                    .then(|| "固件能力已丢失，仅保留初始恢复。".into())
-            })
-            .or_else(|| {
-                frame
-                    .plans
-                    .is_empty()
-                    .then(|| "没有可接管的标准计划。".into())
-            }),
+            .or(capability_block)
+            .or_else(|| no_plans.map(String::from)),
         warnings,
-    }))
+    })
 }
 #[cfg(not(test))]
 struct Native<'a>(&'a Hal);
@@ -154,7 +185,7 @@ pub struct Controller {
     io: Option<std::sync::Arc<dyn Io + Send + Sync>>,
 }
 impl Controller {
-    pub fn read(&self, hal: &Hal) -> Result<Option<Profile>> {
+    pub fn read(&self, hal: &Hal) -> Result<Profile> {
         let scope = self.scope()?;
         let _gate = hal.begin_write()?;
         scope.with_io(hal, |io| profile(io, &scope.baseline))

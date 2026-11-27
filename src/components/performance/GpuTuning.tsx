@@ -1,16 +1,17 @@
 import { Icon } from "../Icon";
+import { Loading } from "../Loading";
 import { Surface } from "../Surface";
 import { Button } from "../Button";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { applyGpuClockOffsets, readGpuProfile, restartAsAdministrator, restoreGpuBaseline, type GpuApplyOutcome, type GpuProfile } from "../../api/client";
+import { applyGpuClockOffsets, readGpuProfile, restoreGpuBaseline, type GpuApplyOutcome, type GpuProfile } from "../../api/client";
+import { useAdministrator } from "../AdministratorHost";
 import { ConfigurationAction } from "../ConfigurationAction";
-import { ConfirmButton } from "../ConfirmButton";
-import { DetailsDialog } from "../DetailsDialog";
 import { ScaleSlider } from "../control/ScaleSlider";
 import { DiffPreview } from "../control/DiffPreview";
 import { toast } from "../use-toast";
 import { ParameterDescriptions } from "../control/ParameterHelp";
 import { GPU_TUNING_HELP } from "../control/parameterDescriptions";
+import { TuningPanelHeader } from "../control/TuningPanelHeader";
 
 const TITLE = "GPU 频率";
 
@@ -67,25 +68,19 @@ export function GpuTuning({ active, revision, onSettled }: { active: boolean; re
   };
   const unavailableReason = readError ?? profile?.unavailableReason;
   return <Surface as="section" variant="group" className="ccc-panel" aria-label={TITLE} aria-busy={busy || undefined}>
-    <div className="ccc-tuning-head">
-      <h2 className="ccc-panel-title"><Icon name="gpu" />{TITLE}</h2>
-      <div className="ccc-tuning-meta">
-        {profile?.gpuName && <p className="ccc-control-caption">{profile.gpuName}</p>}
-        <DetailsDialog title="GPU 参数与诊断" label="说明与诊断" icon={null}>
-          {actionError && <p className="ccc-control-error" role="alert"><Icon name="error" size={16} />{actionError}</p>}
-          {(!profile?.available || readError !== null) && <p className="ccc-control-caption">{unavailableReason ?? "等待读取偏移"}</p>}
-          {profile?.writeBlock && <p className="ccc-control-caption">{profile.writeBlock.reason}</p>}
-          <ParameterDescriptions items={GPU_TUNING_HELP} />
-          {profile?.warnings.map(w => <p key={w} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{w}</p>)}
-        </DetailsDialog>
-      </div>
-    </div>
+    <TuningPanelHeader title={TITLE} icon="gpu" hardwareName={profile?.gpuName ?? null} detailsTitle="GPU 参数与诊断">
+      {actionError && <p className="ccc-control-error" role="alert"><Icon name="error" size={16} />{actionError}</p>}
+      {(!profile?.available || readError !== null) && <p className="ccc-control-caption">{unavailableReason ?? "等待读取偏移"}</p>}
+      {profile?.writeBlockedReason && <p className="ccc-control-caption">{profile.writeBlockedReason}</p>}
+      <ParameterDescriptions items={GPU_TUNING_HELP} />
+      {profile?.warnings.map(w => <p key={w} className="ccc-control-caption is-warn"><Icon name="warning" size={16} />{w}</p>)}
+    </TuningPanelHeader>
     {profile?.available ? <GpuControls profile={profile} core={coreDraft ?? profile.coreOffsetMhz ?? 0}
       mem={memDraft ?? profile.memOffsetMhz ?? 0} busy={busy} readValid={readError === null} error={actionError}
       setCore={(value) => setCoreDraft(value === profile.coreOffsetMhz ? null : value)}
       setMem={(value) => setMemDraft(value === profile.memOffsetMhz ? null : value)} run={run} /> : <>
       {actionError && <p className="ccc-control-error" role="alert">{actionError}</p>}
-      <p className="ccc-control-caption">{unavailableReason ? `无法读取当前偏移 · ${unavailableReason}` : "读取中…"}</p>
+      {unavailableReason ? <p className="ccc-control-caption">无法读取当前偏移 · {unavailableReason}</p> : <Loading label="正在读取…" />}
     </>}
     {(!profile?.available || readError !== null) && <div className="ccc-tuning-scope">
       {profile?.available && <p className="ccc-control-error" role="alert">无法读取当前偏移 · {readError}。显示上次读取的设置。</p>}
@@ -100,12 +95,9 @@ function GpuControls({ profile: p, core, mem, busy, readValid, error, setCore, s
   run: (action: () => Promise<GpuApplyOutcome>) => Promise<void>;
 }) {
   const [restartError, setRestartError] = useState<string | null>(null);
-  const restart = async () => {
-    setRestartError(null);
-    try { await restartAsAdministrator(); }
-    catch (error) { setRestartError(String(error)); }
-  };
-  const controlsDisabled = !readValid || p.writeBlock !== null;
+  const administrator = useAdministrator();
+  const writeBlocked = p.writeBlockedReason !== null;
+  const controlsDisabled = !readValid || writeBlocked;
   const blocked = busy || !readValid;
   const coreDirty = p.coreEditable && core !== p.coreOffsetMhz;
   const memDirty = p.memEditable && mem !== p.memOffsetMhz;
@@ -122,20 +114,21 @@ function GpuControls({ profile: p, core, mem, busy, readValid, error, setCore, s
         current={p.memOffsetMhz ?? 0} draft={mem} disabled={controlsDisabled || !p.memEditable} busy={busy}
         unavailable={p.memOffsetMhz == null} onChange={setMem} />
     </div>
-      {p.writeBlock && <div className="ccc-tuning-scope">
-        <p className="ccc-control-caption">{p.writeBlock.reason}</p>
-        {p.writeBlock.canRequestElevation && <ConfirmButton label="以管理员身份重启" confirmLabel="请求 Windows 授权"
-          icon="confirm" size="compact" disabled={blocked} onConfirm={restart}>
-          <p>请使用当前 Windows 帐户授权。应用会先安全结束当前会话，再以管理员身份重新打开。</p>
-        </ConfirmButton>}
+      {writeBlocked && <div className="ccc-tuning-scope">
+        <p className="ccc-control-caption">{p.writeBlockedReason}</p>
+        {administrator.access === "canElevate" && <Button variant="secondary" icon="confirm" size="compact"
+          aria-haspopup="dialog" disabled={blocked || administrator.pending} onClick={() => {
+            setRestartError(null);
+            administrator.request(setRestartError);
+          }}>以管理员身份重启</Button>}
       </div>}
-      {p.writeBlock && restartError && <p className="ccc-control-error" role="alert">{restartError}</p>}
+      {writeBlocked && restartError && <p className="ccc-control-error" role="alert">{restartError}</p>}
       {error && <p className="ccc-control-error" role="alert">{error}</p>}
-      <ConfigurationAction label="GPU 频率" revision={JSON.stringify([p, changes])} disabled={p.writeBlock !== null || changes.length === 0} blocked={blocked}
+      <ConfigurationAction label="GPU 频率" revision={JSON.stringify([p, changes])} disabled={writeBlocked || changes.length === 0} blocked={blocked}
         onConfirm={() => run(() => applyGpuClockOffsets(coreDirty ? core : null, memDirty ? mem : null))}>
         <DiffPreview items={changes} />
       </ConfigurationAction>
-      <ConfigurationAction label="GPU 频率" revision={JSON.stringify(p)} restore disabled={p.writeBlock !== null || !p.baseline} blocked={blocked}
+      <ConfigurationAction label="GPU 频率" revision={JSON.stringify(p)} restore disabled={writeBlocked || !p.baseline} blocked={blocked}
         onConfirm={() => run(restoreGpuBaseline)}>
         <p>恢复 GPU 初始频率偏移{p.baseline ? ` · 核心 ${p.baseline.coreOffsetMhz ?? "—"} MHz，显存 ${p.baseline.memOffsetMhz ?? "—"} MHz` : ""}。</p>
       </ConfigurationAction>

@@ -29,6 +29,7 @@ const REFRESH_TIP: u32 = WM_APP + 2;
 const ICON_ID: u32 = 1;
 const RETRY_ICON: usize = 1;
 const NIN_KEYSELECT: u32 = NIN_SELECT | 1;
+const READING_HARDWARE: &str = "正在读取硬件状态";
 
 pub(super) enum Action {
     Quit,
@@ -85,7 +86,7 @@ struct State {
 impl State {
     fn tooltip(&self) -> String {
         let Some((preset, fan)) = self.control_labels else {
-            return "Colorful Control Center\n正在读取硬件状态…".into();
+            return format!("Colorful Control Center\n{READING_HARDWARE}");
         };
         format!(
             "Colorful Control Center\n预设 {preset} · 风扇 {fan}{}",

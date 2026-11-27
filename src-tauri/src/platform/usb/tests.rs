@@ -65,6 +65,12 @@ impl Memory {
     }
 }
 impl PowerAccess for Memory {
+    fn scheme_name(&self, _: u128) -> Result<String> {
+        anyhow::bail!("USB 测试未注入计划名称")
+    }
+    fn check_active_scheme_write(&self) -> Result<()> {
+        anyhow::bail!("USB 测试未注入计划切换权限")
+    }
     fn lid_action(&self, _: u128) -> Result<[u32; 2]> {
         anyhow::bail!("此隔离提供者未注入合盖计划动作")
     }
@@ -238,7 +244,7 @@ fn missing_plans_are_reported_and_never_created_but_missing_initial_plan_blocks_
     let io = Memory::new();
     io.state.lock().unwrap().plans.remove(&SCHEMES[1]);
     let mut baseline = Baseline::new();
-    let state = profile(&io, &baseline).unwrap().unwrap();
+    let state = profile(&io, &baseline).unwrap();
     assert_eq!(state.missing, vec![PlanId::HighPerformance]);
     io.apply(&mut baseline, Some(true), Some(true)).unwrap();
     assert_eq!(baseline.len(), 2);
@@ -251,29 +257,68 @@ fn missing_plans_are_reported_and_never_created_but_missing_initial_plan_blocks_
     assert!(
         profile(&io, &baseline)
             .unwrap()
-            .unwrap()
             .restore_blocked_reason
             .is_some()
     );
 }
 #[test]
-fn unsupported_capability_performs_no_system_reads_but_existing_recovery_survives_capability_loss()
-{
+fn unsupported_capability_shows_the_active_plan_read_only_and_preserves_recovery() {
     let io = Memory::new();
-    io.state.lock().unwrap().firmware = None;
-    assert!(profile(&io, &Baseline::new()).unwrap().is_none());
+    {
+        let mut state = io.state.lock().unwrap();
+        state.firmware = None;
+        let active = state.active;
+        state.plans.insert(active, [1, 0]);
+    }
+    assert!(capture(&io, false).unwrap().is_none());
     assert_eq!(io.reads.load(std::sync::atomic::Ordering::Relaxed), 0);
+    let read_only = profile(&io, &Baseline::new()).unwrap();
+    assert!(!read_only.supported);
+    assert_eq!(read_only.active_plan, None);
+    assert_eq!(
+        read_only.active_values,
+        Targets {
+            ac: Some(true),
+            dc: Some(false)
+        }
+    );
+    assert!(read_only.blocked_reason.is_some());
+    assert_eq!(io.state.lock().unwrap().writes, 0);
     io.state.lock().unwrap().firmware = Some(1);
     let mut baseline = Baseline::new();
     io.apply(&mut baseline, Some(true), None).unwrap();
     io.state.lock().unwrap().firmware = None;
-    let state = profile(&io, &baseline).unwrap().unwrap();
+    let state = profile(&io, &baseline).unwrap();
     assert!(!state.supported);
     assert!(state.blocked_reason.is_some());
     assert!(state.restore_blocked_reason.is_none());
     let before = io.frame(&baseline);
     let revision = before.revision().unwrap();
     transaction::restore(&io, &baseline, before, &revision).unwrap();
+}
+
+#[test]
+fn invalid_firmware_report_blocks_write_and_restore_but_shows_the_active_plan() {
+    let io = Memory::new();
+    io.state.lock().unwrap().firmware = Some(3);
+    let read_only = profile(&io, &Baseline::new()).unwrap();
+    assert!(!read_only.supported);
+    assert_eq!(
+        read_only.active_values,
+        Targets {
+            ac: Some(false),
+            dc: Some(false)
+        }
+    );
+    assert!(
+        read_only
+            .blocked_reason
+            .unwrap()
+            .contains("固件 USB 建议读取失败")
+    );
+    assert!(read_only.restore_blocked_reason.is_some());
+    assert!(capture(&io, true).is_err());
+    assert_eq!(io.state.lock().unwrap().writes, 0);
 }
 #[test]
 fn stale_review_invalid_targets_unknown_fields_and_write_guards_do_not_mutate() {
@@ -304,7 +349,7 @@ fn raw_unknown_field_is_visible_and_only_known_selected_fields_can_change() {
     let io = Memory::new();
     io.state.lock().unwrap().plans.get_mut(&SCHEMES[0]).unwrap()[0] = 2;
     let mut baseline = Baseline::new();
-    let state = profile(&io, &baseline).unwrap().unwrap();
+    let state = profile(&io, &baseline).unwrap();
     assert!(state.plans[0].ac.is_none());
     assert!(!state.warnings.is_empty());
     assert!(io.apply(&mut baseline, Some(false), None).is_err());

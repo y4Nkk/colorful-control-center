@@ -18,15 +18,18 @@ export interface StoredFanCheckpoint {
   offsetRaw: number | null;
 }
 
-export interface FanPointSet {
-  id: "cpu" | "gpu1" | "gpu2";
-  present: boolean;
-  t1: number;
-  d1Pct: number;
+export interface CurvePoints {
   t2: number;
   d2Pct: number;
   t3: number;
   d3Pct: number;
+}
+
+export interface FanPointSet extends CurvePoints {
+  id: "cpu" | "gpu1" | "gpu2";
+  present: boolean;
+  t1: number;
+  d1Pct: number;
 }
 
 export interface FanProfile {
@@ -37,6 +40,8 @@ export interface FanProfile {
   fanCount: number;
   customSupported: boolean;
   customBlockedReason: string | null;
+  custom: { revision: string; saved: FanCurveChanges | null; pending: boolean } | null;
+  customError: string | null;
   currentMode: number;
   offsetPct: number | null;
   offsetSlot: number | null;
@@ -49,13 +54,9 @@ export interface FanProfile {
   blockedReason: string | null;
 }
 
-export interface CurvePointsDto {
-  t2: number;
-  d2Pct: number;
-  t3: number;
-  d3Pct: number;
-}
-
+export type FanCurveChanges =
+  | { kind: "twoPoint"; curves: Partial<Record<FanPointSet["id"], CurvePoints>> }
+  | { kind: "rpmTable"; curves: Partial<Record<FanId, RpmPoint[]>> };
 
 export const NOISELESS_FAN_LABEL = "寂静模式";
 export const FAN_MODE_NOISELESS = 8;
@@ -75,13 +76,8 @@ export function fanModeLabel(id: number) {
 }
 
 export const readFanProfile = (): Promise<FanProfile> => invoke("read_fan_profile");
-export const applyRpmFanCurves = (curves: Partial<Record<FanId, RpmPoint[]>>): Promise<OpResult> =>
-  invoke("apply_rpm_fan_curves", { curves });
-export const applyFanCurve = (
-  cpu: CurvePointsDto | null,
-  gpu1: CurvePointsDto | null,
-  gpu2: CurvePointsDto | null,
-): Promise<OpResult> => invoke("apply_fan_curve", { cpu, gpu1, gpu2 });
+export const saveCustomFanCurves = (expectedRevision: string, changes: FanCurveChanges): Promise<OpResult> =>
+  invoke("save_custom_fan_curves", { expectedRevision, changes });
 export const setFanMode = (mode: number): Promise<OpResult> => invoke("set_fan_mode", { mode });
 export const setFanOffset = (expected: { mode: number; slot: number | null }, pct: number): Promise<OpResult> =>
   invoke("set_fan_offset", { expected, pct });

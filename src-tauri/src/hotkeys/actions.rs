@@ -393,7 +393,8 @@ fn fan_mode(app: &AppHandle, expected: &str, mode: u8) -> Result<osd::Message> {
     let _gate = hal.begin_write()?;
     let profile = fanctl::read_profile(&hal)?;
     require(fan_identity(&profile)?, expected)?;
-    fanctl::set_mode(&hal, mode)?;
+    app.state::<fanctl::custom::Store>()
+        .select_mode(&hal, mode)?;
     Ok(osd::Message::result(
         "风扇模式",
         match mode {

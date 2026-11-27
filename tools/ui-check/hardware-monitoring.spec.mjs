@@ -25,14 +25,14 @@ test("实时采样只在可见的监控页面订阅，监控页之间共享连�
   await expect.poll(() => demands(page)).toEqual([true, false, true, false]);
   await page.evaluate(visibility, false);
   await expect.poll(() => demands(page)).toEqual([true, false, true, false, true]);
-  await expect(page.getByLabel("CPU 当前温度")).toHaveText("50°C");
+  await expect(page.getByLabel("CPU 当前温度")).toHaveText("50 °C");
 });
 
 test("样本停滞时重新订阅并恢复，恢复后只保留一个监听入口", async ({ page }) => {
   await page.clock.install();
   await page.addInitScript({ content: MOCK_IPC });
   await page.goto("/");
-  await expect(page.getByLabel("CPU 当前温度")).toHaveText("50°C");
+  await expect(page.getByLabel("CPU 当前温度")).toHaveText("50 °C");
   await page.clock.runFor(3100);
   await expect(page.getByText("读数停滞", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "重试", exact: true }).click();
@@ -53,6 +53,6 @@ test("首次采样未响应时显示重试，恢复后清除连接失败", async
   await expect(page.getByText("监控不可用", { exact: true })).toBeVisible();
   await page.evaluate(() => { window.__uiFixture.pauseHardwareSnapshots = false; });
   await page.getByRole("button", { name: "重试", exact: true }).click();
-  await expect(page.getByLabel("CPU 当前温度")).toHaveText("50°C");
+  await expect(page.getByLabel("CPU 当前温度")).toHaveText("50 °C");
   await expect(page.getByText("监控不可用", { exact: true })).toHaveCount(0);
 });

@@ -120,7 +120,7 @@ test("屏幕亮度事实在深浅宽窄布局保持卡片间隔且不溢出", as
       await page.setViewportSize({ width, height: 900 }); await facts(page).scrollIntoViewIfNeeded();
       const box = await facts(page).evaluate(el => {
         const ring = el.querySelector(".ccc-meter-ring"), meter = el.querySelector(".ccc-meter"), values = el.querySelector(".ccc-facts");
-        const probe = document.createElement("span"); probe.style.color = "var(--ccc-action)"; el.append(probe);
+        const probe = document.createElement("span"); probe.style.color = "var(--ccc-chart-blue)"; el.append(probe);
         const correctColor = getComputedStyle(ring).color === getComputedStyle(probe).color; probe.remove();
         const m = meter.getBoundingClientRect(), v = values.getBoundingClientRect();
         return { overflow: el.scrollWidth > el.clientWidth + 1, right: el.getBoundingClientRect().right,

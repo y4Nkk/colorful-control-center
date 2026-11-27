@@ -22,6 +22,7 @@ pub(super) trait FanIo {
     fn dust_running(&self) -> Result<Option<bool>>;
     fn read_offset(&self) -> Result<u8>;
     fn set_mode(&self, mode: u8) -> Result<()>;
+    fn restore_mode(&self, mode: u8) -> Result<()>;
     fn set_offset(&self, raw: u8) -> Result<()>;
 }
 
@@ -40,6 +41,10 @@ impl FanIo for Dchu {
 
     fn set_mode(&self, mode: u8) -> Result<()> {
         self.set_fan_mode(mode)
+    }
+
+    fn restore_mode(&self, mode: u8) -> Result<()> {
+        self.restore_fan_mode(mode)
     }
 
     fn set_offset(&self, raw: u8) -> Result<()> {
@@ -94,9 +99,9 @@ fn decode_sample(packet: &[u8; 256], channels: u8) -> Result<Sample> {
     Ok(Sample {
         cpu_temp: temperature("CPU", readings.cpu.temp_c)?,
         gpu_temp: temperature("GPU 1", readings.gpu1.temp_c)?,
-        cpu_duty: readings.cpu.duty_pct.context("CPU 占空比缺失")?,
+        cpu_duty: readings.cpu.duty_pct.context("CPU 风扇强度缺失")?,
         cpu_rpm: readings.cpu.rpm.context("CPU 转速缺失")?,
-        gpu_duty: readings.gpu1.duty_pct.context("GPU 1 占空比缺失")?,
+        gpu_duty: readings.gpu1.duty_pct.context("GPU 1 风扇强度缺失")?,
         gpu_rpm: readings.gpu1.rpm.context("GPU 1 转速缺失")?,
     })
 }
@@ -216,7 +221,7 @@ fn run_phases<L: ActiveLoad>(
 
 fn restore(io: &impl FanIo, before: Baseline) -> Result<()> {
     let offset = io.set_offset(before.offset);
-    let mode = io.set_mode(before.mode);
+    let mode = io.restore_mode(before.mode);
     let actual_offset = io.read_offset();
     let actual_mode = io
         .read_package(13)

@@ -17,11 +17,11 @@ export interface FanReading {
 }
 
 export interface NvidiaSnapshot {
+  connectionId: number;
   name: string;
   tempC: number | null;
-  fanPct: number | null;
   utilizationPct: number | null;
-  memUsedMb: number | null;
+  memoryUsedPct: number | null;
   memTotalMb: number | null;
   graphicsClockMhz: number | null;
   memoryClockMhz: number | null;
@@ -29,6 +29,29 @@ export interface NvidiaSnapshot {
   powerLimitW: number | null;
   cudaCores: number | null;
   memoryBusWidthBits: number | null;
+}
+
+export type GpuClockLimitReason = "idle" | "applicationClocks" | "powerCap" | "hardwareSlowdown"
+  | "syncBoost" | "softwareTemperature" | "hardwareTemperature" | "powerBrake" | "displayClocks" | "unknown";
+
+export interface GpuDetails {
+  encoderUtilizationPct: number | null;
+  decoderUtilizationPct: number | null;
+  performanceState: number | null;
+  pcieLinkGeneration: number | null;
+  pcieLinkWidth: number | null;
+  pcieMaxLinkGeneration: number | null;
+  pcieMaxLinkWidth: number | null;
+  clockLimitReasons: GpuClockLimitReason[] | null;
+  memoryTemperatureC: number | null;
+  fanTargetRpm: number | null;
+}
+
+export interface CpuUtilityReading {
+  valuePct: number;
+  clockMhz: number | null;
+  maxActiveClockMhz: number | null;
+  sampledAtMs: number;
 }
 
 export interface OemMemoryReading {
@@ -39,8 +62,8 @@ export interface OemMemoryReading {
 export interface HardwareSnapshot {
   dchuAvailable: boolean;
   oemPowerMode: number | null;
-  /** Windows处理器效用（限制到100%）与实时频率（标称基频 × 性能百分比），同一次采样；包含独立采样时间。 */
-  cpuUtility: { valuePct: number; clockMhz: number | null; sampledAtMs: number } | null;
+  /** Windows 处理器效用与同一窗口内的活跃逻辑处理器频率估算。 */
+  cpuUtility: CpuUtilityReading | null;
   fan: Record<FanId, FanReading>;
   nvidia: NvidiaSnapshot | null;
   /** 原厂共享报告，未报告或本次 OEM 传输失败时为 null。 */
@@ -61,12 +84,24 @@ export interface HardwareCapacity {
   availableBytes: number;
 }
 
+export interface MemoryModule {
+  locator: string | null;
+  capacityBytes: number | null;
+  memoryType: string | null;
+  manufacturer: string | null;
+  partNumber: string | null;
+  configuredSpeedMts: number | null;
+  soldered: boolean | null;
+}
+
 export interface SystemInventory {
   cpu: { vendor: "intel" | "amd" | "unknown"; name: string | null;
     physicalCores: number | null; logicalProcessors: number | null;
     baseClockMhz: number | null; maxClockMhz: number | null };
   /** SMBIOS Type 17 已安装内存条共同报告的配置速率（MT/s）。 */
   memorySpeedMts: number | null;
+  memoryModules: MemoryModule[] | null;
+  memorySlots: { used: number; total: number } | null;
   volumes: { mount: string; label: string | null; fileSystem: string | null; capacity: HardwareCapacity | null }[] | null;
   warnings: string[];
 }
@@ -74,3 +109,5 @@ export interface SystemInventory {
 export const readMemoryCapacity = (): Promise<HardwareCapacity> => invoke("read_memory_capacity");
 export const readSystemInventory = (refreshVolumeMetadata: boolean): Promise<SystemInventory> =>
   invoke("read_system_inventory", { refreshVolumeMetadata });
+export const readGpuDetails = (connectionId: number): Promise<GpuDetails | null> =>
+  invoke("read_gpu_details", { connectionId });

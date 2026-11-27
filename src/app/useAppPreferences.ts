@@ -3,7 +3,7 @@ import { getAppPreferences, onPreferencesError, restartApplication, setAppPrefer
   type AppPreferences, type PreferencesSnapshot } from "../api/client";
 import { applyAppearance, observeSystemTheme } from "../lib/appearance";
 
-export function useAppPreferences() {
+export function useAppPreferences(enabled: boolean) {
   const [snapshot, setSnapshot] = useState<PreferencesSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -41,16 +41,17 @@ export function useAppPreferences() {
       if (mounted.current) { setError(toCommandError(cause).message); setBusy(false); }
     }
   };
+  useEffect(observeSystemTheme, []);
   useEffect(() => {
+    if (!enabled) return;
     mounted.current = true;
     void reload();
-    const stop = observeSystemTheme();
     let disposed = false, unlisten: (() => void) | undefined;
     void onPreferencesError(message => { if (!disposed) setError(message); })
       .then(off => { if (disposed) off(); else unlisten = off; })
       .catch(cause => { if (!disposed) setError(`软件偏好事件连接失败：${cause}`); });
-    return () => { mounted.current = false; disposed = true; stop(); unlisten?.(); };
-  }, [reload]);
+    return () => { mounted.current = false; disposed = true; unlisten?.(); };
+  }, [enabled, reload]);
   return { snapshot, error, busy, patch, reload, restart };
 }
 

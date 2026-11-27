@@ -219,7 +219,7 @@ fn changed_file_and_failed_candidate_reject_before_any_target_writes() {
             ModeReview::Confirmed {
                 permission: None,
                 mode: None,
-                file: Some((dir.path(), &expected)),
+                source: Some((&crate::profiles::application::Source::Saved(dir.path().into()), &expected)),
                 display: None,
                 gpu_power: None,
                 graphics_mode: None,

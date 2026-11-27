@@ -1,8 +1,9 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { applyDisplayRefresh, applyDisplayRotation, cancelDisplayTrial, keepDisplayMode, readDisplayModes, type DisplayMode, type DisplayPending } from "../../api/client";
 import { Button } from "../Button";
 import { DetailsDialog } from "../DetailsDialog";
 import { Icon } from "../Icon";
+import { Loading } from "../Loading";
 import { OemConflictAction } from "../OemConflictAction";
 import { Select } from "../Select";
 import { Surface } from "../Surface";
@@ -11,10 +12,9 @@ import { DisplayModeVisual, displayDirection } from "./DisplayModeVisual";
 import { useDeviceSettings } from "./useDeviceSettings";
 
 export function DisplaySettings({ active, revision, rotationRequest }: { active: boolean; revision: number; rotationRequest: number | null }) {
-  const { profile, busy, error, run, reread } = useDeviceSettings(readDisplayModes, active, revision, 500);
+  const { profile, loaded, busy, error, run, reread } = useDeviceSettings(readDisplayModes, active, revision, 500);
   const [device, setDevice] = useState("");
   const handledRotation = useRef<number | null>(null);
-  const rotationHint = useId();
   const pending = profile?.pending;
   const displays = profile?.displays ?? [];
   const selected = displays.find(display => display.current.device === (pending?.targets[0]?.device ?? device))
@@ -43,8 +43,8 @@ export function DisplaySettings({ active, revision, rotationRequest }: { active:
     {blocked && blocked !== error && <p className="ccc-control-caption">{blocked}</p>}
     <OemConflictAction issues={[blocked, error, profile?.error, pending?.error]} disabled={busy} onClosed={reread} />
     {profile && !displays.length && <p className="ccc-control-caption">没有可用的活动显示器。</p>}
-    {selected && <div className="ccc-display-board">
-      <DisplayModeVisual label={selected.primary ? "当前主屏" : "当前显示器"} mode={selected.current} />
+    {selected && <div className="ccc-display-board ccc-display-settings">
+      <DisplayModeVisual label={selected.primary ? "当前主屏" : "当前显示器"} mode={selected.current} showLabel={false} />
       <div className="ccc-display-controls">
         <label className="ccc-config-field">显示器<Select label="显示器" value={selected.current.device} disabled={disabled}
           options={displays.map((display, index) => ({ value: display.current.device,
@@ -57,20 +57,27 @@ export function DisplaySettings({ active, revision, rotationRequest }: { active:
               void run(() => applyDisplayRefresh(selected.current, frequency));
             }
           }} /></label>
-        <div className="ccc-keyboard-setting">
-          <div><strong>翻转主屏</strong>
-            {canRotate && <p id={rotationHint} className="ccc-control-caption">
-              切换至{displayDirection(rotation.target.orientation)}
-              {rotation.before.width !== rotation.target.width && ` · ${rotation.target.width} × ${rotation.target.height}`}
-            </p>}
-          </div>
-          <Switch label="翻转主屏" describedBy={canRotate ? rotationHint : undefined} checked={selected.current.orientation === 2 && !!selected.primary}
-            disabled={disabled || !canRotate || !!blocked} onChange={() => { if (canRotate) void run(() => applyDisplayRotation(rotation.before)); }} />
-        </div>
       </div>
     </div>}
     {pending && <DisplayTrial pending={pending} current={selected?.current} busy={busy} run={run} />}
-    {!selected && <Button icon="refresh" variant="ghost" size="compact" disabled={busy} onClick={reread}>重新读取屏幕</Button>}
+    {selected ? <div className="ccc-display-rotation">
+      <div className="ccc-display-rotation-label"><strong>翻转主屏</strong>
+        <DetailsDialog title="翻转主屏说明">
+          {canRotate ? <p>主屏当前是 {displayDirection(rotation.before.orientation)} · {rotation.before.width} × {rotation.before.height}。
+            {selected.current.orientation === 2 ? "关闭开关后" : "打开开关后"}切换为 {displayDirection(rotation.target.orientation)}
+            {rotation.before.width !== rotation.target.width && ` · ${rotation.target.width} × ${rotation.target.height}`}。</p>
+            : <p>{rotation ? "翻转只适用于主屏。在上方「显示器」里选中主屏后，才能使用这个开关。" : "当前没有可翻转的主显示器。"}</p>}
+          <p>翻转会把主屏画面旋转 180°，让屏幕上下颠倒显示。刷新率和屏幕位置保持不变。</p>
+          <p>切换后屏幕有 15 秒的试用时间：想保留新方向，点「保留屏幕方向」；不操作或点「取消本次试用」，屏幕会自动恢复到切换前的方向。</p>
+          <p className="ccc-control-caption">只对主屏生效，外接显示器不受影响。</p>
+          <p className="ccc-control-caption">翻转只改变当前屏幕状态，不会保存到 Windows 的显示设置，也不会写入配置档案。</p>
+          <p className="ccc-control-caption">在「原厂热键与屏显」里勾选了「原厂屏幕旋转」时，按下快捷键只会跳到这个开关，不会自行翻转。</p>
+        </DetailsDialog>
+      </div>
+      <Switch label="翻转主屏" checked={selected.current.orientation === 2 && !!selected.primary}
+        disabled={disabled || !canRotate || !!blocked} onChange={() => { if (canRotate) void run(() => applyDisplayRotation(rotation.before)); }} />
+    </div> : loaded ? <Button icon="refresh" variant="ghost" size="compact" disabled={busy} onClick={reread}>重新读取屏幕</Button>
+      : <Loading label="正在读取屏幕状态…" />}
   </Surface>;
 }
 

@@ -4,7 +4,7 @@ import selectorParser from "postcss-selector-parser";
 import { UI_CONTRACT, VISUAL_PROPERTIES, classOwner, componentPath, primitiveFiles, stylePath } from "./ui-contract.mjs";
 
 const owners = new Map(UI_CONTRACT.flatMap(owner => [owner.name, ...owner.files ?? []].map(name => [name, owner])));
-const forbiddenNative = new Set(["button", "input", "select", "option", "textarea", "details", "summary", "dialog"]);
+const forbiddenNative = new Set(["button", "input", "select", "option", "textarea", "details", "summary", "dialog", "progress"]);
 const utilityClasses = new Set(["ccc-mono"]);
 const visualJs = name => VISUAL_PROPERTIES.test(name.replace(/[A-Z]/g, value => `-${value.toLowerCase()}`));
 const moduleLayoutFile = "src/styles/module-layout.css";
@@ -76,9 +76,18 @@ export function inspectUiSource(path, content) {
       && /^(lucide-react|@phosphor-icons\/react)(?:\/|$)/.test(node.moduleSpecifier.text) && path !== "src/components/Icon.tsx") {
       fail(node, "图标库只允许由全局 Icon 组件接入");
     }
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)
+      && /^@radix-ui\/react-tooltip(?:\/|$)/.test(node.moduleSpecifier.text) && path !== componentPath("Tooltip")) {
+      fail(node, "Radix Tooltip 只允许由全局 Tooltip 组件接入");
+    }
     if (ts.isImportDeclaration(node) && node.moduleSpecifier.getText(tree).includes("/Combobox")) fail(node, "Combobox 旧入口已移除，统一使用 Select");
     if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
       const tag = node.tagName.getText(tree), name = names.get(tag) ?? tag;
+      const owner = owners.get(name);
+      const intrinsic = ts.isIdentifier(node.tagName) && /^[a-z]/.test(tag);
+      if (tag === "title" || (attribute(node, "title") && (intrinsic || owner && owner.name !== "Dialog"))) {
+        fail(node, "应用内提示必须使用全局 Tooltip，禁止原生 title");
+      }
       const role = literalAttribute(node, "role");
       const roleOwner = UI_CONTRACT.find(owner => owner.roles?.includes(role));
       if (roleOwner && componentPath(roleOwner.name) !== path) fail(node, `role="${role}" 必须由全局 ${roleOwner.name} 组件提供`);
@@ -87,7 +96,6 @@ export function inspectUiSource(path, content) {
       } else if (forbiddenNative.has(tag) && !UI_CONTRACT.some(owner => [owner.name, ...owner.files ?? []].some(file => componentPath(file) === path) && owner.native.includes(tag))) {
         fail(node, `<${tag}> 没有本地所有权，必须接入全局原语`);
       }
-      const owner = owners.get(name);
       const classes = getClasses(attribute(node, "className"), tree);
       const moduleRoot = isModuleRoot(node, owner, classes);
       for (const className of classes) {

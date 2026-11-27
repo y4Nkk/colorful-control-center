@@ -3,6 +3,7 @@ import { applyAirplane, readAirplane } from "../../api/client";
 import { Button } from "../Button";
 import { DetailsDialog } from "../DetailsDialog";
 import { Icon } from "../Icon";
+import { Loading } from "../Loading";
 import { OemConflictAction } from "../OemConflictAction";
 import { Surface } from "../Surface";
 import { Switch } from "../Switch";
@@ -10,7 +11,7 @@ import { AirplaneArtwork } from "./AirplaneArtwork";
 import { useDeviceSettings } from "./useDeviceSettings";
 
 export function AirplaneSettings({ active, revision }: { active: boolean; revision: number }) {
-  const { profile, busy, error, run, reread } = useDeviceSettings(readAirplane, active, revision, 5000);
+  const { profile, loaded, busy, error, run, reread } = useDeviceSettings(readAirplane, active, revision, 5000);
   const current = profile?.current, expectedRevision = profile?.revision;
   const blocked = profile?.blockedReason;
   const hintId = useId();
@@ -32,7 +33,7 @@ export function AirplaneSettings({ active, revision }: { active: boolean; revisi
     </div>
     <div className="ccc-device-status ccc-airplane-switch" aria-label="系统飞行模式">
       <AirplaneArtwork />
-      {!current && <strong>状态未知</strong>}
+      {!loaded ? <Loading label="正在读取飞行模式…" /> : !current && <strong>状态未知</strong>}
       {current?.enabled === false && <p id={hintId} className="ccc-control-caption">开启后可能断开无线连接</p>}
       <Switch label="飞行模式" describedBy={current?.enabled === false ? hintId : undefined}
         checked={!!current?.enabled} disabled={busy || !current || !expectedRevision || !!blocked} onChange={change} />

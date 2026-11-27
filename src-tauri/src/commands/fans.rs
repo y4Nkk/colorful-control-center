@@ -1,20 +1,10 @@
 //! 风扇控制命令层（薄委托 → fanctl；写入语义与钳位见 fanctl 模块头注释）。
 
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, Manager};
 
 use crate::fanctl;
 use crate::hal::Hal;
-
-/// 单风扇可调点（None 字段 = 保持现值）。
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CurvePointsDto {
-    pub t2: f64,
-    pub d2_pct: f64,
-    pub t3: f64,
-    pub d3_pct: f64,
-}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -30,83 +20,93 @@ pub struct OpResult {
     pub message: String,
 }
 
-fn to_result<T>(result: anyhow::Result<T>) -> Result<OpResult, String> {
+async fn with_fan_lock<T: Send + 'static>(
+    app: AppHandle,
+    run: impl FnOnce(&Hal, &fanctl::custom::Store) -> T + Send + 'static,
+) -> Result<T, String> {
+    crate::shutdown::blocking(move || {
+        let hal = app.state::<Hal>();
+        let _write = hal.begin_write().map_err(|e| e.to_string())?;
+        Ok(run(&hal, &app.state::<fanctl::custom::Store>()))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+fn write_result<T>(operation: &str, result: anyhow::Result<T>) -> OpResult {
     match result {
-        Ok(_) => Ok(OpResult {
+        Ok(_) => OpResult {
             ok: true,
             message: "已应用".into(),
-        }),
-        Err(err) => Ok(OpResult {
-            ok: false,
-            message: err.to_string(),
-        }),
+        },
+        Err(error) => {
+            let message = format!("{operation}失败，{error:#}");
+            log::warn!("[fan] {message}");
+            OpResult { ok: false, message }
+        }
     }
 }
 
 #[tauri::command]
-pub(crate) fn read_fan_profile(hal: State<'_, Hal>) -> Result<fanctl::RestoreView, String> {
-    let _write = hal.begin_write().map_err(|e| format!("{e:#}"))?;
-    fanctl::read_restore_view(&hal).map_err(|e| e.to_string())
+pub(crate) async fn read_fan_profile(app: AppHandle) -> Result<fanctl::custom::View, String> {
+    with_fan_lock(app, |hal, store| store.read(hal))
+        .await?
+        .map_err(|e| format!("{e:#}"))
 }
 
 #[tauri::command]
-pub(crate) fn apply_rpm_fan_curves(
-    hal: State<'_, Hal>,
-    curves: fanctl::rpm::Curves,
+pub(crate) async fn save_custom_fan_curves(
+    app: AppHandle,
+    expected_revision: String,
+    changes: fanctl::custom::Curves,
 ) -> Result<OpResult, String> {
-    let _write = hal.begin_write().map_err(|e| format!("{e:#}"))?;
-    to_result(fanctl::rpm::apply(&hal, &curves))
+    with_fan_lock(app, move |hal, store| {
+        write_result(
+            "保存自定义风扇曲线",
+            store.save(hal, &expected_revision, changes),
+        )
+    })
+    .await
 }
 
 #[tauri::command]
-pub(crate) fn apply_fan_curve(
-    hal: State<'_, Hal>,
-    cpu: Option<CurvePointsDto>,
-    gpu1: Option<CurvePointsDto>,
-    gpu2: Option<CurvePointsDto>,
-) -> Result<OpResult, String> {
-    let _write = hal.begin_write().map_err(|e| e.to_string())?;
-    let to_points = |dto: Option<CurvePointsDto>| {
-        dto.map(|p| ccc_core::fan::OemCurvePoints {
-            t2: p.t2,
-            d2: p.d2_pct,
-            t3: p.t3,
-            d3: p.d3_pct,
-        })
-    };
-    to_result(fanctl::apply_curve(
-        &hal,
-        to_points(cpu),
-        to_points(gpu1),
-        to_points(gpu2),
-    ))
+pub(crate) async fn set_fan_mode(app: AppHandle, mode: u8) -> Result<OpResult, String> {
+    with_fan_lock(app, move |hal, store| {
+        write_result("切换风扇模式", store.select_mode(hal, mode))
+    })
+    .await
 }
 
 #[tauri::command]
-pub(crate) fn set_fan_mode(hal: State<'_, Hal>, mode: u8) -> Result<OpResult, String> {
-    let _write = hal.begin_write().map_err(|e| e.to_string())?;
-    to_result(fanctl::set_mode(&hal, mode))
-}
-
-#[tauri::command]
-pub(crate) fn set_fan_offset(
-    hal: State<'_, Hal>,
+pub(crate) async fn set_fan_offset(
+    app: AppHandle,
     expected: fanctl::OffsetSource,
     pct: u32,
 ) -> Result<OpResult, String> {
-    let _write = hal.begin_write().map_err(|e| e.to_string())?;
-    to_result(fanctl::set_manual_offset(&hal, expected, pct))
+    with_fan_lock(app, move |hal, _| {
+        write_result(
+            "调整加速偏移",
+            fanctl::set_manual_offset(hal, expected, pct),
+        )
+    })
+    .await
 }
 
 #[tauri::command]
-pub(crate) fn restore_fan_settings(
-    hal: State<'_, Hal>,
+pub(crate) async fn restore_fan_settings(
+    app: AppHandle,
     request: FanRestoreRequest,
 ) -> Result<OpResult, String> {
-    let _write = hal.begin_write().map_err(|e| e.to_string())?;
-    to_result(fanctl::restore(
-        &hal,
-        request.target,
-        &request.expected_revision,
-    ))
+    with_fan_lock(app, move |hal, _| {
+        let operation = match request.target {
+            fanctl::RestoreTarget::Initial => "恢复初始风扇设置",
+            fanctl::RestoreTarget::FirmwareDefault => "恢复固件默认风扇设置",
+            fanctl::RestoreTarget::InitialAndFirmwareDefault => "恢复初始及固件默认风扇设置",
+        };
+        write_result(
+            operation,
+            fanctl::restore(hal, request.target, &request.expected_revision),
+        )
+    })
+    .await
 }

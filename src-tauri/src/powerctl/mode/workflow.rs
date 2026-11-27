@@ -1,6 +1,9 @@
 use super::*;
 use crate::fanctl;
+use anyhow::Context;
+mod failure;
 mod storage;
+pub(super) use failure::Failure;
 pub(crate) use storage::{RecoveryPreview, StoredModeSnapshot};
 
 #[derive(Clone, PartialEq)]
@@ -132,7 +135,7 @@ fn validate_fan_policy(hal: &Hal, fan: fanctl::ModePolicy, turbo: bool) -> Resul
     fan.validate()?;
     fan.validate_turbo(turbo)?;
     if let Some(mode) = fan.mode() {
-        let profile = fanctl::read_profile(hal)?;
+        let profile = fanctl::read_profile(hal).context("预检明确风扇档位")?;
         if !profile.available_modes.contains(&mode) {
             bail!("原厂预设风扇档位未被当前固件声明支持");
         }
@@ -144,7 +147,7 @@ fn validate_fan_policy(hal: &Hal, fan: fanctl::ModePolicy, turbo: bool) -> Resul
 }
 
 fn fan_checkpoint(hal: &Hal, mode: u8, entry: Entry) -> Result<fanctl::FanCheckpoint> {
-    let mut checkpoint = fanctl::checkpoint(hal, true)?;
+    let mut checkpoint = fanctl::checkpoint(hal, true).context("读取切换前的风扇状态")?;
     if mode == 3
         && matches!(
             entry,
@@ -222,6 +225,9 @@ impl Plan {
         if fan_checkpoint(hal, core.mode, self.entry)? != self.before.fan {
             bail!("模式恢复所需的风扇状态已变化，请重新预览");
         }
+        if !matches!(self.entry, Entry::Options { fan: None, .. }) {
+            validate_fan_policy(hal, self.target.fan, self.target.turbo)?;
+        }
         system::review(hal.system_power.as_ref(), &self.before.system, &self.target)
     }
     #[cfg(test)]
@@ -241,16 +247,17 @@ impl Plan {
             &mut |_| Ok(()),
             &mut || Ok(()),
         )
+        .map_err(|failure| anyhow!("{failure}"))
     }
     // 调用方许可可以读取设备，必须在 DCHU 锁外执行。
-    pub(crate) fn execute_linked(
+    pub(super) fn execute_linked(
         &self,
         hal: &Hal,
         permit: &mut dyn FnMut() -> Result<()>,
         after_mode: &mut dyn FnMut(&mut dyn FnMut() -> Result<()>) -> Result<()>,
         after_energy: &mut dyn FnMut(&mut dyn FnMut() -> Result<()>) -> Result<()>,
         compensate: &mut dyn FnMut() -> Result<()>,
-    ) -> Result<()> {
+    ) -> Result<(), Failure> {
         self.reset_attempted();
         hal.ensure_mode_change_allowed()?;
         fanctl::ensure_manual_allowed(hal)?;
@@ -262,28 +269,20 @@ impl Plan {
         let result = self.execute_stages(hal, permit, after_mode, after_energy, &mut progress);
         self.attempted.set(progress.wrote);
         if let Err(error) = result {
-            let mut errors = Vec::new();
+            let mut failure = Failure::from(error);
             if progress.effects_started {
-                if let Err(error) = compensate() {
-                    errors.push(format!("模式关联设置：{error:#}"));
-                }
+                failure.record_recovery("模式关联设置", compensate());
             }
-            let restored = if progress.wrote {
-                recover_snapshot(hal, &self.before).map_err(|e| format!("{e:#}"))
+            if progress.wrote {
+                failure.record_recovery("预设及关联设置", recover_snapshot(hal, &self.before));
             } else {
-                hal.recovery()
-                    .map(|mut state| state.oem_mode = previous_baseline)
-                    .map_err(|e| format!("{e:#}"))
-            };
-            if let Err(error) = restored {
-                errors.push(error);
+                failure.record_error(
+                    "恢复记录",
+                    hal.recovery()
+                        .map(|mut state| state.oem_mode = previous_baseline),
+                );
             }
-            let recovery = if errors.is_empty() {
-                Ok(())
-            } else {
-                Err(errors.join("；"))
-            };
-            bail!(ccc_core::msr::with_recovery(format!("{error:#}"), recovery));
+            return Err(failure);
         }
         Ok(())
     }
@@ -328,10 +327,10 @@ impl Plan {
             permit,
         )?;
         permit()?;
-        fanctl::apply_mode_policy(hal, self.target.fan)?;
+        fanctl::apply_preset_policy(hal, self.target.fan, &self.before.fan)?;
         if let Some(offset) = self.target.fan.offset_pct() {
             permit()?;
-            fanctl::set_mode_offset(hal, u32::from(offset))?;
+            fanctl::apply_preset_offset(hal, offset).context("应用预设风扇加速偏移")?;
         }
         Ok(())
     }

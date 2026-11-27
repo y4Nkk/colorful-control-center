@@ -65,16 +65,3 @@ pub(crate) async fn apply_battery_charge(
     .map_err(|e| e.to_string())?
     .map_err(|e| format!("{e:#}"))
 }
-#[tauri::command]
-pub(crate) async fn restore_battery_charge(
-    app: tauri::AppHandle,
-    expected_revision: String,
-) -> Result<(), String> {
-    crate::shutdown::blocking(move || {
-        app.state::<battery::Controller>()
-            .restore(&app.state::<Hal>(), &expected_revision)
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| format!("{e:#}"))
-}

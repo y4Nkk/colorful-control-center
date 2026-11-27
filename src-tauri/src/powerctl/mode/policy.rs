@@ -128,10 +128,9 @@ fn system_policy(
     }
     let aspm = if caps[16] & 8 != 0 {
         let data = io.table(15)?;
-        // OnChangePowerMode 的 Quiet Plus 复用娱乐 ASPM，而电源计划复用安静槽。
         let at = match mode {
             2 => 1,
-            3 | 4 => 3,
+            3 => 3,
             0 => 5,
             1 => 7,
             _ => unreachable!(),
@@ -152,7 +151,7 @@ fn system_policy(
         let at = match mode {
             2 => 1,
             3 => 2,
-            0 | 4 => 3,
+            0 => 3,
             1 => 4,
             _ => unreachable!(),
         };

@@ -52,7 +52,7 @@ fn uses_each_fans_maximum_and_rounds_midpoints_like_dotnet() {
     let gpu = encode_curve(&table(6000), 1, 0, &curve()).unwrap();
     assert_eq!(&cpu[62..64], &[0x03, 0xe8]);
     assert_eq!(&gpu[62..64], &[0x04, 0xb0]);
-    let odd = encode_curve(&table(5005), 0, 4, &curve()).unwrap();
+    let odd = encode_curve(&table(5005), 0, 0, &curve()).unwrap();
     assert_eq!(odd[0], 0x80);
     assert_eq!(&odd[70..72], &[0x09, 0xc6]); // 50% of 5005 = 2502.5 -> 2502.
 }
@@ -76,7 +76,7 @@ fn rejects_bad_targets_before_any_encoding() {
     assert!(validate_curve(&points).is_ok());
     assert!(encode_curve(&table(0), 0, 0, &curve()).is_err());
     assert!(encode_curve(&table(5000), 4, 0, &curve()).is_err());
-    assert!(encode_curve(&table(5000), 0, 5, &curve()).is_err());
+    assert!(encode_curve(&table(5000), 0, 4, &curve()).is_err());
 }
 
 #[test]

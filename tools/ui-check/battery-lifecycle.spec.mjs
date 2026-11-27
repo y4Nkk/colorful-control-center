@@ -7,29 +7,34 @@ const battery = page => page.getByRole("region", { name: "电池与充电", exac
 const energy = page => page.getByRole("region", { name: "电池节能计划", exact: true });
 const calibration = page => page.getByRole("region", { name: "电池校准", exact: true });
 
-test("严格模式及快速切页重新读取，旧响应不覆盖新电池事实或锁住子域", async ({ page }) => {
-  await page.addInitScript({ content: MOCK_IPC });
-  await page.addInitScript(() => {
-    window.__uiFixture.calibrationSupported = true;
-    const invoke = window.__TAURI_INTERNALS__.invoke, counts = {}, releases = [];
-    window.__releaseBatteryReads = () => releases.forEach(release => release());
-    window.__batteryReadCounts = counts;
-    window.__TAURI_INTERNALS__.invoke = async (command, args) => {
-      const result = await invoke(command, args);
-      if (!["read_battery_profile", "read_energy_policy", "read_battery_calibration"].includes(command)) return result;
-      counts[command] = (counts[command] ?? 0) + 1;
-      if (counts[command] > 2) return result;
-      if (command === "read_battery_profile") result.power.percent = 31;
-      if (command === "read_energy_policy") result.saved.enabled = true;
-      if (command === "read_battery_calibration") result.canStart = false;
-      return new Promise(resolve => releases.push(() => resolve(result)));
-    };
-  });
+function holdInitialBatteryReads() {
+  window.__uiFixture.calibrationSupported = true;
+  const invoke = window.__TAURI_INTERNALS__.invoke, releases = [];
+  const commands = new Set(["read_battery_profile", "read_energy_policy", "read_battery_calibration"]);
+  const held = new Set();
+  let holding = true;
+  window.__allInitialBatteryReadsHeld = () => held.size === commands.size;
+  window.__allowFreshBatteryReads = () => { holding = false; };
+  window.__releaseBatteryReads = () => releases.forEach(release => release());
+  window.__TAURI_INTERNALS__.invoke = async (command, args) => {
+    const delay = holding && commands.has(command);
+    const result = await invoke(command, args);
+    if (!delay) return result;
+    if (command === "read_battery_profile") result.power.percent = 31;
+    if (command === "read_energy_policy") result.saved.enabled = true;
+    if (command === "read_battery_calibration") result.canStart = false;
+    held.add(command);
+    return new Promise(resolve => releases.push(() => resolve(result)));
+  };
+}
+
+test("快速切页重新读取，旧响应不覆盖新电池事实或锁住子域", async ({ page }) => {
+  await page.addInitScript({ content: `${MOCK_IPC}\n(${holdInitialBatteryReads.toString()})();` });
   await page.goto("/"); await openPowerArea(page, "电源设置");
-  await expect.poll(() => page.evaluate(() => Object.values(window.__batteryReadCounts).every(count => count === 2) && Object.keys(window.__batteryReadCounts).length === 3)).toBe(true);
-  const nav = page.getByRole("navigation", { name: "主导航" });
+  await expect.poll(() => page.evaluate(() => window.__allInitialBatteryReadsHeld())).toBe(true);
   await openPowerArea(page, "配置档案");
-  await nav.getByRole("button", { name: "电源与档案", exact: true }).click();
+  await page.evaluate(() => window.__allowFreshBatteryReads());
+  await openPowerArea(page, "电源设置");
   await expect(battery(page).getByRole("meter", { name: "当前电量", exact: true })).toHaveAttribute("aria-valuenow", "62");
   await expect(energy(page).getByRole("switch", { name: "启用节能计划", exact: true })).not.toBeChecked();
   await expect(calibration(page).getByRole("button", { name: "开始电池校准", exact: true })).toBeEnabled();

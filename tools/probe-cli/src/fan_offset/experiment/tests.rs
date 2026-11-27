@@ -128,6 +128,10 @@ impl FanIo for Fixture {
         Ok(())
     }
 
+    fn restore_mode(&self, mode: u8) -> Result<()> {
+        self.set_mode(mode)
+    }
+
     fn set_offset(&self, raw: u8) -> Result<()> {
         self.writes.borrow_mut().push((14, raw, self.loaded.get()));
         if raw == BEFORE.offset && self.restore_offset_fails {

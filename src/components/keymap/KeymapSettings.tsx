@@ -13,14 +13,14 @@ import { KeymapPreview } from "./KeymapPreview";
 import { KeymapActionEditor } from "./KeymapActionEditor";
 import { KeymapBindingList } from "./KeymapBindingList";
 import { KeymapFiles } from "./KeymapFiles";
-import { useKeymap } from "./useKeymap";
+import type { useKeymap } from "./useKeymap";
 
 const devices = [{ value: "keyboard", label: "键盘" }, { value: "mouse", label: "鼠标" }] as const;
 
-export function KeymapSettings({ active, revision = 0 }: { active: boolean; revision?: number }) {
-  const model = useKeymap(active, revision), { profile, draft, busy, error } = model;
+export function KeymapSettings({ active, model }: { active: boolean; model: ReturnType<typeof useKeymap> }) {
+  const { profile, draft, busy, error } = model;
   const [recording, setRecording] = useState(false);
-  if (model.loaded && !profile && !error) return null;
+  if (!profile && !error) return null;
   const hasDraft = !!profile?.configuration && !!draft;
   const locked = busy || recording || !profile?.configuration || !!profile.blockedReason || profile.recoveryRequired;
   const invalid = draft ? configurationError(draft) : null, changes = profile && draft ? keymapChanges(profile, draft) : [];
@@ -46,7 +46,7 @@ export function KeymapSettings({ active, revision = 0 }: { active: boolean; revi
     </div>
     <div className="ccc-keyboard-summary">
       <div className="ccc-module-summary" role="status">
-        <strong>{error ? "操作失败 · 查看详情" : !profile ? "读取中…" : !hasDraft ? "缺少可恢复的原配置"
+        <strong>{error ? "操作失败 · 查看详情" : !hasDraft ? "缺少可恢复的原配置"
           : `${draft.devices.reduce((count, item) => count + item.bindings.length, 0)} 项映射`}</strong>
         {conflictMessage && <span className="ccc-control-error">{conflictMessage}</span>}
         {!conflictMessage && profile?.blockedReason && draft && <span className="ccc-control-caption">暂不可修改 · 查看详情</span>}

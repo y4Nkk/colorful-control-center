@@ -168,7 +168,8 @@ impl Harness {
             .unwrap()
     }
     pub fn keep(&self, id: u64) -> Result<Application> {
-        self.application.keep(self.runtime(), id)
+        let runtime = self.runtime();
+        self.application.keep(runtime.hal, runtime.gpu, runtime.devices, id)
     }
 }
 impl ApplicationIo for Harness {
@@ -217,6 +218,7 @@ impl ApplicationIo for Harness {
         self.application.read(&self.f.display.controller)
     }
     fn cancel(&self, id: u64) -> Result<Application> {
-        self.application.cancel(self.runtime(), id)
+        let runtime = self.runtime();
+        self.application.cancel(runtime.hal, runtime.devices.display, id)
     }
 }

@@ -1,32 +1,11 @@
-use super::{Access, RESOURCE, bundle, format, parse};
-use crate::hal::power_plan::{NativePower, PowerAccess};
+use super::{Access, RESOURCE, bundle};
+use crate::hal::power_plan::{NativePower, PowerAccess, format_guid, parse_guid, read_value};
 use anyhow::{Context, Result, bail};
-use std::{io::Read, os::windows::ffi::OsStrExt, path::PathBuf};
-use windows_sys::{
-    Win32::{
-        Foundation::{ERROR_FILE_NOT_FOUND, ERROR_NO_MORE_ITEMS, LocalFree},
-        System::Power::*,
-    },
-    core::GUID,
-};
+use std::{io::Read, path::PathBuf};
+use windows_sys::core::GUID;
 
 pub(in crate::battery::calibration) struct Native {
     pub resource_path: PathBuf,
-}
-fn checked(status: u32, action: &str) -> Result<()> {
-    if status != 0 {
-        bail!(
-            "{action}：{} ({status})",
-            std::io::Error::from_raw_os_error(status as i32)
-        );
-    }
-    Ok(())
-}
-fn number(guid: GUID) -> u128 {
-    (u128::from(guid.data1) << 96)
-        | (u128::from(guid.data2) << 80)
-        | (u128::from(guid.data3) << 64)
-        | u128::from(u64::from_be_bytes(guid.data4))
 }
 impl Native {
     fn resource_exists(&self) -> Result<bool> {
@@ -57,98 +36,27 @@ impl Native {
 }
 impl Access for Native {
     fn active(&self) -> Result<String> {
-        Ok(format(NativePower.active()?))
+        Ok(format_guid(NativePower.active()?))
     }
     fn exists(&self, id: &str) -> Result<bool> {
-        let expected = parse(id)?;
-        for index in 0..4096 {
-            let mut guid = GUID::default();
-            let mut size = std::mem::size_of::<GUID>() as u32;
-            let code = unsafe {
-                PowerEnumerate(
-                    std::ptr::null_mut(),
-                    std::ptr::null(),
-                    std::ptr::null(),
-                    ACCESS_SCHEME,
-                    index,
-                    (&mut guid as *mut GUID).cast(),
-                    &mut size,
-                )
-            };
-            if code == ERROR_NO_MORE_ITEMS {
-                return Ok(false);
-            }
-            checked(code, "枚举电源计划")?;
-            if size != std::mem::size_of::<GUID>() as u32 {
-                bail!("电源计划标识长度无效");
-            }
-            if number(guid) == expected {
-                return Ok(true);
-            }
-        }
-        bail!("电源计划数量超过校准检查范围");
+        let id = parse_guid(id)?;
+        Ok(NativePower.schemes()?.contains(&id))
     }
     fn import(&self, id: &str) -> Result<()> {
-        let expected = parse(id)?;
+        let id = parse_guid(id)?;
         self.prepare_resource()?;
-        let path: Vec<_> = self
-            .resource_path
-            .as_os_str()
-            .encode_wide()
-            .chain([0])
-            .collect();
-        let mut desired = GUID::from_u128(expected);
-        let original = &mut desired as *mut GUID;
-        let mut destination = original;
-        let code = unsafe {
-            PowerImportPowerScheme(std::ptr::null_mut(), path.as_ptr(), &mut destination)
-        };
-        let imported = if destination.is_null() {
-            None
-        } else {
-            Some(number(unsafe { *destination }))
-        };
-        if !destination.is_null() && destination != original {
-            unsafe {
-                LocalFree(destination.cast());
-            }
-        }
-        checked(code, "导入本次校准电源计划")?;
-        if imported != Some(expected) {
-            bail!("导入返回的电源计划标识不符合本次任务");
-        }
-        Ok(())
+        NativePower.import_scheme(&self.resource_path, id)
     }
     fn verify(&self, id: &str) -> Result<()> {
-        let scheme = GUID::from_u128(parse(id)?);
+        let scheme = parse_guid(id)?;
         for entry in bundle()?.entries {
-            let group = GUID::from_u128(parse(&entry.subgroup)?);
-            let setting = GUID::from_u128(parse(&entry.setting)?);
+            let group = GUID::from_u128(parse_guid(&entry.subgroup)?);
+            let setting = GUID::from_u128(parse_guid(&entry.setting)?);
             for (ac, wanted) in [(true, entry.ac), (false, entry.dc)] {
                 let Some(wanted) = wanted else {
                     continue;
                 };
-                let mut actual = 0;
-                let code = unsafe {
-                    if ac {
-                        PowerReadACValueIndex(
-                            std::ptr::null_mut(),
-                            &scheme,
-                            &group,
-                            &setting,
-                            &mut actual,
-                        )
-                    } else {
-                        PowerReadDCValueIndex(
-                            std::ptr::null_mut(),
-                            &scheme,
-                            &group,
-                            &setting,
-                            &mut actual,
-                        )
-                    }
-                };
-                checked(code, "回读校准电源策略")?;
+                let actual = read_value(scheme, &group, &setting, ac, "回读校准电源策略")?;
                 if actual != wanted {
                     bail!(
                         "校准电源策略 {} 的{}值不一致",
@@ -161,18 +69,10 @@ impl Access for Native {
         Ok(())
     }
     fn activate(&self, id: &str) -> Result<()> {
-        NativePower.activate(parse(id)?)
+        NativePower.activate(parse_guid(id)?)
     }
     fn delete(&self, id: &str) -> Result<()> {
-        let number = parse(id)?;
-        if NativePower.active()? == number {
-            bail!("校准电源计划仍在使用，未删除");
-        }
-        let code = unsafe { PowerDeleteScheme(std::ptr::null_mut(), &GUID::from_u128(number)) };
-        if code == ERROR_FILE_NOT_FOUND {
-            return Ok(());
-        }
-        checked(code, "删除本次校准电源计划")
+        NativePower.delete_inactive_scheme(parse_guid(id)?)
     }
     fn cleanup(&self) -> Result<()> {
         if self.resource_exists()? {

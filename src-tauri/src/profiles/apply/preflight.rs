@@ -7,12 +7,8 @@ pub(super) fn points(settings: &ProfileSettings) -> [Option<OemCurvePoints>; 3] 
             .fan_curves
             .as_ref()
             .and_then(|curves| curves.get(id))
-            .map(|p| OemCurvePoints {
-                t2: p.t2,
-                d2: p.d2_pct,
-                t3: p.t3,
-                d3: p.d3_pct,
-            })
+            .copied()
+            .map(Into::into)
     })
 }
 

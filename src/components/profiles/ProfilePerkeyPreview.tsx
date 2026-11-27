@@ -4,6 +4,7 @@ import { PERKEY_NAMES, SNAKE_DIRECTIONS, WAVE_DIRECTIONS } from "../../lib/perke
 import { hexOf } from "../../lib/color";
 import { Surface } from "../Surface";
 import { FactList } from "../FactList";
+import { Tooltip } from "../Tooltip";
 
 function PerkeyPicture({ target }: { target: PerkeyTarget }) {
   const layout = perkeyLayout(target.device), pattern = target.values.pattern;
@@ -13,14 +14,15 @@ function PerkeyPicture({ target }: { target: PerkeyTarget }) {
     legend: "", x: id % 20 * 32, y: Math.floor(id / 20) * 28, width: 27, height: 22, leds: [id] }));
   return <div className="ccc-profile-values">
     <svg viewBox={`0 0 ${layout?.width ?? 640} ${layout?.height ?? 168}`} role="img" aria-label={layout ? "档案逐键键帽配置" : "档案逐键灯位矩阵"}>
-      <g>{keys.map(key => <g key={key.id}>
-        <title>{key.label} · {key.leds.length} 个灯位</title>
-        <rect x={key.x} y={key.y} width={key.width} height={key.height} rx="4" fill="var(--ccc-content-muted)" stroke="var(--ccc-hairline)" strokeWidth="2" />
-        {key.leds.map((id, index) => <rect key={id} x={key.x + index * key.width / key.leds.length} y={key.y + key.height * 0.7}
-          width={key.width / key.leds.length} height={key.height * 0.3} rx="2" opacity={target.values.enabled ? 1 : 0.3} fill={color(id) ? hexOf(color(id)!) : "var(--ccc-text-muted)"} />)}
-        {key.legend && <text x={key.x + key.width / 2} y={key.y + key.height * 0.45} textAnchor="middle" dominantBaseline="middle"
-          fontSize={Math.min(20, key.width * 0.35)} fill="var(--ccc-text)">{key.legend}</text>}
-      </g>)}</g>
+      <g>{keys.map(key => <Tooltip key={key.id} content={`${key.label} · ${key.leds.length} 个灯位`}>
+        <g>
+          <rect x={key.x} y={key.y} width={key.width} height={key.height} rx="4" fill="var(--ccc-content-muted)" stroke="var(--ccc-hairline)" strokeWidth="2" />
+          {key.leds.map((id, index) => <rect key={id} x={key.x + index * key.width / key.leds.length} y={key.y + key.height * 0.7}
+            width={key.width / key.leds.length} height={key.height * 0.3} rx="2" opacity={target.values.enabled ? 1 : 0.3} fill={color(id) ? hexOf(color(id)!) : "var(--ccc-text-muted)"} />)}
+          {key.legend && <text x={key.x + key.width / 2} y={key.y + key.height * 0.45} textAnchor="middle" dominantBaseline="middle"
+            fontSize={Math.min(20, key.width * 0.35)} fill="var(--ccc-text)">{key.legend}</text>}
+        </g>
+      </Tooltip>)}</g>
     </svg>
     <span className="ccc-control-caption">{layout ? "键帽与灯位配置示意" : "布局未识别，显示 6 × 20 灯位矩阵"}{pattern.kind !== "static" && " · 动态效果仅示意配置色彩"}</span>
   </div>;

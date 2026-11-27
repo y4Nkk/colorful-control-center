@@ -2,6 +2,7 @@ import { previewOsd, stopHotkeys, type HotkeyProfile } from "../../api/client";
 import type { useHotkeySettings } from "./useHotkeySettings";
 import { Surface } from "../Surface";
 import { Button } from "../Button";
+import { FactList, type Fact } from "../FactList";
 import { ScreenBrightnessFacts } from "./ScreenBrightnessFacts";
 import { PanelHotkeyFacts } from "./PanelHotkeyFacts";
 import { summary } from "./hotkey-actions";
@@ -9,6 +10,10 @@ import { summary } from "./hotkey-actions";
 type Props = { profile: HotkeyProfile | null; busy: boolean; run: ReturnType<typeof useHotkeySettings>["run"]; screenSelected: boolean; panelSelected: boolean };
 export function HotkeyCurrent({ profile, busy, run, screenSelected, panelSelected }: Props) {
   const screen = profile?.facts.screenBrightness, panel = profile?.facts.panelHotkey;
+  const facts: Fact[] = [];
+  if (profile?.current) facts.push({ label: "当前接管的动作", icon: "keyboard", value: summary(profile.current) });
+  if (profile?.initial) facts.push({ label: "接管前的设置", icon: "save",
+    value: `${profile.initial.enabled ? "启用" : "关闭"} · ${summary(profile.initial)}` });
   return <Surface variant="inset" className="ccc-hotkey-section">
     <strong>{!profile ? "监听状态未知" : profile.status.running ? "正在监听原厂热键" : "热键监听已停止"}</strong>
     {profile && <>
@@ -26,9 +31,8 @@ export function HotkeyCurrent({ profile, busy, run, screenSelected, panelSelecte
     {screen && (screenSelected || screen.initial.length > 0) && <ScreenBrightnessFacts profile={screen} />}
     {panel && (panelSelected || panel.session !== null) && <PanelHotkeyFacts profile={panel} busy={busy} run={run} />}
     <section className="ccc-detail-stack" aria-label="监听与恢复说明">
-      {profile?.current && <p>当前接管的动作：{summary(profile.current)}</p>}
+      {facts.length > 0 && <FactList label="热键接管摘要" compact facts={facts} />}
       <p>临时停止会保留已保存的热键设置。下次打开应用时，如果接管条件仍然有效，就会继续监听。</p>
-      {profile?.initial && <p>接管前的设置：{profile.initial.enabled ? "启用" : "关闭"} · {summary(profile.initial)}</p>}
     </section>
   </Surface>;
 }

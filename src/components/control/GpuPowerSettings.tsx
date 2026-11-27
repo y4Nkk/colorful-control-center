@@ -3,6 +3,7 @@ import { applyGpuPower, readGpuPower } from "../../api/client";
 import { Button } from "../Button";
 import { DetailsDialog } from "../DetailsDialog";
 import { Icon } from "../Icon";
+import { Loading } from "../Loading";
 import { SegmentedControl } from "../SegmentedControl";
 import { Select } from "../Select";
 import { Surface } from "../Surface";
@@ -10,7 +11,7 @@ import { GpuPowerVisual } from "./GpuPowerVisual";
 import { useDeviceSettings } from "./useDeviceSettings";
 
 export function GpuPowerSettings({ active, revision, onSettled }: { active: boolean; revision: number; onSettled: () => void }) {
-  const { profile, busy, error, run, reread } = useDeviceSettings(readGpuPower, active, revision);
+  const { profile, loaded, busy, error, run, reread } = useDeviceSettings(readGpuPower, active, revision);
   const [id, setId] = useState("");
   const devices = profile?.devices ?? [];
   const selected = devices.find(device => device.id === id) ?? devices[0];
@@ -39,6 +40,7 @@ export function GpuPowerSettings({ active, revision, onSettled }: { active: bool
         onChange={next => {
           if (next !== value && (next === "true" || selected.canDisable)) void commit(() => applyGpuPower(selected, next === "true"));
         }} />
-    </> : <GpuPowerVisual label={profile ? "未发现可用独显" : "当前状态"} enabled={null} automatic={null} />}
+    </> : loaded ? <GpuPowerVisual label={profile ? "未发现可用独显" : "当前状态"} enabled={null} automatic={null} />
+      : <Loading label="正在读取独显电源…" />}
   </Surface>;
 }

@@ -53,9 +53,9 @@ test("概览与性能散热独立，电源下的档案预览在切页后保留",
     await expect(nav.getByRole("button", { name, exact: true })).toHaveCount(0);
   await navigate(page, "概览");
   const overview = page.getByRole("region", { name: "概览", exact: true });
-  for (const [part, clock] of [["CPU", "2900 MHz"], ["GPU", "1800 MHz"]]) {
+  for (const [part, label, clock] of [["CPU", "活跃频率", "2900 MHz"], ["GPU", "当前频率", "1800 MHz"]]) {
     const card = overview.getByRole("region", { name: `${part} 运行读数`, exact: true });
-    await expect(card.getByLabel("当前频率", { exact: true })).toHaveText(clock);
+    await expect(card.getByLabel(label, { exact: true })).toHaveText(clock);
     await expect(card.getByRole("img", { name: new RegExp(`^${part} 最近 5 分钟温度趋势`) })).toBeVisible();
   }
   await expect(page.getByRole("region", { name: "当前模式", exact: true })).toBeVisible();
@@ -65,7 +65,8 @@ test("概览与性能散热独立，电源下的档案预览在切页后保留",
   await expect(page.getByRole("region", { name: "概览", exact: true })).toBeHidden();
   await expect(page.getByRole("region", { name: "预设模式", exact: true })).toBeVisible();
   await expect(page.getByRole("slider", { name: "持续功耗上限", exact: true })).toBeVisible();
-  await expect(page.getByRole("region", { name: "散热控制", exact: true })).toContainText("1800 RPM");
+  await expect(page.getByRole("region", { name: "散热控制", exact: true }).getByRole("meter", { name: /^CPU (?:实测|上次)转速$/ }))
+    .toHaveAttribute("aria-valuetext", "1800 RPM");
   const offset = page.getByRole("slider", { name: "加速偏移", exact: true });
   await offset.fill("38");
   await expect.poll(() => page.evaluate(() => window.__uiFixture.fan.offsetPct)).toBe(38);

@@ -31,7 +31,9 @@ impl<'a> Native<'a> {
     }
     pub fn task(hal: &'a Hal, energy_path: std::path::PathBuf, operation: &str) -> Result<Self> {
         let mut this = Self::new(hal, energy_path)?;
-        this.owned_plan = Some(power_plan::format(power_plan::owned(operation)?));
+        this.owned_plan = Some(crate::hal::power_plan::format_guid(power_plan::owned(
+            operation,
+        )?));
         Ok(this)
     }
     pub fn recovery(
@@ -44,7 +46,9 @@ impl<'a> Native<'a> {
             energy_path,
             log: None,
             awake: None,
-            owned_plan: Some(power_plan::format(power_plan::owned(operation)?)),
+            owned_plan: Some(crate::hal::power_plan::format_guid(power_plan::owned(
+                operation,
+            )?)),
         })
     }
     fn plan(&self) -> Result<(power_plan::native::Native, &str)> {

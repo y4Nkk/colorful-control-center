@@ -74,9 +74,12 @@ impl RpmIo for Memory {
     fn fan_info(&self) -> Result<[u8; 256]> {
         Ok(self.info)
     }
-    fn mode(&self, mode: u8) -> Result<()> {
+    fn set_mode(&self, mode: u8) -> Result<()> {
         self.modes.borrow_mut().push(mode);
         Ok(())
+    }
+    fn restore_mode(&self, mode: u8) -> Result<()> {
+        self.set_mode(mode)
     }
     fn exchange(&self, packet: &[u8; 256]) -> Result<[u8; 256]> {
         let write = [41, 43].contains(&packet[0]);
@@ -141,7 +144,7 @@ fn changes_only_the_requested_fan_and_preserves_other_pair() {
     let before = capture(&io).unwrap();
     let targets = prepare(&before, &BTreeMap::from([("cpu".into(), points())])).unwrap();
     assert_eq!(targets.len(), 1);
-    transaction::apply(&io, &before, &targets, 6).unwrap();
+    transaction::apply(&io, &before, &targets, Some(6)).unwrap();
     assert_eq!(*io.writes.borrow(), [41]);
     assert_eq!(*io.modes.borrow(), [6]);
     assert_eq!(io.pairs.borrow()[0].tables[1], before.pairs[0].tables[1]);
@@ -156,7 +159,7 @@ fn silent_rejection_restores_exact_raw_bytes_and_mode() {
     let before = capture(&io).unwrap();
     let targets = prepare(&before, &BTreeMap::from([("cpu".into(), points())])).unwrap();
     io.corrupt_once.set(true);
-    let error = transaction::apply(&io, &before, &targets, 6)
+    let error = transaction::apply(&io, &before, &targets, Some(6))
         .unwrap_err()
         .to_string();
     assert!(error.contains("回读不一致") && error.contains("已恢复"));
@@ -175,7 +178,7 @@ fn second_pair_partial_failure_restores_both_pairs() {
     )
     .unwrap();
     io.fail_once.set(Some(43));
-    assert!(transaction::apply(&io, &before, &targets, 6).is_err());
+    assert!(transaction::apply(&io, &before, &targets, Some(6)).is_err());
     assert_eq!(*io.pairs.borrow(), before.pairs);
     assert_eq!(*io.writes.borrow(), [41, 43, 41, 43]);
 }
@@ -187,7 +190,7 @@ fn settings_failure_restores_written_pair_and_reports_recovery_failure() {
     let targets = prepare(&before, &BTreeMap::from([("cpu".into(), points())])).unwrap();
     io.fail_save.set(true);
     assert!(
-        transaction::apply(&io, &before, &targets, 6)
+        transaction::apply(&io, &before, &targets, Some(6))
             .unwrap_err()
             .to_string()
             .contains("已恢复")
@@ -195,7 +198,7 @@ fn settings_failure_restores_written_pair_and_reports_recovery_failure() {
     assert_eq!(*io.pairs.borrow(), before.pairs);
     io.corrupt_once.set(true);
     io.fail_after.set(io.writes.borrow().len() + 1);
-    let error = transaction::apply(&io, &before, &targets, 6)
+    let error = transaction::apply(&io, &before, &targets, Some(6))
         .unwrap_err()
         .to_string();
     assert!(error.contains("恢复失败") && error.contains("模拟恢复传输失败"));
@@ -207,8 +210,26 @@ fn default_reset_finishes_in_verified_automatic_mode() {
     let before = capture(&io).unwrap();
     let mut targets = before.pairs.clone();
     targets[0].tables[0] = rpm::encode_default(&targets[0].tables[0], 0, 2).unwrap();
-    transaction::apply(&io, &before, &targets, 0).unwrap();
+    transaction::apply(&io, &before, &targets, Some(0)).unwrap();
     assert_eq!(*io.modes.borrow(), [6, 0]);
     assert_eq!(io.pages.borrow()[4][5], 0);
     assert_eq!(&io.pairs.borrow()[0].tables[0][62..64], &[0, 0]);
+}
+
+#[test]
+fn curve_edit_requires_custom_mode_and_never_writes_mode_or_saved_slot() {
+    let mut io = Memory::new();
+    let before = capture(&io).unwrap();
+    let targets = prepare(&before, &BTreeMap::from([("cpu".into(), points())])).unwrap();
+    assert!(transaction::apply(&io, &before, &targets, None).is_err());
+    assert!(io.writes.borrow().is_empty());
+    io.info[14] = ccc_core::fan::oem_fan_mode_bits(FAN_MODE_CUSTOM).unwrap();
+    let before = capture(&io).unwrap();
+    io.corrupt_once.set(true);
+    assert!(transaction::apply(&io, &before, &targets, None).is_err());
+    assert_eq!(*io.pairs.borrow(), before.pairs);
+    transaction::apply(&io, &before, &targets, None).unwrap();
+    assert_eq!(*io.writes.borrow(), [41, 41, 41]);
+    assert!(io.modes.borrow().is_empty());
+    assert_eq!(io.pages.borrow()[4][5], 0);
 }

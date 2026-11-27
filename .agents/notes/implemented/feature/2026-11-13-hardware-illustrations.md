@@ -13,7 +13,7 @@ Status: implemented
 2026-11-13 用户要求先对照实物图片再完整重画、消除同质化，并明确显卡使用桌面形态。已逐张查看 MSI RTX 4060 VENTUS 2X 官方正面照片、Intel LGA1700 顶盖实拍、CORSAIR VENGEANCE LPX 官方产品照及 Samsung 990 PRO 官方产品照。用不同物理结构取代四种绿色 PCB 的统一画法：CPU 是有肩部与定位缺口的金属顶盖（AMD 采用 AM5 开槽轮廓），GPU 是双风扇/鳍片/双槽挡板/金手指的桌面整卡，内存是黑色鳍片马甲与单个偏心缺口，SSD 是黑色标签、元件、M-key 接口与半圆安装孔。构图、轮廓、材质与细节分别重画；移除裸露 CPU 假晶粒、裸板 GPU、双条裸内存及宽胖存储板。示意图按参考外形绘制，不把参考商品型号、容量或代际写成设备事实，实际设备名称仍来自原只读数据。
 
 - 品牌素材从官方网站获取并本地打包，保留比例、原色和留白，不修改成应用商标；来源登记在 `public/brands/SOURCES.md`。CPU 依据真实 CPUID 厂商匹配 Intel/AMD；现有 NVML 显卡使用 NVIDIA 标识，未知品牌不猜测。
-- `components/control/HardwareArtwork.tsx` 组装四类插画，ProcessorArtwork.tsx 拥有 CPU 顶盖，GraphicsCardArtwork.tsx 拥有桌面双风扇整卡，ModuleArtwork.tsx 拥有内存马甲与 M.2 存储；品牌标识独立于插画摆放。插画使用令牌定义的材质色，浅深主题均可读，装饰不接受焦点且不承担数值语义。
+- `components/control/HardwareArtwork.tsx` 组装四类插画，ProcessorArtwork.tsx 拥有 CPU 顶盖，GraphicsCardArtwork.tsx 拥有桌面双风扇整卡，ModuleArtwork.tsx 拥有内存马甲与 M.2 存储。品牌标识独立于插画摆放，未识别品牌的部件在同一位置显示部件图标。插画使用令牌定义的材质色，浅深主题均可读，装饰不接受焦点且不承担数值语义。
 - HardwareReadings 保留真实 RPM 与环形读数，将标题区升级为品牌与插画组合。新增系统内存、固定磁盘卷容量概览，不把逻辑卷虚构成物理硬盘型号或 SSD 类型。
 - `hal/overview.rs` 唯一拥有 CPUID、Windows 内存和固定磁盘卷的只读概览，新增 `read_system_overview` 类型化命令；不加载硬件写通道、不持久化、不增加依赖。读取失败保留各域未知值与明确诊断。
 - `app/useSystemOverview.ts` 持有请求与重试，自动轮询在上次读取完成五秒后刷新、仅可见控制台运行；离页清理计时器并忽略过时代次，失败明确标记，不把旧值显示为当前。

@@ -1,43 +1,118 @@
-/*
- * 事实行与短警告语法（唯一所有者：FactList.tsx）。
- */
+/* FactList */
 
 .ccc-facts {
   display: grid;
-  gap: var(--ccc-space-3);
-  width: 100%;
+  gap: var(--ccc-space-3) var(--ccc-space-4);
+  inline-size: 100%;
   margin: 0;
-  padding: 0;
 }
 
+.ccc-fact-label, .ccc-fact-value { min-inline-size: 0; overflow-wrap: anywhere; }
+
 .ccc-fact-label {
-  min-width: 0;
-  color: var(--ccc-text-muted);
-  overflow-wrap: anywhere;
+  color: var(--ccc-fact-label-text);
+  font: var(--ccc-fact-label-font);
+  font-weight: 500;
+}
+
+.ccc-fact-note {
+  display: block; margin-block-start: var(--ccc-space-1);
+  color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); font-weight: 400;
 }
 
 .ccc-fact-value {
-  min-width: 0;
   margin: 0;
-  text-align: start;
-  overflow-wrap: anywhere;
+  color: var(--ccc-fact-value-text);
+  font: var(--ccc-control-font);
 }
 
-.ccc-fact-value.is-danger {
-  color: var(--ccc-danger);
+.ccc-facts[data-density="compact"] { row-gap: var(--ccc-space-2); }
+.ccc-facts[data-layout="rows"] { grid-template-columns: fit-content(40%) minmax(0, 1fr); align-items: baseline; }
+.ccc-facts:is([data-layout="rows"], [data-layout="comparison"]) > .ccc-fact-row { display: contents; }
+.ccc-facts[data-layout="rows"]:has(> .ccc-fact-row > .ccc-fact-label[data-icon]) > .ccc-fact-row > .ccc-fact-label:not([data-icon]) {
+  padding-inline-start: calc(var(--ccc-space-5) + var(--ccc-space-2));
 }
-
-.ccc-facts[data-layout="rows"] { grid-template-columns: fit-content(50%) minmax(0, 1fr); align-items: baseline; }
-.ccc-facts[data-layout="rows"][data-density="compact"] { row-gap: var(--ccc-space-2); }
-.ccc-facts[data-layout="rows"] > .ccc-fact-row { display: contents; }
-.ccc-facts[data-layout="rows"] .ccc-fact-label { font: var(--ccc-fact-label-font); }
-.ccc-facts[data-layout="rows"] .ccc-fact-value { font: var(--ccc-control-font); }
 
 .ccc-facts[data-layout="tiles"] { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); }
-.ccc-facts[data-layout="tiles"][data-density="compact"] { font-size: var(--ccc-text-sm); }
 .ccc-facts[data-layout="tiles"] > .ccc-fact-row { display: grid; align-content: start; gap: var(--ccc-space-1); }
-.ccc-facts[data-layout="tiles"] .ccc-fact-value { font-weight: 500; }
-.ccc-facts[data-layout="tiles"] .ccc-fact-value:not(.is-danger) { color: var(--ccc-text); }
+
+.ccc-facts[data-layout="inline"] { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--ccc-space-5); }
+.ccc-facts[data-layout="inline"] > .ccc-fact-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ccc-space-2);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.ccc-fact-comparison { display: grid; gap: var(--ccc-space-2); min-inline-size: 0; container: ccc-fact-comparison / inline-size; }
+.ccc-facts[data-layout="comparison"], .ccc-fact-comparison-head {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  align-items: baseline; column-gap: var(--ccc-space-4);
+}
+.ccc-fact-comparison-head, .ccc-fact-comparison-caption { color: var(--ccc-fact-label-text); font-size: var(--ccc-text-sm); }
+.ccc-fact-comparison-values {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-3);
+  font-variant-numeric: tabular-nums;
+}
+.ccc-fact-comparison-values strong { color: var(--ccc-text); font-weight: 600; }
+.ccc-fact-comparison-caption { display: none; }
+
+@container ccc-fact-comparison (max-width: 27rem) {
+  .ccc-fact-comparison-head { display: none; }
+  .ccc-facts[data-layout="comparison"] { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .ccc-facts[data-layout="comparison"] > .ccc-fact-row { display: grid; gap: var(--ccc-space-2); }
+  .ccc-fact-comparison-caption { display: block; margin-block-end: var(--ccc-space-1); }
+}
+
+.ccc-fact-label[data-icon] { display: flex; align-items: baseline; gap: var(--ccc-space-2); }
+.ccc-fact-icon {
+  display: grid;
+  place-items: center;
+  align-self: start;
+  flex: none;
+  inline-size: var(--ccc-space-5);
+  block-size: var(--ccc-space-5);
+  border-radius: var(--ccc-radius-full);
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+.ccc-fact-icon[data-tone="active"], .ccc-fact-value a { color: var(--ccc-fact-link); }
+.ccc-fact-icon[data-tone="warning"] { color: var(--ccc-fact-warning); }
+
+.ccc-fact-number { color: var(--ccc-text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ccc-fact-code {
+  display: inline-block;
+  vertical-align: top;
+  max-inline-size: 100%;
+  padding-inline: var(--ccc-space-1);
+  border-radius: var(--ccc-radius-inline);
+  background: color-mix(in srgb, var(--ccc-text) 8%, transparent);
+  font-family: var(--ccc-font-mono);
+}
+.ccc-fact-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ccc-space-1);
+  max-inline-size: 100%;
+  padding-inline: var(--ccc-space-2);
+  border: var(--ccc-border);
+  border-radius: var(--ccc-radius-full);
+  background: color-mix(in srgb, var(--ccc-text) 4%, transparent);
+  color: var(--ccc-fact-label-text);
+  font-size: var(--ccc-text-xs);
+  font-weight: 600;
+  line-height: 1.6;
+}
+.ccc-fact-status::before {
+  content: "";
+  flex: none;
+  inline-size: calc(var(--ccc-space-1) * 1.5);
+  aspect-ratio: 1;
+  border-radius: var(--ccc-radius-full);
+  background: currentColor;
+}
+.ccc-fact-status[data-tone="success"]::before { background: var(--ccc-fact-success); }
+.ccc-fact-status[data-tone="warning"]::before { background: var(--ccc-fact-warning); }
 
 /* 监控分组标题 */
 .ccc-group-title {

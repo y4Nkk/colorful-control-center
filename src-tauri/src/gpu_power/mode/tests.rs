@@ -44,27 +44,25 @@ fn enabling_occurs_before_performance_or_entertainment_and_after_quiet() {
 }
 
 #[test]
-fn only_dc_mode_resume_may_automatically_power_off_saving_modes() {
-    for mode in [1, 4] {
-        for trigger in [Trigger::Startup, Trigger::SupplyChange, Trigger::Resume] {
-            for dc in [true, false] {
-                for automatic in [true, false] {
-                    let current = device(true, automatic);
-                    let result = action(true, Some(&current), mode, Some(trigger), dc).unwrap();
+fn only_dc_mode_resume_may_automatically_power_off_in_saving_mode() {
+    for trigger in [Trigger::Startup, Trigger::SupplyChange, Trigger::Resume] {
+        for dc in [true, false] {
+            for automatic in [true, false] {
+                let current = device(true, automatic);
+                let result = action(true, Some(&current), 1, Some(trigger), dc).unwrap();
+                assert_eq!(
+                    result.is_some(),
+                    trigger == Trigger::Resume && dc && automatic
+                );
+                if let Some(result) = result {
+                    assert_eq!(result.stage, Stage::AfterMode);
                     assert_eq!(
-                        result.is_some(),
-                        trigger == Trigger::Resume && dc && automatic
+                        result.target,
+                        Target {
+                            enabled: false,
+                            automatic_power_off: true
+                        }
                     );
-                    if let Some(result) = result {
-                        assert_eq!(result.stage, Stage::AfterMode);
-                        assert_eq!(
-                            result.target,
-                            Target {
-                                enabled: false,
-                                automatic_power_off: true
-                            }
-                        );
-                    }
                 }
             }
         }
@@ -89,27 +87,20 @@ fn missing_unhealthy_or_display_critical_devices_refuse_action() {
 
 #[test]
 fn explicit_selection_confirms_power_off_but_never_changes_the_automatic_preference() {
-    for mode in [1, 4] {
-        for automatic in [true, false] {
-            for enabled in [true, false] {
-                let current = device(enabled, automatic);
-                let result = action(true, Some(&current), mode, None, false).unwrap();
-                assert_eq!(result.is_some(), automatic);
-                if let Some(result) = result {
-                    assert_eq!(result.stage, Stage::AfterMode);
-                    assert!(!result.target.enabled && result.target.automatic_power_off);
-                    let before = State::from_device(&current).unwrap();
-                    validate_action(Some(result), Some(&before), mode, None).unwrap();
-                    assert!(
-                        validate_action(
-                            Some(result),
-                            Some(&before),
-                            mode,
-                            Some(Trigger::SupplyChange)
-                        )
+    for automatic in [true, false] {
+        for enabled in [true, false] {
+            let current = device(enabled, automatic);
+            let result = action(true, Some(&current), 1, None, false).unwrap();
+            assert_eq!(result.is_some(), automatic);
+            if let Some(result) = result {
+                assert_eq!(result.stage, Stage::AfterMode);
+                assert!(!result.target.enabled && result.target.automatic_power_off);
+                let before = State::from_device(&current).unwrap();
+                validate_action(Some(result), Some(&before), 1, None).unwrap();
+                assert!(
+                    validate_action(Some(result), Some(&before), 1, Some(Trigger::SupplyChange))
                         .is_err()
-                    );
-                }
+                );
             }
         }
     }
@@ -130,5 +121,5 @@ fn explicit_mode_action_and_restore_state_reject_changed_policy_or_invalid_ident
     let mut invalid = before.clone();
     invalid.name.push('\0');
     assert!(invalid.validate().is_err());
-    assert!(action(true, Some(&current), 5, None, false).is_err());
+    assert!(action(true, Some(&current), 4, None, false).is_err());
 }

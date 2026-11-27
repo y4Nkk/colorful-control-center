@@ -1,7 +1,10 @@
 //! OEM FnKey.Features.SetPowerMode 协议；page1 是保存值，cmd121/sub25 是即时命令。
 use crate::hal::{Hal, oem_dchu::Dchu};
 use anyhow::{Result, anyhow, bail};
-use ccc_core::settings::{self, Patch, SettingsAccess};
+use ccc_core::{
+    oem_events::{POWER_MODE_COUNT, is_power_mode},
+    settings::{self, Patch, SettingsAccess},
+};
 use serde::Serialize;
 use std::sync::atomic::Ordering;
 pub mod boost;
@@ -24,7 +27,7 @@ pub use workflow::{Plan, Snapshot, restore_checkpoint};
 #[cfg(test)]
 pub use workflow::{apply_preview, checkpoint};
 
-pub(crate) const MODE_LABELS: [&str; 5] = ["安静", "省电", "性能", "娱乐", "静音增强"];
+pub(crate) const MODE_LABELS: [&str; POWER_MODE_COUNT as usize] = ["安静", "省电", "性能", "娱乐"];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CoreSnapshot {
@@ -86,9 +89,7 @@ impl ModeIo for Dchu {
         self.exchange_package(4, &packet)
     }
     fn send_mode(&self, command: u32) -> Result<()> {
-        self.set_data_sub(121, 25, command)?;
-        self.acknowledged_mode.store(command, Ordering::Relaxed);
-        Ok(())
+        self.send_power_preset(command)
     }
 }
 
@@ -114,8 +115,8 @@ fn read_option_preferences(io: &impl SettingsAccess) -> Result<[u8; 2]> {
 
 fn capture(io: &impl ModeIo, remember_ac: bool) -> Result<CoreSnapshot> {
     let mode = current_mode(io)?;
-    if mode > 4 {
-        bail!("当前 OEM 模式 {mode} 不在已核对的 0–4 范围");
+    if !is_power_mode(mode) {
+        bail!("当前 OEM 模式 {mode} 不在已核对的 0–3 范围");
     }
     let preferences = read_option_preferences(io)?;
     let configured = boost::command_for_current_preferences(io, mode, preferences)?;
@@ -135,7 +136,7 @@ fn capture(io: &impl ModeIo, remember_ac: bool) -> Result<CoreSnapshot> {
 }
 
 fn mode_command(mode: u8, preferences: [u8; 2]) -> u32 {
-    u32::from(if mode == 4 { 0 } else { mode })
+    u32::from(mode)
         | if matches!(mode, 2 | 3) {
             u32::from(preferences[0]) << 6 | u32::from(preferences[1]) << 7
         } else {
@@ -152,22 +153,17 @@ pub(crate) fn available(io: &impl ModeIo) -> Result<Vec<u8>> {
     if header != [0, 0] && header != [1, 0] {
         bail!("未知 OEM 能力页版本，未开放模式写入");
     }
-    let bits = caps[17];
-    if bits & 15 == 0 {
+    let bits = caps[17] & 0x0f;
+    if bits == 0 {
         return Ok(if feature_flags(io, &caps, 16)? & 1 != 0 {
-            vec![0, 1, 2, 3]
+            (0..POWER_MODE_COUNT).collect()
         } else {
             vec![]
         });
     }
-    let extended = header == [1, 0];
-    let mut modes: Vec<_> = (0..4)
-        .filter(|mode| bits & (1 << mode) != 0 && (*mode != 0 || !extended || bits & 0x80 == 0))
-        .collect();
-    if extended && bits & 0x80 != 0 && bits & 15 != 0 {
-        modes.push(4);
-    }
-    Ok(modes)
+    Ok((0..POWER_MODE_COUNT)
+        .filter(|mode| bits & (1 << mode) != 0)
+        .collect())
 }
 
 pub(crate) fn mode_choices(io: &impl ModeIo) -> Result<(Vec<u8>, Option<String>)> {
@@ -202,6 +198,8 @@ pub(crate) fn feature_flags(io: &impl ModeIo, caps: &[u8], command: i32) -> Resu
 pub fn read(hal: &Hal) -> Result<ModeProfile> {
     let mut profile = hal.with_dchu(|io| {
         let (modes, support_issue) = mode_choices(io)?;
+        let current_mode = current_mode(io)?;
+        let ac_mode = byte(io, 1, 16)?;
         let (energy, targets) = if modes.is_empty() {
             (None, Vec::new())
         } else {
@@ -213,16 +211,21 @@ pub fn read(hal: &Hal) -> Result<ModeProfile> {
             (Some(state), targets)
         };
         Ok(ModeProfile {
-            current_mode: current_mode(io)?,
-            ac_mode: byte(io, 1, 16)?,
+            current_mode,
+            ac_mode,
             energy,
             available_modes: modes,
             software_active: false,
-            blocked_reason: support_issue.or_else(|| {
-                hal.ensure_mode_change_allowed()
-                    .err()
-                    .map(|e| format!("{e:#}"))
-            }),
+            blocked_reason: support_issue
+                .or_else(|| {
+                    (!is_power_mode(current_mode))
+                        .then(|| "当前原厂模式未知，无法确认恢复前态".into())
+                })
+                .or_else(|| {
+                    hal.ensure_mode_change_allowed()
+                        .err()
+                        .map(|e| format!("{e:#}"))
+                }),
             targets,
         })
     })?;
@@ -246,7 +249,8 @@ fn write_core(
         hal.with_dchu(|io| {
             if byte(io, 1, 16)? != mode {
                 *wrote = true;
-                settings::apply(io, 1, &[Patch::new(16, [mode])], None).map_err(|e| anyhow!(e))?;
+                settings::write_verified(io, 1, &[Patch::new(16, [mode])], None)
+                    .map_err(|e| anyhow!(e))?;
             }
             Ok(())
         })?;
@@ -259,22 +263,22 @@ fn write_core(
     })?;
     permit()?;
     hal.with_dchu(|io| {
-        settings::apply(io, 1, &[Patch::new(1, [target.mode])], None).map_err(|e| anyhow!(e))?;
-        Ok(())
+        settings::write_verified(io, 1, &[Patch::new(1, [target.mode])], None)
+            .map_err(|e| anyhow!(e))
     })
 }
 
 fn recover(io: &impl ModeIo, before: CoreSnapshot) -> Result<()> {
     boost::validate_entertainment_command(io, before.command)?;
     // 即时命令失败也继续恢复保存字段，保留两个独立错误。
-    let turbo = settings::apply(io, 4, &[Patch::new(8, [before.preferences[0]])], None);
-    let dtt = settings::apply(io, 1, &[Patch::new(32, [before.preferences[1]])], None);
+    let turbo = settings::write_verified(io, 4, &[Patch::new(8, [before.preferences[0]])], None);
+    let dtt = settings::write_verified(io, 1, &[Patch::new(32, [before.preferences[1]])], None);
     let ac = before
         .ac_mode
-        .map(|mode| settings::apply(io, 1, &[Patch::new(16, [mode])], None))
+        .map(|mode| settings::write_verified(io, 1, &[Patch::new(16, [mode])], None))
         .transpose();
     let command = io.send_mode(before.command);
-    let saved = settings::apply(io, 1, &[Patch::new(1, [before.mode])], None);
+    let saved = settings::write_verified(io, 1, &[Patch::new(1, [before.mode])], None);
     let errors = [
         turbo.err(),
         dtt.err(),

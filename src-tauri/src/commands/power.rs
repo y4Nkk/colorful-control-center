@@ -9,7 +9,10 @@ use crate::{
     hal::{Hal, oem_owner},
     powerctl,
 };
-use powerctl::mode::{manual, selection};
+use powerctl::{
+    mode::{manual, selection},
+    windows_plan,
+};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,6 +42,27 @@ fn to_result<T>(result: anyhow::Result<T>, success: &str) -> OpResult {
             message: format!("{err:#}"),
         },
     }
+}
+
+#[tauri::command]
+pub(crate) async fn read_windows_power_plans(
+    app: tauri::AppHandle,
+) -> Result<windows_plan::Profile, String> {
+    crate::shutdown::blocking(move || windows_plan::read(&app.state::<Hal>()))
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|error| format!("{error:#}"))
+}
+
+#[tauri::command]
+pub(crate) async fn apply_windows_power_plan(
+    app: tauri::AppHandle,
+    request: windows_plan::Request,
+) -> Result<(), String> {
+    crate::shutdown::blocking(move || windows_plan::apply(&app.state::<Hal>(), &request))
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|error| format!("{error:#}"))
 }
 
 #[tauri::command]

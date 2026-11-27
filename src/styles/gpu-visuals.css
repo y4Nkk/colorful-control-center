@@ -3,15 +3,13 @@
 .ccc-gpu-power-caption { display: flex; flex-direction: column; gap: var(--ccc-space-2); }
 .ccc-gpu-power-state { display: inline-flex; align-items: center; gap: var(--ccc-space-2); font-size: var(--ccc-text-xl); font-weight: 600; }
 .ccc-gpu-power-state::before { content: ""; width: var(--ccc-space-2); height: var(--ccc-space-2); border-radius: var(--ccc-radius-full); background: var(--ccc-text-muted); }
-.ccc-gpu-power-visual[data-enabled="on"] .ccc-gpu-power-state::before { background: var(--ccc-action); }
+.ccc-gpu-power-visual[data-enabled="on"] .ccc-gpu-power-state::before { background: var(--ccc-action-ink); }
 .ccc-gpu-power-visual[data-enabled="off"] > .ccc-hardware-art { opacity: .6; }
-.ccc-gpu-clock-main, .ccc-gpu-clock-offset { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ccc-space-2); }
-.ccc-gpu-clock-main strong { font-family: var(--ccc-font-mono); font-size: var(--ccc-text-xl); font-weight: 600; }
-.ccc-gpu-power-state, .ccc-gpu-clock-main strong, .ccc-mode-cycle-heading strong { color: var(--ccc-text); }
+.ccc-gpu-power-state, .ccc-mode-cycle-heading strong { color: var(--ccc-text); }
 .ccc-gpu-node-stages { display: flex; flex-wrap: wrap; gap: var(--ccc-space-2); margin: 0; padding: 0; list-style: none; }
 .ccc-gpu-node-stages li { display: flex; align-items: center; gap: var(--ccc-space-2); }
 .ccc-gpu-node-step { display: flex; flex-direction: column; gap: var(--ccc-space-1); padding: var(--ccc-space-2) var(--ccc-space-3); }
-.ccc-gpu-node-step[data-enabled="true"] strong { color: var(--ccc-action); }
+.ccc-gpu-node-step[data-enabled="true"] strong { color: var(--ccc-action-ink); }
 .ccc-gpu-supply-targets { width: 100%; border-collapse: collapse; font-size: var(--ccc-text-xs); text-align: right; }
 .ccc-gpu-supply-targets :is(th, td) { padding: var(--ccc-space-1); font-weight: 400; }
 .ccc-gpu-supply-targets th:first-child { text-align: left; }

@@ -59,7 +59,7 @@ fn simultaneous_supply_and_mode_changes_both_remain_scheduled() {
     scheduler.configure(1, false, Trigger::Startup, 0).unwrap();
     scheduler.take(1000).unwrap();
     scheduler.observe(Event::Source(Source::Ac), 1100).unwrap();
-    scheduler.mode(4, 1200).unwrap();
+    scheduler.mode(3, 1200).unwrap();
     let first = scheduler.take(2200).unwrap();
     let second = scheduler.take(2200).unwrap();
     assert_eq!(

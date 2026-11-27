@@ -1,19 +1,20 @@
 import { Icon } from "../Icon";
+import { Loading } from "../Loading";
 import { Surface } from "../Surface";
 import { Button } from "../Button";
 import { Select } from "../Select";
 import { Switch } from "../Switch";
+import { Tooltip } from "../Tooltip";
 import { ConfigurationAction } from "../ConfigurationAction";
 import { hexOf } from "../../lib/color";
 import { ScaleSlider } from "./ScaleSlider";
 import { PerkeyKeycaps } from "./PerkeyKeycaps";
 import { PerkeyPatternEditor } from "./PerkeyPatternEditor";
 import { PERKEY_NAMES, perkeySummary } from "../../lib/perkey-pattern";
-import { usePerkeyLighting } from "./usePerkeyLighting";
+import type { usePerkeyLighting } from "./usePerkeyLighting";
 import type { PerkeyPattern } from "../../api/client";
 
-export function PerkeyLighting({ active, revision = 0 }: { active: boolean; revision?: number }) {
-  const model = usePerkeyLighting(active, revision);
+export function PerkeyLighting({ model }: { model: ReturnType<typeof usePerkeyLighting> }) {
   const { profile, draft, busy } = model;
   const changePattern = (kind: string) => {
     const pattern = profile?.presets.find(value => value.kind === kind);
@@ -27,7 +28,7 @@ export function PerkeyLighting({ active, revision = 0 }: { active: boolean; revi
     </div>
     {model.error && <p className="ccc-control-error" role="alert">{model.error}</p>}
     {profile?.reactiveError && <p className="ccc-control-error" role="alert">{profile.reactiveError}</p>}
-    {!profile || !draft ? <p className="ccc-control-caption">{model.error ? "读取失败" : "读取中…"}</p> : <>
+    {!profile || !draft ? (model.error ? <p className="ccc-control-caption">读取失败</p> : <Loading label="正在读取…" />) : <>
       <div className="ccc-perkey-options"><Select label="逐键灯效" value={draft.pattern.kind} disabled={busy}
         options={profile.presets.map(p => ({ value: p.kind, label: PERKEY_NAMES[p.kind] }))} onChange={changePattern} />
         {eventPattern && profile.reactiveRunning && <span className="ccc-control-caption">按键响应运行中</span>}</div>
@@ -62,8 +63,10 @@ function PerkeyColorPreview({ current, target }: { current: PerkeyPattern; targe
   return <div className="ccc-perkey-color-preview">
     <p>{changed.filter(Boolean).length} 个灯位的颜色将更新</p>
     <svg viewBox={`0 0 200 ${Math.ceil(colors.length / 20) * 10}`} role="img" aria-label="逐键灯位目标颜色">
-      {colors.map((color, index) => <rect key={index} x={index % 20 * 10} y={Math.floor(index / 20) * 10}
-        width="8" height="8" rx="2" fill={color} opacity={changed[index] ? 1 : .28}><title>{color}</title></rect>)}
+      {colors.map((color, index) => <Tooltip key={index} content={color}>
+        <rect x={index % 20 * 10} y={Math.floor(index / 20) * 10}
+          width="8" height="8" rx="2" fill={color} opacity={changed[index] ? 1 : .28} />
+      </Tooltip>)}
     </svg>
   </div>;
 }

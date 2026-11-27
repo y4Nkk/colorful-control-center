@@ -1,20 +1,20 @@
 .ccc-notification-trigger {
   max-inline-size: min(18rem, 32vw);
-  min-inline-size: max-content;
+  min-inline-size: 0;
   gap: var(--ccc-space-2);
 }
 
 .ccc-notification-summary {
   max-inline-size: clamp(0px, calc(45vw - 140px), 13rem);
+  min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .ccc-notification-count {
+  flex: none;
   padding-inline: var(--ccc-space-1);
-  border-radius: var(--ccc-radius-full);
-  background: color-mix(in srgb, var(--ccc-text) 8%, transparent);
   color: var(--ccc-text-muted);
   font-size: var(--ccc-text-sm);
   font-variant-numeric: tabular-nums;
@@ -67,11 +67,11 @@
 }
 
 .ccc-toast-status { flex: none; }
-[data-kind="info"] > .ccc-toast-status { color: var(--ccc-action); }
-[data-kind="success"] > .ccc-toast-status { color: var(--ccc-safe); }
+[data-kind="info"] > .ccc-toast-status { color: var(--ccc-action-ink); }
+[data-kind="success"] > .ccc-toast-status { color: var(--ccc-safe-text); }
 [data-kind="warning"] > .ccc-toast-status { color: var(--ccc-warning); }
 [data-kind="error"] > .ccc-toast-status { color: var(--ccc-danger); }
 
 .ccc-toast-body { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.ccc-toast-title { font-weight: 600; }
+.ccc-toast-title { font-weight: 600; line-height: 1.4; }
 .ccc-toast-description { color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); }

@@ -32,6 +32,12 @@ macro_rules! handler {
             crate::commands::touchpad::read_touchpad,
             crate::commands::touchpad::apply_touchpad,
             crate::commands::app::get_backend_info,
+            crate::commands::app::read_administrator_access,
+            crate::commands::app::restart_application,
+            crate::commands::app::restart_as_administrator,
+            crate::commands::app::read_application_preparation,
+            crate::commands::app::open_startup_logs,
+            crate::commands::app::exit_application,
             crate::commands::app_update::check_application_update,
             crate::commands::app_update::download_application_update,
             crate::commands::app_update::cancel_application_update,
@@ -39,8 +45,6 @@ macro_rules! handler {
             crate::commands::preferences::set_app_preferences,
             crate::commands::preferences::list_system_fonts,
             crate::commands::preferences::set_shortcut_recording,
-            crate::commands::preferences::restart_application,
-            crate::commands::preferences::restart_as_administrator,
             crate::commands::window::window_minimize,
             crate::commands::window::window_toggle_maximize,
             crate::commands::window::window_is_maximized,
@@ -48,13 +52,13 @@ macro_rules! handler {
             crate::commands::hardware::update_hardware_monitoring,
             crate::commands::hardware::read_memory_capacity,
             crate::commands::hardware::read_system_inventory,
+            crate::commands::hardware::read_gpu_details,
             crate::commands::battery::read_battery_profile,
             crate::commands::calibration::read_battery_calibration,
             crate::commands::calibration::start_battery_calibration,
             crate::commands::calibration::stop_battery_calibration,
             crate::commands::calibration::restore_battery_calibration,
             crate::commands::battery::apply_battery_charge,
-            crate::commands::battery::restore_battery_charge,
             crate::commands::battery::read_energy_policy,
             crate::commands::battery::apply_energy_policy,
             crate::commands::battery::restore_energy_policy,
@@ -95,6 +99,7 @@ macro_rules! handler {
             crate::commands::platform::apply_pd_level,
             crate::commands::platform::restore_pd_level,
             crate::commands::devices::read_display_modes,
+            crate::commands::devices::read_automatic_display_trial,
             crate::commands::devices::read_automatic_refresh,
             crate::commands::devices::enable_automatic_refresh,
             crate::commands::devices::restore_automatic_refresh,
@@ -108,12 +113,13 @@ macro_rules! handler {
             crate::commands::devices::reboot_for_graphics_mode,
             crate::commands::devices::apply_gpu_power,
             crate::commands::fans::read_fan_profile,
-            crate::commands::fans::apply_fan_curve,
-            crate::commands::fans::apply_rpm_fan_curves,
+        crate::commands::fans::save_custom_fan_curves,
             crate::commands::fans::set_fan_mode,
             crate::commands::fans::set_fan_offset,
             crate::commands::fans::restore_fan_settings,
             crate::commands::power::read_power_profile,
+            crate::commands::power::read_windows_power_plans,
+            crate::commands::power::apply_windows_power_plan,
             crate::commands::power::read_oem_power_mode,
             crate::commands::power::read_oem_performance_options,
             crate::commands::power::apply_oem_performance_options,
@@ -142,6 +148,9 @@ macro_rules! handler {
             crate::commands::profile_policy::reload_power_profile_policy,
             crate::commands::profile_policy::reset_power_profile_policy,
             crate::commands::profiles::list_profiles,
+            crate::commands::profiles::read_builtin_profiles,
+            crate::commands::profiles::preview_builtin_profile,
+            crate::commands::profiles::apply_builtin_profile,
             crate::commands::profiles::load_profile,
             crate::commands::profiles::delete_profile,
             crate::commands::profiles::capture_profile_settings,
@@ -170,14 +179,29 @@ pub(crate) use handler;
 fn allowed(window: &str, command: &str) -> bool {
     window == "main" || window == "osd" && command == "read_osd"
 }
+
+fn allowed_during_preparation(command: &str) -> bool {
+    matches!(
+        command,
+        "read_application_preparation"
+            | "open_startup_logs"
+            | "exit_application"
+            | "restart_application"
+            | "window_minimize"
+            | "window_toggle_maximize"
+            | "window_is_maximized"
+            | "window_close"
+    )
+}
+
 pub(crate) fn restrict(
     handler: impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static,
 ) -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
     move |invoke| {
-        if !allowed(
-            invoke.message.webview_ref().label(),
-            invoke.message.command(),
-        ) {
+        use tauri::Manager;
+        let webview = invoke.message.webview_ref();
+        let command = invoke.message.command();
+        if !allowed(webview.label(), command) {
             invoke.resolver.reject("此窗口只允许读取屏显状态");
             return true;
         }
@@ -185,11 +209,42 @@ pub(crate) fn restrict(
             invoke.resolver.reject(crate::shutdown::CLOSING);
             return true;
         };
+        if webview.label() == "main"
+            && !allowed_during_preparation(command)
+            && !crate::startup::ready(webview.app_handle())
+        {
+            invoke.resolver.reject("应用尚未完成初始化");
+            return true;
+        }
         handler(invoke)
     }
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn preparation_only_admits_window_controls_and_recovery() {
+        for command in [
+            "read_application_preparation",
+            "restart_application",
+            "exit_application",
+            "open_startup_logs",
+            "window_close",
+        ] {
+            assert!(super::allowed_during_preparation(command));
+        }
+        for command in [
+            "get_app_preferences",
+            "set_app_preferences",
+            "read_hotkey_status",
+            "apply_runtime_cpu",
+            "read_administrator_access",
+            "restart_as_administrator",
+            "update_hardware_monitoring",
+        ] {
+            assert!(!super::allowed_during_preparation(command));
+        }
+    }
+
     #[test]
     fn overlay_cannot_invoke_hardware_or_window_commands() {
         assert!(super::allowed("osd", "read_osd"));
@@ -197,10 +252,12 @@ mod tests {
             "preview_osd",
             "apply_runtime_cpu",
             "window_close",
+            "read_administrator_access",
             "restart_as_administrator",
             "update_hardware_monitoring",
             "read_memory_capacity",
             "read_system_inventory",
+            "read_gpu_details",
             "read_oem_supply_mode",
             "enable_oem_supply_mode",
             "resume_oem_supply_mode",

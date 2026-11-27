@@ -151,20 +151,20 @@ test("显示试用期间锁定方向与刷新率，保留后可立即切换", as
   expect(await writes(page)).toEqual(["apply_display_refresh", "apply_display_rotation"]);
 });
 
-test("弹窗内下拉可操作，第一个 Escape 只关闭菜单", async ({ page }) => {
+test("更新日志弹窗内下拉可操作，第一个 Escape 只关闭菜单", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 720 });
   await openWorkspace(page, "设置");
-  await page.getByRole("button", { name: "日志设置" }).click();
-  const dialog = page.getByRole("dialog", { name: "运行日志" });
-  const select = dialog.getByRole("combobox", { name: "日志级别" });
+  await page.getByRole("button", { name: "更新日志" }).click();
+  const dialog = page.getByRole("dialog", { name: "更新日志" });
+  const select = dialog.getByRole("combobox", { name: "日志版本" });
   await select.click();
   await expect(dialog.getByRole("listbox")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog.getByRole("listbox")).toHaveCount(0);
   await expect(dialog).toBeVisible();
   await select.click();
-  await dialog.getByRole("option", { name: "警告" }).click();
-  await expect(select).toHaveText("警告");
+  await dialog.getByRole("option", { name: "v1.0.0", exact: true }).click();
+  await expect(select).toHaveText("v1.0.0");
   await select.click();
   await expect(dialog.getByRole("listbox")).toBeVisible();
   await page.mouse.click(2, 2);

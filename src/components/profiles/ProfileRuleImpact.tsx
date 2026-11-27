@@ -1,10 +1,11 @@
 import type { ProfileReference } from "../../app/useProfileReferences";
+import { Loading } from "../Loading";
 
 export function ProfileRuleImpact({ name, rules, operation, loading, error }: {
   name: string; rules: ProfileReference[]; operation: "replace" | "delete"; loading: boolean; error: string | null;
 }) {
   const affected = rules.filter(rule => rule.name === name);
-  if (loading) return <p role="status" className="ccc-control-caption">正在读取关联规则…</p>;
+  if (loading) return <Loading label="正在读取关联规则…" />;
   if (!affected.length && !error) return null;
   return <div className="ccc-profile-rule-impact">
     {!!affected.length && <>

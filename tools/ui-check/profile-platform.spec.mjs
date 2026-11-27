@@ -20,7 +20,7 @@ test.beforeEach(async ({ page }) => {
     const data = window.__uiFixture;
     data.platform = { deepS5: true, warnings: [], powerDelivery: { revision: "pd-0", encoding: "adapterV1", currentLevel: 1, currentValid: true,
       availableLevels: [1, 2, 4], zeroBased: false, adapterWatts: 100, initial: null, restoreBlockedReason: null, blockedReason: null } };
-    data.usb = { revision: "usb-0", recommendation: true, supported: true, activePlan: null, plans: [
+    data.usb = { revision: "usb-0", recommendation: true, supported: true, activePlan: null, activeValues: { ac: true, dc: false }, plans: [
       { id: "balanced", ac: true, dc: false }, { id: "highPerformance", ac: false, dc: true }, { id: "powerSaver", ac: false, dc: null }],
       initial: [], missing: [], blockedReason: null, restoreBlockedReason: null, warnings: [] };
     data.profile.settings.powerDelivery = { level: 4, encoding: "adapterV1", adapterWatts: 100, availableLevels: [1, 2, 4] };

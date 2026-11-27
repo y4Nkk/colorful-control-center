@@ -41,6 +41,7 @@ mod wmi;
 
 pub use cpu_utility::Reading as CpuUtilityReading;
 pub use memory::OemMemoryReading;
+pub(crate) use monitor::DisplaySampling;
 
 use anyhow::{Result, anyhow};
 use ccc_core::{fan_sensors::FanReadings, settings::Patch};
@@ -58,11 +59,11 @@ pub(crate) const SOFTWARE_FAN_IDLE_STATUS: &str = "软件风扇曲线未运行";
 #[derive(Clone, Serialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct NvidiaSnapshot {
+    pub connection_id: u32,
     pub name: String,
     pub temp_c: Option<f64>,
-    pub fan_pct: Option<f64>,
     pub utilization_pct: Option<f64>,
-    pub mem_used_mb: Option<f64>,
+    pub memory_used_pct: Option<f64>,
     pub mem_total_mb: Option<f64>,
     pub graphics_clock_mhz: Option<u32>,
     pub memory_clock_mhz: Option<u32>,
@@ -118,7 +119,7 @@ pub struct Hal {
     pub(crate) test_nvidia:
         Option<std::sync::Arc<dyn Fn() -> Result<Option<NvidiaSnapshot>> + Send + Sync>>,
     dchu: Mutex<Option<oem_dchu::Dchu>>,
-    nvidia: Mutex<Option<nvidia::Nvidia>>,
+    nvidia: Mutex<nvidia::Provider>,
     nvidia_suspended: AtomicBool,
     recovery: Mutex<Recovery>,
     fan_guard: Mutex<Option<crate::watchdog::Watchdog>>,
@@ -161,7 +162,7 @@ impl Hal {
             #[cfg(test)]
             test_nvidia: None,
             dchu: Mutex::new(dchu),
-            nvidia: Mutex::new(None),
+            nvidia: Mutex::default(),
             nvidia_suspended: AtomicBool::new(false),
             recovery: Mutex::new(Recovery::default()),
             mutation: std::sync::Arc::new(Mutex::new(())),
@@ -236,7 +237,7 @@ impl Hal {
             test_dtt_driver: None,
             test_nvidia: None,
             dchu: Mutex::new(Some(dchu)),
-            nvidia: Mutex::new(None),
+            nvidia: Mutex::default(),
             nvidia_suspended: AtomicBool::new(false),
             recovery: Mutex::new(Recovery::default()),
             fan_guard: Mutex::new(guard),
@@ -295,21 +296,30 @@ impl Hal {
     }
 
     pub fn with_dchu<T>(&self, f: impl FnOnce(&oem_dchu::Dchu) -> Result<T>) -> Result<T> {
+        self.with_dchu_connection(true, f)
+    }
+
+    fn with_dchu_connection<T>(
+        &self,
+        #[cfg_attr(test, allow(unused_variables))] load_if_missing: bool,
+        f: impl FnOnce(&oem_dchu::Dchu) -> Result<T>,
+    ) -> Result<T> {
         let guard = self.dchu.lock().map_err(|_| anyhow!("DCHU 通道状态异常"))?;
         #[cfg(not(test))]
         let mut guard = guard;
         #[cfg(not(test))]
-        if guard.is_none() {
+        if load_if_missing && guard.is_none() {
             *guard = Some(oem_dchu::Dchu::load()?);
         }
         let dchu = guard.as_ref().ok_or_else(|| anyhow!("DCHU 通道不可用"))?;
         f(dchu)
     }
 
-    fn sample_nvidia(
+    fn sample_nvidia<T>(
         &self,
-        sample: impl FnOnce(&nvidia::Nvidia) -> Result<NvidiaSnapshot>,
-    ) -> Result<Option<NvidiaSnapshot>> {
+        initialize: bool,
+        sample: impl FnOnce(&mut nvidia::Nvidia) -> Result<T>,
+    ) -> Result<Option<T>> {
         let mut guard = self
             .nvidia
             .lock()
@@ -317,19 +327,7 @@ impl Hal {
         if self.nvidia_suspended.load(Ordering::SeqCst) {
             return Ok(None);
         }
-        #[cfg(test)]
-        if let Some(source) = &self.test_nvidia {
-            return source();
-        }
-        #[cfg(not(test))]
-        if guard.is_none() {
-            *guard = Some(nvidia::Nvidia::init()?);
-        }
-        let result = guard.as_ref().map(sample).transpose();
-        if result.is_err() {
-            guard.take();
-        }
-        result
+        guard.query(initialize, sample)
     }
     pub(crate) fn gpu_suspended(&self) -> bool {
         self.nvidia_suspended.load(Ordering::SeqCst)
@@ -340,7 +338,7 @@ impl Hal {
             .lock()
             .map_err(|_| anyhow!("GPU传感连接状态异常"))?;
         if self.nvidia_suspended.swap(suspended, Ordering::SeqCst) != suspended {
-            guard.take();
+            *guard = nvidia::Provider::default();
         }
         Ok(())
     }

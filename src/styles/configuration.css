@@ -1,7 +1,7 @@
 .ccc-module-action { margin-block-start: var(--ccc-space-4); }
 .ccc-review-section { display: grid; gap: var(--ccc-space-2); min-width: 0; }
 .ccc-review-section + .ccc-review-section { margin-block-start: var(--ccc-space-5); }
-.ccc-review-section > h3 { margin: 0; font-size: var(--ccc-text-lg); }
+.ccc-review-section > h3 { margin: 0; font-size: var(--ccc-text-lg); font-weight: 600; line-height: 1.4; }
 .ccc-review-section > p { margin: 0; }
 .ccc-review-section + [role="alert"] { margin-top: var(--ccc-space-3); }
 .ccc-restore-options, .ccc-restore-option, .ccc-restore-preview { display: grid; gap: var(--ccc-space-2); min-width: 0; }
@@ -9,7 +9,7 @@
 .ccc-restore-check { justify-self: start; }
 .ccc-restore-preview > p { margin: 0; }
 .ccc-detail-stack { display: grid; gap: var(--ccc-space-4); min-width: 0; }
-.ccc-module-tools { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-1); margin-inline-start: auto; }
+.ccc-module-tools { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; min-width: 0; gap: var(--ccc-space-1); margin-inline-start: auto; }
 .ccc-module-summary { display: grid; gap: var(--ccc-space-1); align-content: start; min-width: 0; }
 .ccc-module-summary > strong { font-size: var(--ccc-text-xl); }
 .ccc-module-control-end { margin-top: auto; }
@@ -26,6 +26,7 @@
   padding-block: var(--ccc-space-2);
 }
 .ccc-display-board > .ccc-display-mode-visual { max-width: 300px; width: 100%; justify-self: center; }
+.ccc-display-settings { flex: 1; align-items: start; padding-block: 0; }
 .ccc-display-trial, .ccc-restart-notice {
   padding: var(--ccc-space-3);
   border-radius: var(--ccc-radius-control);
@@ -33,9 +34,12 @@
 }
 .ccc-display-trial { display: grid; gap: var(--ccc-space-2); }
 .ccc-restart-notice { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ccc-space-2); }
-.ccc-restart-notice strong { color: var(--ccc-text); }
-.ccc-refresh-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--ccc-space-3); }
-.ccc-refresh-control > div { display: grid; }
+.ccc-display-trial [role="status"], .ccc-restart-notice [role="status"] { color: var(--ccc-text); font-variant-numeric: tabular-nums; }
+.ccc-display-rotation, .ccc-refresh-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--ccc-space-3); }
+.ccc-display-rotation > div, .ccc-refresh-control > div { display: grid; }
+.ccc-display-rotation > .ccc-display-rotation-label { display: flex; align-items: center; gap: var(--ccc-space-1); }
+/* 两张并排卡片底部行的末项开关都贴行底对齐，行高不同时仍保持同一条线；不点名控件类。 */
+.ccc-display-rotation > :last-child, .ccc-refresh-control > :last-child { align-self: end; }
 .ccc-graphics-choices { display: flex; flex-wrap: wrap; gap: var(--ccc-space-2); margin-block: auto; }
 .ccc-graphics-choices > [aria-pressed] { flex: 1 1 calc(50% - var(--ccc-space-2)); align-items: center; text-align: center; }
 .ccc-graphics-choice-art { display: block; width: min(100%, 156px); height: auto; color: var(--ccc-text-muted); }
@@ -46,10 +50,10 @@
 .ccc-device-status { display: grid; grid-template-columns: minmax(0, 72px) 1fr; align-items: center; gap: var(--ccc-space-3); min-width: 0; min-height: 64px; }
 .ccc-airplane-switch { grid-template-columns: minmax(0, 64px) minmax(0, 1fr) auto; }
 .ccc-airplane-switch > :last-child { grid-column: -2 / -1; }
-.ccc-device-status strong { font-size: var(--ccc-text-xl); }
-.ccc-device-status > svg { width: 100%; max-width: none; color: var(--ccc-action); }
+.ccc-device-status strong { font-size: var(--ccc-text-xl); line-height: 1.3; }
+.ccc-device-status > svg { width: 100%; max-width: none; color: var(--ccc-action-ink); }
 .ccc-control > .ccc-control-status { margin-inline-start: auto; }
-.ccc-profile-art { width: min(42%, 200px); color: var(--ccc-action); }
+.ccc-profile-art { width: min(42%, 200px); color: var(--ccc-action-ink); }
 .ccc-perkey-color-preview > svg { display: block; width: min(100%, 360px); }
 @container ccc-control (max-width: 600px) {
   .ccc-display-board { grid-template-columns: minmax(0, 1fr); }

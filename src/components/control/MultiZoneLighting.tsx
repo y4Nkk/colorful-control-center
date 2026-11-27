@@ -7,11 +7,11 @@ import { Surface } from "../Surface";
 import { MultiZoneColors } from "./MultiZoneColors";
 import { MultiZoneEditor } from "./MultiZoneEditor";
 import { multiZoneSummary, multiZoneChanges } from "./multizone-values";
-import { useMultiZoneLighting } from "./useMultiZoneLighting";
+import type { useMultiZoneLighting } from "./useMultiZoneLighting";
 
-export function MultiZoneLighting({ active, revision }: { active: boolean; revision: number }) {
-  const model = useMultiZoneLighting(active, revision), { profile, draft, busy, run } = model;
-  if (model.loaded && !profile && !model.error) return null;
+export function MultiZoneLighting({ model }: { model: ReturnType<typeof useMultiZoneLighting> }) {
+  const { profile, draft, busy, run, error } = model;
+  if (!profile && !error) return null;
   const current = profile?.current;
   const compatible = !!profile && !!draft && JSON.stringify(profile.capabilities) === JSON.stringify(draft.capabilities);
   const dirty = !!current && !!draft && JSON.stringify(current) !== JSON.stringify(draft.values);
@@ -24,8 +24,8 @@ export function MultiZoneLighting({ active, revision }: { active: boolean; revis
   return <Surface as="section" variant="group" className="ccc-panel" aria-label="多区键盘灯">
     <div className="ccc-panel-head"><h2 className="ccc-panel-title"><Icon name="lighting" />多区键盘灯</h2>
       <Button icon="refresh" variant="ghost" size="compact" disabled={busy} onClick={model.reread}>重新读取多区键盘</Button></div>
-    {model.error && <p className="ccc-control-error" role="alert">{model.error}</p>}
-    <OemConflictAction issues={[model.error, profile?.blockedReason]} disabled={busy} onClosed={model.reread} />
+    {error && <p className="ccc-control-error" role="alert">{error}</p>}
+    <OemConflictAction issues={[error, profile?.blockedReason]} disabled={busy} onClosed={model.reread} />
     {profile ? <div className="ccc-multi-zone-columns">
       <Surface variant="group" className="ccc-multi-zone-section">
         <strong>当前保存配置</strong>
@@ -52,6 +52,6 @@ export function MultiZoneLighting({ active, revision }: { active: boolean; revis
           <Button variant="secondary" disabled={busy} onClick={() => model.setDraft(structuredClone({ capabilities: profile.capabilities, values: current }))}>载入当前多区草稿</Button></>
           : <p className="ccc-control-caption">有效初始快照仍可用于恢复。</p>}
       </Surface>
-    </div> : <p className="ccc-control-caption">{model.error ? "读取失败，请重试。" : "读取中…"}</p>}
+    </div> : <p className="ccc-control-caption">读取失败，请重试。</p>}
   </Surface>;
 }

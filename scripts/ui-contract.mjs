@@ -11,8 +11,12 @@ export const UI_CONTRACT = [
   { name: "Surface", style: "surface", prefixes: ["surface"], native: [] },
   { name: "Switch", style: "switch", prefixes: ["switch"], native: ["input"] },
   { name: "Dialog", style: "dialog", prefixes: ["dialog"], native: ["dialog"] },
+  { name: "Tooltip", style: "tooltip", prefixes: ["tooltip"], native: [], roles: ["tooltip"] },
   { name: "ScrollArea", style: "scroll-area", prefixes: ["scroll-area", "scroll-viewport"], native: [] },
   { name: "BackToTopButton", style: "back-to-top", prefixes: ["back-to-top"], native: [] },
+  { name: "Loading", style: "loading", prefixes: ["loading"], native: [] },
+  { name: "Progress", style: "progress", prefixes: ["progress"], native: ["progress"], roles: ["progressbar"] },
+  { name: "FactList", style: "dashboard", prefixes: ["facts", "fact"], native: [] },
 ];
 
 export const VISUAL_PROPERTIES = /^(?:background(?:-|$)|border(?:-|$)|color$|box-shadow$|outline(?:-|$)|font(?:-|$)|opacity$|cursor$|appearance$)/;

@@ -47,7 +47,7 @@ pub fn validate(curves: &Curves) -> Result<(), String> {
 
 pub fn duty_packet(channel: u8, percent: f64) -> Result<[u8; 256], String> {
     if !(1..=4).contains(&channel) || !percent.is_finite() || !(20.0..=100.0).contains(&percent) {
-        return Err("风扇通道或占空比无效".into());
+        return Err("风扇通道或风扇强度无效".into());
     }
     let mut packet = [0; 256];
     packet[0] = 1;

@@ -14,9 +14,9 @@ export function ProfileKeymapPreview({ target }: { target: KeymapTarget }) {
     <div className="ccc-profile-values">{target.configuration.devices.map(device => <div className="ccc-profile-values" key={device.device}>
       <svg viewBox="0 0 210 50" role="img" aria-label={`${KEYMAP_DEVICE_LABELS[device.device]}映射范围`}>
         {device.device === "keyboard" ? Array.from({ length: 24 }, (_, i) => <rect key={i} x={i % 8 * 26} y={Math.floor(i / 8) * 17}
-          width="20" height="11" rx="3" fill={device.enabled ? "var(--ccc-action)" : "var(--ccc-text-muted)"} opacity={device.enabled ? 0.75 : 0.35} />)
+          width="20" height="11" rx="3" fill={device.enabled ? "var(--ccc-action-ink)" : "var(--ccc-text-muted)"} opacity={device.enabled ? 0.75 : 0.35} />)
           : <g fill="var(--ccc-content-muted)" stroke="var(--ccc-hairline)"><rect x="70" y="1" width="68" height="48" rx="20" />
-            <path d="M104 2v20m-30 0h60" fill="none" /><rect x="100" y="6" width="8" height="12" rx="4" fill={device.enabled ? "var(--ccc-action)" : "var(--ccc-text-muted)"} /></g>}
+            <path d="M104 2v20m-30 0h60" fill="none" /><rect x="100" y="6" width="8" height="12" rx="4" fill={device.enabled ? "var(--ccc-action-ink)" : "var(--ccc-text-muted)"} /></g>}
       </svg>
     </div>)}</div>
   </Surface>;

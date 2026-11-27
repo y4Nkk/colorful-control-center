@@ -16,7 +16,7 @@ Status: implemented
 
 分类规则（供后续弹窗沿用）：`role="alert"`/错误 → error 图标；`profile.warnings` 固件警示与互斥约束 → is-warn + warning 图标；阻止原因/上下文元数据 → 无图标 caption；说明性正文与确认弹窗描述保持正文色不动。
 
-范围界定：页面层的错误与警示保持原样（仅文字色）；`FactList` 键值行的 value 保持正文色——label 已是 muted，value 是数据本体，降级会让弹窗失去主强调层（Primer subtitle 对应的是上下文行而非数据值）；`ParameterDescriptions` 的 strong 术语保持 `--ccc-text` + 500 字重。
+页面层的错误与警示使用普通文字，`ParameterDescriptions` 的 strong 术语使用 `--ccc-text` 和 500 字重。2026-11-27 起，`FactList` 的标签、普通值和关键读数由共享组件分别定义。 [全局控件契约](../simplification/2026-11-13-global-control-contract-closure.md)
 
 涉及 25 个组件文件（OemPowerMode、KeyboardLighting、KeymapSettings、GpuTuning、BatterySettings、FanPanel、LightBarSettings、PowerPanel、OemPerformanceOptions、MicrophoneSettings、PlatformPower、DisplaySettings、GpuPowerSettings、BatteryCalibrationSettings、ModeCycleFacts、OemModeGpuEffects、GpuModeFacts、SupplyModeSettings、SupplyModeCurrent、AutomaticRefreshSettings、EnergyPolicySettings、LanPolicy、PowerProfilePolicy、TouchpadSettings、OemConflictHost，及 keymap/MacroRecorder、4 个 HotkeyEventPreviews 子 Facts 组件）。
 

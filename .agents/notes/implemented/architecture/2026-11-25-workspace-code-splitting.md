@@ -12,11 +12,16 @@ Status: implemented
 
 参考 [React lazy](https://react.dev/reference/react/lazy)、[Vite 动态分包](https://vite.dev/guide/features.html#dynamic-import) 与 [VS Code 按需实例化](https://github.com/microsoft/vscode/wiki/source-code-organization#providing-a-service)。
 
+### 2026-11-26 键盘与灯光首次展示
+
+首次进入时，分包加载和设备设置首读共用同一个加载提示。键盘判型、适用的逐键灯光及其余模块首读各自完成后，再一次呈现页面。读取失败的模块随页面显示诊断和重读入口，设备未报告的可选卡片直接省略。页面首次展示后，重新进入沿用已挂载内容、草稿和滚动位置，原有读回在后台进行。
+
 ## 影响与验证
 
 - 对比同一工作树前后的 Vite 生产 manifest，入口及其静态依赖的 JavaScript 从 814,275 降至 470,223 字节，减少 42.3%。用同一 gzip 方式逐文件计算，从 238,983 降至 150,152 字节，减少 37.2%。
 - 生产构建的 Edge 模拟 IPC 检查通过 27 项。概览只请求静态入口依赖，首次访问键盘页请求对应分包，延迟时显示加载状态。已有回归覆盖上次访问启动页、托盘直达、热键导航、草稿与滚动位置保留。
 - `npm run build` 与 `cargo check --offline --workspace` 通过。
+- 2026-11-26 独立生产构建的 11 项模拟 IPC 浏览器回归通过，覆盖延迟分包和设备首读、逐键灯光失败重读、切回恢复草稿和滚动位置及灯光编辑。前端构建与 `cargo check --workspace --locked --offline` 通过。
 
 ## 风险
 

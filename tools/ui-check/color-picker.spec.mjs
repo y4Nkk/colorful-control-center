@@ -8,13 +8,20 @@ const editor = page => page.getByRole("dialog", { name: "测试颜色", exact: t
 test("RGB、HEX、色相和色域只提交有效草稿，关闭返回色块焦点", async ({ page }) => {
   const trigger = swatch(page), picker = editor(page);
   await expect(picker).toBeHidden();
+  await trigger.focus();
+  await expect(page.getByRole("tooltip")).toHaveText("#7F00CB");
   await trigger.press("Enter");
   await expect(picker.getByRole("heading")).toBeFocused();
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
   const red = picker.getByRole("spinbutton", { name: "R", exact: true });
   const green = picker.getByRole("spinbutton", { name: "G", exact: true });
   const blue = picker.getByRole("spinbutton", { name: "B", exact: true });
   const hex = picker.getByRole("textbox", { name: "HEX", exact: true });
   const hue = picker.getByRole("slider", { name: "色相", exact: true });
+  const hueTrack = hue.locator("..").locator(".ccc-range-track");
+  await expect(hueTrack).toHaveCSS("height", "24px");
+  await expect(hueTrack.locator(".ccc-rgb-spectrum")).toBeVisible();
+  await expect(hueTrack.locator(".ccc-range-fill")).toHaveCount(0);
   await expect(red).toHaveValue("127");
   await red.fill("18");
   await expect(hex).toHaveValue("#1200CB");

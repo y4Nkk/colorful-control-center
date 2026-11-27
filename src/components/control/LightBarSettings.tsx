@@ -7,11 +7,11 @@ import { OemConflictAction } from "../OemConflictAction";
 import { Surface } from "../Surface";
 import { X170LightBarEditor, X58LightBarEditor } from "./LightBarEditor";
 import { lightBarSummary, lightBarDraftValid } from "./lightbar-values";
-import { useLightBarSettings } from "./useLightBarSettings";
+import type { useLightBarSettings } from "./useLightBarSettings";
 
-export function LightBarSettings({ active, revision }: { active: boolean; revision: number }) {
-  const model = useLightBarSettings(active, revision), { profile, draft, busy, error, run } = model;
-  if (model.loaded && !profile && !error) return null;
+export function LightBarSettings({ model }: { model: ReturnType<typeof useLightBarSettings> }) {
+  const { profile, draft, busy, error, run } = model;
+  if (!profile && !error) return null;
   const current = profile?.current, blocked = busy || !!profile?.blockedReason;
   const sameKind = !!current && !!draft && current.kind === profile?.kind && draft.kind === current.kind;
   const dirty = sameKind && JSON.stringify(current) !== JSON.stringify(draft);
@@ -55,6 +55,6 @@ export function LightBarSettings({ active, revision }: { active: boolean; revisi
           <Button variant="secondary" disabled={busy} onClick={() => model.setDraft(structuredClone(current))}>载入当前灯条草稿</Button>
         </> : <p className="ccc-control-caption">保存值未知，未开放新设置。已有有效初始快照时仍可确认恢复。</p>}
       </Surface>
-    </div> : <p className="ccc-control-caption">{error ? "无法读取，请重试。" : "正在读取灯条配置。"}</p>}
+    </div> : <p className="ccc-control-caption">无法读取，请重试。</p>}
   </Surface>;
 }

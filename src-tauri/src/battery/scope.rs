@@ -3,16 +3,16 @@ use std::sync::MutexGuard;
 
 pub(crate) struct Scope<'a> {
     pub(super) controller: &'a Controller,
-    pub(super) baseline: MutexGuard<'a, Option<ChargeState>>,
+    _lock: MutexGuard<'a, ()>,
 }
 impl Controller {
     pub(crate) fn scope(&self) -> Result<Scope<'_>> {
         Ok(Scope {
             controller: self,
-            baseline: self
-                .baseline
+            _lock: self
+                .mutation
                 .lock()
-                .map_err(|_| anyhow!("充电恢复状态异常"))?,
+                .map_err(|_| anyhow!("充电控制状态异常"))?,
         })
     }
     pub(super) fn with_io<T>(

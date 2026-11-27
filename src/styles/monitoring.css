@@ -1,100 +1,198 @@
 /* 监控语义：温度使用绝对标尺，频率使用带单位的数值，比例使用真实分母。 */
 .ccc-parameter-descriptions { display: grid; gap: var(--ccc-space-3); margin: var(--ccc-space-3) 0 0; padding: 0; list-style: none; }
-.ccc-parameter-descriptions strong { color: var(--ccc-text); font-weight: 500; }
+.ccc-parameter-descriptions strong { color: var(--ccc-text); font-weight: 600; }
 .ccc-parameter-descriptions p { margin: var(--ccc-space-1) 0 0; line-height: 1.7; color: var(--ccc-text-muted); }
-.ccc-sensor-group { display: grid; grid-template-rows: subgrid; gap: var(--ccc-space-4); min-width: 0; padding: var(--ccc-space-4); padding-block-end: var(--ccc-space-3); }
-.ccc-hardware-identity { display: grid; grid-template-columns: clamp(76px, 21%, 112px) minmax(0, 1fr); align-items: center; gap: var(--ccc-space-3); }
-.ccc-hardware-illustrations { display: grid; justify-items: center; gap: var(--ccc-space-1); }
-.ccc-hardware-description { display: grid; justify-items: start; gap: var(--ccc-space-1); min-width: 0; }
-.ccc-hardware-description h3 { margin: 0; font-size: var(--ccc-text-xl); font-weight: 600; }
-.ccc-hardware-description p { margin: 0; color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); overflow-wrap: anywhere; }
-.ccc-hardware-description .ccc-hardware-subtitle { font-size: var(--ccc-text-xs); }
-.ccc-hardware-brand { display: inline-flex; align-items: center; justify-content: center; width: 68px; height: 27px; padding: var(--ccc-space-1) var(--ccc-space-2); border-radius: var(--ccc-radius-control); background: var(--ccc-brand-surface); }
+.ccc-sensor-group { display: grid; grid-template-rows: subgrid; gap: var(--ccc-space-4); min-width: 0; padding: var(--ccc-space-4); }
+.ccc-hardware-identity {
+  display: grid;
+  grid-template-columns: clamp(56px, 12cqi, 112px) minmax(0, 1fr);
+  grid-template-rows: 1fr auto;
+  align-items: center;
+  gap: var(--ccc-space-2) var(--ccc-space-4);
+}
+.ccc-hardware-emblem { display: grid; place-items: center; min-height: var(--ccc-control-height); padding: var(--ccc-space-1); border-radius: var(--ccc-radius-utility); background: var(--ccc-content-muted); }
+.ccc-hardware-description { display: grid; gap: var(--ccc-space-1); min-width: 0; }
+.ccc-hardware-description h3 { margin: 0; font-size: var(--ccc-text-xl); font-weight: 600; line-height: 1.4; }
+.ccc-hardware-description p { margin: 0; font-size: var(--ccc-text-xs); overflow-wrap: anywhere; }
+.ccc-hardware-mark { display: grid; justify-items: center; color: var(--ccc-chart-label); }
+.ccc-hardware-action { display: flex; }
+.ccc-capacity-card > .ccc-hardware-identity { grid-template-rows: auto; grid-auto-columns: max-content; }
+.ccc-capacity-card > .ccc-hardware-identity > .ccc-hardware-action { grid-column: 3; }
+.ccc-hardware-brand { display: inline-flex; align-items: center; justify-content: center; width: min(64px, 100%); height: var(--ccc-control-height-compact); padding: var(--ccc-space-1); border-radius: var(--ccc-radius-inline); background: var(--ccc-brand-surface); }
 .ccc-hardware-brand img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .ccc-hardware-brand.is-amd { background: var(--ccc-brand-dark-surface); }
-.ccc-hardware-brand.is-nvidia img { object-fit: cover; }
 .ccc-hardware-art { display: block; width: 100%; height: auto; overflow: visible; }
 .ccc-art-etching { font-family: var(--ccc-font-sans); }
-.ccc-sensor-metrics { container: ccc-metrics / inline-size; }
-.ccc-sensor-metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-3); }
-.ccc-sensor-metric-grid:not(:has(> :nth-child(4))) > :first-child { grid-column: 1 / -1; }
-@container ccc-metrics (min-width: 400px) {
-  .ccc-sensor-metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .ccc-sensor-metric-grid:has(> :nth-child(4)) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .ccc-sensor-metric-grid:not(:has(> :nth-child(4))) > :first-child { grid-column: auto; }
+.ccc-overview-metrics {
+  container: ccc-metrics / inline-size;
+  background: var(--ccc-content-muted);
+  border-radius: var(--ccc-radius-utility);
+  padding: var(--ccc-space-3);
 }
+.ccc-overview-metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-2); }
+@container ccc-metrics (min-width: 420px) {
+  .ccc-overview-metric-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.ccc-overview-charts { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-4); min-width: 0; }
+:is(.ccc-overview-utilization, .ccc-trend-chart) {
+  padding: var(--ccc-space-3);
+  border-radius: var(--ccc-radius-utility);
+  background: var(--ccc-content-muted);
+}
+.ccc-overview-utilization { display: grid; place-items: center; }
+.ccc-overview-utilization .ccc-meter-ring { --ccc-ring-diameter: var(--ccc-meter-ring-size); }
+@container ccc-control (min-width: 356px) {
+  .ccc-overview-charts { grid-template-columns: calc(var(--ccc-meter-ring-size) + 2 * var(--ccc-space-4)) minmax(0, 1fr); }
+}
+
 .ccc-meter { display: flex; flex-direction: column; gap: var(--ccc-space-2); min-width: 0; }
 .ccc-meter:not(.is-ratio) > .ccc-meter-label { order: -1; }
 .ccc-meter.is-ratio { align-items: center; }
-.ccc-meter-label { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); white-space: nowrap; }
+.ccc-meter-label { color: var(--ccc-chart-label); font-size: var(--ccc-text-xs); white-space: nowrap; }
 .ccc-meter-value { display: flex; align-items: baseline; gap: var(--ccc-space-1); color: var(--ccc-text); font-size: var(--ccc-text-reading); line-height: 1.2; white-space: nowrap; }
+.ccc-meter-value[data-alert] { color: var(--ccc-chart-alert); }
 .ccc-meter-unit { color: var(--ccc-text-muted); font-family: var(--ccc-font-sans); font-size: var(--ccc-text-xs); }
 .ccc-meter-ring { --ccc-ring-diameter: var(--ccc-meter-ring-size); position: relative; display: grid; place-items: center; width: var(--ccc-ring-diameter); aspect-ratio: 1; }
-.ccc-meter-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke-width: 5; }
-.ccc-meter-ring-track { stroke: var(--ccc-hairline); }
-.ccc-meter-ring-fill { stroke: currentColor; stroke-linecap: round; }
+.ccc-meter-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; stroke-width: 5; }
+.ccc-meter-ring-track { stroke: var(--ccc-chart-track); }
+.ccc-meter-ring-fill { stroke: currentColor; }
 .ccc-meter-ring .ccc-meter-value { position: relative; display: grid; justify-items: center; gap: var(--ccc-space-1); font-size: calc(var(--ccc-ring-diameter) * .28); font-variant-numeric: lining-nums tabular-nums; line-height: 1; }
 .ccc-meter-ring .ccc-meter-unit { min-height: 1em; }
+.ccc-meter-ring-content { position: relative; display: grid; justify-items: center; gap: var(--ccc-space-1); }
+.ccc-meter-ring-content .ccc-meter-value { display: flex; font-size: var(--ccc-text-title); font-weight: 600; }
 .ccc-meter-compact { gap: var(--ccc-space-1); }
-.ccc-meter-compact .ccc-meter-value { font-size: var(--ccc-text-title); flex-wrap: wrap; }
-.ccc-meter-heading { display: flex; align-items: center; gap: var(--ccc-space-2); color: var(--ccc-text-muted); }
+.ccc-meter-compact .ccc-meter-value { font-size: var(--ccc-text-title); font-weight: 600; flex-wrap: wrap; row-gap: 0; }
 .ccc-meter-compact .ccc-meter-label { white-space: normal; }
 
-.ccc-capacity-card { min-width: 0; padding: var(--ccc-space-4); }
-.ccc-capacity-card > .ccc-hardware-identity { margin-block-end: var(--ccc-space-3); }
-.ccc-capacity-head { display: grid; grid-template-columns: minmax(0, 1fr) 112px; align-items: center; gap: var(--ccc-space-2); margin-bottom: var(--ccc-space-2); }
-.ccc-capacity-heading { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-2); min-width: 0; }
-.ccc-capacity-heading h3 { margin: 0; font-size: var(--ccc-text-xl); font-weight: 600; }
-.ccc-capacity-head > .ccc-hardware-art { max-height: 68px; justify-self: end; }
-.ccc-capacity-bar { display: block; width: 100%; height: 8px; overflow: hidden; border-radius: var(--ccc-radius-full); }
-.ccc-capacity-track { fill: var(--ccc-content-muted); }
-.ccc-capacity-fill { fill: var(--ccc-action); }
-.ccc-capacity-empty, .ccc-capacity-available { font-size: var(--ccc-text-xs); color: var(--ccc-text-muted); }
-.ccc-capacity-empty { margin: var(--ccc-space-2) 0 0; }
-.ccc-memory-usage { display: grid; gap: var(--ccc-space-4); }
-.ccc-memory-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-3); margin: 0; }
-.ccc-memory-stats dt { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
-.ccc-memory-stats dd { margin: var(--ccc-space-1) 0 0; font-family: var(--ccc-font-mono); font-size: var(--ccc-text-title); line-height: 1.2; }
-.ccc-storage-volumes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); gap: var(--ccc-space-3) var(--ccc-space-5); list-style: none; margin: 0; padding: 0; }
-.ccc-storage-volume { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--ccc-space-3); align-items: center; padding-block: var(--ccc-space-2); }
-.ccc-storage-icon { color: var(--ccc-text-muted); }
-.ccc-storage-info { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-1); min-width: 0; }
-.ccc-storage-info h4 { display: flex; gap: var(--ccc-space-1); margin: 0; white-space: nowrap; font-size: var(--ccc-text-sm); font-weight: 600; }
+.ccc-processor-metrics {
+  --processor-plot-size: 42px;
+  --processor-label-height: calc(var(--processor-plot-size) / 2);
+  --processor-reading-size: var(--ccc-text-lg);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ccc-space-3) var(--ccc-space-2);
+}
+@container ccc-metrics (min-width: 244px) {
+  .ccc-processor-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container ccc-metrics (min-width: 368px) {
+  .ccc-processor-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@container ccc-metrics (min-width: 566px) {
+  .ccc-processor-metrics { --processor-plot-size: 52px; --processor-reading-size: var(--ccc-text-title); }
+}
+/* CPU 频率标签折行时，两张卡的读数仍从同一高度开始。 */
+@container ccc-metrics (244px <= width < 300px) or (368px <= width < 454px) {
+  .ccc-processor-metrics { --processor-label-height: calc(var(--ccc-text-xs) * 2.5); }
+}
+.ccc-processor-metrics > .ccc-meter-compact {
+  display: grid;
+  grid-template-columns: var(--processor-plot-size) minmax(0, 1fr);
+  grid-template-rows: var(--processor-label-height) minmax(calc(var(--processor-plot-size) / 2), auto);
+  gap: 0 var(--ccc-space-2);
+  align-items: center;
+  min-block-size: var(--processor-plot-size);
+}
+.ccc-processor-metrics .ccc-meter-label { grid-area: 1 / 2; align-self: end; line-height: 1.25; }
+.ccc-processor-metrics .ccc-meter-value {
+  grid-area: 2 / 2;
+  align-self: start;
+  font-size: var(--processor-reading-size);
+  flex-wrap: nowrap;
+}
+.ccc-processor-metrics > .ccc-meter-compact > svg {
+  display: block;
+  grid-area: 1 / 1 / 3 / 2;
+  inline-size: 100%;
+  block-size: var(--processor-plot-size);
+}
+.ccc-processor-metrics :is(.ccc-meter-ring-track, .ccc-meter-ring-fill) { stroke-width: 8; }
+.ccc-processor-temp-track, .ccc-processor-temp-zone {
+  fill: none;
+  stroke-width: 4.5;
+  stroke-linecap: round;
+}
+.ccc-processor-temp-track { stroke: var(--ccc-chart-track); }
+.ccc-processor-temp-zone { stroke: color-mix(in srgb, var(--ccc-chart-alert) 24%, var(--ccc-chart-track)); }
+.ccc-processor-temp-limit { fill: none; stroke: var(--ccc-chart-alert); }
+.ccc-processor-temp-point { fill: currentColor; stroke: var(--ccc-content-muted); stroke-width: 1.4; }
+.ccc-processor-temp-point[data-hot] { fill: var(--ccc-chart-alert); }
+.ccc-processor-frequency-area { fill: color-mix(in srgb, currentColor 12%, transparent); }
+.ccc-processor-frequency-line { fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.ccc-processor-frequency-point { fill: currentColor; }
+
+.ccc-capacity-card { display: grid; gap: var(--ccc-space-4); min-width: 0; padding: var(--ccc-space-4); }
+.ccc-capacity-bar { height: var(--ccc-space-2); overflow: hidden; border-radius: var(--ccc-radius-full); background: var(--ccc-chart-track); }
+.ccc-capacity-fill { display: block; block-size: 100%; border-radius: inherit; background: var(--ccc-chart-blue); }
+.ccc-capacity-empty, .ccc-capacity-available { font-size: var(--ccc-text-xs); color: var(--ccc-chart-label); }
+.ccc-capacity-empty { margin: 0; }
+.ccc-storage-volumes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: var(--ccc-space-3) var(--ccc-space-5); list-style: none; margin: 0; padding: 0; }
+.ccc-storage-volume { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--ccc-space-3); align-items: start; padding: var(--ccc-space-3); border-radius: var(--ccc-radius-utility); background: var(--ccc-content-muted); }
+.ccc-storage-icon { color: var(--ccc-chart-label); }
+.ccc-storage-info { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-2); min-width: 0; }
+.ccc-storage-heading { display: flex; align-items: baseline; justify-content: space-between; min-width: 0; gap: var(--ccc-space-2); }
+.ccc-storage-heading > .ccc-capacity-available { flex: none; }
+:where(.ccc-storage-volume[data-usage="warning"]) .ccc-capacity-fill { background: var(--ccc-chart-warning); }
+:where(.ccc-storage-volume[data-usage="warning"]) .ccc-storage-heading > .ccc-capacity-available { color: var(--ccc-chart-warning); }
+:where(.ccc-storage-volume[data-usage="alert"]) .ccc-capacity-fill { background: var(--ccc-chart-alert); }
+:where(.ccc-storage-volume[data-usage="alert"]) .ccc-storage-heading > .ccc-capacity-available { color: var(--ccc-chart-alert); }
+.ccc-storage-info h4 { display: flex; gap: var(--ccc-space-1); min-width: 0; margin: 0; white-space: nowrap; font-size: var(--ccc-text-sm); font-weight: 600; }
 .ccc-storage-info h4 > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ccc-storage-info h4 > :last-child { flex: none; }
 
-.ccc-trend-value { color: var(--ccc-text); font-size: var(--ccc-text-temperature); line-height: 1.15; white-space: nowrap; }
-.ccc-trend-value em { margin-inline-start: var(--ccc-space-1); color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); font-style: normal; }
-.ccc-trend-panel { display: grid; gap: var(--ccc-space-4); min-width: 0; padding: var(--ccc-space-3); border-radius: var(--ccc-radius-card); background: var(--ccc-content-muted); }
-.ccc-trend-head { display: flex; align-items: end; justify-content: space-between; gap: var(--ccc-space-2); }
-.ccc-trend-head > div { display: grid; gap: var(--ccc-space-1); }
-.ccc-trend-head span, .ccc-trend-time, .ccc-trend-tick { color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
-.ccc-trend-peak { text-align: end; }
-.ccc-trend-peak strong { font-size: var(--ccc-text-md); font-weight: 600; }
-.ccc-trend-panel .is-hot { color: var(--ccc-danger); }
-.ccc-trend-chart { padding-inline-end: var(--ccc-space-6); }
-.ccc-memory-chart { padding-inline-end: calc(var(--ccc-space-6) + var(--ccc-space-2)); color: var(--ccc-action); }
-.ccc-trend-grid { stroke: var(--ccc-hairline); }
-.ccc-temperature-zone { fill: var(--ccc-danger-tint); }
-.ccc-temperature-limit { stroke: var(--ccc-danger); stroke-dasharray: 3 3; opacity: .55; }
-.ccc-trend-area { fill: currentColor; opacity: .16; }
-.ccc-trend-tick { position: absolute; left: calc(100% + var(--ccc-space-2)); transform: translateY(-50%); line-height: 1; }
-.ccc-trend-tick[data-limit] { color: var(--ccc-danger); }
-.ccc-trend-time { display: flex; justify-content: space-between; margin-block-start: var(--ccc-space-2); }
-.ccc-trend-plot { position: relative; min-width: 0; height: 104px; }
+.ccc-trend-chart {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  min-width: 0;
+  block-size: var(--ccc-chart-height);
+  padding-inline-end: calc(var(--ccc-space-6) + var(--ccc-space-2) + var(--ccc-space-3));
+}
+.ccc-trend-grid { stroke: var(--ccc-chart-cursor); stroke-dasharray: 4 4; opacity: .5; }
+.ccc-temperature-zone { fill: var(--ccc-chart-zone); }
+.ccc-temperature-limit, .ccc-trend-cursor { stroke-dasharray: 4 4; }
+.ccc-temperature-limit { stroke: var(--ccc-chart-alert); opacity: .6; }
+.ccc-trend-cursor { stroke: var(--ccc-chart-cursor); }
+.ccc-trend-tick { position: absolute; left: calc(100% + var(--ccc-space-2)); transform: translateY(-50%); color: var(--ccc-chart-label); font-size: var(--ccc-text-xs); font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
+.ccc-trend-tick[data-limit] { color: var(--ccc-chart-alert); }
+.ccc-trend-plot { position: relative; min-width: 0; }
 .ccc-trend-lines { display: block; width: 100%; height: 100%; }
 .ccc-trend-line { fill: none; stroke: currentColor; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }
-.ccc-trend-marker { position: absolute; width: 8px; height: 8px; border: 1.5px solid var(--ccc-content); border-radius: var(--ccc-radius-full); background: currentColor; transform: translate(-50%, -50%); }
-.ccc-trend-marker[data-hot] { color: var(--ccc-danger); }
-.ccc-trend-marker[data-hot]:not([data-latest]) { width: 5px; height: 5px; border: 0; }
+.ccc-trend-marker, .ccc-trend-hover-point { position: absolute; width: var(--ccc-space-2); height: var(--ccc-space-2); border: var(--ccc-border-width) solid var(--ccc-content); border-radius: var(--ccc-radius-full); background: currentColor; transform: translate(-50%, -50%); }
+.ccc-trend-marker[data-hot], .ccc-trend-hover-point[data-hot] { background: var(--ccc-chart-alert); }
+.ccc-trend-marker[data-hot]:not([data-latest]) { width: var(--ccc-space-1); height: var(--ccc-space-1); opacity: .35; border: 0; }
 .ccc-trend-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
+.ccc-trend-hover { position: absolute; inset: 0; pointer-events: none; }
+.ccc-trend-tooltip {
+  position: absolute;
+  z-index: 1;
+  top: var(--ccc-space-2);
+  display: grid;
+  gap: var(--ccc-space-1);
+  width: max-content;
+  max-width: 100%;
+  inset-inline-end: 0;
+  padding: var(--ccc-space-2);
+  border: var(--ccc-border);
+  border-radius: var(--ccc-radius-control);
+  background: var(--ccc-content-overlay);
+  color: var(--ccc-text);
+  font-size: var(--ccc-text-xs);
+}
+.ccc-trend-tooltip[data-side="start"] { inset-inline: 0 auto; }
+.ccc-trend-tooltip time { color: var(--ccc-chart-label); }
 @container ccc-control (max-width: 835px) { .ccc-meter-ring { --ccc-ring-diameter: var(--ccc-meter-ring-compact); } }
-@container ccc-control (max-width: 560px) { .ccc-capacity-head { grid-template-columns: minmax(0, 1fr) 76px; } }
 @container ccc-control (min-width: 500px) {
-  .ccc-sensor-metrics, .ccc-memory-stats { padding-inline: var(--ccc-space-3); }
-  .ccc-memory-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ccc-capacity-card .ccc-trend-chart { block-size: var(--ccc-chart-height-wide); }
 }
 @media (max-width: 560px) {
   .ccc-sensor-group { gap: var(--ccc-space-3); }
   .ccc-meter-ring { --ccc-ring-diameter: var(--ccc-meter-ring-compact); }
+}
+@media (forced-colors: active) {
+  .ccc-trend-line, .ccc-meter-ring-track, .ccc-processor-temp-track, .ccc-processor-frequency-line { stroke: CanvasText; }
+  .ccc-temperature-limit, .ccc-meter-ring-fill, .ccc-processor-temp-zone, .ccc-processor-temp-limit { stroke: Highlight; }
+  .ccc-processor-temp-point, .ccc-processor-frequency-point { fill: Highlight; }
+  .ccc-capacity-bar { forced-color-adjust: none; background: Canvas; outline: 1px solid CanvasText; }
+  .ccc-capacity-fill { background: Highlight; }
 }

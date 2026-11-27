@@ -9,7 +9,7 @@ fn profile_disabling_turbo_keeps_firmware_fan_policy_without_memory() {
         state.pages[1][1] = 3;
         state.pages[4][8] = 1;
         state.fan_mode = 2;
-        state.ignore_fan_write = true;
+        state.ignored_fan_writes = 2;
     }
     let _gate = f.hal.begin_write().unwrap();
     let plan =
@@ -37,7 +37,7 @@ fn preset_releases_quiet_fan_before_turbo_without_overwriting_source_memory() {
             state.pages[4][9] = 1;
             state.pages[4][73] = 8;
             state.fan_mode = 8;
-            state.ignore_fan_write = fail;
+            state.ignored_fan_writes = if fail { 2 } else { 0 };
         }
         let _gate = f.hal.begin_write().unwrap();
         let plan = powerctl::mode::checkpoint(&f.hal, 2).unwrap();

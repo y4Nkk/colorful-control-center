@@ -192,7 +192,7 @@ fn profile_file_changed_during_authorization_is_rejected_before_outputs() {
             ModeReview::Confirmed {
                 permission: None,
                 mode: None,
-                file: Some((directory.path(), &file)),
+                source: Some((&crate::profiles::application::Source::Saved(directory.path().into()), &file)),
                 display: None,
                 gpu_power: None,
                 graphics_mode: None,

@@ -15,6 +15,11 @@ pub(super) struct Evidence {
     pub fields: [u8; 3],
     pub on_ac: Option<bool>,
 }
+impl Evidence {
+    pub(super) fn supply_mode_switch(&self) -> bool {
+        self.dc_mode_power || self.customer == 22
+    }
+}
 pub(super) trait Source {
     fn evidence(&self) -> Result<Evidence>;
     fn displays(&self) -> Result<Vec<Display>>;
@@ -36,7 +41,7 @@ pub(crate) struct Facts {
     pub on_ac: Option<bool>,
     pub default_enabled: bool,
 }
-pub(super) fn read(source: &impl Source) -> Result<Facts> {
+pub(super) fn read_evidence(source: &impl Source) -> Result<(Evidence, Firmware)> {
     let evidence = source.evidence()?;
     let firmware = Firmware::from_packet(&evidence.packet).map_err(anyhow::Error::msg)?;
     if !firmware.supported || evidence.product == 4106 {
@@ -48,9 +53,14 @@ pub(super) fn read(source: &impl Source) -> Result<Facts> {
     if evidence.fields[..2].iter().any(|value| *value > 1) {
         bail!("原厂自动刷新率开关字段无效");
     }
-    if evidence.mode > 4 || !evidence.modes.contains(&evidence.mode) {
+    if !ccc_core::oem_events::is_power_mode(evidence.mode) || !evidence.modes.contains(&evidence.mode) {
         bail!("原厂当前电源模式未知或不可用");
     }
+    Ok((evidence, firmware))
+}
+
+pub(super) fn read(source: &impl Source) -> Result<Facts> {
+    let (evidence, firmware) = read_evidence(source)?;
     let displays = source.displays()?;
     let mut primary = displays.into_iter().filter(|display| display.primary);
     let display = primary
@@ -84,6 +94,7 @@ pub(super) fn read(source: &impl Source) -> Result<Facts> {
             firmware.default_enabled,
         ))?)
     );
+    let supply_mode_switch = evidence.supply_mode_switch();
     Ok(Facts {
         identity,
         display: display.current,
@@ -95,7 +106,7 @@ pub(super) fn read(source: &impl Source) -> Result<Facts> {
         modes: evidence.modes,
         customer: evidence.customer,
         product: evidence.product,
-        supply_mode_switch: evidence.dc_mode_power || evidence.customer == 22,
+        supply_mode_switch,
         on_ac: evidence.on_ac,
         default_enabled: firmware.default_enabled,
     })

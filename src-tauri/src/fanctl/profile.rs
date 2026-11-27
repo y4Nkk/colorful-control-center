@@ -9,6 +9,48 @@ use ccc_core::{
 };
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CurvePoints {
+    pub t2: f64,
+    pub d2_pct: f64,
+    pub t3: f64,
+    pub d3_pct: f64,
+}
+
+impl From<CurvePoints> for OemCurvePoints {
+    fn from(points: CurvePoints) -> Self {
+        Self {
+            t2: points.t2,
+            d2: points.d2_pct,
+            t3: points.t3,
+            d3: points.d3_pct,
+        }
+    }
+}
+
+impl From<OemCurvePoints> for CurvePoints {
+    fn from(points: OemCurvePoints) -> Self {
+        Self {
+            t2: points.t2,
+            d2_pct: points.d2,
+            t3: points.t3,
+            d3_pct: points.d3,
+        }
+    }
+}
+
+impl From<&FanPointSet> for CurvePoints {
+    fn from(fan: &FanPointSet) -> Self {
+        Self {
+            t2: fan.t2,
+            d2_pct: fan.d2_pct,
+            t3: fan.t3,
+            d3_pct: fan.d3_pct,
+        }
+    }
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FanPointSet {

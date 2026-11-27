@@ -24,7 +24,7 @@ mod tests;
 use crate::hal::Hal;
 use anyhow::{Context, Result, anyhow, bail};
 pub use model::{ChargeRequest, Profile};
-pub(crate) use model::{ChargeState, ChargeValues, Diagnostics, PowerStatus};
+pub(crate) use model::{ChargeState, ChargeUnavailable, ChargeValues, Diagnostics, PowerStatus};
 use std::sync::Mutex;
 
 #[cfg(not(test))]
@@ -37,27 +37,24 @@ pub(crate) fn system_power() -> Result<PowerStatus> {
 }
 
 pub(crate) trait Io {
-    fn charge(&self) -> Result<Option<ChargeState>>;
+    fn charge(&self) -> Result<Option<ChargeState>, ChargeUnavailable>;
     fn send(&self, values: &ChargeValues) -> Result<()>;
     fn power(&self) -> Result<PowerStatus>;
     fn diagnostics(&self) -> Result<Option<Diagnostics>>;
 }
-fn read(io: &dyn Io, baseline: &Option<ChargeState>) -> Profile {
-    let mut warnings = Vec::new();
-    let charge = io
-        .charge()
-        .map_err(|e| warnings.push(format!("充电保护：{e:#}")))
-        .ok()
-        .flatten();
-    let power = io
-        .power()
-        .map_err(|e| warnings.push(format!("电源状态：{e:#}")))
-        .ok();
+const POWER_UNAVAILABLE: &str = "无法读取 Windows 的电源状态。";
+fn read(io: &dyn Io) -> Profile {
+    let (charge, charge_unavailable_reason) = match io.charge() {
+        Ok(charge) => (charge, None),
+        Err(unavailable) => (None, Some(unavailable.reason().to_string())),
+    };
+    let (power, power_unavailable_reason) = match io.power() {
+        Ok(power) => (Some(power), None),
+        Err(_) => (None, Some(POWER_UNAVAILABLE.to_string())),
+    };
+    // 诊断读数不进页面；读不到时保持为空，不算用户可见的失败。
     let diagnostics = if power.as_ref().is_some_and(|p| p.present == Some(true)) {
-        io.diagnostics()
-            .map_err(|e| warnings.push(format!("电池诊断：{e:#}")))
-            .ok()
-            .flatten()
+        io.diagnostics().ok().flatten()
     } else {
         None
     };
@@ -66,8 +63,8 @@ fn read(io: &dyn Io, baseline: &Option<ChargeState>) -> Profile {
         charge,
         power,
         diagnostics,
-        can_restore: baseline.is_some(),
-        warnings,
+        charge_unavailable_reason,
+        power_unavailable_reason,
         charge_lock_reason: None,
     }
 }
@@ -82,7 +79,7 @@ fn write(io: &dyn Io, target: &ChargeState) -> Result<()> {
     }
     Ok(())
 }
-fn apply(io: &dyn Io, baseline: &mut Option<ChargeState>, request: &ChargeRequest) -> Result<()> {
+fn apply(io: &dyn Io, request: &ChargeRequest) -> Result<()> {
     if io.power()?.present != Some(true) {
         bail!("未确认电池存在，未修改充电保护");
     }
@@ -90,21 +87,10 @@ fn apply(io: &dyn Io, baseline: &mut Option<ChargeState>, request: &ChargeReques
     if before.revision() != request.expected_revision {
         bail!("充电状态或候选已变化，请重新读取并确认");
     }
-    charge::Plan::prepare(before, baseline, &request.values)?.execute(io, baseline, &mut false)
-}
-fn restore(io: &dyn Io, baseline: &mut Option<ChargeState>, expected: &str) -> Result<()> {
-    if io.power()?.present != Some(true) {
-        bail!("未确认电池存在，未恢复充电保护");
-    }
-    let before = current(io)?;
-    if before.revision() != expected {
-        bail!("充电状态或候选已变化，请重新读取并确认恢复");
-    }
-    let initial = baseline.as_ref().context("没有可恢复的充电初始快照")?;
-    charge::Plan::restore(before, initial)?.execute(io, baseline, &mut false)
+    charge::Plan::prepare(before, &request.values)?.execute(io, &mut false)
 }
 pub struct Controller {
-    baseline: Mutex<Option<ChargeState>>,
+    mutation: Mutex<()>,
     energy_path: std::path::PathBuf,
     calibration: Mutex<Option<calibration::Client>>,
     #[cfg(test)]
@@ -115,7 +101,7 @@ pub struct Controller {
 impl Controller {
     pub fn new(energy_path: std::path::PathBuf) -> Self {
         Self {
-            baseline: Mutex::new(None),
+            mutation: Mutex::new(()),
             energy_path,
             calibration: Mutex::new(None),
             #[cfg(test)]
@@ -128,34 +114,23 @@ impl Controller {
         let scope = self.scope()?;
         let _write = hal.begin_write()?;
         self.with_io(hal, |io, energy| {
-            let mut profile = read(io, &scope.baseline);
+            let mut profile = read(io);
             profile.charge_lock_reason = match scope.charge_lock(energy).and_then(|reason| {
                 scope.ensure_available()?;
                 Ok(reason)
             }) {
                 Ok(reason) => reason.map(String::from),
-                Err(error) => {
-                    profile.warnings.push(format!("电池控制记录：{error:#}"));
-                    Some(format!("充电写入暂停：{error:#}"))
-                }
+                Err(error) => Some(format!("充电写入暂停：{error:#}")),
             };
             Ok(profile)
         })
     }
     pub fn apply(&self, hal: &Hal, request: &ChargeRequest) -> Result<()> {
-        let mut scope = self.scope()?;
+        let scope = self.scope()?;
         let _write = hal.begin_write()?;
         self.with_io(hal, |io, energy| {
             scope.ensure_charge_available(energy)?;
-            apply(io, &mut scope.baseline, request)
-        })
-    }
-    pub fn restore(&self, hal: &Hal, expected: &str) -> Result<()> {
-        let mut scope = self.scope()?;
-        let _write = hal.begin_write()?;
-        self.with_io(hal, |io, energy| {
-            scope.ensure_charge_available(energy)?;
-            restore(io, &mut scope.baseline, expected)
+            apply(io, request)
         })
     }
 }

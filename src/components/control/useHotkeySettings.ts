@@ -6,7 +6,7 @@ import { preserveEditedFields } from "./settings-draft";
 
 export function useHotkeySettings(active: boolean, revision: number) {
   const conflict = useOemConflict();
-  const [profile, setProfile] = useState<HotkeyProfile | null>(null), [draft, setDraft] = useState<HotkeySettingsValue | null>(null);
+  const [profile, setProfile] = useState<HotkeyProfile | null>(), [draft, setDraft] = useState<HotkeySettingsValue | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null);
   const generation = useRef(0), writing = useRef(false), accepted = useRef<HotkeySettingsValue | null>(null);
   const reading = useRef<Promise<HotkeyProfile> | null>(null);
@@ -52,5 +52,5 @@ export function useHotkeySettings(active: boolean, revision: number) {
     }
     finally { writing.current = false; setBusy(false); }
   };
-  return { profile, draft, setDraft, busy, error, run, reread };
+  return { profile: profile ?? null, loaded: profile !== undefined, draft, setDraft, busy, error, run, reread };
 }

@@ -16,11 +16,14 @@ unsafe extern "system" fn buffer(command: i32, out: *mut u8) -> i32 {
         }
         13 => {
             let d = device();
-            let state = d.0.lock().unwrap();
+            let mut state = d.0.lock().unwrap();
             packet[15] = state.pages[2][4];
             packet[43] = u8::from(state.keyboard_boot_supported);
             packet[12] = state.fan_count;
             packet[14] = ccc_core::fan::oem_fan_mode_bits(state.fan_mode).unwrap_or(0);
+            if let Some(bits) = state.fan_readbacks.pop_front() {
+                packet[14] = bits;
+            }
             packet[50] = (1 << state.fan_count) - 1;
             for (index, curve) in state.fan_curves.iter().enumerate() {
                 for point in 0..4 {
@@ -108,6 +111,7 @@ unsafe extern "system" fn set(command: i32, bytes: *const u8, length: i32) -> i3
     } else if command == 121 && bytes[3] == 25 {
         let mode = bytes[0];
         state.events.push(format!("MODE:{mode}"));
+        state.fan_readbacks = std::mem::take(&mut state.fan_readbacks_on_preset);
         state.power = ((1040 | 0x8000) << 32) | (720 | 0x8000);
         state.voltage = [-20, -21, 0];
         if state.fail_mode {
@@ -135,13 +139,20 @@ unsafe extern "system" fn set(command: i32, bytes: *const u8, length: i32) -> i3
 fn set_fan(state: &mut State, sub: u8, value: u8) -> i32 {
     match sub {
         1 => {
+            state.events.push(format!("FAN_MODE:{value}"));
             if std::mem::take(&mut state.fail_fan_mode) {
                 state.events.push("FAN_MODE_FAILURE".into());
                 return 0;
             }
             state.fan_command = Some(value);
-            if !state.ignore_fan_write {
+            state.fan_readbacks = state
+                .fan_readbacks_on_commands
+                .pop_front()
+                .unwrap_or_default();
+            if state.ignored_fan_writes == 0 {
                 state.fan_mode = value;
+            } else {
+                state.ignored_fan_writes -= 1;
             }
         }
         14 => state.offset_raw = value,

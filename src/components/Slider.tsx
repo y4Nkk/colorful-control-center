@@ -1,4 +1,6 @@
 import type { ComponentProps, CSSProperties } from "react";
+import { HueSpectrum } from "./RgbSpectrum";
+import { Tooltip } from "./Tooltip";
 import { useSliderInput } from "./use-slider-input";
 
 interface SliderProps extends Pick<ComponentProps<"input">, "id" | "aria-label" | "aria-valuetext" | "disabled"> {
@@ -52,14 +54,15 @@ export function Slider({ appearance, min, max, value, marker, magnetInterval, di
   return <div className="ccc-range" data-appearance={appearance} data-disabled={disabled || undefined}
     data-busy={busy && !disabled || undefined} data-dragging={dragging || undefined} style={style} {...pointer}>
     <div className="ccc-range-track" aria-hidden="true">
-      {appearance !== "hue" && <span className="ccc-range-fill" />}
+      {appearance === "hue" ? <HueSpectrum /> : <span className="ccc-range-fill" />}
       <span ref={rail} className="ccc-range-ticks">
         {ticks.map(stop => <span key={stop} className="ccc-range-tick" data-filled={stop <= ratio + 1e-6}
           style={{ left: `${stop * 100}%` }} />)}
       </span>
     </div>
-    {marker && <span className="ccc-range-marker" style={{ left: position(progress(marker.value, min, max)) }}
-      aria-hidden="true" title={marker.label} />}
+    {marker && <Tooltip content={marker.label}>
+      <span className="ccc-range-marker" style={{ left: position(progress(marker.value, min, max)) }} aria-hidden="true" />
+    </Tooltip>}
     <span className="ccc-range-thumb" aria-hidden="true" />
     <input {...props} {...keyboard} ref={input} className="ccc-range-input" type="range"
       min={min} max={max} step={1} value={value} disabled={disabled} aria-disabled={busy && !disabled || undefined} />

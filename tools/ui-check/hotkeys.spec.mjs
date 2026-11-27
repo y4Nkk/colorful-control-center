@@ -63,6 +63,9 @@ test("接管范围在所属卡片授权，桌面提示直接提交", async ({ pa
   await submitConfiguration(review);
   await expect(region).toContainText("正在监听");
   const details = await diagnostics(page);
+  const capture = details.locator("dl[aria-label='热键接管摘要']");
+  await expect(capture.locator("dt").first()).toHaveText("当前接管的动作");
+  await expect(capture.locator("dd").first()).toContainText("Fn 锁");
   await details.getByRole("button", { name: "临时停止监听", exact: true }).click();
   await expect(details).toContainText("热键监听已停止");
   await page.keyboard.press("Escape");

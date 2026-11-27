@@ -24,7 +24,7 @@
   width: var(--ccc-switch-width);
   height: var(--ccc-switch-height);
   border-radius: var(--ccc-radius-full);
-  background: var(--ccc-text-muted);
+  background: var(--ccc-control-edge);
   transition: background var(--ccc-motion-fast) var(--ccc-easing);
 }
 
@@ -41,11 +41,7 @@
 }
 
 .ccc-switch > input:checked + .ccc-switch-track {
-  background: var(--ccc-action);
-}
-
-.ccc-switch[data-checked-tone="neutral"] > input:checked + .ccc-switch-track {
-  background: var(--ccc-text-muted);
+  background: var(--ccc-action-fill);
 }
 
 .ccc-switch > input:checked + .ccc-switch-track > .ccc-switch-thumb {
@@ -53,11 +49,19 @@
 }
 
 .ccc-switch > input:focus-visible + .ccc-switch-track {
-  box-shadow: 0 0 0 3px var(--ccc-focus-ring);
+  outline: var(--ccc-focus-outline);
+  outline-offset: 2px;
 }
 .ccc-switch > input:is(:disabled, [aria-disabled="true"]) {
   cursor: not-allowed;
 }
 .ccc-switch > input:is(:disabled, [aria-disabled="true"]):not([aria-busy="true"]) + .ccc-switch-track {
   opacity: 0.5;
+}
+
+@media (forced-colors: active) {
+  .ccc-switch-track { border: var(--ccc-border-width) solid CanvasText; background: Canvas; }
+  .ccc-switch-thumb { background: CanvasText; }
+  .ccc-switch > input:checked + .ccc-switch-track { border-color: Highlight; background: Highlight; }
+  .ccc-switch > input:checked + .ccc-switch-track > .ccc-switch-thumb { background: HighlightText; }
 }

@@ -2,6 +2,7 @@
 #[cfg(test)]
 mod tests;
 mod transaction;
+use super::{FAN_MODE_AUTO, FAN_MODE_CUSTOM, require_custom_mode};
 use crate::hal::{Hal, oem_dchu::Dchu};
 use anyhow::{Result, anyhow, bail};
 use ccc_core::{
@@ -34,7 +35,8 @@ pub struct Snapshot {
 trait RpmIo: SettingsAccess {
     fn fan_info(&self) -> Result<[u8; 256]>;
     fn exchange(&self, packet: &[u8; 256]) -> Result<[u8; 256]>;
-    fn mode(&self, mode: u8) -> Result<()>;
+    fn set_mode(&self, mode: u8) -> Result<()>;
+    fn restore_mode(&self, mode: u8) -> Result<()>;
 }
 
 impl RpmIo for Dchu {
@@ -44,8 +46,11 @@ impl RpmIo for Dchu {
     fn exchange(&self, packet: &[u8; 256]) -> Result<[u8; 256]> {
         self.exchange_package(4, packet)
     }
-    fn mode(&self, mode: u8) -> Result<()> {
+    fn set_mode(&self, mode: u8) -> Result<()> {
         self.set_fan_mode_verified(mode)
+    }
+    fn restore_mode(&self, mode: u8) -> Result<()> {
+        self.force_restore_fan_mode(mode)
     }
 }
 
@@ -73,7 +78,7 @@ fn capture(io: &impl RpmIo) -> Result<Snapshot> {
     }
     let mode = decode_oem_fan_mode(info[14]).map_err(anyhow::Error::msg)?;
     let power_mode = read_byte(io, 1, 1)?;
-    if power_mode > 4 {
+    if !ccc_core::oem_events::is_power_mode(power_mode) {
         bail!("未知 OEM 电源模式，不能生成 RPM 表 ID");
     }
     let mut pairs = Vec::new();
@@ -169,14 +174,26 @@ pub fn validate(hal: &Hal, wanted: &Curves) -> Result<()> {
 }
 
 pub fn apply(hal: &Hal, wanted: &Curves) -> Result<()> {
+    write_curves(hal, wanted, Some(FAN_MODE_CUSTOM))
+}
+
+pub(crate) fn edit(hal: &Hal, wanted: &Curves) -> Result<()> {
+    write_curves(hal, wanted, None)
+}
+
+fn write_curves(hal: &Hal, wanted: &Curves, final_mode: Option<u8>) -> Result<()> {
     super::ensure_manual_allowed(hal)?;
     crate::powerctl::mode::boost::ensure_fan_allowed(
         hal,
         crate::powerctl::mode::boost::FanTarget::Firmware(super::FAN_MODE_CUSTOM),
     )?;
     let before = checkpoint(hal)?;
+    if final_mode.is_none() {
+        anyhow::ensure!(super::software::read(hal)?.is_none(), "软件风扇正在接管");
+        require_custom_mode(before.mode)?;
+    }
     let targets = prepare(&before, wanted)?;
-    commit(hal, before, targets, 6)
+    commit(hal, before, targets, final_mode)
 }
 
 pub fn restore_default(hal: &Hal) -> Result<()> {
@@ -197,13 +214,15 @@ pub fn restore_default(hal: &Hal) -> Result<()> {
             }
         }
     }
-    commit(hal, before, targets, 0)
+    commit(hal, before, targets, Some(FAN_MODE_AUTO))
 }
 
-fn commit(hal: &Hal, before: Snapshot, targets: Vec<Pair>, mode: u8) -> Result<()> {
+fn commit(hal: &Hal, before: Snapshot, targets: Vec<Pair>, mode: Option<u8>) -> Result<()> {
     let saved = super::checkpoint(hal, false)?.with_rpm_tables(before.pairs.clone());
     anyhow::ensure!(saved.mode() == before.mode, "EC 风扇档位已变化，请重新读取");
-    super::software::stop_safely(hal)?;
+    if mode.is_some() {
+        super::software::stop_safely(hal)?;
+    }
     super::checkpoint::remember_baseline(hal, &saved)?;
     hal.with_dchu(|io| transaction::apply(io, &before, &targets, mode))
 }

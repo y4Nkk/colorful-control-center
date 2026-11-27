@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { cancelProfileApplication, findOemConflict, keepProfileDisplay, type ProfileApplication } from "../api/client";
 import { refreshProfileApplication, runProfileApplication, useProfileApplicationState } from "../app/profile-application";
 import { Button } from "./Button";
+import { Loading } from "./Loading";
 import { OemConflictAction } from "./OemConflictAction";
 import { useOemConflict } from "./OemConflictHost";
 import { Surface } from "./Surface";
@@ -43,9 +44,10 @@ export function ProfileApplicationHost() {
   };
   return <Surface as="section" variant="group" className="ccc-panel ccc-profile-trial" aria-label="档案显示确认">
     <div className="ccc-panel-head"><h2 className="ccc-panel-title">{report?.name ?? "档案执行状态"}</h2>
-      {pending && <span className="ccc-control-caption">{busy ? "正在处理档案" : pending.error || seconds == null ? "显示恢复待处理" : `显示试用 · ${seconds} 秒`}</span>}</div>
+      {pending && (busy ? <Loading label="正在重新核对并处理档案…" />
+        : <span className="ccc-control-caption">{pending.error || seconds == null ? "显示恢复待处理" : `显示试用 · ${seconds} 秒`}</span>)}</div>
     {pending && <>
-      <p className="ccc-control-caption">{busy ? "正在重新核对并处理档案，请等待执行结果。" : pending.error ? "显示恢复尚未完成，请查看执行结果并重试恢复。" : seconds == null ? "显示已保留；请查看执行结果，恢复失败可重试。" : "确认所有屏幕显示正常后保留，再继续应用其余档案设置；超时恢复本次显示前态。"}</p>
+      {!busy && <p className="ccc-control-caption">{pending.error ? "显示恢复尚未完成，请查看执行结果并重试恢复。" : seconds == null ? "显示已保留；请查看执行结果，恢复失败可重试。" : "确认所有屏幕显示正常后保留，再继续应用其余档案设置；超时恢复本次显示前态。"}</p>}
       <div className="ccc-profile-trial-displays">{pending.targets.map(target => <Surface variant="inset" className="ccc-profile-device" key={target.device}>
         <div><strong>{target.name}</strong><p className="ccc-control-caption">{target.width} × {target.height}</p></div>
         <output className="ccc-mono">{target.frequency} Hz</output>

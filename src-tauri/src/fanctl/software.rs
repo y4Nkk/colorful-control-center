@@ -258,7 +258,7 @@ fn write_step(hal: &Hal, session: &mut Session, elapsed: f64) -> Result<()> {
             let channel = usize::from(packet[1] - 1);
             ensure!(
                 reader(d)?[channel] == firmware::DirectControl::Manual(packet[2]),
-                "风扇通道 {} 接管或目标占空比回读不一致",
+                "风扇通道 {} 的接管状态或目标风扇强度回读不一致",
                 packet[1]
             );
             Ok(())

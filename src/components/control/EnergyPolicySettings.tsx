@@ -1,4 +1,5 @@
 import { Icon } from "../Icon";
+import { Loading } from "../Loading";
 import { applyEnergyPolicy, ENERGY_POLICY_LABEL, restoreEnergyPolicy } from "../../api/client";
 import { energyError } from "../../lib/energy-policy";
 import { Button } from "../Button";
@@ -20,13 +21,14 @@ export function EnergyPolicySettings({ active, revision, locked, onChanged, onBu
     if (!profile || !current || disabled || current.enabled === enabled || enabled && activationIssue) return;
     void model.run(() => applyEnergyPolicy(profile.revision, { ...current, enabled }), { preserveDraft: true });
   };
-  if (model.loaded && !profile && !model.error) return null;
   return <Surface as="section" variant="group" className="ccc-panel" aria-labelledby="energy-policy-heading">
     <div className="ccc-panel-head"><h2 id="energy-policy-heading" className="ccc-panel-title"><Icon name="sleep" />{ENERGY_POLICY_LABEL}</h2>
       <div className="ccc-module-tools"><Button icon="refresh" variant="ghost" size="icon-compact" aria-label="重新读取节能计划" disabled={busy} onClick={model.reread} /></div>
     </div>
     {(model.error || profile?.error) && <p className="ccc-control-error" role="alert">{model.error || profile?.error}</p>}
-    {!profile || !draft ? <p className="ccc-control-caption">读取原厂保存计划后可预览和设置。</p> : <>
+    {!profile || !draft ? !model.error && (model.loaded && !profile
+      ? <p className="ccc-control-caption" role="status">固件未声明电池节能计划。</p>
+      : <Loading label="正在读取电池节能计划…" />) : <>
       <div className="ccc-keyboard-setting"><strong>按时段使用电池</strong>
         <Switch label="启用节能计划" checked={current?.enabled ?? false} disabled={disabled || !!activationIssue} onChange={toggle} /></div>
       {activationIssue && <p className="ccc-control-caption">{activationIssue}</p>}

@@ -14,6 +14,7 @@ type ActionOptions = {
   blocked?: boolean;
   restore?: boolean;
   children?: ReactNode;
+  secondaryActions?: ReactNode;
   onConfirm: Commit;
 };
 
@@ -23,7 +24,7 @@ export function ConfigurationAction({ restore, ...props }: ActionOptions) {
   return <ConfigurationApply {...props} />;
 }
 
-function ConfigurationApply({ label, applyLabel = "应用更改", disabled, blocked, children, onConfirm }: ActionOptions) {
+function ConfigurationApply({ label, applyLabel = "应用更改", disabled, blocked, children, secondaryActions, onConfirm }: ActionOptions) {
   const active = useContext(WorkspaceActivity);
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
@@ -39,7 +40,7 @@ function ConfigurationApply({ label, applyLabel = "应用更改", disabled, bloc
   if (!active || (disabled && !busy)) return null;
   return <section className="ccc-module-action ccc-review-section" aria-label={`${label} · ${applyLabel}`} data-module-action={label} aria-busy={busy}>
     {children}
-    <div className="ccc-actions"><Button icon={busy ? "loading" : "check"} data-configuration-apply="" aria-busy={busy || undefined}
-      disabled={busy || unavailable} onClick={() => void submit()}>{applyLabel}</Button></div>
+    <div className="ccc-actions">{secondaryActions}<Button icon="check" busy={busy} data-configuration-apply="" disabled={unavailable}
+      onClick={() => void submit()}>{applyLabel}</Button></div>
   </section>;
 }

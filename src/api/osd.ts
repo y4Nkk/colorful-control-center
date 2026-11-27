@@ -1,6 +1,6 @@
-import { invoke, listenEvent, type AppPreferences } from "./client";
+import { invoke, listenEvent } from "./client";
+import type { Appearance } from "./preferences";
 
-export type Appearance = Pick<AppPreferences, "theme" | "interfaceFont" | "interfaceScale" | "motion">;
 export interface OsdMessage {
   title: string;
   detail: string;

@@ -193,7 +193,7 @@ pub fn validate_oem_curve(input: &OemFanCurveInput) -> Result<(), String> {
         || !(MIN_DUTY_PCT..100.0).contains(&p.d2)
         || !(MIN_DUTY_PCT..100.0).contains(&p.d3)
     {
-        return Err("温度须在 0–100°C，占空比须在 20–100%".into());
+        return Err("温度须在 0–100°C，可调点的风扇强度须达到 20% 且低于 100%".into());
     }
     if !(t1.round() < p.t2.round() && p.t2.round() < p.t3.round() && p.t3.round() < 100.0)
         || !(oem_duty_byte(d1) < oem_duty_byte(p.d2) && oem_duty_byte(p.d2) < oem_duty_byte(p.d3))
@@ -209,7 +209,7 @@ pub fn validate_oem_curve(input: &OemFanCurveInput) -> Result<(), String> {
     }
     if !(p.d2 > d1 && p.d3 > p.d2 && p.d3 < 100.0) {
         return Err(format!(
-            "占空比必须严格递增且 <100：D1({d1}) < D2({d0}) < D3({d1v}) < 100",
+            "风扇强度必须逐点提高并低于 100%（D1 {d1}% < D2 {d0}% < D3 {d1v}%）",
             d0 = p.d2,
             d1v = p.d3
         ));

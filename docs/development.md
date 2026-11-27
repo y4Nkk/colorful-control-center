@@ -30,13 +30,14 @@ npm run build:installer
 - 通过 `npm run check:installer` 在隔离夹具中检查安装、卸载、失败重试及摘要校验。日志与截图保存在 `target/installer-check/`。正式包安装、WebView2 准备和更新路径另有 [真机验收清单](acceptance-checklist.md)。
 - 安装向导实现见 [installer](../installer/)，插画来源见 [SOURCES.md](../installer/assets/SOURCES.md)。
 
-### 1.0.0 发布核对
+### 发布核对
 
-正式首发的标签为 `v1.0.0`。Windows 版本资源和安装包名取自 `src-tauri/tauri.conf.json`。应用的 npm 与 Rust 清单及锁文件采用相同版本号。
+Windows 版本资源和安装包名取自 `src-tauri/tauri.conf.json`。npm 清单与锁文件、Rust 应用清单和工作区根目录的 `Cargo.lock` 采用同一应用版本。属于本版的变更归入对应版本节，该节正文同时供 GitHub Release、更新清单和应用内日志读取。 [更新日志](../CHANGELOG.md)
 
-1. 构建后核对 `target/release/bundle/installer/verification.json` 的版本为 `1.0.0`，安装包为 `ColorfulControlCenter_1.0.0_x64-setup.exe`。用 `Get-FileHash -Algorithm SHA256` 核对最终文件与记录一致。
-2. 用同一个候选包按 [真机验收清单](acceptance-checklist.md) 记录安装、更新、卸载和硬件验证结果。隔离检查结果随候选包记录。
-3. 推送 `v1.0.0` 标签触发 [Windows installer 工作流](../.github/workflows/windows-release.yml)。标签、应用版本和 [更新日志](../CHANGELOG.md) 条目一致时，GitHub Actions 构建 Windows x64 向导，发布安装包、`SHA256SUMS.txt` 和同版本的更新说明。
+1. 构建前将候选标签传给版本预检。2.0.0 焕新版使用 `./scripts/stage-windows-release.ps1 -Tag v2.0.0 -CheckVersionOnly` 核对配置版本和更新日志。
+2. 构建后核对 `target/release/bundle/installer/verification.json` 中的版本、文件名和大小。用 `Get-FileHash -Algorithm SHA256` 核对最终安装包与记录一致。
+3. 用同一个候选包按 [真机验收清单](acceptance-checklist.md) 记录安装、更新、卸载和硬件验证结果。隔离检查结果随候选包记录。
+4. 推送与版本一致的 `v<版本>` 标签触发 [Windows installer 工作流](../.github/workflows/windows-release.yml)。工作流构建 Windows x64 安装向导、签名并发布对应的安装包、校验文件与更新说明。
 
 可在 GitHub Actions 手动运行 **Windows installer** 下载验证用安装包。手动构建产物在运行详情的 Artifacts 中。标签构建在发布作业中重新核对摘要，已有同名 Release 由维护者管理。
 
@@ -68,10 +69,10 @@ cargo test --locked --manifest-path tools/control-sim/Cargo.toml --test watchdog
 
 ### README 截图
 
-发布文档图片位于 [docs/screenshots](screenshots/)。刷新时使用当前 `npm run build` 产物，在无外部网络、无设备映射的 Linux 容器内用 Chromium 无头模式打开静态前端。在加载应用前注入 [模拟 IPC](../tools/ui-check/mock-ipc.mjs)，待传感读数、风扇曲线、键盘预览和电池状态渲染后导出 PNG。逐张核对标题栏标识与 [正式 Logo 源文件](../src-tauri/icons/icon.svg) 一致。截图中的读数、机型信息及配置均来自隔离夹具。当前预览使用容器的文泉驿中文字体。
+中英文 README 共用一组图片。先执行 `npm run build`，再在隔离 Chromium 中加载同一次构建。在应用加载前注入模拟 IPC，页面请求限定在本机回环地址。准备温度历史、风扇曲线、键盘灯区、电池和档案等场景，等读数与字体加载后导出 PNG。逐张核对标题栏标识、展示状态及两份 README 的图片说明。 [图片清单](screenshots/README.md) · [模拟 IPC](../tools/ui-check/mock-ipc.mjs) · [正式 Logo](../src-tauri/icons/icon.svg)
 
 ## 硬件探测与契约
 
-- `cargo build --release --locked --manifest-path tools/probe-cli/Cargo.toml` 生成 `tools/probe-cli/target/release/ccc-probe.exe`。运行前可用 `--help` 查看参数。批量探测默认只读，电压写入测试需显式传入 `-ExecuteVoltageTest`。[原厂程序集核对](../tools/research/README.md) · [EC 离线比对](../tools/probe/ec-diff-guide.md)
+- `cargo build --release --locked --manifest-path tools/probe-cli/Cargo.toml` 生成 `tools/probe-cli/target/release/ccc-probe.exe`。运行前可用 `--help` 查看参数。批量探测默认只读，电压写入测试需显式传入 `-ExecuteVoltageTest`。`ccc-probe charge` 核对充电保护阈值：默认只读；`--execute` 写入 60%–80% 的测试范围，回读后恢复原值并复核，结果写入 JSON 且不覆盖已有文件，数据包与校验直接编入桌面应用的源码。[原厂程序集核对](../tools/research/README.md) · [EC 离线比对](../tools/probe/ec-diff-guide.md)
 - 硬件传输、恢复事务与验证范围见 [硬件架构](design.md)。接口细节见 [DCHU](oem-dchu-contract.md)、[原厂设备](oem-device-contract.md)、[NVAPI](nvapi-contract.md)、[键盘](keyboard-contract.md)、[电池](battery-contract.md)、[触摸板](touchpad-contract.md)、[麦克风](microphone-contract.md)、[屏幕亮度](screen-brightness-contract.md) 和 [供电档案规则](power-profile-policy-contract.md)。
 - 页面结构和组件所有权见 [DESIGN.md](../DESIGN.md)，接入及提交前检查见 [AGENTS.md](../AGENTS.md)。

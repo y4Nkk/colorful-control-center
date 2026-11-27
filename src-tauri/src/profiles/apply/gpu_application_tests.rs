@@ -133,7 +133,10 @@ fn display_trial_precedes_gpu_authorization_and_keep_continues_full_profile() {
     assert!(report.pending.is_some());
     assert!(!h.f.gpu_environment.io.device().enabled);
     assert_eq!(h.f.gpu_environment.authorizations.load(Ordering::SeqCst), 0);
-    let result = h.application.keep(h.runtime(), report.id).unwrap();
+    let result = h
+        .application
+        .keep(&h.f.hal, &h.f.gpu, h.f.devices(), report.id)
+        .unwrap();
     assert!(result.targets_applied);
     success(&result.steps);
     assert!(h.f.gpu_environment.io.device().enabled);
@@ -153,7 +156,10 @@ fn cancelling_display_trial_never_authorizes_or_enables_gpu() {
     let mut h = Harness::new();
     let display = h.display();
     let pending = h.begin(Some(&display));
-    let result = h.application.cancel(h.runtime(), pending.id).unwrap();
+    let result = h
+        .application
+        .cancel(&h.f.hal, &h.f.display.controller, pending.id)
+        .unwrap();
     assert!(!result.targets_applied);
     assert!(result.pending.is_none());
     assert!(!h.f.gpu_environment.io.device().enabled);
@@ -165,7 +171,10 @@ fn later_gpu_failure_recovers_original_power_cpu_and_kept_display_batch() {
     let display = h.display();
     h.f.device.0.lock().unwrap().fail_gpu = true;
     let pending = h.begin(Some(&display));
-    let report = h.application.keep(h.runtime(), pending.id).unwrap();
+    let report = h
+        .application
+        .keep(&h.f.hal, &h.f.gpu, h.f.devices(), pending.id)
+        .unwrap();
     assert!(!report.targets_applied);
     assert!(report.pending.is_none());
     assert!(!h.f.gpu_environment.io.device().enabled);
@@ -229,7 +238,10 @@ fn cleanup_failure_keeps_confirmed_gpu_and_display_targets() {
     let display = h.display();
     let pending = h.begin(Some(&display));
     h.f.gpu_environment.io.0.lock().unwrap().fail_finish = true;
-    let report = h.application.keep(h.runtime(), pending.id).unwrap();
+    let report = h
+        .application
+        .keep(&h.f.hal, &h.f.gpu, h.f.devices(), pending.id)
+        .unwrap();
     assert!(report.targets_applied);
     assert!(report.pending.is_none());
     assert!(

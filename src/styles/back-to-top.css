@@ -3,9 +3,5 @@
   z-index: 3;
   inset-block-end: var(--ccc-space-3);
   inset-inline-end: calc(var(--ccc-scrollbar-gutter) + var(--ccc-space-3));
-  box-shadow: var(--ccc-overlay-shadow);
-}
-
-.ccc-back-to-top:focus-visible {
-  box-shadow: var(--ccc-focus-shadow), var(--ccc-overlay-shadow);
+  border-color: var(--ccc-hairline);
 }

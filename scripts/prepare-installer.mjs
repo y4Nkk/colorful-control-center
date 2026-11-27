@@ -31,23 +31,37 @@ export function prepareInstaller(engine, applicationPayload, directory) {
   if (!mainWindow?.title) throw new Error('Missing controller window title.');
   const exitCodes = installerExitCodes(config.bundle.windows.nsis.installerHooks);
   const source = readFileSync('src/styles/tokens.css', 'utf8');
+  function readToken(name, seen = new Set()) {
+    const value = source.match(new RegExp(`--ccc-${name}:\\s*([^;]+);`))?.[1];
+    if (!value || seen.has(name)) throw new Error(`Invalid installer token: ${name}`);
+    seen.add(name);
+    const alias = /^var\(--ccc-([\w-]+)\)$/.exec(value);
+    return alias ? readToken(alias[1], seen) : value;
+  }
   const colors = {
     Canvas: 'canvas', Surface: 'content', MutedSurface: 'content-muted', Ink: 'text',
-    Muted: 'text-muted', Hairline: 'hairline', Action: 'action', OnAction: 'text-on-action', Error: 'danger',
+    Muted: 'text-muted', Hairline: 'hairline', OnAction: 'text-on-action', Error: 'danger',
+    FieldEdge: 'field-edge', ControlHover: 'control-hover', ControlPress: 'control-press',
+    ActionInk: 'action-ink', ActionFill: 'action-fill', FocusInk: 'focus-color',
   };
   const brushes = Object.entries(colors).map(([name, token]) => {
-    const value = source.match(new RegExp(`--ccc-${token}:\\s*([^;]+);`))?.[1];
-    return `  <SolidColorBrush x:Key="${name}" Color="${wpfColor(value)}" />`;
+    return `  <SolidColorBrush x:Key="${name}" Color="${wpfColor(readToken(token))}" />`;
   });
-  const metrics = Object.entries({ PanelRadius: ['radius-panel', 'px'], MotionDistance: ['space-4', 'px'],
+  const metrics = Object.entries({ PanelRadius: ['radius-card', 'px'], MotionDistance: ['space-4', 'px'],
+    ControlHeight: ['control-height', 'px'], UtilityTextSize: ['text-md', 'px'], ActionTextSize: ['text-xl', 'px'],
     MotionMilliseconds: ['motion', 'ms'], FastMotionMilliseconds: ['motion-fast', 'ms'] }).map(([name, [token, unit]]) => {
-    const value = source.match(new RegExp(`--ccc-${token}:\\s*(\\d+)${unit};`))?.[1];
+    const value = new RegExp(`^(\\d+)${unit}$`).exec(readToken(token))?.[1];
     if (!value) throw new Error(`Missing installer metric: ${token}`);
     return `  <sys:Double x:Key="${name}">${value}</sys:Double>`;
   });
+  const corners = Object.entries({ ControlCorner: 'radius-control', ActionCorner: 'radius-full' }).map(([name, token]) => {
+    const value = /^(\d+)px$/.exec(readToken(token))?.[1];
+    if (!value) throw new Error(`Missing installer corner: ${token}`);
+    return `  <CornerRadius x:Key="${name}">${value}</CornerRadius>`;
+  });
   mkdirSync(directory, { recursive: true });
   writeFileSync(join(directory, 'Palette.xaml'), `<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
- xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sys="clr-namespace:System;assembly=mscorlib">\n${brushes.join('\n')}\n${metrics.join('\n')}\n</ResourceDictionary>\n`);
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sys="clr-namespace:System;assembly=mscorlib">\n${[...brushes, ...metrics, ...corners].join('\n')}\n</ResourceDictionary>\n`);
   const fields = {
     ProductName: config.productName, Version: config.version, ApplicationFileStem: pkg.name,
     ControllerWindowTitle: mainWindow.title,

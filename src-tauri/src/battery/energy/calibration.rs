@@ -3,7 +3,7 @@ use super::*;
 use crate::battery::{Io as BatteryIo, calibration::Baseline, native::Native as Battery};
 
 pub(in crate::battery) fn capture(hal: &Hal, path: &std::path::Path) -> Result<Baseline> {
-    let power_scheme = crate::battery::calibration::power_scheme(hal.system_power.active()?);
+    let power_scheme = crate::hal::power_plan::format_guid(hal.system_power.active()?);
     let stop_threshold = Battery { hal }
         .diagnostics()?
         .context("未提供原厂校准诊断")?

@@ -1,0 +1,211 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="204" viewBox="0 0 480 204">
+  <defs>
+    <linearGradient id="glass" x1="19%" y1="3%" x2="80%" y2="93%">
+      <stop stop-color="var(--ccc-preset-light)"/>
+      <stop offset=".30" stop-color="var(--ccc-preset-mid)"/>
+      <stop offset=".69" stop-color="var(--ccc-preset-mid)"/>
+      <stop offset="1" stop-color="var(--ccc-preset-low)"/>
+    </linearGradient>
+    <linearGradient id="back" x1="10%" y1="13%" x2="89%" y2="94%">
+      <stop stop-color="var(--ccc-preset-mid)"/>
+      <stop offset=".58" stop-color="var(--ccc-preset-low)"/>
+      <stop offset="1" stop-color="var(--ccc-preset-deep)"/>
+    </linearGradient>
+    <linearGradient id="film" x1="3%" y1="5%" x2="95%" y2="83%">
+      <stop stop-color="var(--ccc-preset-light)" stop-opacity=".07"/>
+      <stop offset=".45" stop-color="var(--ccc-preset-light)" stop-opacity=".67"/>
+      <stop offset="1" stop-color="var(--ccc-preset-mid)" stop-opacity=".05"/>
+    </linearGradient>
+    <linearGradient id="rim">
+      <stop stop-color="var(--ccc-preset-mid)" stop-opacity=".15"/>
+      <stop offset=".32" stop-color="var(--ccc-preset-light)" stop-opacity=".94"/>
+      <stop offset=".66" stop-color="var(--ccc-preset-light)" stop-opacity=".84"/>
+      <stop offset="1" stop-color="var(--ccc-preset-mid)" stop-opacity=".29"/>
+    </linearGradient>
+    <linearGradient id="water">
+      <stop stop-color="var(--ccc-preset-mid)" stop-opacity="0"/>
+      <stop offset=".28" stop-color="var(--ccc-preset-mid)" stop-opacity=".20"/>
+      <stop offset=".54" stop-color="var(--ccc-preset-low)" stop-opacity=".36"/>
+      <stop offset=".74" stop-color="var(--ccc-preset-mid)" stop-opacity=".28"/>
+      <stop offset="1" stop-color="var(--ccc-preset-mid)" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="water-edge">
+      <stop stop-color="var(--ccc-preset-low)" stop-opacity="0"/>
+      <stop offset=".24" stop-color="var(--ccc-preset-mid)" stop-opacity=".33"/>
+      <stop offset=".54" stop-color="var(--ccc-preset-mid)" stop-opacity=".9"/>
+      <stop offset=".78" stop-color="var(--ccc-preset-mid)" stop-opacity=".52"/>
+      <stop offset="1" stop-color="var(--ccc-preset-low)" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="reflection" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="var(--ccc-preset-mid)" stop-opacity="0"/>
+      <stop offset="1" stop-color="var(--ccc-preset-mid)" stop-opacity=".38"/>
+    </linearGradient>
+    <radialGradient id="orb" cx="34%" cy="27%" r="77%">
+      <stop stop-color="var(--ccc-preset-light)"/>
+      <stop offset=".36" stop-color="var(--ccc-preset-mid)"/>
+      <stop offset=".73" stop-color="var(--ccc-preset-low)"/>
+      <stop offset=".94" stop-color="var(--ccc-preset-deep)"/>
+      <stop offset="1" stop-color="var(--ccc-preset-low)"/>
+    </radialGradient>
+    <linearGradient id="orbit-depth">
+      <stop stop-color="var(--ccc-preset-low)" stop-opacity=".32"/>
+      <stop offset=".43" stop-color="var(--ccc-preset-low)"/>
+      <stop offset=".74" stop-color="var(--ccc-preset-deep)"/>
+      <stop offset="1" stop-color="var(--ccc-preset-mid)" stop-opacity=".49"/>
+    </linearGradient>
+    <linearGradient id="orbit-face">
+      <stop stop-color="var(--ccc-preset-mid)" stop-opacity=".57"/>
+      <stop offset=".27" stop-color="var(--ccc-preset-light)"/>
+      <stop offset=".61" stop-color="var(--ccc-preset-mid)"/>
+      <stop offset=".86" stop-color="var(--ccc-preset-low)"/>
+      <stop offset="1" stop-color="var(--ccc-preset-mid)" stop-opacity=".46"/>
+    </linearGradient>
+    <linearGradient id="wind">
+      <stop stop-color="var(--ccc-preset-mid)"/>
+      <stop offset=".34" stop-color="var(--ccc-preset-low)"/>
+      <stop offset=".67" stop-color="var(--ccc-preset-mid)"/>
+      <stop offset="1" stop-color="var(--ccc-preset-light)"/>
+    </linearGradient>
+    <linearGradient id="wind-crease">
+      <stop stop-color="var(--ccc-preset-light)" stop-opacity="0"/>
+      <stop offset=".32" stop-color="var(--ccc-preset-light)" stop-opacity=".76"/>
+      <stop offset=".73" stop-color="var(--ccc-preset-light)" stop-opacity=".91"/>
+      <stop offset="1" stop-color="var(--ccc-preset-mid)" stop-opacity=".3"/>
+    </linearGradient>
+
+    <path id="leaf-far" d="M218 155c-43 13-84 0-120-26-24-18-36-33-55-39 56-13 109-7 143 16 21 14 30 30 32 49Z"/>
+    <clipPath id="leaf-far-clip"><use href="#leaf-far"/></clipPath>
+    <path id="leaf-near" d="M206 156c-4-32 19-63 56-88 43-29 100-42 161-29-25 13-47 28-69 54-34 40-82 65-148 63Z"/>
+    <clipPath id="leaf-near-clip"><use href="#leaf-near"/></clipPath>
+
+    <path id="crescent" d="M271 30c-35-11-70 9-82 41-13 35 6 72 40 83 30 10 61-3 76-29-30 12-61-2-71-27-11-26 4-55 37-68Z"/>
+    <clipPath id="moon-clip"><use href="#crescent"/></clipPath>
+    <g id="lunar-glass">
+      <use href="#crescent" fill="url(#back)" opacity=".69" transform="translate(0 3)"/>
+      <use href="#crescent" fill="url(#glass)"/>
+      <g clip-path="url(#moon-clip)">
+        <path d="M271 29c-30 10-52 33-53 58-2 34 31 54 65 45 8-2 14-5 23-9-12 15-40 21-62 15-30-8-49-32-45-58 5-26 35-44 72-51Z" fill="url(#film)"/>
+        <path d="M272 31c-34 13-49 40-39 67 10 24 39 37 67 28" fill="none" stroke="url(#rim)" stroke-width="2.3" stroke-linecap="round"/>
+        <path d="M260 30c-31-4-61 18-70 45-6 17-4 35 4 51" fill="none" stroke="url(#rim)" stroke-width="2.6" stroke-linecap="round"/>
+        <path d="M201 125c11 17 28 26 47 28" fill="none" stroke="url(#rim)" stroke-width="1" opacity=".56" stroke-linecap="round"/>
+      </g>
+    </g>
+    <path id="still-water" d="M44 154c72-20 130-16 188-4 66 14 135 11 204-6-56 26-128 35-210 25-69-8-125-26-182-15Z"/>
+    <clipPath id="still-water-clip"><use href="#still-water"/></clipPath>
+
+    <path id="wind-far" d="M54 130c65-11 104-47 162-70 40-16 80-26 132-24-35 9-61 23-88 39-62 37-119 62-206 55Z"/>
+    <path id="wind-near" d="M69 166c68-10 116-47 175-84 55-34 109-54 181-49-40 17-68 44-100 68-74 55-163 81-256 65Z"/>
+    <path id="wind-low" d="M168 181c64-15 105-34 156-63 41-24 77-34 117-34-37 12-57 38-86 54-60 34-119 45-187 43Z"/>
+  </defs>
+
+  <symbol id="eco" viewBox="0 0 480 204">
+    <g class="ccc-preset-leaf" data-leaf="rear">
+      <use href="#leaf-far" fill="url(#glass)" opacity=".61"/>
+      <g clip-path="url(#leaf-far-clip)">
+        <path d="M46 89c81-9 147 18 172 66-58-29-112-50-172-66Z" fill="url(#film)" opacity=".78"/>
+        <path d="M52 91c55 9 114 27 164 63" fill="none" stroke="url(#rim)" stroke-width="1.85" opacity=".84"/>
+        <path d="M81 88c54-3 104 16 122 37m-61-9c-14 0-27 1-41 4" fill="none" stroke="url(#rim)" stroke-width="1" opacity=".61"/>
+      </g>
+    </g>
+    <g class="ccc-preset-leaf" data-leaf="main">
+      <path d="M207 155c-11 8-18 11-28 13" stroke="url(#back)" stroke-width="3.2" stroke-linecap="round"/>
+      <use href="#leaf-near" fill="url(#back)" transform="translate(0 3)" opacity=".67"/>
+      <use href="#leaf-near" fill="url(#glass)"/>
+      <g clip-path="url(#leaf-near-clip)">
+        <path d="M205 157c34-51 102-99 220-118-86 24-158 68-190 104-9 10-18 16-30 14Z" fill="url(#film)"/>
+        <path d="M206 157c51-52 120-92 198-114-75 31-137 68-170 107-7 8-17 12-28 7Z" fill="url(#back)" opacity=".22"/>
+        <path d="M210 152c47-47 120-91 193-109" fill="none" stroke="url(#rim)" stroke-width="2.3" stroke-linecap="round"/>
+        <path d="M242 126c8-19 16-32 32-49m-8 33c24 0 49-4 71-14m-36-7c11-15 22-25 40-32" fill="none" stroke="url(#rim)" stroke-width="1.3" stroke-linecap="round" opacity=".73"/>
+        <path d="M221 113c38-51 117-81 193-73" fill="none" stroke="url(#rim)" stroke-width="2.4" stroke-linecap="round"/>
+        <path d="M214 152c50 4 100-21 133-55" fill="none" stroke="url(#rim)" stroke-width=".9" opacity=".57"/>
+        <path class="ccc-preset-glint" d="M210 152c47-47 120-91 193-109" pathLength="100"
+          fill="none" stroke-width="3" stroke-linecap="round" opacity="0"/>
+      </g>
+    </g>
+  </symbol>
+
+  <symbol id="quiet" viewBox="0 0 480 204">
+    <g class="ccc-preset-moon"><use href="#lunar-glass"/></g>
+    <g class="ccc-preset-water">
+      <use href="#still-water" fill="url(#water)"/>
+      <g clip-path="url(#still-water-clip)">
+        <use href="#crescent" transform="translate(0 186) scale(1 -.225)" fill="url(#reflection)" opacity=".78"/>
+        <path d="M93 160c57-16 102-6 150 0s101 11 158-1" fill="none" stroke="url(#rim)" stroke-width="1.1" opacity=".64"/>
+      </g>
+      <g fill="none" stroke-linecap="round">
+        <path d="M56 152c68-13 127-10 183 1s120 10 185-7" stroke="url(#water-edge)" stroke-width="1.8"/>
+        <path d="M108 170c58-3 96 9 148 12 39 3 83-1 125-13" stroke="url(#water-edge)" stroke-width="1.55" opacity=".73"/>
+      </g>
+    </g>
+    <path d="M328 59c.6 9 2.5 11 11 11.5-8.5.7-10.4 2.6-11 11.5-.6-8.9-2.6-10.8-11-11.5 8.4-.5 10.4-2.5 11-11.5Z" fill="url(#glass)" opacity=".73"/>
+    <circle cx="153" cy="108" r="1.85" fill="var(--ccc-preset-mid)" opacity=".58"/>
+  </symbol>
+
+  <symbol id="entertainment" viewBox="0 0 480 204">
+    <g fill="none" stroke-linecap="round">
+      <path d="M64 102a176 39 0 0 1 352 0" transform="rotate(-13 240 102)" stroke="url(#orbit-depth)" stroke-width="6" opacity=".68"/>
+      <path d="M64 102a176 39 0 0 1 352 0" transform="rotate(-13 240 102)" stroke="url(#rim)" stroke-width="1.15" opacity=".66"/>
+      <path d="M87 100a153 35 0 0 1 306 0" transform="rotate(19 240 100)" stroke="url(#orbit-depth)" stroke-width="3.5" opacity=".45"/>
+      <path d="M118 102a122 25 0 0 1 244 0" transform="rotate(19 240 100)" stroke="url(#rim)" stroke-width="1.15" opacity=".57"/>
+      <path class="ccc-preset-orbit-light" data-orbit="rear" d="M87 100a153 35 0 0 1 306 0"
+        transform="rotate(19 240 100)" pathLength="100" stroke-width="3.1" opacity="0"/>
+    </g>
+    <g class="ccc-preset-planet">
+      <circle cx="239" cy="98" r="55" fill="url(#orb)"/>
+      <path d="M187 103c-1-27 16-49 37-56 18-6 40-2 56 14-30-15-64 0-82 30-4 7-8 11-11 12Z" fill="url(#film)" opacity=".62"/>
+      <path d="M193 112c14-25 39-43 70-46m-67 57c15-13 34-27 69-34m-32 61c16-9 37-17 53-32" fill="none" stroke="url(#rim)" stroke-width="1.2" stroke-linecap="round" opacity=".57"/>
+      <path d="M188 90c4-21 22-40 42-44m-25 92c18 16 43 20 62 9" fill="none" stroke="url(#rim)" stroke-width="1.65" stroke-linecap="round" opacity=".80"/>
+    </g>
+    <g transform="rotate(19 240 100)" fill="none" stroke-linecap="round">
+      <path d="M87 100a153 35 0 0 0 306 0" stroke="url(#orbit-depth)" stroke-width="6.6" opacity=".62"/>
+      <path d="M87 100a153 34 0 0 0 306 0" stroke="url(#orbit-face)" stroke-width="3.8" opacity=".77"/>
+      <path d="M94 102a146 31 0 0 0 292 0" stroke="url(#rim)" stroke-width="1.15" opacity=".67"/>
+    </g>
+    <g transform="rotate(-13 240 102)" fill="none" stroke-linecap="round">
+      <path d="M64 103a176 42 0 0 0 352 0" stroke="url(#orbit-depth)" stroke-width="12" opacity=".78"/>
+      <path d="M64 102a176 40 0 0 0 352 0" stroke="url(#orbit-face)" stroke-width="9"/>
+      <path d="M67 101a173 37 0 0 0 346 0" stroke="url(#rim)" stroke-width="1.5"/>
+      <path class="ccc-preset-orbit-light" d="M67 101a173 37 0 0 0 346 0"
+        pathLength="100" stroke-width="3.8" opacity="0"/>
+    </g>
+    <circle cx="363" cy="53" r="5.4" fill="url(#orb)"/>
+    <circle cx="119" cy="144" r="2.4" fill="url(#glass)" opacity=".8"/>
+  </symbol>
+
+  <symbol id="performance" viewBox="0 0 480 204">
+    <g class="ccc-preset-wind" data-wind="rear">
+      <g class="ccc-preset-wind-blade">
+        <use href="#wind-far" fill="url(#wind)" opacity=".59"/>
+        <path d="M67 128c70-12 104-44 161-67 37-15 70-23 101-24" fill="none" stroke="url(#rim)" stroke-width="1.5" opacity=".71" stroke-linecap="round"/>
+        <path class="ccc-preset-glint" d="M92 125c58-14 104-51 145-66 35-13 62-19 88-22"
+          pathLength="100" fill="none" stroke-width="2.25" stroke-linecap="round" opacity="0"/>
+      </g>
+    </g>
+    <g class="ccc-preset-wind" data-wind="lower">
+      <g class="ccc-preset-wind-blade">
+        <use href="#wind-low" fill="url(#back)" opacity=".29" transform="translate(0 2)"/>
+        <use href="#wind-low" fill="url(#wind)" opacity=".62"/>
+        <path d="M180 180c52-13 97-32 154-63 34-19 64-27 95-31" fill="none" stroke="url(#rim)" stroke-width="1.8" opacity=".72" stroke-linecap="round"/>
+        <path class="ccc-preset-glint" d="M220 172c43-12 82-30 117-51 34-20 59-28 86-33"
+          pathLength="100" fill="none" stroke-width="2.25" stroke-linecap="round" opacity="0"/>
+      </g>
+    </g>
+    <g class="ccc-preset-wind" data-wind="main">
+      <g class="ccc-preset-wind-blade">
+        <use href="#wind-near" fill="url(#back)" opacity=".63" transform="translate(0 3)"/>
+        <use href="#wind-near" fill="url(#wind)"/>
+        <path d="M72 166c72-11 123-52 182-85 49-27 96-45 165-48-43 12-77 33-122 67-56 42-126 75-225 66Z" fill="url(#wind-crease)"/>
+        <path d="M82 167c91-3 149-31 207-72 39-28 71-47 112-59" fill="none" stroke="url(#rim)" stroke-width="1.85" stroke-linecap="round" opacity=".89"/>
+        <path d="M139 166c52-1 112-29 152-59 27-20 52-39 80-55" fill="none" stroke="url(#rim)" stroke-width="1.1" stroke-linecap="round" opacity=".62"/>
+        <path class="ccc-preset-glint" d="M107 166c72-5 124-32 182-73 39-27 71-45 111-57"
+          pathLength="100" fill="none" stroke-width="3.3" stroke-linecap="round" opacity="0"/>
+      </g>
+    </g>
+    <path d="M78 111c24-8 51-21 75-34m214 81c16-9 33-18 53-23" fill="none" stroke="url(#water-edge)" stroke-width="1.55" opacity=".84" stroke-linecap="round"/>
+  </symbol>
+
+  <symbol id="neutral" viewBox="0 0 480 204">
+    <path d="M88 105c49-15 96-17 146-3 49 14 100 15 158-4M118 122c40-7 72-6 115 5 42 11 81 11 129 1M165 143c24 0 47 4 69 9 28 6 54 7 83 2"
+      fill="none" stroke="var(--ccc-preset-low)" stroke-width="2" stroke-opacity=".56" stroke-linecap="round"/>
+  </symbol>
+</svg>

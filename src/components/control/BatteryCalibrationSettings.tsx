@@ -1,4 +1,5 @@
 import { Icon } from "../Icon";
+import { Loading } from "../Loading";
 import { useEffect } from "react";
 import { ENERGY_POLICY_LABEL, restoreBatteryCalibration, startBatteryCalibration, stopBatteryCalibration, type CalibrationPhase, type CalibrationStatus } from "../../api/client";
 import { Button } from "../Button";
@@ -25,7 +26,6 @@ export function BatteryCalibrationSettings({ active, locked, onChanged, onBusy, 
   const { profile, error, loaded, busy } = model;
   const ownsCharge = !!profile && (profile.workerRunning || profile.recoveryRequired);
   useEffect(() => onLocked(ownsCharge), [ownsCharge, onLocked]);
-  if (loaded && !profile && !error) return null;
   const task = profile?.task;
   const disabled = busy || locked || model.stale;
   const revision = profile?.revision;
@@ -57,7 +57,8 @@ export function BatteryCalibrationSettings({ active, locked, onChanged, onBusy, 
         onConfirm={() => revision ? model.run(() => restoreBatteryCalibration(revision)) : undefined}>
         {profile.controlAcquired ? <CalibrationRestoreFacts profile={profile} /> : <p>解除未接管的校准准备记录。</p>}
       </ConfigurationAction>
-    </> : <p className="ccc-control-caption">正在读取校准能力与恢复记录。</p>}
+    </> : !error && (loaded ? <p className="ccc-control-caption" role="status">当前设备未提供电池校准。</p>
+      : <Loading label="正在读取校准能力与恢复记录…" />)}
   </Surface>;
 }
 

@@ -103,7 +103,7 @@ impl Scope<'_> {
                         self.ensure_charge_available(energy_io)?;
                         current
                     };
-                    charge::Plan::profile(projected, &self.baseline, target)
+                    charge::Plan::profile(projected, target)
                 })
                 .transpose()?;
             Ok(Plan {
@@ -121,7 +121,7 @@ impl Scope<'_> {
             }
             if let Some(plan) = &plan.charge {
                 self.ensure_charge_available(energy)?;
-                plan.execute(io, &mut self.baseline, &mut change.charge)?;
+                plan.execute(io, &mut change.charge)?;
             }
             Ok(())
         })

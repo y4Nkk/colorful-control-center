@@ -51,7 +51,11 @@ pub fn decide(facts: Facts) -> Result<Decision, &'static str> {
     if !facts.supported || facts.trigger == Trigger::Resume {
         return Ok(Decision::None);
     }
-    if facts.mode > 4 || facts.previous_mode.is_some_and(|mode| mode > 4) {
+    if !crate::oem_events::is_power_mode(facts.mode)
+        || facts
+            .previous_mode
+            .is_some_and(|mode| !crate::oem_events::is_power_mode(mode))
+    {
         return Err("原厂刷新率策略模式未知");
     }
     if facts.customer == 5 {
@@ -100,7 +104,7 @@ fn ordinary(facts: Facts) -> Result<Decision, &'static str> {
         return Ok(None);
     }
     if matches!(facts.mode, 0 | 2 | 3) {
-        if facts.checked && matches!(facts.previous_mode, Some(1 | 4)) {
+        if facts.checked && facts.previous_mode == Some(1) {
             return if dc_mode || !facts.on_ac.ok_or("供电状态未知")? {
                 Ok(RestoreSaved)
             } else {

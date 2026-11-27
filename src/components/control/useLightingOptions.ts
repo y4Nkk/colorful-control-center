@@ -5,7 +5,7 @@ import { idleTimerDraft, type LightingOptionsDraft } from "./lighting-option-val
 import { preserveEditedFields } from "./settings-draft";
 
 export function useLightingOptions(active: boolean, revision: number) {
-  const [profile, setProfile] = useState<LightingOptionsProfile | null>(null);
+  const [profile, setProfile] = useState<LightingOptionsProfile | null>();
   const [draft, setDraft] = useState<LightingOptionsDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const [readError, setReadError] = useState<string | null>(null), [actionError, setActionError] = useState<string | null>(null);
@@ -47,7 +47,8 @@ export function useLightingOptions(active: boolean, revision: number) {
     } finally { writing.current = false; setBusy(false); }
   };
   const reread = () => { if (!writing.current) void reload().catch(() => {}); };
-  return { profile, draft, setDraft, busy, error: [actionError, readError].filter(Boolean).join("；") || null, run, reread };
+  return { profile: profile ?? null, loaded: profile !== undefined, draft, setDraft, busy,
+    error: [actionError, readError].filter(Boolean).join("；") || null, run, reread };
 }
 
 function reconcileOptions(before: LightingOptionsDraft, draft: LightingOptionsDraft, current: LightingOptionsDraft): LightingOptionsDraft {

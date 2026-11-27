@@ -5,6 +5,62 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
+#[test]
+fn builtin_source_rechecks_power_after_display_trial_and_restores_on_disconnect() {
+    use crate::profiles::{application::Source, apply::review::Reviewed};
+
+    let mut h = Harness::new();
+    h.file.name = "插电游戏".into();
+    let connected = Arc::new(AtomicBool::new(false));
+    let current = connected.clone();
+    let source = Source::BuiltIn(Arc::new(move || {
+        anyhow::ensure!(current.load(Ordering::SeqCst), "模拟电源已拔出");
+        Ok(())
+    }));
+    let begin = || {
+        h.application
+            .begin_reviewed(
+                Origin::Manual,
+                &h.f.hal,
+                &h.f.gpu,
+                h.f.devices(),
+                Reviewed {
+                    permission: None,
+                    source: &source,
+                    file: &h.file,
+                    mode: None,
+                    display: Some(&h.review),
+                    gpu_power: None,
+                    graphics_mode: None,
+                },
+            )
+            .unwrap()
+    };
+    let rejected = begin();
+    assert!(rejected.pending.is_none() && !rejected.targets_applied);
+    assert!(h.f.display.io.0.lock().unwrap().writes.is_empty());
+    h.no_other_writes();
+
+    connected.store(true, Ordering::SeqCst);
+    let trial = begin();
+    assert!(trial.pending.is_some());
+    h.no_other_writes();
+    connected.store(false, Ordering::SeqCst);
+    let report = h
+        .application
+        .keep(&h.f.hal, &h.f.gpu, h.f.devices(), trial.id)
+        .unwrap();
+    assert!(report.pending.is_none() && !report.targets_applied);
+    assert!(
+        report
+            .steps
+            .iter()
+            .any(|step| !step.ok && step.message.contains("模拟电源已拔出"))
+    );
+    h.restored();
+    h.no_other_writes();
+}
+
 fn permission(enabled: &Arc<AtomicBool>) -> Permission {
     let enabled = enabled.clone();
     Permission::new(move || {
@@ -59,7 +115,9 @@ fn ordinary_background_profile_does_not_require_system_permission() {
         .unwrap();
     assert!(report.pending.is_some());
     h.no_other_writes();
-    h.application.cancel(h.runtime(), report.id).unwrap();
+    h.application
+        .cancel(&h.f.hal, &h.f.display.controller, report.id)
+        .unwrap();
     h.restored();
 }
 
@@ -141,7 +199,10 @@ fn manual_keep_cannot_discard_automatic_permission_and_recovery_is_allowed() {
         .begin(runtime, &h.file, None, Some(&h.review), None, None)
         .unwrap();
     enabled.store(false, Ordering::SeqCst);
-    let report = h.application.keep(h.runtime(), report.id).unwrap();
+    let report = h
+        .application
+        .keep(&h.f.hal, &h.f.gpu, h.f.devices(), report.id)
+        .unwrap();
     assert_eq!(report.origin, Origin::Battery);
     assert!(!report.targets_applied && report.pending.is_none());
     assert!(
@@ -169,7 +230,10 @@ fn revoked_while_waiting_for_system_authorization_has_no_remaining_output() {
     let grant = enabled.clone();
     *h.f.lan.io.on_authorize.lock().unwrap() =
         Some(Box::new(move || grant.store(false, Ordering::SeqCst)));
-    let report = h.application.keep(h.runtime(), report.id).unwrap();
+    let report = h
+        .application
+        .keep(&h.f.hal, &h.f.gpu, h.f.devices(), report.id)
+        .unwrap();
     assert!(!report.targets_applied && report.pending.is_none());
     assert!(
         report
@@ -200,7 +264,10 @@ fn revocation_after_a_device_transaction_rolls_it_back_without_blocking_recovery
         .application
         .begin(runtime, &h.file, None, Some(&h.review), None, None)
         .unwrap();
-    let report = h.application.keep(h.runtime(), report.id).unwrap();
+    let report = h
+        .application
+        .keep(&h.f.hal, &h.f.gpu, h.f.devices(), report.id)
+        .unwrap();
     assert!(!report.targets_applied && report.pending.is_none());
     assert!(
         report

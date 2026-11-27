@@ -63,6 +63,17 @@ pub(super) fn preview(
     Ok(prepare(io, store, trigger, previous_mode)?.2)
 }
 
+pub(super) fn active_record(store: &FileStore, observed_fields: [u8; 3]) -> Result<Record> {
+    let record = store.load()?.ok_or_else(|| anyhow!("自动刷新率尚未启用"))?;
+    if !record.active() || record.interrupted() || record.transition().is_some() {
+        bail!("自动刷新率事务状态已变化");
+    }
+    if observed_fields != record.current() {
+        bail!("原厂刷新率字段已被外部修改");
+    }
+    Ok(record)
+}
+
 fn prepare(
     io: &(impl Source + Io),
     store: &FileStore,
@@ -70,14 +81,9 @@ fn prepare(
     previous_mode: Option<u8>,
 ) -> Result<(Facts, Record, Option<Transition>)> {
     let facts = facts::read(io)?;
-    let record = store.load()?.ok_or_else(|| anyhow!("自动刷新率尚未启用"))?;
-    if !record.active()
-        || record.interrupted()
-        || record.transition().is_some()
-        || facts.identity != record.identity()
-        || facts.fields != record.current()
-    {
-        bail!("自动刷新率来源或事务已变化");
+    let record = active_record(store, facts.fields)?;
+    if facts.identity != record.identity() {
+        bail!("主显示器或原厂能力已变化，保留恢复记录");
     }
     if !facts
         .display

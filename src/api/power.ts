@@ -5,6 +5,17 @@ import type { FnKeyIdentity } from "./oem-owner";
 import type { GpuPowerDevice, OemModeGpuAction } from "./devices";
 import type { GpuModeSelection } from "./gpu";
 
+export interface WindowsPowerPlan { id: string; name: string }
+export interface WindowsPowerPlans {
+  revision: string;
+  activeId: string;
+  plans: WindowsPowerPlan[];
+  blockedReason: string | null;
+}
+
+export const readWindowsPowerPlans = () => invoke<WindowsPowerPlans>("read_windows_power_plans");
+export const applyWindowsPowerPlan = (expectedRevision: string, targetId: string) =>
+  invoke<void>("apply_windows_power_plan", { request: { expectedRevision, targetId } });
 
 export interface PowerValues {
   pl1W: number | null;
@@ -73,7 +84,7 @@ export interface OemModeCycleProfile {
   nodeChoices: { mode: number; action: OemModeGpuAction | null; unavailableReason: string | null }[];
   clocks: import("./gpu").GpuModeCycle;
 }
-export const OEM_POWER_MODES = ["安静", "省电", "性能", "娱乐", "静音增强"] as const;
+export const OEM_POWER_MODES = ["安静", "省电", "性能", "娱乐"] as const;
 export interface FnKeyModeConfirmation { identity: FnKeyIdentity; modeRevision: string }
 export const readOemPowerMode = (): Promise<OemPowerMode> => invoke("read_oem_power_mode");
 export const applyOemPowerMode = (expected: OemModeTarget, confirmedFnKey: FnKeyModeConfirmation | null = null):

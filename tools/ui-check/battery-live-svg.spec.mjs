@@ -22,7 +22,7 @@ test("电量体积与充电标记只跟随系统报告，插电不等于充电",
   await expect(o.locator('[data-battery-charging]')).toHaveCount(1);
   expect(Number(await o.locator('[data-battery-fill]').getAttribute("width"))).toBeLessThan(before);
   await page.evaluate(() => Object.assign(window.__uiFixture.battery.power, { acOnline: false, charging: false, remainingSeconds: 3600 }));
-  await reread(page); await expect(o).toContainText("电池供电");
+  await reread(page); await expect(o.getByText("电池供电", { exact: true })).toBeVisible();
   await expect(o.getByText("预计剩余 60 分钟", { exact: true })).toBeVisible();
   await expect(o.locator('[data-battery-charging]')).toHaveCount(0);
   expect(await page.evaluate(() => window.__uiFixture.calls.filter(c => /^(apply|start)_battery/.test(c.command)))).toEqual([]);
@@ -40,7 +40,7 @@ test("外接电源满电停充使用绿色填充，充电标记只随实际充�
     const green = await fill.evaluate(element => getComputedStyle(element).fill);
     await setPower({ charging: false });
     await expect(o.getByRole("meter")).toHaveAttribute("aria-valuenow", "100");
-    await expect(o).toContainText("外接电源 · 未在充电");
+      await expect(o.getByText("外接电源 · 已充满", { exact: true })).toBeVisible();
     await expect(mark).toHaveCount(0);
     await expect(fill).toHaveCSS("fill", green);
     await o.screenshot({ path: info.outputPath(`battery-full-${theme}.png`) });
@@ -50,6 +50,33 @@ test("外接电源满电停充使用绿色填充，充电标记只随实际充�
     await expect(o.getByRole("meter")).toHaveAttribute("aria-valuenow", "80");
     await expect(fill).not.toHaveCSS("fill", green);
   }
+});
+test("充电保护开启后，接电源未充电按电量区分已到保护范围和其他情况", async ({ page }) => {
+  const o = overview(page), p = panel(page);
+  await p.getByRole("switch", { name: "限制充电范围", exact: true }).click();
+  await p.getByRole("combobox", { name: "开始充电阈值", exact: true }).click(); await page.getByRole("option", { name: "60%", exact: true }).click();
+  await p.getByRole("combobox", { name: "停止充电阈值", exact: true }).click(); await page.getByRole("option", { name: "80%", exact: true }).click();
+  await expect(p.getByRole("combobox", { name: "停止充电阈值", exact: true })).toHaveText("80%");
+  const setPercent = async percent => {
+    await page.evaluate(percent => { window.__uiFixture.battery.power.percent = percent; }, percent);
+    await reread(page);
+  };
+  await setPercent(80);
+  await expect(o.getByText("外接电源 · 充电保护生效，暂不充电", { exact: true })).toBeVisible();
+  await expect(o.locator('[data-battery-charging]')).toHaveCount(0);
+  await setPercent(60);
+  await expect(o.getByText("外接电源 · 未在充电", { exact: true })).toBeVisible();
+  await setPercent(100);
+  await expect(o.getByText("外接电源 · 已充满", { exact: true })).toBeVisible();
+
+  await page.evaluate(() => Object.assign(window.__uiFixture.battery.power, { acOnline: null, percent: 80 }));
+  await reread(page);
+  await expect(o.getByText("供电未知 · 未在充电", { exact: true })).toBeVisible();
+  await expect(o.getByText("充电保护生效", { exact: false })).toHaveCount(0);
+  await page.evaluate(() => Object.assign(window.__uiFixture.battery.power, { acOnline: false, charging: null }));
+  await reread(page);
+  await expect(o.getByText("电池供电", { exact: true })).toBeVisible();
+  await expect(o.getByText("充电状态未知", { exact: false })).toHaveCount(0);
 });
 test("零电量、未知和无电池分别展示", async ({ page }) => {
   const o = overview(page);

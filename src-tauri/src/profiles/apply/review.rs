@@ -1,6 +1,5 @@
 use super::*;
 use crate::display::profile::Review;
-use std::path::Path;
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,7 +48,7 @@ pub(crate) fn preview_manual(
 #[derive(Clone, Copy)]
 pub(in crate::profiles) struct Reviewed<'a> {
     pub permission: Option<&'a super::super::application::Permission>,
-    pub dir: &'a Path,
+    pub source: &'a super::super::application::Source,
     pub file: &'a super::super::ProfileFile,
     pub mode: Option<&'a powerctl::mode::Target>,
     pub display: Option<&'a Review>,
@@ -61,7 +60,7 @@ impl Reviewed<'_> {
         ModeReview::Confirmed {
             permission: self.permission,
             mode: self.mode,
-            file: Some((self.dir, self.file)),
+            source: Some((self.source, self.file)),
             display: self.display,
             gpu_power: self.gpu_power,
             graphics_mode: self.graphics_mode,

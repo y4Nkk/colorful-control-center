@@ -4,7 +4,12 @@
  */
 
 @import "./icons.css";
+@import "./loading.css";
+@import "./progress.css";
 @import "./shell.css";
+@import "./tooltip.css";
+@import "./application-preparation.css";
+@import "./application-update.css";
 @import "./toast.css";
 @import "./osd.css";
 @import "./scroll-area.css";
@@ -56,8 +61,8 @@ html { font-family: var(--ccc-font-sans); }
 
 body {
   font-family: inherit;
-  font-size: var(--ccc-text-md);
-  line-height: 1.5;
+  font-size: var(--ccc-text-xl);
+  line-height: 1.47;
   color: var(--ccc-text);
   background: transparent;
   -webkit-font-smoothing: antialiased;
@@ -73,12 +78,13 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid transparent;
-  box-shadow: var(--ccc-focus-shadow);
+  outline: var(--ccc-focus-outline);
+  outline-offset: 2px;
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--ccc-action) 24%, transparent);
+  background: var(--ccc-action-fill);
+  color: var(--ccc-text-on-action);
 }
 
 button {

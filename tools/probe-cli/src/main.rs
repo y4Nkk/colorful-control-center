@@ -10,7 +10,10 @@
 //!   msr-read <addr>       读任意 MSR（需管理员）
 //!   fan-offset-ab         风扇加速偏移的寂静档对照：默认只读预览当前档位与偏移；
 //!                         --execute 才切换档位与偏移，结束后恢复（经 run-admin-probe.ps1）
+//!   charge                充电保护阈值的真机验收：默认只读核对当前范围与候选；
+//!                         --execute 才写入测试范围，回读后恢复原值并复核
 
+mod charge;
 mod dchu;
 mod fan_offset;
 mod msr;
@@ -43,6 +46,8 @@ enum Command {
     UvTest(#[command(flatten)] UvArgs),
     /// 风扇加速偏移的寂静档对照（默认只读；--execute 才会切换档位与偏移，结束后恢复）
     FanOffsetAb(#[command(flatten)] fan_offset::FanOffsetArgs),
+    /// 充电保护阈值的真机验收（默认只读；--execute 才写入测试范围并恢复原值）
+    Charge(#[command(flatten)] charge::ChargeArgs),
     /// 读任意 MSR（需管理员）
     MsrRead {
         /// MSR 地址（支持 0x 前缀）
@@ -95,6 +100,7 @@ fn main() -> Result<()> {
         Command::Pl => cmd_pl(),
         Command::UvTest(args) => cmd_uv_test(args),
         Command::FanOffsetAb(args) => fan_offset::run(&args),
+        Command::Charge(args) => charge::run(&args),
         Command::MsrRead { addr, cpu } => {
             let addr = parse_hex(&addr)?;
             let driver = msr_driver_rs::MsrDriver::new()

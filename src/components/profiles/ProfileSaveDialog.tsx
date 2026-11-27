@@ -4,7 +4,9 @@ import type { ProfileReference } from "../../app/useProfileReferences";
 import { Button } from "../Button";
 import { Checkbox } from "../Checkbox";
 import { Dialog } from "../Dialog";
+import { FactList } from "../FactList";
 import { Input } from "../Input";
+import { Loading } from "../Loading";
 import { PROFILE_GROUPS, PROFILE_GROUP_LABELS } from "./profile-groups";
 import { ProfileParameters } from "./ProfileParameters";
 import { ProfileRuleImpact } from "./ProfileRuleImpact";
@@ -64,7 +66,7 @@ export function ProfileSaveDialog({ updating, profiles, rules, rulesLoading, rul
             setGroups(event.target.checked ? [...groups, group] : groups.filter(item => item !== group))} />)}</div>
       </fieldset>
       {!groups.length && <p className="ccc-control-caption">请选择至少一组配置。</p>}
-      {!!groups.length && !current && <p className="ccc-control-caption" role="status">正在读取所选配置…</p>}
+      {!!groups.length && !current && <Loading label="正在读取所选配置…" />}
       {current?.error && <div className="ccc-actions">
         <p className="ccc-control-error" role="alert">{current.error}</p>
         <Button variant="ghost" size="compact" icon="refresh" onClick={() => { setCapture(null); setRefresh(value => value + 1); }}>重试读取</Button>
@@ -73,9 +75,8 @@ export function ProfileSaveDialog({ updating, profiles, rules, rulesLoading, rul
         {!!unavailable.length && <p className="ccc-control-caption">
           {unavailable.map(group => `${PROFILE_GROUP_LABELS[group]}无可保存项`).join(" · ")}
         </p>}
-        {!!summary?.length && <dl className="ccc-profile-capture-values" aria-label="已读取的配置">
-          {summary.map(row => <div key={row.label}><dt>{row.label}</dt><dd>{row.target}</dd></div>)}
-        </dl>}
+        {!!summary?.length && <FactList label="已读取的配置" layout="inline" compact
+          facts={summary.map(row => ({ label: row.label, value: row.target }))} />}
         <ProfileParameters settings={current.data.settings} label="查看已读取的参数" />
       </>}
       {existing && <ProfileRuleImpact name={existing.name} rules={rules} operation="replace" loading={rulesLoading} error={rulesError} />}

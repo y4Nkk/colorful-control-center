@@ -108,7 +108,7 @@ fn customer_five_has_its_own_original_mode_and_trigger_table() {
     item.previous_mode = Some(2);
     assert_eq!(decide(item), Ok(None));
     item.mode = 4;
-    assert_eq!(decide(item), Ok(None));
+    assert!(decide(item).is_err());
     item.checked = false;
     item.mode = 0;
     assert_eq!(decide(item), Ok(RestoreSaved));

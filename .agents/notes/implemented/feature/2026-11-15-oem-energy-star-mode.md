@@ -4,7 +4,7 @@ Status: implemented
 
 ## 问题
 
-FnKey `Form1.OnChangePowerMode` 在 WMI122 bit30 未声明硬件 P-state 时调用 WMI79：性能模式为0、省电和安静增强为1、安静和娱乐为2。此前公共模式事务没有这一步，供电模式另有独立执行和记录，造成入口行为不同。
+FnKey `Form1.OnChangePowerMode` 在 WMI122 bit30 未声明硬件 P-state 时调用 WMI79：性能模式为0、省电为1、安静和娱乐为2。此前公共模式事务没有这一步，供电模式另有独立执行和记录，造成入口行为不同。
 
 ## 决定
 

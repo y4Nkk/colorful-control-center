@@ -4,6 +4,69 @@ test.beforeEach(async ({ page }) => { await page.goto("/tools/ui-check/index.htm
 const mode = page => page.getByRole("combobox", { name: "选择模式", exact: true });
 const options = page => page.getByRole("listbox", { name: "选择模式", exact: true });
 
+test("次操作和下拉触发器通过实色区分悬停和按压", async ({ page }) => {
+  const button = page.getByRole("button", { name: "切换禁用", exact: true });
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+    for (const control of [button, mode(page)]) {
+      const paint = () => control.evaluate(element => {
+        const { backgroundColor, backgroundImage, boxShadow } = getComputedStyle(element);
+        return { backgroundColor, backgroundImage, boxShadow };
+      });
+      await page.mouse.move(0, 0);
+      const normal = await paint();
+      await control.hover();
+      await expect.poll(async () => (await paint()).backgroundColor).not.toBe(normal.backgroundColor);
+      const hovered = await paint();
+      const layout = () => control.evaluate(element => [element.offsetWidth, element.offsetHeight]);
+      const size = await layout();
+      await page.mouse.down();
+      try {
+        await expect.poll(async () => (await paint()).backgroundColor).not.toBe(hovered.backgroundColor);
+        const pressed = await paint();
+        expect(pressed.backgroundColor).not.toBe(normal.backgroundColor);
+        for (const state of [normal, hovered, pressed]) {
+          expect(state.backgroundImage).toBe("none");
+          expect(state.boxShadow).toBe("none");
+        }
+        expect(await layout()).toEqual(size);
+      } finally {
+        await page.mouse.move(0, 0);
+        await page.mouse.up();
+      }
+    }
+  }
+});
+
+test("强制颜色下开关、分段选项和滑杆仍有可见状态与焦点", async ({ page }) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  const toggle = page.getByRole("switch", { name: "测试开关" });
+  const track = page.locator(".ccc-switch-track");
+  const thumb = page.locator(".ccc-switch-thumb");
+  const background = locator => locator.evaluate(element => getComputedStyle(element).backgroundColor);
+
+  const off = await background(track);
+  await expect(thumb).not.toHaveCSS("background-color", off);
+  await toggle.check();
+  await expect(track).not.toHaveCSS("background-color", off);
+  await expect(thumb).not.toHaveCSS("background-color", await background(track));
+  await page.keyboard.press("Tab");
+  await toggle.focus();
+  await expect(track).toHaveCSS("outline-style", "solid");
+
+  const checked = page.getByRole("radio", { name: "第一项", exact: true });
+  const unchecked = page.getByRole("radio", { name: "第二项", exact: true });
+  await expect(checked.locator("..")).not.toHaveCSS("background-color", await background(unchecked.locator("..")));
+
+  const slider = page.getByRole("slider", { name: "测试滑杆" });
+  const rail = slider.locator("..");
+  const fill = rail.locator(".ccc-range-fill");
+  await expect(fill).not.toHaveCSS("background-color", await background(rail.locator(".ccc-range-track")));
+  await expect(rail.locator('.ccc-range-tick[data-filled="true"]').first()).not.toHaveCSS("background-color", await background(fill));
+  await slider.press("ArrowRight");
+  await expect(rail.locator(".ccc-range-thumb")).toHaveCSS("outline-style", "solid");
+});
+
 test("禁用菜单项仍命中禁止光标，其余禁用控件也显示禁止光标", async ({ page }) => {
   const field = mode(page);
   await field.click();
@@ -19,6 +82,14 @@ test("禁用菜单项仍命中禁止光标，其余禁用控件也显示禁止�
   await expect(options(page)).toBeVisible();
   await expect(page.getByLabel("已选模式")).toHaveText("a");
   await page.keyboard.press("Escape");
+
+  const disabledRadio = page.getByRole("radio", { name: "不可选项", exact: true });
+  await expect(disabledRadio).toBeDisabled();
+  await expect(disabledRadio).toHaveAccessibleDescription("隔离不可用原因");
+  await disabledRadio.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("隔离不可用原因");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
 
   await page.getByRole("button", { name: "切换禁用" }).click();
   for (const control of [
@@ -70,7 +141,7 @@ test("弹层沿触发器对齐，勾选当前项并提供长列表滚动箭头",
   await field.click();
   const current = options(page).getByRole("option", { selected: true });
   await expect(current.locator('[data-icon="check"]')).toBeVisible();
-  await expect(menu).toHaveCSS("border-radius", "12px");
+  await expect(menu).toHaveCSS("border-radius", "8px");
   const anchor = await field.boundingBox(), bounds = await menu.boundingBox();
   expect(Math.abs(bounds.x - anchor.x)).toBeLessThan(1);
   expect(Math.abs(bounds.y - anchor.y - anchor.height - 4)).toBeLessThan(1);
@@ -114,16 +185,27 @@ test("共享原语禁用、草稿与两步确认没有第二实现", async ({ pa
   const slider = page.getByRole("slider", { name: "测试滑杆" });
   await slider.press("ArrowRight"); await expect(page.getByLabel("滑杆数值")).toHaveText("31");
   const rail = slider.locator("..");
-  await expect(rail.locator(".ccc-range-track")).toHaveCSS("height", "24px");
-  await expect(rail.locator(".ccc-range-thumb")).toHaveCSS("width", "28px");
+  const thumb = rail.locator(".ccc-range-thumb");
+  const track = rail.locator(".ccc-range-track");
+  await expect(thumb).toHaveCSS("width", "28px");
+  await expect(thumb).toHaveCSS("height", "28px");
+  await expect(thumb).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(track).toHaveCSS("height", "24px");
+  await expect(track).toHaveCSS("border-radius", "9999px");
+  await expect(rail.locator(".ccc-range-fill")).toHaveCSS("background-color", "rgb(58, 131, 247)");
   await expect(rail.locator(".ccc-range-tick")).toHaveCount(7);
-  await slider.press("End");
-  await expect(page.getByLabel("滑杆数值")).toHaveText("100");
-  await expect.poll(async () => {
-    const thumb = await rail.locator(".ccc-range-thumb").boundingBox();
-    const input = await slider.boundingBox();
-    return Math.abs(thumb.x + thumb.width - input.x - input.width);
-  }).toBeLessThan(1);
+  const filledTick = rail.locator('.ccc-range-tick[data-filled="true"]').first();
+  const remainingTick = rail.locator('.ccc-range-tick[data-filled="false"]').first();
+  await expect(filledTick).toHaveCSS("opacity", "1");
+  await expect(remainingTick).not.toHaveCSS("background-color", await filledTick.evaluate(node => getComputedStyle(node).backgroundColor));
+  for (const [key, value, edge] of [["End", "100", 1], ["Home", "0", 0]]) {
+    await slider.press(key);
+    await expect(page.getByLabel("滑杆数值")).toHaveText(value);
+    await expect.poll(async () => {
+      const [knob, input] = await Promise.all([thumb.boundingBox(), slider.boundingBox()]);
+      return Math.abs(knob.x + edge * knob.width - input.x - edge * input.width);
+    }).toBeLessThan(1);
+  }
   await page.getByRole("button", { name: "执行隔离操作", exact: true }).click();
   await expect(page.getByLabel("执行次数")).toHaveText("0");
   const dialog = page.getByRole("dialog", { name: "执行隔离操作", exact: true });

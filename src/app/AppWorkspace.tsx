@@ -2,10 +2,12 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { PAGES, type PageId, type WorkspaceLocation } from "./navigation";
 import { useControlModel } from "./useControlModel";
 import { useHardwareMonitoring } from "./useHardwareHistory";
+import { useSystemInventory } from "./useSystemOverview";
 import type { PreferencesModel } from "./useAppPreferences";
 import type { HotkeyNavigationRequest } from "../api/client";
 import { ControlWorkspace } from "./ControlWorkspace";
 import { SettingsWorkspace } from "./SettingsWorkspace";
+import { Loading } from "../components/Loading";
 import { WorkspaceActivity } from "../components/Dialog";
 
 const PerformanceWorkspace = lazy(() => import("./PerformanceWorkspace").then(module => ({ default: module.PerformanceWorkspace })));
@@ -23,10 +25,12 @@ export function AppWorkspace({ location, onNavigate, requestedProfile, fanReques
   const [opened, setOpened] = useState<ReadonlySet<PageId>>(() => new Set([page]));
   useEffect(() => { setOpened(current => current.has(page) ? current : new Set([...current, page])); }, [page]);
   const model = useControlModel();
+  const inventory = useSystemInventory(page === "dashboard", page === "performance");
   useHardwareMonitoring(page === "dashboard" || page === "performance");
   const workspaces = {
-    dashboard: <ControlWorkspace active={page === "dashboard"} />,
-    performance: <PerformanceWorkspace active={page === "performance"} model={model} fanRequest={fanRequest} />,
+    dashboard: <ControlWorkspace active={page === "dashboard"} inventory={inventory} />,
+    performance: <PerformanceWorkspace active={page === "performance"} model={model}
+      fanRequest={fanRequest} cpuName={inventory?.cpu.name ?? null} />,
     graphics: <DeviceConfigurationWorkspace active={page === "graphics"} model={model} navigationRequest={navigationRequest} onNavigated={onNavigated} />,
     keyboard: <KeyboardWorkspace active={page === "keyboard"} model={model} navigationRequest={navigationRequest} onNavigated={onNavigated} />,
     power: <PowerWorkspace active={page === "power"} model={model} area={powerArea} requestedProfile={requestedProfile}
@@ -37,7 +41,7 @@ export function AppWorkspace({ location, onNavigate, requestedProfile, fanReques
     const active = page === entry.id;
     return <WorkspaceActivity.Provider key={entry.id} value={active}>
       <div hidden={!active} className="ccc-page">
-        <Suspense fallback={<p className="ccc-control-caption" role="status">正在加载{entry.title}…</p>}>
+        <Suspense fallback={<Loading label={`正在加载${entry.title}…`} />}>
           {workspaces[entry.id]}
         </Suspense>
       </div>

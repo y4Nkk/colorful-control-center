@@ -25,10 +25,10 @@ export function useAutostart(active: boolean) {
   }, []);
   const reload = useCallback(() => request(getAutostart, false), [request]);
   useEffect(() => { if (active) void reload(); }, [active, reload]);
-  const apply = (level: AutostartLevel, restore = false) => active && snapshot && (restore || level !== snapshot.level || snapshot.legacy)
+  const apply = (level: AutostartLevel) => active && snapshot && (level !== snapshot.level || snapshot.legacy)
     ? request(async () => {
-        const next = await setAutostart(snapshot.revision, level, restore);
-        toast({ kind: "success", title: restore ? "已恢复登录自启设置" : "已保存登录自启设置" });
+        const next = await setAutostart(snapshot.revision, level, false);
+        toast({ kind: "success", title: "已保存登录自启设置" });
         return next;
       }, true) : Promise.resolve();
   return { snapshot, pending, error, reload, apply };

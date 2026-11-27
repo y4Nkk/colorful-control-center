@@ -57,13 +57,8 @@ fn apply_options(f: &Fixture) {
 
 #[test]
 fn all_explicit_modes_preview_and_apply_the_original_energy_values_once() {
-    for (wanted, initial, expected) in [(0, 1, 2), (1, 2, 1), (2, 2, 0), (3, 1, 2), (4, 2, 1)] {
+    for (wanted, initial, expected) in [(0, 1, 2), (1, 2, 1), (2, 2, 0), (3, 1, 2)] {
         let f = setup(initial);
-        if wanted == 4 {
-            let mut state = f.device.0.lock().unwrap();
-            state.bios[0] = 1;
-            state.bios[17] |= 0x80;
-        }
         let _gate = f.hal.begin_write().unwrap();
         let profile = super::super::read(&f.hal).unwrap();
         let target = profile

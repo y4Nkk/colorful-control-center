@@ -19,7 +19,6 @@ pub struct Policy {
 #[serde(rename_all = "camelCase")]
 pub enum SkipReason {
     Resume,
-    QuietPlus,
     NotReady,
     Unsupported,
 }
@@ -78,13 +77,11 @@ impl Policy {
     }
 
     pub fn decide(&self, mode: u8, on_ac: Option<bool>, resume: bool) -> Result<Decision, String> {
-        if mode > 4 {
+        if !crate::oem_events::is_power_mode(mode) {
             return Err("未知原厂 GPU 模式".into());
         }
         let skipped = if resume {
             Some(SkipReason::Resume)
-        } else if mode == 4 {
-            Some(SkipReason::QuietPlus)
         } else if !self.ready {
             Some(SkipReason::NotReady)
         } else if !self.supported()? {

@@ -174,6 +174,7 @@ fn observe_close(
 #[test]
 fn combined_performance_failure_restores_frequency_and_core_before_pre_enabled_node() {
     let f = core();
+    f.device.0.lock().unwrap().bios[20] |= 0x40;
     let (memory, gpu, environment, power) = setup();
     close_node(&environment);
     gpu.set_power_suspended(true).unwrap();
@@ -208,6 +209,7 @@ fn combined_performance_failure_restores_frequency_and_core_before_pre_enabled_n
 #[test]
 fn combined_quiet_failure_restores_post_mode_node_then_frequency_then_core() {
     let f = core();
+    f.device.0.lock().unwrap().bios[20] |= 0x40;
     let (memory, gpu, environment, power) = setup();
     close_node(&environment);
     gpu.set_power_suspended(true).unwrap();

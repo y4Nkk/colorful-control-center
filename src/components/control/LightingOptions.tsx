@@ -8,7 +8,7 @@ import { FactList } from "../FactList";
 import { Surface } from "../Surface";
 import { Switch } from "../Switch";
 import { DetailsDialog } from "../DetailsDialog";
-import { useLightingOptions } from "./useLightingOptions";
+import type { useLightingOptions } from "./useLightingOptions";
 import { TopCoverEditor } from "./TopCoverEditor";
 import { LightingIdleTimer } from "./LightingIdleTimer";
 import { booleanText, timerText, zoneText, topCoverText, idleTimerSeconds, lightingOptionChanges, type LightingOptionsDraft } from "./lighting-option-values";
@@ -32,8 +32,8 @@ function PeripheralLight({ title, current, draft, disabled, onChange, onToggle }
   </Surface>;
 }
 
-export function LightingOptions({ active, revision }: { active: boolean; revision: number }) {
-  const { profile, draft, setDraft, busy, error, run, reread } = useLightingOptions(active, revision);
+export function LightingOptions({ model }: { model: ReturnType<typeof useLightingOptions> }) {
+  const { profile, draft, setDraft, busy, error, run, reread } = model;
   const update = (patch: Partial<LightingOptionsDraft>) => setDraft(previous => previous ? { ...previous, ...patch } : previous);
   const timer = draft?.idleTimer;
   const seconds = timer ? idleTimerSeconds(timer) : null;
@@ -58,7 +58,7 @@ export function LightingOptions({ active, revision }: { active: boolean; revisio
       </div>
     </div>
     {error && <p className="ccc-control-error" role="alert">{error}</p>}
-    {!profile || !draft || !timer ? <p className="ccc-control-caption">{error ? "无法读取灯光选项，请重新读取。" : "正在读取灯光选项。"}</p> : <>
+    {!profile || !draft || !timer ? <p className="ccc-control-caption">无法读取灯光选项，请重新读取。</p> : <>
       <div className="ccc-lighting-options-grid">
         <LightingIdleTimer timer={timer} seconds={seconds} disabled={busy} onChange={idleTimer => update({ idleTimer })}
           onToggle={enabled => apply({ idleTimer: { enabled, seconds: enabled ? Math.max(5, profile.current.idleTimer.seconds) : profile.current.idleTimer.seconds } })} />

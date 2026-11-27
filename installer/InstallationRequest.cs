@@ -14,12 +14,14 @@ namespace ColorfulControlCenter.Installer
         private const uint BackupSemantics = 0x02000000;
 
         internal string Directory { get; private set; }
+        internal bool ReplacesInstallation { get; private set; }
 
         internal static InstallationRequest Create(string value, InstallationRequest previous = null,
             bool requireInstalled = false)
         {
             string path = Normalize(value);
-            try { CheckTarget(path, previous, requireInstalled); }
+            bool replacing;
+            try { replacing = CheckTarget(path, previous, requireInstalled); }
             catch (UnauthorizedAccessException error)
             {
                 throw new ArgumentException("无法访问此安装位置，请选择可访问的文件夹。", error);
@@ -28,7 +30,7 @@ namespace ColorfulControlCenter.Installer
             {
                 throw new ArgumentException("无法检查此安装位置，请确认磁盘和目录仍可用。", error);
             }
-            return new InstallationRequest { Directory = path };
+            return new InstallationRequest { Directory = path, ReplacesInstallation = replacing };
         }
 
         private static string Normalize(string value)
@@ -53,7 +55,7 @@ namespace ColorfulControlCenter.Installer
             return path;
         }
 
-        private static void CheckTarget(string path, InstallationRequest previous, bool requireInstalled)
+        private static bool CheckTarget(string path, InstallationRequest previous, bool requireInstalled)
         {
             var drive = new DriveInfo(Path.GetPathRoot(path));
             if (drive.DriveType == DriveType.Network || drive.DriveType == DriveType.CDRom)
@@ -83,6 +85,7 @@ namespace ColorfulControlCenter.Installer
                     if (entries.MoveNext())
                         throw new ArgumentException("该文件夹包含其他文件。请为控制台选择独立的空文件夹。");
             CheckWriteAccess(folder, exists);
+            return replacing;
         }
 
         private static FileAttributes? ExistingAttributes(string path)

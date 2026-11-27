@@ -65,6 +65,20 @@ pub(crate) async fn read_display_modes(app: tauri::AppHandle) -> Result<display:
     .map_err(|e: anyhow::Error| format!("{e:#}"))
 }
 #[tauri::command]
+pub(crate) async fn read_automatic_display_trial(
+    app: tauri::AppHandle,
+) -> Result<Option<display::Pending>, String> {
+    crate::shutdown::blocking(move || {
+        let Some(display) = app.try_state::<display::Controller>() else {
+            return Ok(None);
+        };
+        display.automatic_pending()
+    })
+    .await
+    .map_err(|error| error.to_string())?
+    .map_err(|error| format!("{error:#}"))
+}
+#[tauri::command]
 pub(crate) async fn read_automatic_refresh(
     app: tauri::AppHandle,
 ) -> Result<display::automatic::Status, String> {
@@ -143,11 +157,7 @@ pub(crate) async fn keep_display_mode(
 ) -> Result<(), String> {
     crate::shutdown::blocking(move || {
         let display = app.state::<display::Controller>();
-        if display
-            .read()?
-            .pending
-            .is_some_and(|pending| pending.automatic && pending.trial_id == Some(trial_id))
-        {
+        if display.automatic_trial_id()? == Some(trial_id) {
             app.state::<display::automatic::Controller>().keep(
                 &app.state::<Hal>(),
                 &display,

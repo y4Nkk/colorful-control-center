@@ -21,6 +21,7 @@ export interface AppPreferences {
   runtimeLogLevel: RuntimeLogLevel;
   hardwareAcceleration: boolean;
 }
+export type Appearance = Pick<AppPreferences, "theme" | "interfaceFont" | "interfaceScale" | "motion">;
 export interface PreferencesSnapshot {
   settings: AppPreferences;
   desktopError: string | null;
@@ -30,6 +31,4 @@ export const getAppPreferences = (): Promise<PreferencesSnapshot> => invoke("get
 export const setAppPreferences = (settings: AppPreferences): Promise<PreferencesSnapshot> => invoke("set_app_preferences", { settings });
 export const listSystemFonts = (): Promise<string[]> => invoke("list_system_fonts");
 export const setShortcutRecording = (enabled: boolean): Promise<void> => invoke("set_shortcut_recording", { enabled });
-export const restartApplication = (): Promise<void> => invoke("restart_application");
-export const restartAsAdministrator = (): Promise<void> => invoke("restart_as_administrator");
 export const onPreferencesError = (handler: (message: string) => void): Promise<() => void> => listenEvent("preferences-error", handler);

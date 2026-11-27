@@ -21,7 +21,7 @@ const fromProfile = (profile: KeyboardLightingProfile): Draft => profile.current
   allColor: profile.current.allColor, zones: profile.current.zones,
 } : emptyDraft();
 export function useKeyboardLighting(active: boolean, revision = 0) {
-  const [profile, setProfile] = useState<KeyboardLightingProfile | null>(null), [draft, setDraft] = useState<Draft>(emptyDraft);
+  const [profile, setProfile] = useState<KeyboardLightingProfile | null>(), [draft, setDraft] = useState<Draft>(emptyDraft);
   const [error, setError] = useState<string | null>(null), [busy, setBusy] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
   const accepted = useRef<Draft | null>(null), running = useRef(false), generation = useRef(0);
@@ -76,7 +76,7 @@ export function useKeyboardLighting(active: boolean, revision = 0) {
     const effect = next.effect;
     if (effect) void run(() => applyKeyboardLighting({ family, ...next, effect }), false);
   };
-  return { profile, family, ...draft, request, dirty, error: error ?? readError, busy, reload, run,
+  return { profile: profile ?? null, loaded: profile !== undefined, family, ...draft, request, dirty, error: error ?? readError, busy, reload, run,
     setBrightness: (brightness: number) => setDraft(previous => ({ ...previous, brightness })),
     chooseEffect: (effect: KeyboardEffect) => apply({ effect }),
     chooseBrightness: (brightness: number) => apply({ brightness }),

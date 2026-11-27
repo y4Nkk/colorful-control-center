@@ -40,7 +40,9 @@ test("预览设备及事件目标，零基设备显示正确档位", async ({ pa
   await finishHotkeyEdit(editor);
   await openHotkeyDetails(page);
   await expect(facts(page)).toContainText("当前档位等级 3");
-  await expect(facts(page)).toContainText("触发后设置：等级 1");
+  const target = facts(page).locator("dl[aria-label='PD 事件目标']");
+  await expect(target.locator("dt")).toHaveText("触发后设置");
+  await expect(target.locator("dd")).toHaveText("等级 1");
   await expect(facts(page)).toContainText("适配器报告功率100 W");
   expect(await calls(page, "apply_hotkeys")).toEqual([]);
   await page.evaluate(() => {
@@ -49,7 +51,7 @@ test("预览设备及事件目标，零基设备显示正确档位", async ({ pa
     h.revision = "pd-legacy"; window.__uiEmit("hardware-controls-changed", null);
   });
   await expect(facts(page)).toContainText("当前档位等级 1");
-  await expect(facts(page)).toContainText("触发后设置：等级 2");
+  await expect(target.locator("dd")).toHaveText("等级 2");
 });
 
 test("PD事件独立授权且确认前不发送", async ({ page }) => {
@@ -66,7 +68,7 @@ test("PD事件独立授权且确认前不发送", async ({ page }) => {
 
 test("复用平台初始基线，恢复确认前不输出且失败可重试", async ({ page }) => {
   await applied(page);
-  await expect(facts(page)).toContainText("恢复接管前的档位：等级 1 → 等级 3");
+  await expect(facts(page).locator("dl[aria-label='PD 档位恢复'] dd")).toHaveText("等级 1 → 等级 3");
   await page.evaluate(() => { window.__uiFixture.pdEventRestoreFault = "PD恢复失败"; });
   for (let attempt = 0; attempt < 2; attempt++) {
     const restore = await previewHotkeyRestore(page, "初始 PD 档位");

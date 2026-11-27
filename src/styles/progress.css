@@ -1,0 +1,35 @@
+.ccc-progress {
+  width: 100%;
+  height: var(--ccc-space-1);
+  overflow: hidden;
+  border-radius: var(--ccc-radius-full);
+  background: var(--ccc-hairline);
+}
+
+.ccc-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ccc-action-ink);
+}
+
+.ccc-progress:not([aria-valuenow]) > span {
+  width: 42%;
+  animation: ccc-progress var(--ccc-motion-progress) ease-in-out infinite;
+}
+
+@keyframes ccc-progress {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(240%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ccc-progress:not([aria-valuenow]) > span { margin-inline: auto; animation: none; }
+}
+
+:root[data-motion="reduce"] .ccc-progress:not([aria-valuenow]) > span { margin-inline: auto; animation: none; }
+
+@media (forced-colors: active) {
+  .ccc-progress { border: 1px solid CanvasText; }
+  .ccc-progress > span { background: Highlight; forced-color-adjust: none; }
+}

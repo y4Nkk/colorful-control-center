@@ -133,7 +133,7 @@ fn capabilities_are_versioned_and_unsupported_fields_cannot_be_written() {
 #[test]
 fn other_modes_and_unknown_preference_refuse() {
     let io = Memory::new();
-    for mode in [0, 1, 4] {
+    for mode in [0, 1] {
         io.pages.borrow_mut()[1][1] = mode;
         assert!(
             preview(&io, Some(true))

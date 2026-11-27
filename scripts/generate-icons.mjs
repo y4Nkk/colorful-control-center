@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -103,25 +103,28 @@ function rasterize(cli, root, input, output, options = []) {
 function presetIcons(cli, root, temporary) {
   const directory = "src-tauri/icons/presets";
   const tokens = postcss.parse(readFileSync(join(root, "src/styles/tokens.css"), "utf8"));
-  return ["quiet", "eco", "performance", "entertainment", "check"].map(palette => {
+  const sources = readdirSync(join(root, directory)).filter(file => file.endsWith(".svg")).sort();
+  return sources.map(file => {
+    const name = file.slice(0, -4);
+    const source = readFileSync(join(root, directory, file), "utf8");
+    const palette = source.match(/^<svg[^>]*\bdata-preset-palette="([\w-]+)"/)?.[1];
     const colors = new Map();
     tokens.walkRules(`[data-preset-palette="${palette}"]`, rule => {
       rule.walkDecls(/^--ccc-preset-/, value => { colors.set(value.prop, value.value); });
     });
-    const source = readFileSync(join(root, directory, `${palette}.svg`), "utf8");
     const svg = source.replace(/var\((--ccc-preset-[\w-]+)\)/g, (_, token) => {
       const color = colors.get(token);
       if (!color || !/^#[a-f\d]{6}$/i.test(color))
-        throw new Error(`Invalid SVG color token ${token} for ${palette}.`);
+        throw new Error(`Invalid SVG color token ${token} for ${file}.`);
       return color;
     });
-    const input = join(temporary, `${palette}.svg`);
-    const output = join(temporary, palette);
+    const input = join(temporary, file);
+    const output = join(temporary, name);
     writeFileSync(input, svg);
     rasterize(cli, root, input, output, ["--png", "48"]);
     const png = readFileSync(join(output, "48x48.png"));
     assertVisiblePng(png);
-    return [`${directory}/${palette}.png`, png];
+    return [`${directory}/${name}.png`, png];
   });
 }
 

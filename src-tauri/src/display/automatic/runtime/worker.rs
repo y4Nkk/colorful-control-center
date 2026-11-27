@@ -4,7 +4,6 @@ use super::super::{
     fields::FileStore,
     native::Native,
     scheduler::Work,
-    state,
 };
 use crate::{
     display,
@@ -14,6 +13,12 @@ use anyhow::{Result, anyhow, bail};
 use tauri::{Emitter, Manager};
 
 pub(super) fn tick(shared: &Shared, store: &FileStore, app: &tauri::AppHandle) -> Result<()> {
+    {
+        let runtime = shared.lock()?;
+        if !runtime.scheduler.polling_enabled() && runtime.trial.is_none() {
+            return Ok(());
+        }
+    }
     let profile_busy = crate::startup::profile_in_progress(app)?;
     let hal = app.state::<Hal>();
     let display = app.state::<display::Controller>();
@@ -22,18 +27,18 @@ pub(super) fn tick(shared: &Shared, store: &FileStore, app: &tauri::AppHandle) -
         hal: &hal,
         display: &display,
     };
-    let should_poll = {
-        let runtime = shared.lock()?;
-        runtime.scheduler.enabled && runtime.scheduler.online && !runtime.scheduler.sleeping
-    };
+    let should_poll = shared.lock()?.scheduler.polling_enabled();
+    let evidence = should_poll
+        .then(|| facts::read_evidence(&io))
+        .transpose()?
+        .map(|(evidence, _)| evidence);
     let mut waiting_for_mode = false;
-    if should_poll {
-        let facts = facts::read(&io)?;
-        waiting_for_mode = facts.supply_mode_switch
+    if let Some(evidence) = &evidence {
+        waiting_for_mode = evidence.supply_mode_switch()
             && app
                 .state::<crate::powerctl::mode::supply::Controller>()
-                .waiting_for_mode(facts.on_ac)?;
-        let supply = match facts.on_ac {
+                .waiting_for_mode(evidence.on_ac)?;
+        let supply = match evidence.on_ac {
             Some(true) => Source::Ac,
             Some(false) => Source::Battery,
             None => Source::Unknown,
@@ -41,36 +46,22 @@ pub(super) fn tick(shared: &Shared, store: &FileStore, app: &tauri::AppHandle) -
         let mut runtime = shared.lock()?;
         runtime.scheduler.read_supply(supply, display::now_ms())?;
         if !waiting_for_mode {
-            runtime.scheduler.mode(facts.mode, display::now_ms())?;
+            runtime.scheduler.mode(evidence.mode, display::now_ms())?;
         }
     }
     if handle_trial(shared, store, &io, &display, &hal)? {
         return Ok(());
     }
-    if profile_busy {
+    let Some(evidence) = evidence else {
         return Ok(());
-    }
-    let can_work = {
-        let runtime = shared.lock()?;
-        runtime.scheduler.enabled && runtime.scheduler.online && !runtime.scheduler.sleeping
     };
-    if !can_work {
+    let can_work = shared.lock()?.scheduler.polling_enabled();
+    if profile_busy || waiting_for_mode || !can_work || display.trial_pending()? {
         return Ok(());
     }
-    if waiting_for_mode {
-        return Ok(());
-    }
-    if display.trial_pending()? {
-        return Ok(());
-    }
-    let view = state::read(&io, store)?;
-    if let Some(error) = view.error {
-        bail!("{error}");
-    }
-    if !view.active {
-        bail!("自动刷新率接管状态已变化");
-    }
-    let Some(work) = shared.lock()?.scheduler.take(display::now_ms()) else {
+    let work = shared.lock()?.scheduler.take(display::now_ms());
+    let Some(work) = work else {
+        engine::active_record(store, evidence.fields)?;
         return Ok(());
     };
     let preview = match engine::preview(&io, store, work.trigger, work.previous_mode) {
@@ -108,7 +99,6 @@ fn handle_trial(
         if enabled {
             shared.issue(None);
         }
-        return Ok(false);
     }
     Ok(true)
 }

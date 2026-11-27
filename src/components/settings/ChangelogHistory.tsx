@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import changelogUrl from "../../../CHANGELOG.md?url";
 import { Button } from "../Button";
+import { Loading } from "../Loading";
 import { Select } from "../Select";
 
 const UNRELEASED = "未发布";
@@ -51,7 +52,7 @@ export function ChangelogHistory({ appVersion }: { appVersion?: string }) {
     return () => controller.abort();
   }, [attempt]);
 
-  if (history.status === "loading") return <p role="status">读取更新日志…</p>;
+  if (history.status === "loading") return <Loading label="正在读取更新日志…" />;
   if (history.status === "failed") return <div className="ccc-settings-feedback">
     <p className="ccc-settings-error" role="alert">读取更新日志失败。</p>
     <Button icon="refresh" size="compact" onClick={() => {

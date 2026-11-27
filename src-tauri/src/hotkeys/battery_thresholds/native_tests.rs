@@ -39,6 +39,12 @@ impl PowerAccess for Memory {
     fn schemes(&self) -> Result<Vec<u128>> {
         Ok(self.0.lock().unwrap().plans.keys().copied().collect())
     }
+    fn scheme_name(&self, _: u128) -> Result<String> {
+        bail!("阈值测试未注入计划名称")
+    }
+    fn check_active_scheme_write(&self) -> Result<()> {
+        bail!("阈值测试未注入计划切换权限")
+    }
     fn battery_level(&self, scheme: u128, level: BatteryLevel) -> Result<[u32; 2]> {
         Ok(self
             .0

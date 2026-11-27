@@ -57,7 +57,7 @@ fn a_c1_echo_without_confirmed_control_does_not_advance_the_session() {
     let hal = f.hal();
     let _write = hal.begin_write().unwrap();
     let error = fanctl::software::apply(hal, &curves()).unwrap_err();
-    assert!(error.to_string().contains("目标占空比回读不一致"));
+    assert!(error.to_string().contains("目标风扇强度回读不一致"));
     assert!(fanctl::software::read(hal).unwrap().is_none());
     assert!(hal.software_progress.lock().unwrap().is_none());
     assert!(!running_record(&f));

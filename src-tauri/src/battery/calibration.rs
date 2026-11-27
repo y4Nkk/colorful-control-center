@@ -30,7 +30,6 @@ pub(crate) use coordinator::Profile;
 pub(super) use coordinator::charge_lock;
 pub(crate) use engine::Task;
 pub(crate) use model::{Event, Facts, Phase, State, Status};
-pub(in crate::battery) use power_plan::format as power_scheme;
 pub(crate) use process::run_child;
 pub(crate) const RECORD_NAME: &str = "battery-calibration.json";
 pub(crate) fn ensure_system_plan_available(path: &std::path::Path) -> Result<()> {
@@ -55,7 +54,7 @@ pub(crate) struct Baseline {
 }
 impl Baseline {
     pub fn validate(&self) -> Result<()> {
-        power_plan::parse(&self.power_scheme)?;
+        crate::hal::power_plan::parse_guid(&self.power_scheme)?;
         if !(1..=100).contains(&self.stop_threshold) {
             anyhow::bail!("校准快照的停止阈值无效");
         }

@@ -23,7 +23,7 @@ export interface GpuTurboProfile {
 
 /** 应用写入前的原始基准（存在即可恢复）。 */
 export interface GpuModeRawState { devices: GpuTurboDevice[]; locks: [GpuTurboLock, GpuTurboLock]; offsets: GpuTurboOffsets[] }
-export type GpuModeSkipReason = "resume" | "quietPlus" | "notReady" | "unsupported";
+export type GpuModeSkipReason = "resume" | "notReady" | "unsupported";
 export type GpuModeObservation = { status: "untracked" | "poweredOff" }
   | { status: "skipped"; value: GpuModeSkipReason } | { status: "unavailable"; value: string } | { status: "ready"; value: GpuModeRawState };
 export interface GpuModeCandidate { decision: { target: GpuTurboTarget | null; skipped: GpuModeSkipReason | null } | null; unavailableReason: string | null; projected: GpuModeRawState | null }
@@ -48,8 +48,8 @@ export interface GpuProfile {
   available: boolean;
   /** 不可用时的确切原因（阶段 + NVAPI 状态） */
   unavailableReason: string | null;
-  /** 写入受限时同时提供权限原因和管理员重启入口的可用性。 */
-  writeBlock: { reason: string; canRequestElevation: boolean } | null;
+  /** 写入受限时的权限原因。 */
+  writeBlockedReason: string | null;
   gpuName: string | null;
   coreOffsetMhz: number | null;
   memOffsetMhz: number | null;

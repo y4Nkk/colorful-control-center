@@ -13,6 +13,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inspectUiSource, inspectUiStyles } from "./check-ui-boundaries.mjs";
+import { inspectAppleDesign } from "./check-apple-design.mjs";
 
 const rootDir = fileURLToPath(new URL("..", import.meta.url));
 const srcDir = join(rootDir, "src");
@@ -63,6 +64,9 @@ for (const file of walk(srcDir)) {
   }
 }
 for (const [path, content] of styles) violations.push(...inspectUiStyles(path, content, { aliases, moduleClasses }));
+const appleDesign = readFileSync(join(rootDir, "docs/design-references/apple/DESIGN.md"), "utf8");
+const tokensPath = "src/styles/tokens.css";
+violations.push(...inspectAppleDesign(appleDesign, [...styles, [tokensPath, readFileSync(join(rootDir, tokensPath), "utf8")]]));
 
 /** 3. 页面接线一致：PAGES ↔ AppWorkspace 分支 */
 const navigation = readFileSync(join(srcDir, "app", "navigation.ts"), "utf8");

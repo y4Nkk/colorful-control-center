@@ -60,7 +60,7 @@ enum Response {
     Partial,
 }
 
-/// 判定阈值为经验值：占空比抬高 5 个百分点或温度压低 2°C 才算响应。
+/// 风扇强度提高 5 个百分点或温度降低 2°C 是判断偏移是否有效的经验阈值。
 fn response(x: Summary, base: Summary) -> Response {
     let (duty, temp) = (x.duty - base.duty, x.temp - base.temp);
     if duty >= 5.0 || temp <= -2.0 {
@@ -118,13 +118,13 @@ fn average(a: Summary, b: Summary) -> Summary {
 }
 
 pub(super) fn report(rows: &[Row], plan: &[Phase; 6]) {
-    println!("\n阶段        样本  CPU占空比%  CPU转速  CPU温度°C  GPU占空比%  GPU转速");
+    println!("\n阶段       样本 CPU 风扇强度% CPU 转速 CPU 温度°C GPU 风扇强度% GPU 转速");
     let stats =
         std::array::from_fn::<Option<Summary>, 6, _>(|index| summarize(rows, plan[index].name));
     for (phase, stat) in plan.iter().zip(&stats) {
         match stat {
             Some(stat) => println!(
-                "{:<10} {:>4} {:>11.1} {:>8.0} {:>10.1} {:>11.1} {:>8.0}",
+                "{:<10} {:>4} {:>13.1} {:>8.0} {:>10.1} {:>13.1} {:>8.0}",
                 phase.name, stat.n, stat.duty, stat.rpm, stat.temp, stat.gpu_duty, stat.gpu_rpm
             ),
             None => println!("{:<10} 数据不足", phase.name),
@@ -143,7 +143,7 @@ pub(super) fn report(rows: &[Row], plan: &[Phase; 6]) {
         ("寂静档", quiet_base, quiet_x),
     ] {
         println!(
-            "{label}：偏移相对 0 → CPU 占空比 {:+.1} 个百分点，转速 {:+.0}，温度 {:+.1}°C；GPU 占空比 {:+.1}，转速 {:+.0}",
+            "{label}相对零偏移，CPU 风扇强度 {:+.1} 个百分点，转速 {:+.0}，温度 {:+.1}°C。GPU 风扇强度 {:+.1} 个百分点，转速 {:+.0}。",
             x.duty - base.duty,
             x.rpm - base.rpm,
             x.temp - base.temp,
@@ -162,7 +162,7 @@ pub(super) fn report(rows: &[Row], plan: &[Phase; 6]) {
     println!("结论仅适用于本次负载、电源模式与对照偏移。");
 }
 
-/// 本机寂静档在高温下两路占空比同为 0x8E（约 56%），疑似上限；基线贴近时偏移会被遮蔽。
+/// 本机寂静档在高温下两路风扇强度原始值同为 0x8E（约 56%），可能是上限。
 const CAP_HINT: f64 = 54.0;
 
 fn verdict(auto: Response, quiet: Response, quiet_base_duty: f64) -> &'static str {
@@ -170,11 +170,11 @@ fn verdict(auto: Response, quiet: Response, quiet_base_duty: f64) -> &'static st
         return "无法判定：自动档对照组对偏移响应不足。请调整负载或对照偏移后重试。";
     }
     if quiet_base_duty >= CAP_HINT && quiet != Response::Clear {
-        return "无法判定：寂静档基线占空比已接近高温下观察到的上限，偏移可能被上限遮蔽。请降低负载后重试。";
+        return "寂静档的风扇强度已接近高温下观察到的上限，本次无法判定偏移是否有效。请降低负载后重试。";
     }
     match quiet {
         Response::Clear => "寂静档生效，偏移在寂静档下同样有响应。",
-        Response::None => "寂静档未生效，自动档有响应而寂静档的占空比与温度均未变化。",
+        Response::None => "偏移在寂静档未生效。自动档有响应，寂静档的风扇强度与温度均未变化。",
         Response::Partial => "寂静档仅有部分响应，请结合上表与取样文件人工判断。",
     }
 }
@@ -223,9 +223,11 @@ mod tests {
     #[test]
     fn verdict_needs_a_control_and_refuses_a_capped_baseline() {
         assert!(verdict(Response::Clear, Response::Clear, 20.0).starts_with("寂静档生效"));
-        assert!(verdict(Response::Clear, Response::None, 20.0).starts_with("寂静档未生效"));
+        assert!(verdict(Response::Clear, Response::None, 20.0).starts_with("偏移在寂静档未生效"));
         assert!(verdict(Response::None, Response::None, 20.0).starts_with("无法判定：自动档"));
-        assert!(verdict(Response::Clear, Response::None, 55.7).starts_with("无法判定：寂静档基线"));
+        assert!(
+            verdict(Response::Clear, Response::None, 55.7).starts_with("寂静档的风扇强度已接近")
+        );
         assert!(verdict(Response::Clear, Response::Clear, 55.7).starts_with("寂静档生效"));
     }
 

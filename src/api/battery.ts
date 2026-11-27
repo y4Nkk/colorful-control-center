@@ -5,7 +5,7 @@ export interface BatteryChargeState { current: BatteryChargeValues; startValues:
 export interface BatteryChargeTarget { values: BatteryChargeValues; startValues: number[]; stopValues: number[] }
 export interface BatteryPowerStatus {
   present: boolean | null; acOnline: boolean | null; charging: boolean | null;
-  percent: number | null; remainingSeconds: number | null; windowsBatterySaver: boolean | null;
+  percent: number | null; remainingSeconds: number | null;
 }
 export interface BatteryDiagnostics {
   version: number; manufacturedOn: string | null; cycleCount: number; fullCapacityRaw: number; designCapacityRaw: number;
@@ -13,13 +13,12 @@ export interface BatteryDiagnostics {
 }
 export interface BatteryProfile {
   charge: BatteryChargeState | null; revision: string | null; power: BatteryPowerStatus | null;
-  diagnostics: BatteryDiagnostics | null; canRestore: boolean; warnings: string[];
-  chargeLockReason: string | null;
+  diagnostics: BatteryDiagnostics | null;
+  chargeUnavailableReason: string | null; powerUnavailableReason: string | null; chargeLockReason: string | null;
 }
 export const readBatteryProfile = () => invoke<BatteryProfile>("read_battery_profile");
 export const applyBatteryCharge = (expectedRevision: string, values: BatteryChargeValues) =>
   invoke<void>("apply_battery_charge", { request: { expectedRevision, values } });
-export const restoreBatteryCharge = (expectedRevision: string) => invoke<void>("restore_battery_charge", { expectedRevision });
 
 export const ENERGY_POLICY_LABEL = "电池节能计划";
 export interface EnergyLimits { floor: number; ceiling: number }

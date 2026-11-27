@@ -70,6 +70,54 @@ impl Access for Fake {
         Ok(())
     }
 }
+
+#[test]
+fn a_blocked_inventory_read_leaves_trial_state_available() {
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    struct BlockingInventory {
+        entered: mpsc::Sender<()>,
+        release: Mutex<mpsc::Receiver<()>>,
+    }
+    impl Access for BlockingInventory {
+        fn list(&self) -> Result<Vec<Display>> {
+            self.entered.send(())?;
+            self.release
+                .lock()
+                .unwrap()
+                .recv_timeout(Duration::from_secs(5))?;
+            Ok(Vec::new())
+        }
+        fn test(&self, _: &Mode) -> Result<()> {
+            panic!("读取不应测试或写入设备")
+        }
+        fn set(&self, _: &Mode) -> Result<()> {
+            panic!("读取不应测试或写入设备")
+        }
+    }
+
+    let (entered, entering) = mpsc::channel();
+    let (release, read_release) = mpsc::channel();
+    let (send_pending, pending) = mpsc::channel();
+    let controller = Controller::with_guards(
+        BlockingInventory {
+            entered,
+            release: Mutex::new(read_release),
+        },
+        guardian::MemoryFactory,
+    );
+    std::thread::scope(|scope| {
+        let read = scope.spawn(|| controller.read());
+        entering.recv_timeout(Duration::from_secs(2)).unwrap();
+        scope.spawn(|| send_pending.send(controller.trial_pending()).unwrap());
+        let result = pending.recv_timeout(Duration::from_secs(1));
+        release.send(()).unwrap();
+        read.join().unwrap().unwrap();
+        assert!(!result.expect("显示驱动读取不应占用试用状态锁").unwrap());
+    });
+}
+
 #[test]
 fn stale_unsupported_and_driver_test_reject_before_writes() {
     let (c, io) = setup();

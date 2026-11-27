@@ -37,6 +37,12 @@ impl PowerAccess for Memory {
     fn schemes(&self) -> Result<Vec<u128>> {
         Ok(self.0.lock().unwrap().schemes.keys().copied().collect())
     }
+    fn scheme_name(&self, _: u128) -> Result<String> {
+        bail!("模式测试未注入计划名称")
+    }
+    fn check_active_scheme_write(&self) -> Result<()> {
+        bail!("模式测试未注入计划切换权限")
+    }
     fn usb(&self, _: u128) -> Result<[u32; 2]> {
         bail!("模式隔离提供者未注入USB字段")
     }
@@ -92,7 +98,7 @@ fn fixture() -> (Memory, Target) {
         unavailable_reason: None,
         energy: None,
         ac_mode: None,
-        mode: 4,
+        mode: 0,
         turbo: false,
         dtt: false,
         fan: crate::fanctl::ModePolicy::explicit(0, 0, Some(0)),

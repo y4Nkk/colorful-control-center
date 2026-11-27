@@ -10,13 +10,13 @@ export function modeGpuReview(data, mode) {
     return result;
   }
   const onAc = data.modeSupply === undefined ? data.battery.power.acOnline : data.modeSupply;
-  if (node?.automaticPowerOff && [1, 4].includes(mode) && (node.drivesDisplay || !node.canDisable)) return { status: "unavailable", value: "独显正在驱动显示输出，不能关闭" };
-  const changesNode = node && ([0, 2, 3].includes(mode) || node.automaticPowerOff && [1, 4].includes(mode));
+  if (node?.automaticPowerOff && mode === 1 && (node.drivesDisplay || !node.canDisable)) return { status: "unavailable", value: "独显正在驱动显示输出，不能关闭" };
+  const changesNode = node && ([0, 2, 3].includes(mode) || node.automaticPowerOff && mode === 1);
   return { status: "ready", value: { nodeSupported: node !== null, node, onAc, stages: null,
     action: changesNode ? { stage: [2, 3].includes(mode) ? "beforeMode" : "afterMode", target: { enabled: [0, 2, 3].includes(mode), automaticPowerOff: node.automaticPowerOff } } : null,
     clocks: { policy: { capabilities: { limitClock: false, allModeOc: false }, limits: { entertainmentMhz: 0, performanceMhz: 0, savingMhz: 0, quietMhz: 0, thermalMhz: 0 },
       saved: [{ coreMhz: 0, memoryMhz: 0 }, { coreMhz: 0, memoryMhz: 0 }], gpuOc: false, simpleGpuOc: false, ready: false, gpuCount: 1, cachedDeviceId: 0 },
-      candidate: { decision: { target: null, skipped: mode === 4 ? "quietPlus" : "notReady" }, unavailableReason: null, projected: null }, driver: null, driverError: null, deferredReason: null } } };
+      candidate: { decision: { target: null, skipped: "notReady" }, unavailableReason: null, projected: null }, driver: null, driverError: null, deferredReason: null } } };
 }
 export function appliesPerformanceOptions(data, mode) {
   return mode === 2 || mode === 3 && data.entertainmentOptions === true
@@ -24,7 +24,7 @@ export function appliesPerformanceOptions(data, mode) {
 }
 
 export function optionCommand(mode, turbo, dtt) {
-  return (mode === 4 ? 0 : mode) | (turbo ? 64 : 0) | (dtt ? 128 : 0);
+  return mode | (turbo ? 64 : 0) | (dtt ? 128 : 0);
 }
 
 export function entertainmentCommand(data) {
@@ -44,7 +44,7 @@ export function modePreviewTarget(data, mode, values = data.performanceOptions.c
     control: "explicit", mode: effective, savedMode, offsetPct: keepsFanMode && data.fanKind !== "rpmTable" ? 0 : null,
   };
   const target = { mode, fromMode: p.currentMode, acMode: mode, gpu: modeGpuReview(data, mode), unavailableReason: null,
-    energy: data.modeEnergy.hardwarePState ? { hardwarePState: true, energyStar: null } : { hardwarePState: false, energyStar: [2, 1, 0, 2, 1][mode] },
+    energy: data.modeEnergy.hardwarePState ? { hardwarePState: true, energyStar: null } : { hardwarePState: false, energyStar: [2, 1, 0, 2][mode] },
     turbo, dtt: active && values.dtt === true, fan, aspm: null, powerPlan: null };
   return { ...target, revision: JSON.stringify([target, data.acMode, data.modeEnergy, p.current, data.fan.currentMode, data.fan.offsetPct, data.fan.software]) };
 }

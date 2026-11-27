@@ -115,7 +115,10 @@ fn full_profile_waits_for_explicit_group_keep_before_any_other_output() {
     assert_eq!(report.pending.unwrap().targets.len(), 2);
     h.no_other_writes();
     assert_eq!(h.f.display.io.0.lock().unwrap().writes.len(), 2);
-    let report = h.application.keep(h.runtime(), report.id).unwrap();
+    let report = h
+        .application
+        .keep(&h.f.hal, &h.f.gpu, h.f.devices(), report.id)
+        .unwrap();
     assert!(report.pending.is_none());
     assert!(report.steps.iter().all(|step| step.ok));
     assert!(report.steps.iter().any(|step| step.step == "保留档案显示"));
@@ -130,7 +133,10 @@ fn full_profile_waits_for_explicit_group_keep_before_any_other_output() {
 fn cancellation_recovers_display_without_executing_other_targets() {
     let h = Harness::new();
     let id = h.begin().id;
-    let report = h.application.cancel(h.runtime(), id).unwrap();
+    let report = h
+        .application
+        .cancel(&h.f.hal, &h.f.display.controller, id)
+        .unwrap();
     assert!(report.pending.is_none());
     assert!(report.steps.iter().any(|step| !step.ok));
     h.no_other_writes();
@@ -154,7 +160,11 @@ fn timeout_records_incomplete_application_and_never_executes_remaining_settings(
             .iter()
             .any(|step| !step.ok && step.message.contains("未执行"))
     );
-    assert!(h.application.keep(h.runtime(), id).is_err());
+    assert!(
+        h.application
+            .keep(&h.f.hal, &h.f.gpu, h.f.devices(), id)
+            .is_err()
+    );
     h.no_other_writes();
     h.restored();
 }
@@ -165,7 +175,10 @@ fn file_change_during_trial_stops_other_outputs_and_recovers_display() {
     let id = h.begin().id;
     h.file.settings.pl1_w = Some(78.0);
     h.save();
-    let report = h.application.keep(h.runtime(), id).unwrap();
+    let report = h
+        .application
+        .keep(&h.f.hal, &h.f.gpu, h.f.devices(), id)
+        .unwrap();
     assert!(
         report
             .steps
@@ -200,7 +213,10 @@ fn gpu_failure_after_keep_restores_saved_cpu_and_this_application_display_before
     let before = h.f.device.0.lock().unwrap().pages[6];
     let id = h.begin().id;
     h.f.device.0.lock().unwrap().fail_gpu = true;
-    let report = h.application.keep(h.runtime(), id).unwrap();
+    let report = h
+        .application
+        .keep(&h.f.hal, &h.f.gpu, h.f.devices(), id)
+        .unwrap();
     assert!(
         report
             .steps
@@ -219,7 +235,10 @@ fn failed_display_compensation_retains_session_and_allows_explicit_retry() {
     h.file.settings.pl1_w = Some(78.0);
     h.save();
     h.f.display.io.0.lock().unwrap().fail_at = vec![3];
-    let report = h.application.keep(h.runtime(), id).unwrap();
+    let report = h
+        .application
+        .keep(&h.f.hal, &h.f.gpu, h.f.devices(), id)
+        .unwrap();
     assert!(report.pending.is_some());
     assert!(
         report
@@ -227,9 +246,16 @@ fn failed_display_compensation_retains_session_and_allows_explicit_retry() {
             .iter()
             .any(|step| step.step == "恢复本次显示变更" && !step.ok)
     );
-    assert!(h.application.keep(h.runtime(), id).is_err());
+    assert!(
+        h.application
+            .keep(&h.f.hal, &h.f.gpu, h.f.devices(), id)
+            .is_err()
+    );
     h.f.display.io.0.lock().unwrap().fail_at.clear();
-    let report = h.application.cancel(h.runtime(), id).unwrap();
+    let report = h
+        .application
+        .cancel(&h.f.hal, &h.f.display.controller, id)
+        .unwrap();
     assert!(report.pending.is_none());
     h.no_other_writes();
     h.restored();
@@ -277,8 +303,16 @@ fn competing_application_and_wrong_confirmation_do_not_consume_current_trial() {
             .begin(h.runtime(), &h.file, None, Some(&h.review), None, None)
             .is_err()
     );
-    assert!(h.application.keep(h.runtime(), id + 1).is_err());
-    assert!(h.application.cancel(h.runtime(), id + 1).is_err());
+    assert!(
+        h.application
+            .keep(&h.f.hal, &h.f.gpu, h.f.devices(), id + 1)
+            .is_err()
+    );
+    assert!(
+        h.application
+            .cancel(&h.f.hal, &h.f.display.controller, id + 1)
+            .is_err()
+    );
     assert_eq!(
         h.application
             .read(&h.f.display.controller)
@@ -289,7 +323,9 @@ fn competing_application_and_wrong_confirmation_do_not_consume_current_trial() {
     );
     assert_eq!(h.f.display.io.0.lock().unwrap().writes.len(), 2);
     h.no_other_writes();
-    h.application.cancel(h.runtime(), id).unwrap();
+    h.application
+        .cancel(&h.f.hal, &h.f.display.controller, id)
+        .unwrap();
 }
 
 #[test]
@@ -299,7 +335,10 @@ fn retained_external_change_stops_remainder_without_overwriting_external_mode() 
     h.f.display.io.0.lock().unwrap().displays[1]
         .current
         .frequency = 120;
-    let report = h.application.keep(h.runtime(), id).unwrap();
+    let report = h
+        .application
+        .keep(&h.f.hal, &h.f.gpu, h.f.devices(), id)
+        .unwrap();
     assert!(report.steps.iter().any(|step| !step.ok));
     assert!(report.pending.is_some());
     assert_eq!(
@@ -312,7 +351,9 @@ fn retained_external_change_stops_remainder_without_overwriting_external_mode() 
     h.f.display.io.0.lock().unwrap().displays[1]
         .current
         .frequency = 144;
-    h.application.cancel(h.runtime(), id).unwrap();
+    h.application
+        .cancel(&h.f.hal, &h.f.display.controller, id)
+        .unwrap();
     h.restored();
 }
 
@@ -336,10 +377,15 @@ fn touchpad_waits_for_display_keep_and_cancel_never_toggles() {
     h.save();
     let id = h.begin().id;
     assert!(h.f.touchpad_io.writes.lock().unwrap().is_empty());
-    h.application.cancel(h.runtime(), id).unwrap();
+    h.application
+        .cancel(&h.f.hal, &h.f.display.controller, id)
+        .unwrap();
     assert!(h.f.touchpad_io.writes.lock().unwrap().is_empty());
     let id = h.begin().id;
-    let result = h.application.keep(h.runtime(), id).unwrap();
+    let result = h
+        .application
+        .keep(&h.f.hal, &h.f.gpu, h.f.devices(), id)
+        .unwrap();
     assert!(result.targets_applied);
     let p = h.f.touchpad.read(&h.f.hal).unwrap();
     assert_eq!(p.current.enabled, Some(false));
@@ -358,7 +404,10 @@ fn replaced_touchpad_during_display_trial_prevents_cpu_and_input_writes() {
     h.save();
     let id = h.begin().id;
     *h.f.touchpad_io.devices.lock().unwrap() = vec!["replacement".into()];
-    let result = h.application.keep(h.runtime(), id).unwrap();
+    let result = h
+        .application
+        .keep(&h.f.hal, &h.f.gpu, h.f.devices(), id)
+        .unwrap();
     assert!(!result.targets_applied && result.steps.iter().any(|s| !s.ok));
     assert!(h.f.touchpad_io.writes.lock().unwrap().is_empty());
     h.no_other_writes();

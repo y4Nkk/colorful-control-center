@@ -269,13 +269,14 @@ fn shutdown_and_lid_events_never_alias_low_battery_or_each_other() {
     assert!(!Action::LidAction.is_status_feedback());
 }
 #[test]
-fn original_mode_order_skips_unsupported_slots_and_keeps_quiet_plus() {
+fn mode_cycle_skips_unsupported_slots_and_rejects_unknown_current_mode() {
     let available = [0, 1, 2, 3];
     for (before, after) in [(0, 2), (2, 3), (3, 1), (1, 0)] {
         assert_eq!(next_mode(before, &available).unwrap(), after);
     }
-    assert_eq!(next_mode(1, &[1, 2, 3, 4]).unwrap(), 4);
-    assert_eq!(next_mode(4, &[1, 2, 3, 4]).unwrap(), 2);
+    assert_eq!(next_mode(1, &[1, 2, 3]).unwrap(), 2);
+    assert!(next_mode(1, &[1, 2, 3, 4]).is_err());
+    assert!(next_mode(4, &available).is_err());
     assert_eq!(next_mode(0, &[2]).unwrap(), 2);
     assert!(next_mode(0, &[]).is_err());
     assert!(next_mode(0, &[7]).is_err());

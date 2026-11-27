@@ -3,8 +3,13 @@
   margin-inline: auto;
   padding: var(--ccc-space-4) clamp(var(--ccc-space-2), 2vw, var(--ccc-space-5))
     calc(var(--ccc-control-height) + var(--ccc-space-5));
+  color: var(--ccc-text-muted);
 }
-.ccc-control[data-module-layout="power"] { inline-size: min(100%, var(--ccc-settings-width)); margin-inline: auto; }
+.ccc-page :where(h2, h3, h4, h5, h6, .ccc-icon-title) { color: var(--ccc-text); }
+.ccc-control:is([data-module-layout="power"], [data-module-layout="profiles"]) {
+  inline-size: min(100%, var(--ccc-settings-width)); margin-inline: auto;
+}
+.ccc-control[data-module-layout="profiles"] { gap: var(--ccc-space-6); }
 
 .ccc-control, .ccc-module-grid {
   display: grid;
@@ -23,11 +28,11 @@
 }
 .ccc-module-grid[data-module-layout="readings"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .ccc-module-grid[data-module-layout="readings"] > * { grid-row: span 3; }
-.ccc-module-grid[data-module-layout="profiles"] { grid-template-columns: minmax(160px, 1fr) minmax(0, 2.65fr); align-items: start; }
 .ccc-module-grid[data-module-layout="settings"] {
   inline-size: min(100%, var(--ccc-settings-width));
   margin-inline: auto;
   container: ccc-settings / inline-size;
+  gap: var(--ccc-space-6);
 }
 
 @container ccc-control (min-width: 54rem) {
@@ -37,7 +42,4 @@
 }
 @container ccc-control (max-width: 692px) {
   .ccc-module-grid[data-module-layout="readings"] { grid-template-columns: minmax(0, 1fr); }
-}
-@media (max-width: 700px) {
-  .ccc-module-grid[data-module-layout="profiles"] { grid-template-columns: minmax(0, 1fr); }
 }

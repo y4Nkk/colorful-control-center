@@ -100,7 +100,9 @@ pub(super) fn capture(
             .then(|| read_two_point(io, hal.reviewed_dsdt))
             .transpose()?;
         let page = io.read_settings(4, 0, 256)?;
-        let mut fields = vec![Patch::new(5, [page[5]]), Patch::new(7, [page[7]])];
+        let mut fields = [saved::MODE_OFFSET, saved::FAN_OFFSET]
+            .map(|offset| Patch::new(offset, [page[offset]]))
+            .to_vec();
         if package.is_some() {
             for (index, _) in current
                 .fans
@@ -159,6 +161,31 @@ pub(super) fn write_two_point(io: &Dchu, reviewed_dsdt: bool, package: &[u8; 256
     Ok(())
 }
 
+pub(super) fn edit_two_point(
+    hal: &Hal,
+    before: &FanCheckpoint,
+    package: &[u8; 256],
+    patches: &[Patch],
+) -> Result<()> {
+    let original = before.two_point_package()?;
+    remember_baseline(hal, before)?;
+    hal.with_dchu(|io| {
+        super::require_custom_mode(io.read_fan_mode()?)?;
+        let result = (|| -> Result<()> {
+            write_two_point(io, hal.reviewed_dsdt, package)?;
+            super::require_custom_mode(io.read_fan_mode()?)?;
+            settings::apply(io, 4, patches, None).map_err(anyhow::Error::msg)?;
+            Ok(())
+        })();
+        if let Err(error) = result {
+            let recovery = write_two_point(io, hal.reviewed_dsdt, &original)
+                .map_err(|error| format!("恢复即时曲线：{error:#}"));
+            bail!(with_recovery(format!("{error:#}"), recovery));
+        }
+        Ok(())
+    })
+}
+
 pub(super) fn remember_baseline(hal: &Hal, before: &FanCheckpoint) -> Result<()> {
     let mut state = hal.recovery()?;
     if let Some(initial) = &mut state.fan {
@@ -174,6 +201,34 @@ pub(super) fn remember_baseline(hal: &Hal, before: &FanCheckpoint) -> Result<()>
         state.fan = Some(initial);
     }
     Ok(())
+}
+
+pub(super) fn remember_preset_baseline(hal: &Hal, before: &FanCheckpoint) -> Result<()> {
+    let fields = before
+        .fields
+        .iter()
+        .filter(|field| {
+            matches!(
+                field.offset,
+                saved::MODE_OFFSET
+                    | saved::FAN_OFFSET
+                    | saved::ENTERTAINMENT_QUIET_OFFSET
+                    | saved::MODE_SLOTS_OFFSET
+            )
+        })
+        .cloned()
+        .collect();
+    remember_baseline(
+        hal,
+        &FanCheckpoint {
+            software: None,
+            package: None,
+            rpm_pairs: None,
+            fields,
+            mode: before.mode,
+            offset_raw: before.offset_raw,
+        },
+    )
 }
 
 pub(super) fn transact(
@@ -227,8 +282,7 @@ fn restore_hardware(hal: &Hal, io: &Dchu, before: &FanCheckpoint) -> Vec<String>
         }
         record(
             &format!("保存字段 {}", field.offset),
-            settings::apply(io, 4, std::slice::from_ref(field), None)
-                .map(|_| ())
+            settings::write_verified(io, 4, std::slice::from_ref(field), None)
                 .map_err(anyhow::Error::msg),
         );
     }
@@ -243,13 +297,8 @@ fn restore_hardware(hal: &Hal, io: &Dchu, before: &FanCheckpoint) -> Vec<String>
             );
         }
     }
-    let mode =
-        boost::ensure_fan_allowed_on(io, FanTarget::Firmware(before.mode)).and_then(|()| match io
-            .read_fan_mode()
-        {
-            Ok(mode) if mode == before.mode => Ok(()),
-            _ => io.set_fan_mode_verified(before.mode),
-        });
+    let mode = boost::ensure_fan_allowed_on(io, FanTarget::Firmware(before.mode))
+        .and_then(|()| io.restore_fan_mode(before.mode));
     record("即时档位", mode);
     errors
 }

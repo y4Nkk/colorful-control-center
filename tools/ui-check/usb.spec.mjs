@@ -25,7 +25,7 @@ async function restore(page) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript({ content: MOCK_IPC });
   await page.addInitScript(() => {
-    window.__uiFixture.usb = { revision: "usb-0", recommendation: true, supported: true, activePlan: null,
+    window.__uiFixture.usb = { revision: "usb-0", recommendation: true, supported: true, activePlan: null, activeValues: { ac: false, dc: false },
       plans: ["balanced", "highPerformance", "powerSaver"].map(id => ({ id, ac: false, dc: false })),
       missing: [], initial: [], blockedReason: null, restoreBlockedReason: null, warnings: ["隔离系统计划"] };
   });
@@ -109,16 +109,23 @@ test("部分失败保留原值恢复，能力丢失后仍可恢复本次字段",
     usb.plans.forEach(value => { value.ac = true; }); usb.revision = "lost";
   });
   await reload(page);
-  await expect(field(page, ac)).toBeDisabled();
+  await expect(field(page, ac)).toHaveCount(0);
   await restore(page);
   expect(await page.evaluate(() => window.__uiFixture.usb.plans.every(value => value.ac === false))).toBe(true);
 });
 
-test("无能力隐藏且不触发任何系统策略写入", async ({ page }) => {
+test("固件未声明能力时只读显示当前自定义计划的真实值", async ({ page }) => {
   await expect(panel(page)).toContainText("活动计划 · 自定义计划");
-  await page.evaluate(() => { window.__uiFixture.usb = null; });
+  await page.evaluate(() => Object.assign(window.__uiFixture.usb, {
+    supported: false, recommendation: null, activeValues: { ac: true, dc: false },
+    blockedReason: "固件未声明 USB 选择性暂停，Windows 设置为只读。",
+  }));
   await reload(page);
-  await expect(panel(page)).toHaveCount(0); expect(await writes(page)).toHaveLength(0);
+  await expect(panel(page).locator(".ccc-fact-row", { hasText: "插电时" })).toContainText("开启");
+  await expect(panel(page).locator(".ccc-fact-row", { hasText: "电池供电时" })).toContainText("关闭");
+  await expect(panel(page)).toContainText("Windows 设置为只读");
+  await expect(field(page, ac)).toHaveCount(0);
+  expect(await writes(page)).toHaveLength(0);
 });
 
 test("恢复被阻止的原因显示在卡内", async ({ page }) => {

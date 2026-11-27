@@ -10,13 +10,13 @@ Status: implemented
 
 2026-11-20 内存频率改由本机 SMBIOS 提供，不再依赖 OEM 通道：
 
-- SMBIOS Type 17 只解析配置速率字段及其扩展编码。空槽不参与；已安装内存条必须共同报告同一有效值。配置速率缺失或不一致时保留未知与诊断。
+- SMBIOS 读取 Type 16 系统内存阵列及关联的 Type 17 设备。空槽不参与共同配置速率；已安装设备必须共同报告同一有效值。资料部分缺失时仍保留已确认的设备字段。
 - SMBIOS 速率语义为 DDR 有效传输速率，字段名与显示单位用 MT/s，不与 OEM 行的 MHz 混用。
-- `hal/overview.rs`（非 OEM 概览契约）的 `SystemOverview` 新增 `memory_speed_mts`，读取失败进 `warnings`、值为空，与容量读取同一模式。
+- `hal/overview.rs` 的 `SystemInventory` 复用同一固件解析的模块、插槽和配置速率。结构或固件读取失败进 `warnings`。
 
 ### 契约
 
-- `SystemOverview.memorySpeedMts: number | null`（serde camelCase）为内存频率唯一所有者；前端 `api/hardware.ts` 同名类型。
+- `SystemInventory.memorySpeedMts: number | null`（serde camelCase）为共同配置速率的唯一 IPC 字段。`memoryModules` 与 `memorySlots` 提供设备资料和可确认的物理插槽占用。
 - `CapacityOverview.tsx` 内存卡统计区（可用/总容量旁）与详情弹窗各显示「频率/内存频率」（`formatParameter(…, "MT/s")`），弹窗中置于容量事实与原厂共享报告事实之间；原厂两行保留作共享报告对照。
 - `MEMORY_HELP` 与 `DESIGN.md`「内存频率事实」行同步登记 SMBIOS 数据源与 MT/s 语义。
 
@@ -28,7 +28,7 @@ Status: implemented
 
 ### 2026-11-23 审查修正
 
-概览只有一个配置速率字段。仅在已安装内存条报告同一有效配置速率时展示，未报告或不一致时保留未知与诊断。Type 17 仅解析配置速率及该字段的扩展编码，移除额定最大速率回退。补齐缺失、混合与扩展字段的隔离检查。
+概览只有一个配置速率字段，继续只采用配置速率及其扩展编码。额定速率不参与显示。后续加入设备清单时，缺失或混合配置速率只影响共同频率。
 
 ## 备选方案
 

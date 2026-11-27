@@ -37,7 +37,7 @@ impl Source for Native<'_> {
         })
     }
     fn displays(&self) -> Result<Vec<Display>> {
-        Ok(self.display.read()?.displays)
+        self.display.io.list()
     }
 }
 impl fields::Io for Native<'_> {

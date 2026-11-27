@@ -1,4 +1,5 @@
 import { Icon } from "../Icon";
+import { Loading } from "../Loading";
 import { applyHotkeys, findOemConflict, resetInvalidHotkeys, type HotkeyScope } from "../../api/client";
 import { Button } from "../Button";
 import { Checkbox } from "../Checkbox";
@@ -8,7 +9,7 @@ import { DetailsDialog } from "../DetailsDialog";
 import { OemConflictAction } from "../OemConflictAction";
 import { Surface } from "../Surface";
 import { Switch } from "../Switch";
-import { useHotkeySettings } from "./useHotkeySettings";
+import type { useHotkeySettings } from "./useHotkeySettings";
 import { HotkeyCurrent } from "./HotkeyCurrent";
 import { ACTIONS } from "./hotkey-actions";
 import { HotkeyEventPreviews } from "./HotkeyEventPreviews";
@@ -73,13 +74,14 @@ function HotkeyChanges({ model }: { model: HotkeyModel }) {
   </ConfigurationAction>;
 }
 
-export function HotkeySettings({ active, revision }: { active: boolean; revision: number }) {
-  const model = useHotkeySettings(active, revision), { profile, draft, busy, error, run } = model;
+export function HotkeySettings({ model }: { model: HotkeyModel }) {
+  const { profile, draft, busy, error, run } = model;
   const selected = new Set([...(draft?.actions ?? []), ...(profile?.current?.actions ?? [])]);
   const available = ACTIONS.filter(action => draft?.actions.includes(action.scope) ||
     profile?.facts.capabilities.some(cap => cap.scope === action.scope && cap.identity));
   const unavailable = profile ? ACTIONS.filter(action => !available.includes(action)) : [];
-  const status = !profile ? error ? "读取失败" : "读取中…" : profile.status.running ? "正在监听"
+  const reading = !profile && !error;
+  const status = !profile ? error ? "读取失败" : null : profile.status.running ? "正在监听"
     : profile.current?.enabled ? "已停止监听" : null;
   const savedCount = profile?.current?.actions.length ?? 0;
   const conflictIssues = [profile?.facts.blockedReason, error];
@@ -102,7 +104,7 @@ export function HotkeySettings({ active, revision }: { active: boolean; revision
     </div>
     <div className="ccc-keyboard-summary">
       <div className="ccc-module-summary" role="status">
-        {status && <strong>{status}</strong>}
+        {reading ? <Loading embedded label="正在读取…" /> : status && <strong>{status}</strong>}
         {savedCount > 0 && <span className="ccc-control-caption">已保存 {savedCount} 项</span>}
         {profile?.current?.enabled && !profile.authorized && <span className="ccc-control-caption">需要重新确认接管</span>}
         {conflictMessage && <span className="ccc-control-error">{conflictMessage}</span>}

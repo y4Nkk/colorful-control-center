@@ -4,13 +4,13 @@ Status: implemented
 
 ## 问题
 
-CPUOC 6.52.2的`OverClockModel.GetCPUTotalUsage`实际读取Windows `Processor Information(_Total)\% Processor Utility`，并把超过100的显示值限制到100。现有CPU卡片只有风扇占空比，缺少此原厂读数。CPUOC的page6频率/电压消费者已定位，但发布者与更新时机尚未确认，不能将静态共享值标成实时传感器。
+CPUOC 6.52.2的`OverClockModel.GetCPUTotalUsage`实际读取Windows `Processor Information(_Total)\% Processor Utility`，并把超过100的显示值限制到100。现有CPU卡片只有风扇强度，缺少此原厂读数。CPUOC的page6频率/电压消费者已定位，但发布者与更新时机尚未确认，不能将静态共享值标成实时传感器。
 
 ## 决定
 
 - 仅将已确认的Processor Utility接入监控。通过Windows PDH语言中立的`PdhAddEnglishCounterW`打开同一计数器；按[Microsoft数据采集契约](https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhgetformattedcountervalue)至少采集两次，并检查函数返回及数据状态。首次、错误、非有限/负值均表示未知；大于100按原厂显示规则截取，文档说明加速时计数器原值可能超过100。
 - 同一个HAL实例持有唯一采样器，至少间隔750ms采样；短间隔请求复用带采样时间的近期读数，采样失败立即清除旧值并保留错误；长时间中断后重建采样窗口。读取及等待不得持有HAL硬件锁，风扇控制/监护只消费原有硬件快照，不进入PDH。
-- 仪表盘CPU卡片采用既有环形百分比读数，温度、转速和风扇占空比来源及语义不改变。采样时间与快照时间差超过2.5秒的读数显示未知；窄屏保留模块边框和适当换行。
+- 仪表盘CPU卡片采用既有环形百分比读数，温度、转速和风扇强度来源及语义不改变。采样时间与快照时间差超过2.5秒的读数显示未知；窄屏保留模块边框和适当换行。
 - 单元测试显式注入模拟计数器和时间，覆盖两次采样、重复请求、超时重建、错误恢复、边界、并发及风扇快照隔离。浏览器测试使用模拟IPC；不调用真实计数器、WMI、OEM或硬件接口。
 
 ## 风险

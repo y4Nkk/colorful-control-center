@@ -18,7 +18,7 @@ async function setup(page, mode = 2, ac = 3) {
   await expect(availableAction(page, "预设模式")).toHaveCount(0);
 }
 async function modeDetails(page) {
-  await modes(page).getByRole("button", { name: "详情", exact: true }).click();
+  await modes(page).getByRole("button", { name: "模式说明", exact: true }).click();
   return page.getByRole("dialog", { name: "模式说明", exact: true });
 }
 async function selectMode(page, name) {
@@ -173,11 +173,13 @@ test("等待写入和回读时保留当前插画配色，并阻止重复提交",
   const panel = modes(page);
   const quiet = panel.getByRole("radio", { name: "安静", exact: true });
   const artwork = panel.locator(".ccc-preset-artwork");
+  const background = panel.locator(".ccc-preset-backdrop");
   await quiet.click();
   await expect(panel.getByRole("status")).toHaveText("正在切换到安静…");
   await expect(quiet.locator("..")).toHaveAttribute("data-pending", "true");
   await expect(quiet).toHaveCSS("cursor", "progress");
   await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
+  await expect(background).toHaveAttribute("data-preset-palette", "performance");
   await expect(panel.locator(".ccc-preset-current")).toHaveText("性能模式");
   await expect(panel.getByRole("radio", { name: "性能", exact: true })).toBeChecked();
   const other = panel.getByRole("radio", { name: "娱乐", exact: true });
@@ -187,6 +189,7 @@ test("等待写入和回读时保留当前插画配色，并阻止重复提交",
   await page.evaluate(() => window.__uiFixture.finishModeApply());
   await expect.poll(() => page.evaluate(() => typeof window.__uiFixture.finishModeRead)).toBe("function");
   await expect(artwork).toHaveAttribute("data-preset-palette", "performance");
+  await expect(background).toHaveAttribute("data-preset-palette", "performance");
   await expect(quiet).not.toBeChecked();
   await expect(quiet).toHaveCSS("cursor", "progress");
   await page.evaluate(() => window.__uiFixture.finishModeRead());
@@ -194,6 +197,7 @@ test("等待写入和回读时保留当前插画配色，并阻止重复提交",
   await expect(quiet.locator("..")).not.toHaveAttribute("data-pending", "true");
   await expect(quiet).toHaveCSS("cursor", "pointer");
   await expect(artwork).toHaveAttribute("data-preset-palette", "quiet");
+  await expect(background).toHaveAttribute("data-preset-palette", "quiet");
   expect(await calls(page, "apply_oem_power_mode")).toHaveLength(1);
 });
 

@@ -63,10 +63,10 @@ fn target_modes_follow_original_and_hardware_p_state_has_no_target() {
     let io = Memory::new(0);
     let state = read(&io, true).unwrap();
     assert_eq!(
-        (0..5)
+        (0..4)
             .map(|mode| target(mode, state).unwrap())
             .collect::<Vec<_>>(),
-        vec![Some(2), Some(1), Some(0), Some(2), Some(1)]
+        vec![Some(2), Some(1), Some(0), Some(2)]
     );
     io.packet.borrow_mut()[9] = 0x40;
     let hardware = read(&io, false).unwrap();

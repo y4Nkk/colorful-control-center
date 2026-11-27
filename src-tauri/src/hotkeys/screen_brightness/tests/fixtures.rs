@@ -189,6 +189,12 @@ impl PowerAccess for Memory {
     fn schemes(&self) -> Result<Vec<u128>> {
         Ok(self.0.lock().unwrap().plans.keys().copied().collect())
     }
+    fn scheme_name(&self, _: u128) -> Result<String> {
+        anyhow::bail!("亮度测试未注入计划名称")
+    }
+    fn check_active_scheme_write(&self) -> Result<()> {
+        anyhow::bail!("亮度测试未注入计划切换权限")
+    }
     fn brightness(&self, plan: u128) -> Result<[u32; 2]> {
         self.levels(plan)
     }

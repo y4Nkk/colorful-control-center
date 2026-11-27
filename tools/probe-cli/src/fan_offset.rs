@@ -52,7 +52,7 @@ pub struct FanOffsetArgs {
     /// 负载线程数（默认为逻辑处理器数的一半）
     #[arg(long)]
     threads: Option<usize>,
-    /// 负载占空比（%）
+    /// 负载线程的忙碌时间比例（%）
     #[arg(long, default_value_t = 30, value_parser = clap::value_parser!(u8).range(20..=100))]
     load: u8,
     /// 逐秒取样文件（CSV，不覆盖已有文件）

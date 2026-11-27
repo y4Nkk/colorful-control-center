@@ -15,7 +15,7 @@ export function BatteryLowBrightnessFacts({ profile, powerSummary, absolute = fa
         <strong>当前使用的电源计划</strong>
         {current ? <>
           <div className="ccc-battery-low-meters">{current.levels.map((value, index) =>
-            <MetricReadout key={labels[index]} label={labels[index]} value={value} maximum={100} unit="%" colorVar="var(--ccc-action)" />)}</div>
+            <MetricReadout key={labels[index]} label={labels[index]} value={value} maximum={100} unit="%" />)}</div>
           {powerSummary && <p className="ccc-control-caption">{powerSummary}</p>}
         </> : <p className="ccc-control-caption">当前计划亮度不可读取。</p>}
         {profile.error && <p className="ccc-control-error"><Icon name="error" size={16} />{profile.error}</p>}
@@ -28,7 +28,7 @@ export function BatteryLowBrightnessFacts({ profile, powerSummary, absolute = fa
         </> : <>
         <strong>事件目标</strong>
         <div className="ccc-battery-low-meters">{labels.map((label, index) =>
-          <MetricReadout key={label} label={label} value={profile.settingTarget?.[index] ?? null} maximum={100} unit="%" colorVar="var(--ccc-action)" />)}</div>
+          <MetricReadout key={label} label={label} value={profile.settingTarget?.[index] ?? null} maximum={100} unit="%" />)}</div>
         <p className="ccc-control-caption">事件自然结束时恢复为 · 插电 {profile.endingTarget?.[0] ?? "—"}% · 电池 {profile.endingTarget?.[1] ?? "—"}%</p>
         </>}
       </Surface>

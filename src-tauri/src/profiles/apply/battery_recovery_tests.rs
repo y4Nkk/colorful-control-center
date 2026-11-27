@@ -76,7 +76,16 @@ fn single_charge_waits_for_profile_scope_then_rejects_its_old_revision() {
     });
     assert_eq!(f.battery.io.state.lock().unwrap().charges.len(), 1);
     let revision = f.battery.controller.read(&f.hal).unwrap().revision.unwrap();
-    f.battery.controller.restore(&f.hal, &revision).unwrap();
+    f.battery
+        .controller
+        .apply(
+            &f.hal,
+            &battery::ChargeRequest {
+                expected_revision: revision,
+                values: charge(&f, true, 80, 100).values,
+            },
+        )
+        .unwrap();
     assert_eq!(
         f.battery
             .io
@@ -88,7 +97,7 @@ fn single_charge_waits_for_profile_scope_then_rejects_its_old_revision() {
             .unwrap()
             .current
             .start,
-        60
+        80
     );
 }
 
@@ -246,7 +255,7 @@ fn failed_local_energy_recovery_is_retried_by_outer_profile_then_explicit_restor
 }
 
 #[test]
-fn partial_charge_failure_retains_shared_initial_snapshot_and_retry() {
+fn partial_charge_failure_is_recovered_by_the_outer_profile_rollback() {
     let f = Fixture::new();
     f.battery.enable();
     f.battery.io.state.lock().unwrap().fail_charges = vec![1, 2];
@@ -260,12 +269,6 @@ fn partial_charge_failure_retains_shared_initial_snapshot_and_retry() {
             .iter()
             .any(|step| step.step == "恢复电池配置" && step.ok)
     );
-    let profile = f.battery.controller.read(&f.hal).unwrap();
-    assert!(profile.can_restore);
-    f.battery
-        .controller
-        .restore(&f.hal, &profile.revision.unwrap())
-        .unwrap();
     assert_eq!(
         f.battery
             .io
@@ -275,9 +278,12 @@ fn partial_charge_failure_retains_shared_initial_snapshot_and_retry() {
             .charge
             .as_ref()
             .unwrap()
-            .current
-            .stop,
-        80
+            .current,
+        battery::ChargeValues {
+            enabled: true,
+            start: 60,
+            stop: 80
+        }
     );
 }
 

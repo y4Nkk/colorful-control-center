@@ -94,7 +94,7 @@ impl StoredModeSnapshot {
         } else {
             self.core.command == expected
         };
-        if self.core.mode > 4
+        if !ccc_core::oem_events::is_power_mode(self.core.mode)
             || self.core.ac_mode.is_some() && self.energy.is_none()
             || self.core.preferences.iter().any(|value| *value > 1)
             || !valid_command
@@ -186,6 +186,15 @@ mod tests {
         let saved: StoredModeSnapshot = serde_json::from_value(data.clone()).unwrap();
         let restored = saved.restore().unwrap();
         assert!(restored.stored() == saved);
+        let mut unknown = data.clone();
+        unknown["core"] =
+            serde_json::json!({"mode":4,"command":4,"preferences":[0,0],"acMode":null});
+        assert!(
+            serde_json::from_value::<StoredModeSnapshot>(unknown)
+                .unwrap()
+                .restore()
+                .is_err()
+        );
         let mut old = data.clone();
         old["core"].as_object_mut().unwrap().remove("acMode");
         assert!(serde_json::from_value::<StoredModeSnapshot>(old).is_err());

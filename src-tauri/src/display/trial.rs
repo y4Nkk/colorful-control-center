@@ -67,7 +67,7 @@ impl Controller {
         state.automatic_outcome = None;
         Ok(())
     }
-    pub(super) fn automatic_trial_id(&self) -> Result<Option<u64>> {
+    pub(crate) fn automatic_trial_id(&self) -> Result<Option<u64>> {
         Ok(self
             .lock()?
             .trial

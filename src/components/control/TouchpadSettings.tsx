@@ -1,8 +1,9 @@
 import { applyTouchpad, readTouchpad } from "../../api/client";
 import { Button } from "../Button";
 import { DetailsDialog } from "../DetailsDialog";
-import { FactList } from "../FactList";
+import { FactList, FactStatus } from "../FactList";
 import { Icon } from "../Icon";
+import { Loading } from "../Loading";
 import { OemConflictAction } from "../OemConflictAction";
 import { SegmentedControl } from "../SegmentedControl";
 import { Surface } from "../Surface";
@@ -11,10 +12,10 @@ import { useDeviceSettings } from "./useDeviceSettings";
 
 const stateText = (enabled: boolean | null) => enabled === null ? "未知" : enabled ? "已启用" : "已关闭";
 const savedText = (saved: number) => saved > 1 ? "未识别" : stateText(saved !== 0);
-const options = [{ value: "true", label: "启用" }, { value: "false", label: "关闭", title: "关闭后可使用键盘或外接鼠标" }];
+const options = [{ value: "true", label: "启用" }, { value: "false", label: "关闭", tooltip: "关闭后可使用键盘或外接鼠标" }];
 
 export function TouchpadSettings({ active, revision }: { active: boolean; revision: number }) {
-  const { profile, busy, error, run, reread } = useDeviceSettings(readTouchpad, active, revision, 5000);
+  const { profile, loaded, busy, error, run, reread } = useDeviceSettings(readTouchpad, active, revision, 5000);
   const current = profile?.current;
   const canChange = current?.enabled != null && !profile?.blockedReason;
   const value = current && current.enabled !== null && current.saved === Number(current.enabled) ? String(current.enabled) : "";
@@ -28,7 +29,11 @@ export function TouchpadSettings({ active, revision }: { active: boolean; revisi
     <div className="ccc-panel-head"><h2 id="touchpad-heading" className="ccc-panel-title"><Icon name="touchpad" />触摸板</h2>
       <div className="ccc-module-tools">
         <DetailsDialog title="触摸板详情" label="详情">
-          {current && <FactList compact facts={[{ label: "Windows 当前状态", value: stateText(current.enabled) }, { label: "电脑保存的设置", value: savedText(current.saved) }]} />}
+          {current && <FactList compact facts={[
+            { label: "Windows 当前状态", icon: "touchpad", value: <FactStatus>{stateText(current.enabled)}</FactStatus> },
+            { label: "电脑保存的设置", icon: "save",
+              value: <FactStatus tone={current.saved > 1 ? "warning" : "neutral"}>{savedText(current.saved)}</FactStatus> },
+          ]} />}
           {profile?.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
           {error && <p className="ccc-control-error"><Icon name="error" size={16} />{error}</p>}
         </DetailsDialog>
@@ -37,7 +42,7 @@ export function TouchpadSettings({ active, revision }: { active: boolean; revisi
     </div>
     <div className="ccc-device-status" aria-label="当前触摸板状态">
       <InputDeviceVisual kind="touchpad" />
-      {summary && <strong>{summary}</strong>}
+      {!loaded ? <Loading label="正在读取触摸板状态…" /> : summary && <strong>{summary}</strong>}
     </div>
     {profile?.blockedReason && <p className="ccc-control-caption">{profile.blockedReason}</p>}
     <OemConflictAction issues={[error, profile?.blockedReason]} disabled={busy} onClosed={reread} />

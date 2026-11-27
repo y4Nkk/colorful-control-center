@@ -1,6 +1,81 @@
 use super::Dchu;
-use anyhow::{Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use ccc_core::fan::{decode_oem_fan_mode, oem_fan_mode_bits};
+use std::fmt;
+use std::sync::atomic::Ordering;
+use std::time::{Duration, Instant};
+
+pub(super) const MODE_CONFIRM_TIMEOUT: Duration = Duration::from_millis(500);
+const MODE_POLL_INTERVAL: Duration = Duration::from_millis(100);
+
+struct ModeReadback {
+    started: Instant,
+    samples: Vec<(Duration, u8)>,
+}
+
+impl ModeReadback {
+    fn new() -> Self {
+        Self {
+            started: Instant::now(),
+            samples: Vec::new(),
+        }
+    }
+
+    fn read(&mut self, io: &Dchu) -> Result<u8> {
+        let bits = io.read_fan_mode_bits().with_context(|| self.to_string())?;
+        self.samples.push((self.started.elapsed(), bits));
+        Ok(bits)
+    }
+
+    fn poll_after_command(
+        &mut self,
+        io: &Dchu,
+        expected: u8,
+        verify_at_window_end: bool,
+    ) -> Result<u8> {
+        let window = Instant::now();
+        let mut previous = None;
+        loop {
+            let bits = self.read(io)?;
+            let remaining = MODE_CONFIRM_TIMEOUT.saturating_sub(window.elapsed());
+            if bits == expected
+                && previous == Some(expected)
+                && (!verify_at_window_end || remaining.is_zero())
+            {
+                return Ok(bits);
+            }
+            let wait = if remaining.is_zero() {
+                if previous.is_some() && bits != expected {
+                    return Ok(bits);
+                }
+                // 首读可能已耗尽窗口，窗口末也可能才首次读到目标。两者都需独立复核。
+                MODE_POLL_INTERVAL
+            } else {
+                remaining.min(MODE_POLL_INTERVAL)
+            };
+            previous = Some(bits);
+            std::thread::sleep(wait);
+        }
+    }
+}
+
+impl fmt::Display for ModeReadback {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} 次回读，历时 {} ms，cmd13[14] [",
+            self.samples.len(),
+            self.started.elapsed().as_millis()
+        )?;
+        for (index, (elapsed, bits)) in self.samples.iter().enumerate() {
+            if index > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}ms={bits:#04x}", elapsed.as_millis())?;
+        }
+        write!(f, "]")
+    }
+}
 
 impl Dchu {
     pub fn read_fan_info(&self) -> Result<[u8; 256]> {
@@ -9,20 +84,108 @@ impl Dchu {
         Ok(info)
     }
 
+    fn read_fan_mode_bits(&self) -> Result<u8> {
+        Ok(self.read_fan_info()?[14])
+    }
+
     pub fn read_fan_mode(&self) -> Result<u8> {
-        decode_oem_fan_mode(self.read_fan_info()?[14]).map_err(anyhow::Error::msg)
+        decode_oem_fan_mode(self.read_fan_mode_bits()?).map_err(anyhow::Error::msg)
+    }
+
+    pub(crate) fn wait_preset_fan_mode(&self) -> Result<()> {
+        let mut readback = ModeReadback::new();
+        loop {
+            let bits = readback.read(self).inspect_err(|_| {
+                self.fan_mode_unconfirmed.store(true, Ordering::Relaxed);
+            })?;
+            let reason = match decode_oem_fan_mode(bits) {
+                Ok(mode) => {
+                    if readback.samples.len() > 1 {
+                        log::info!("[fan-mode] 预设命令后的回读已确认档位 {mode}，{readback}");
+                    }
+                    return Ok(());
+                }
+                Err(reason) => reason,
+            };
+            let remaining = MODE_CONFIRM_TIMEOUT.saturating_sub(readback.started.elapsed());
+            if remaining.is_zero() {
+                self.fan_mode_unconfirmed.store(true, Ordering::Relaxed);
+                bail!("{reason}（{readback}）");
+            }
+            std::thread::sleep(remaining.min(MODE_POLL_INTERVAL));
+        }
     }
 
     pub fn set_fan_mode_verified(&self, mode: u8) -> Result<()> {
-        ensure!(oem_fan_mode_bits(mode).is_some(), "不支持此风扇档位 {mode}");
-        self.set_data_sub(121, 1, u32::from(mode))?;
-        let actual = self.read_fan_mode()?;
-        ensure!(actual == mode, "EC 风扇档位回读为 {actual}，目标为 {mode}");
-        Ok(())
+        self.confirm_fan_mode(mode, false)
+    }
+
+    pub(crate) fn force_restore_fan_mode(&self, mode: u8) -> Result<()> {
+        self.confirm_fan_mode(mode, true)
+    }
+
+    fn confirm_fan_mode(&self, mode: u8, force_restore: bool) -> Result<()> {
+        let expected = oem_fan_mode_bits(mode).ok_or_else(|| anyhow!("不支持此风扇档位 {mode}"))?;
+        let was_unconfirmed = self.fan_mode_unconfirmed.swap(true, Ordering::Relaxed);
+        let phase = if force_restore {
+            "恢复命令后的回读"
+        } else {
+            "风扇命令后的回读"
+        };
+        self.send_fan_mode(mode, expected, force_restore || was_unconfirmed, phase)
+            .inspect_err(|error| log::warn!("[fan-mode] {phase}未确认档位 {mode}：{error:#}"))
+    }
+
+    fn send_fan_mode(
+        &self,
+        mode: u8,
+        expected: u8,
+        verify_at_window_end: bool,
+        phase: &str,
+    ) -> Result<()> {
+        let mut readback = ModeReadback::new();
+        let mut writes = 1;
+        loop {
+            self.set_data_sub(121, 1, u32::from(mode))
+                .with_context(|| format!("发送风扇档位 {mode} 第 {writes} 次失败（{readback}）"))?;
+            let prior_reads = readback.samples.len();
+            let bits = readback
+                .poll_after_command(self, expected, verify_at_window_end)
+                .with_context(|| format!("风扇档位 {mode} 第 {writes} 次发送后读取失败"))?;
+            let samples = &readback.samples[prior_reads..];
+            if bits == expected {
+                self.fan_mode_unconfirmed.store(false, Ordering::Relaxed);
+                if writes > 1 || samples.iter().any(|(_, sample)| *sample != expected) {
+                    log::info!("[fan-mode] {phase}经 {writes} 次发送确认档位 {mode}，{readback}");
+                }
+                return Ok(());
+            }
+            let actual = decode_oem_fan_mode(bits);
+            if writes == 1 && actual.is_ok() && samples.iter().all(|(_, sample)| *sample == bits) {
+                writes += 1;
+                continue;
+            }
+            let actual = actual
+                .map(|mode| format!("EC 风扇档位回读为 {mode}"))
+                .unwrap_or_else(|reason| reason);
+            bail!("{actual}，目标为 {mode}（{writes} 次发送，预期 {expected:#04x}，{readback}）");
+        }
+    }
+
+    pub(crate) fn restore_fan_mode(&self, mode: u8) -> Result<()> {
+        if self.fan_mode_unconfirmed.load(Ordering::Relaxed) {
+            return self.force_restore_fan_mode(mode);
+        }
+        match self.read_fan_mode() {
+            Ok(current) if current == mode => Ok(()),
+            Ok(_) => self.force_restore_fan_mode(mode),
+            Err(error) => self
+                .force_restore_fan_mode(mode)
+                .with_context(|| format!("恢复前读取即时风扇档位失败，{error:#}")),
+        }
     }
 
     pub fn read_fan_offset(&self, reviewed_dsdt: bool) -> Result<u8> {
-        self.read_fan_mode()?;
         Ok(self.fan_window(3, reviewed_dsdt)?[0xe7])
     }
 

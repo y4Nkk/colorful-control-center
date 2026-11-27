@@ -1,27 +1,28 @@
 //! 固件风扇事务、即时状态及独立进程监护。
 mod checkpoint;
+pub(crate) mod custom;
 pub mod dust;
-mod profile;
 mod policy;
+mod profile;
 pub mod rpm;
 pub(crate) mod saved;
 pub mod software;
 
 use crate::{
-    hal::Hal,
+    hal::{Hal, oem_dchu::Dchu},
     powerctl::mode::boost::{self, FanTarget},
 };
-use anyhow::{Result, bail, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use ccc_core::{
     fan::{OemCurvePoints, oem_duty_byte, oem_duty_percent, oem_fan_mode_bits},
     settings,
 };
-use sha2::{Digest, Sha256};
 pub(crate) use checkpoint::StoredCheckpoint;
 pub use checkpoint::{FanCheckpoint, checkpoint, restore_checkpoint};
 pub(crate) use policy::ModePolicy;
-pub use profile::{CurveKind, FanProfile};
+pub use profile::{CurveKind, CurvePoints, FanProfile};
 pub(crate) use profile::{OffsetSource, supports_noiseless};
+use sha2::{Digest, Sha256};
 
 pub const FAN_MODE_AUTO: u8 = 0;
 pub(crate) const FAN_MODE_FULL_SPEED: u8 = 1;
@@ -149,10 +150,30 @@ pub fn apply_curve(
     gpu1: Option<OemCurvePoints>,
     gpu2: Option<OemCurvePoints>,
 ) -> Result<()> {
+    write_curve(hal, [cpu, gpu1, gpu2], true)
+}
+
+pub(crate) fn edit_curve(hal: &Hal, points: [Option<OemCurvePoints>; 3]) -> Result<()> {
+    write_curve(hal, points, false)
+}
+
+pub(super) fn require_custom_mode(mode: u8) -> Result<()> {
+    ensure!(
+        mode == FAN_MODE_CUSTOM,
+        "请手动选择自定义风扇模式后再应用曲线"
+    );
+    Ok(())
+}
+
+fn write_curve(hal: &Hal, points: [Option<OemCurvePoints>; 3], activate: bool) -> Result<()> {
     ensure_manual_allowed(hal)?;
     boost::ensure_fan_allowed(hal, FanTarget::Firmware(FAN_MODE_CUSTOM))?;
     let current = read_profile(hal)?;
-    let updates = profile::prepare(&current, [cpu, gpu1, gpu2])?;
+    if !activate {
+        ensure!(current.software.is_none(), "软件风扇正在接管");
+        require_custom_mode(current.current_mode)?;
+    }
+    let updates = profile::prepare(&current, points)?;
     ensure!(
         updates.iter().any(Option::is_some),
         "没有提供要写入的风扇曲线"
@@ -160,30 +181,20 @@ pub fn apply_curve(
     let before = checkpoint::capture(hal, &current, true)?;
     let package = profile::edit_package(before.two_point_package()?, &updates);
     let mut patches = profile::page_patches(&updates);
+    if !activate {
+        return checkpoint::edit_two_point(hal, &before, &package, &patches);
+    }
     patches.extend(hal.with_dchu(|io| saved::mode(io, FAN_MODE_CUSTOM))?);
     checkpoint::transact(hal, &before, |io| {
         checkpoint::write_two_point(io, hal.reviewed_dsdt, &package)?;
+        io.set_fan_mode_verified(FAN_MODE_CUSTOM)?;
         settings::apply(io, 4, &patches, None).map_err(anyhow::Error::msg)?;
-        io.set_fan_mode_verified(FAN_MODE_CUSTOM)
-    })
-}
-
-pub(crate) fn automatic_mode(hal: &Hal) -> Result<u8> {
-    hal.with_dchu(|d| {
-        let caps = d.read_bios_capabilities(0, 22)?;
-        if !supports_noiseless(&caps) {
-            return Ok(FAN_MODE_AUTO);
-        }
-        saved::automatic_target(d, crate::powerctl::mode::current_mode(d)?)
+        Ok(())
     })
 }
 
 pub fn set_mode(hal: &Hal, mode: u8) -> Result<u8> {
-    let effective = if mode == FAN_MODE_AUTO {
-        automatic_mode(hal)?
-    } else {
-        mode
-    };
+    ensure_manual_allowed(hal)?;
     let saved = if mode == FAN_MODE_NOISELESS
         && hal.with_dchu(|io| crate::powerctl::mode::current_mode(io))? == 3
     {
@@ -191,40 +202,66 @@ pub fn set_mode(hal: &Hal, mode: u8) -> Result<u8> {
     } else {
         mode
     };
-    apply_mode_policy(hal, ModePolicy::explicit(effective, saved, None))?;
-    Ok(effective)
-}
-
-pub(crate) fn apply_mode_policy(hal: &Hal, policy: ModePolicy) -> Result<()> {
-    ensure_manual_allowed(hal)?;
+    let policy = ModePolicy::explicit(mode, saved, None);
     policy.validate()?;
-    let mode = policy.mode();
     let current = read_profile(hal)?;
-    boost::ensure_fan_allowed(hal, FanTarget::Firmware(mode.unwrap_or(current.current_mode)))?;
-    if let Some(mode) = mode {
-        ensure!(
-            current.available_modes.contains(&mode),
-            "固件未声明支持此风扇模式"
-        );
-        if mode == FAN_MODE_CUSTOM {
-            validate_custom_table(hal, &current)?;
-        }
+    boost::ensure_fan_allowed(hal, FanTarget::Firmware(mode))?;
+    ensure!(
+        current.available_modes.contains(&mode),
+        "固件未声明支持此风扇模式"
+    );
+    if mode == FAN_MODE_CUSTOM {
+        validate_custom_table(hal, &current)?;
     }
     let before = checkpoint::capture(hal, &current, false)?;
-    let patches = hal.with_dchu(|io| saved::mode(io, policy.saved_mode()))?;
     checkpoint::transact(hal, &before, |io| {
-        if let Some(mode) = mode {
-            io.set_fan_mode_verified(mode)?;
+        write_mode_policy(io, policy)
+            .with_context(|| format!("写入前 EC 风扇档位 {}", before.mode()))
+    })?;
+    Ok(mode)
+}
+
+pub(crate) fn apply_preset_policy(
+    hal: &Hal,
+    policy: ModePolicy,
+    before: &FanCheckpoint,
+) -> Result<()> {
+    ensure_manual_allowed(hal)?;
+    policy.validate()?;
+    if let Some(mode) = policy.mode() {
+        boost::ensure_fan_allowed(hal, FanTarget::Firmware(mode))?;
+    }
+    checkpoint::remember_preset_baseline(hal, before)?;
+    hal.with_dchu(|io| {
+        if policy.mode().is_some() {
+            io.wait_preset_fan_mode()
+                .context("读取预设切换后的即时风扇档位")?;
         }
-        settings::apply(io, 4, &patches, None).map_err(anyhow::Error::msg)?;
-        Ok(())
+        write_mode_policy(io, policy)
     })
+}
+
+fn write_mode_policy(io: &Dchu, policy: ModePolicy) -> Result<()> {
+    let patches = if let Some(mode) = policy.mode() {
+        let patches = saved::mode(io, policy.saved_mode())?;
+        io.set_fan_mode_verified(mode).context("确认目标风扇档位")?;
+        patches
+    } else {
+        vec![settings::Patch::new(
+            saved::MODE_OFFSET,
+            [policy.saved_mode()],
+        )]
+    };
+    settings::write_verified(io, 4, &patches, None)
+        .map_err(anyhow::Error::msg)
+        .context("保存风扇档位")
 }
 
 pub(crate) fn handoff_for_turbo(hal: &Hal, attempted: &mut bool) -> Result<()> {
     ensure_manual_allowed(hal)?;
     hal.with_dchu(|io| {
-        if matches!(io.read_fan_mode()?, FAN_MODE_CUSTOM | FAN_MODE_NOISELESS) {
+        let current = io.read_fan_mode()?;
+        if matches!(current, FAN_MODE_CUSTOM | FAN_MODE_NOISELESS) {
             // 先交接即时档位，目标预设随后提交自己的记忆槽。
             *attempted = true;
             io.set_fan_mode_verified(FAN_MODE_AUTO)?;
@@ -249,22 +286,27 @@ pub(crate) fn set_manual_offset(hal: &Hal, expected: OffsetSource, pct: u32) -> 
     write_offset(hal, &current, pct)
 }
 
-pub(crate) fn set_mode_offset(hal: &Hal, pct: u32) -> Result<()> {
+pub(crate) fn apply_preset_offset(hal: &Hal, pct: u8) -> Result<()> {
     ensure_manual_allowed(hal)?;
-    write_offset(hal, &read_profile(hal)?, pct)
+    ensure!(pct <= 100, "风扇偏移范围 0–100%");
+    hal.with_dchu(|io| {
+        let slot = saved::slot(io)?.context("当前固件未声明分模式风扇偏移记忆")?;
+        write_offset_target(io, hal.reviewed_dsdt, Some(slot), pct)
+    })
 }
 
 fn write_offset(hal: &Hal, current: &FanProfile, pct: u32) -> Result<()> {
     ensure!(pct <= 100, "风扇偏移范围 0–100%");
     ensure!(current.offset_raw.is_some(), "无法确认写入前的 EC 风扇偏移");
     let before = checkpoint::capture(hal, current, false)?;
-    let patches = saved::offset(current.offset_slot, pct as u8);
-    let raw = oem_duty_byte(f64::from(pct));
     checkpoint::transact(hal, &before, |io| {
-        io.set_fan_offset_verified(hal.reviewed_dsdt, raw)?;
-        settings::apply(io, 4, &patches, None).map_err(anyhow::Error::msg)?;
-        Ok(())
+        write_offset_target(io, hal.reviewed_dsdt, current.offset_slot, pct as u8)
     })
+}
+
+fn write_offset_target(io: &Dchu, reviewed_dsdt: bool, slot: Option<usize>, pct: u8) -> Result<()> {
+    io.set_fan_offset_verified(reviewed_dsdt, oem_duty_byte(f64::from(pct)))?;
+    settings::write_verified(io, 4, &saved::offset(slot, pct), None).map_err(anyhow::Error::msg)
 }
 
 fn restore_initial(hal: &Hal) -> Result<()> {
@@ -318,8 +360,9 @@ pub(crate) fn restore(hal: &Hal, target: RestoreTarget, expected_revision: &str)
         RestoreTarget::InitialAndFirmwareDefault => {
             restore_initial(hal)
                 .map_err(|error| anyhow::anyhow!("初始风扇设置恢复失败：{error:#}"))?;
-            restore_default(hal)
-                .map_err(|error| anyhow::anyhow!("初始风扇设置已恢复，固件默认设置恢复失败：{error:#}"))
+            restore_default(hal).map_err(|error| {
+                anyhow::anyhow!("初始风扇设置已恢复，固件默认设置恢复失败：{error:#}")
+            })
         }
     }
 }

@@ -17,7 +17,10 @@ path = "src/main.rs"
 ccc-core = { path = "../../crates/ccc-core" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+log = "0.4"
 msr-driver-rs = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 sha2 = "0.10"
 windows-sys = { version = "0.60", features = [
     "Win32_Foundation",
@@ -26,7 +29,9 @@ windows-sys = { version = "0.60", features = [
     "Win32_System_Console",
     "Win32_System_IO",
     "Win32_System_LibraryLoader",
+    "Win32_System_Power",
     "Win32_System_SystemInformation",
+    "Win32_System_Threading",
 ] }
 
 [profile.release]

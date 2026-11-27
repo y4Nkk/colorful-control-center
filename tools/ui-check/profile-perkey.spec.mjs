@@ -30,8 +30,11 @@ test("档案逐键键帽只读展示关闭与保留档位，确认携带完整�
   await expect(card(page)).toContainText("逐键静态");
   await expect(card(page)).toContainText("保留亮度");
   await expect(card(page)).toContainText("3 级");
-  await expect(card(page).getByRole("img", { name: "档案逐键键帽配置" })).toBeVisible();
-  expect(await card(page).locator("svg title").count()).toBeGreaterThan(80);
+  const keyboard = card(page).getByRole("img", { name: "档案逐键键帽配置" });
+  await expect(keyboard).toBeVisible();
+  expect(await keyboard.locator("g > g").count()).toBeGreaterThan(80);
+  await keyboard.locator("g > g").first().hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Esc · 1 个灯位");
   await expect(card(page).locator("button, input")).toHaveCount(0);
   expect(await writes(page)).toEqual([]);
   await previewConfiguration(page);
@@ -84,6 +87,16 @@ test("启动选择共享逐键卡片，确认只保存选择不应用灯效", as
   await page.getByRole("option", { name: "隔离档案", exact: true }).click();
   const parameters = await openStartupParameters(page);
   await expect(parameters.getByLabel("档案逐键灯效")).toContainText("保留亮度");
+  await parameters.getByRole("img", { name: "档案逐键键帽配置" }).locator("g > g").first().hover();
+  const tooltip = parameters.getByRole("tooltip");
+  await expect(tooltip).toHaveText("Esc · 1 个灯位");
+  await expect.poll(() => tooltip.evaluate(element => {
+    const { x, y, width, height } = element.getBoundingClientRect();
+    return element.contains(document.elementFromPoint(x + width / 2, y + height / 2));
+  })).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(tooltip).toHaveCount(0);
+  await expect(parameters).toBeVisible();
   await page.keyboard.press("Escape");
   await configurationView(page).getByRole("button", { name: "授权启动应用档案", exact: true }).click();
   const calls = await writes(page);

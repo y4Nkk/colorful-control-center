@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "re
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { Input } from "./Input";
+import { Loading } from "./Loading";
 import { useSelect, type SelectProps } from "./use-select";
 import { useSelectPosition } from "./use-select-position";
 
@@ -30,7 +31,7 @@ export function SelectMenu({ props, model }: { props: SelectProps; model: Return
       {props.searchLabel && <Input ref={search} type="search" aria-label={props.searchLabel} placeholder={props.searchLabel}
         aria-controls={model.listId} aria-activedescendant={model.activeId} value={model.query}
         onChange={event => { model.setQuery(event.target.value); model.setActive(null); }} />}
-      {props.loading && <p className="ccc-select-message" role="status">读取中…</p>}
+      {props.loading && <div className="ccc-select-message"><Loading label="正在读取…" /></div>}
       {props.error && <div className="ccc-select-feedback"><p role="alert">{props.error}</p>
         {props.onRetry && <Button icon="refresh" variant="secondary" size="compact" disabled={props.loading} onClick={props.onRetry}>重试</Button>}</div>}
     </div>}

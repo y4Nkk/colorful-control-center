@@ -68,15 +68,11 @@ fn simple_oc_model_overrides_preserve_the_customer_five_exception() {
 }
 
 #[test]
-fn resume_quiet_plus_and_not_ready_are_explicit_non_writing_decisions() {
+fn resume_and_not_ready_are_explicit_non_writing_decisions() {
     let mut source = policy(&packet(), None, 343, 7);
     assert_eq!(
         source.decide(2, Some(true), true).unwrap().skipped,
         Some(SkipReason::Resume)
-    );
-    assert_eq!(
-        source.decide(4, None, false).unwrap().skipped,
-        Some(SkipReason::QuietPlus)
     );
     source.ready = false;
     source.gpu_count = 0;
@@ -88,7 +84,7 @@ fn resume_quiet_plus_and_not_ready_are_explicit_non_writing_decisions() {
     assert!(source.decide(2, Some(true), false).is_err());
     source.gpu_count = 65;
     assert!(source.decide(2, Some(true), false).is_err());
-    assert!(source.decide(5, Some(true), true).is_err());
+    assert!(source.decide(4, Some(true), true).is_err());
     let mut unknown = policy(&[0; 256], None, 1, 5);
     unknown.ready = false;
     assert_eq!(
@@ -104,27 +100,23 @@ fn all_mode_targets_reuse_original_turbo_rules_and_do_not_require_thermal_base_c
     packet[15] = 1;
     let mut source = policy(&packet, None, 1, 5);
     source.limits.thermal_mhz = 0;
-    for mode in 0..=4 {
+    for mode in 0..crate::oem_events::POWER_MODE_COUNT {
         for on_ac in [true, false] {
             let decision = source.decide(mode, Some(on_ac), false).unwrap();
-            if mode == 4 {
-                assert!(decision.target.is_none());
-            } else {
-                assert_eq!(
-                    decision.target.unwrap(),
-                    target(
-                        97,
-                        mode,
-                        Some(on_ac),
-                        source.capabilities.unwrap(),
-                        source.limits,
-                        source.saved,
-                        2,
-                        None
-                    )
-                    .unwrap()
-                );
-            }
+            assert_eq!(
+                decision.target.unwrap(),
+                target(
+                    97,
+                    mode,
+                    Some(on_ac),
+                    source.capabilities.unwrap(),
+                    source.limits,
+                    source.saved,
+                    2,
+                    None
+                )
+                .unwrap()
+            );
         }
     }
     let dc = source

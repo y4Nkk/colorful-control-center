@@ -26,8 +26,8 @@ export const refreshCases = [
     await expect(gpuPower(page)).toHaveAttribute("data-enabled", "off", { timeout: 2000 });
     await openWorkspace(page, "性能与散热");
     const tuning = page.getByRole("region", { name: "GPU 频率", exact: true });
-    await expect(tuning).toContainText("不可用");
-    await tuning.getByRole("button", { name: "说明与诊断", exact: true }).click();
+    await expect(tuning).toContainText("无法读取当前偏移 · 启动档案已关断独显");
+    await tuning.getByRole("button", { name: "GPU 参数与诊断", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "GPU 参数与诊断", exact: true })).toContainText("启动档案已关断独显");
     await page.keyboard.press("Escape");
     await openWorkspace(page, "设备配置");

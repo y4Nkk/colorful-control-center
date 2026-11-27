@@ -56,8 +56,8 @@ function ValueCards({ label, values }: { label: string; values: { label: string;
   if (!visible.length) return null;
   return <Surface as="section" variant="group" className="ccc-profile-device" aria-label={label}>
     <div className="ccc-profile-values"><h3 className="ccc-icon-title"><Icon name={label.includes("GPU") ? "gpu" : "cpu"} />{label}</h3></div>
-    <FactList compact layout="tiles" facts={visible.map(field => ({ label: field.label, value:
-      <output className="ccc-mono" aria-label={`${label} ${field.label}`}>{Number(field.value!.toFixed(3))} {field.unit}</output>,
+    <FactList compact layout="tiles" facts={visible.map(field => ({ label: field.label, format: "number", value:
+      <output aria-label={`${label} ${field.label}`}>{Number(field.value!.toFixed(3))} {field.unit}</output>,
     }))} />
   </Surface>;
 }

@@ -7,7 +7,11 @@
 /* ---- 布局骨架 ---- */
 
 .ccc-setting-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: var(--ccc-space-3); }
-.ccc-setting-tiles > .ccc-keyboard-setting { padding: var(--ccc-space-3); }
+.ccc-setting-tiles > .ccc-keyboard-setting {
+  grid-template-columns: min(22%, calc(var(--ccc-space-6) * 2)) minmax(0, 1fr) auto;
+  gap: var(--ccc-space-2);
+  padding: var(--ccc-space-3);
+}
 
 .ccc-control-status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ccc-space-2); }
 .ccc-dust-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-4); }
@@ -16,6 +20,10 @@
 .ccc-dust-days { display: flex; flex-wrap: wrap; gap: var(--ccc-space-2); }
 .ccc-dust-hour { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--ccc-space-3); white-space: nowrap; }
 @container ccc-control (max-width: 600px) { .ccc-dust-columns { grid-template-columns: minmax(0, 1fr); } }
+@container ccc-control (max-width: 22rem) {
+  .ccc-dust-panel > .ccc-panel-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .ccc-dust-refresh { grid-row: 2; grid-column: 1 / -1; justify-self: start; }
+}
 .ccc-platform-pd { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ccc-space-4); }
 .ccc-platform-current { display: flex; flex-direction: column; gap: var(--ccc-space-3); min-width: 0; }
 @container ccc-control (max-width: 600px) { .ccc-platform-pd { grid-template-columns: minmax(0, 1fr); } }
@@ -34,8 +42,8 @@
 .ccc-battery-thresholds > div { display: flex; flex-direction: column; gap: var(--ccc-space-1); min-width: 0; }
 .ccc-energy-editor, .ccc-energy-slot { display: flex; flex-direction: column; gap: var(--ccc-space-3); min-width: 0; }
 .ccc-energy-days { display: flex; flex-wrap: wrap; gap: var(--ccc-space-3); }
-.ccc-energy-timeline { display: block; width: 100%; height: var(--ccc-control-height); }
-.ccc-energy-hours { display: flex; justify-content: space-between; color: var(--ccc-text-muted); font-size: var(--ccc-text-xs); }
+.ccc-energy-timeline { display: block; width: 100%; height: var(--ccc-space-6); }
+.ccc-energy-hours { display: flex; justify-content: space-between; color: var(--ccc-chart-label); font-size: var(--ccc-text-xs); }
 @container ccc-control (max-width: 440px) { .ccc-energy-slots { grid-template-columns: 1fr; } }
 @container ccc-control (max-width: 520px) { .ccc-perkey-grid { grid-template-columns: repeat(10, minmax(0, 1fr)); } }
 
@@ -52,19 +60,19 @@
   flex-wrap: wrap;
   align-items: center;
   min-block-size: var(--ccc-control-height-compact);
-  gap: var(--ccc-space-2);
+  gap: var(--ccc-space-1) var(--ccc-space-2);
 }
 
-.ccc-panel-title { min-width: 0; margin: 0; font-size: var(--ccc-text-xl); font-weight: 600; overflow-wrap: anywhere; }
+.ccc-panel-title { min-width: 0; margin: 0; font-size: var(--ccc-text-xl); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
 
-.ccc-tuning-head, .ccc-tuning-meta { display: grid; justify-items: start; }
-.ccc-tuning-meta { padding-inline-start: calc(var(--ccc-icon-size) + var(--ccc-space-2)); }
+.ccc-tuning-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-1); }
+.ccc-tuning-meta { display: grid; justify-items: start; padding-inline-start: calc(var(--ccc-icon-size) + var(--ccc-space-2)); }
 .ccc-tuning-scope { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ccc-space-2) var(--ccc-space-3); }
 .ccc-cpu-tab-content { display: grid; gap: var(--ccc-space-3); }
 .ccc-tuning-columns, .ccc-tuning-group { display: grid; grid-template-columns: minmax(0, 1fr); }
 .ccc-tuning-columns { gap: var(--ccc-space-4); }
 .ccc-tuning-group { gap: var(--ccc-space-3); padding: var(--ccc-space-4); border-radius: var(--ccc-radius-card); background: var(--ccc-content-muted); }
-.ccc-tuning-group h3 { margin: 0; font-size: var(--ccc-text-md); font-weight: 600; }
+.ccc-tuning-group h3 { margin: 0; font-size: var(--ccc-text-md); font-weight: 600; line-height: 1.4; }
 @container ccc-control (min-width: 40rem) {
   .ccc-tuning-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -77,6 +85,7 @@
   margin: 0;
   color: var(--ccc-text-muted);
   font-size: var(--ccc-text-sm);
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
@@ -87,21 +96,21 @@
 .ccc-plot-frame {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  grid-template-areas: "measure measure" "y plot" ". x" ". unit";
+  grid-template-areas: "y plot" ". x" "units units";
   gap: var(--ccc-space-1) var(--ccc-space-2);
   padding-inline-end: calc(var(--ccc-handle-target) / 2);
-  color: var(--ccc-text-muted);
+  color: var(--ccc-chart-label);
   font-size: var(--ccc-text-xs);
   user-select: none;
 }
 
-.ccc-plot-measure { grid-area: measure; padding-block-end: var(--ccc-space-2); }
 .ccc-plot-ylabels { grid-area: y; position: relative; width: 4ch; }
 .ccc-plot-ylabels span { position: absolute; right: 0; transform: translateY(-50%); }
 
 .ccc-plot {
   grid-area: plot;
   position: relative;
+  isolation: isolate;
   height: clamp(184px, 30dvh, 248px);
   touch-action: none;
 }
@@ -109,14 +118,16 @@
 .ccc-plot-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .ccc-plot-grid, .ccc-plot-origin {
   fill: none;
-  stroke: var(--ccc-hairline);
+  stroke: var(--ccc-chart-track);
   stroke-width: var(--ccc-border-width);
   shape-rendering: crispEdges;
 }
+.ccc-plot-grid { stroke: var(--ccc-chart-cursor); stroke-dasharray: 3 3; opacity: .5; }
+.ccc-plot-origin { stroke: var(--ccc-chart-cursor); }
 
-.ccc-plot-current { fill: none; stroke: var(--ccc-text-muted); stroke-width: 1.6; stroke-dasharray: 5 4; }
+.ccc-plot-current { fill: none; stroke: var(--ccc-chart-cursor); stroke-width: 1.6; stroke-dasharray: 3 3; }
 
-.ccc-plot-draft { fill: none; stroke: var(--ccc-action); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ccc-plot-draft { fill: none; stroke: var(--ccc-fan-color); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 .ccc-plot-dot {
   position: absolute;
@@ -125,7 +136,7 @@
   margin: -5px 0 0 -5px;
   border-radius: var(--ccc-radius-full);
   background: var(--ccc-content);
-  border: 2px solid var(--ccc-text-muted);
+  border: var(--ccc-focus-width) solid var(--ccc-focus-color);
   pointer-events: none;
 }
 
@@ -144,7 +155,7 @@
 
 .ccc-plot-axis { grid-area: x; position: relative; height: 1lh; }
 .ccc-plot-axis span { position: absolute; transform: translateX(-50%); }
-.ccc-plot-unit { grid-area: unit; justify-self: end; }
+.ccc-plot-units { grid-area: units; display: flex; align-items: baseline; justify-content: space-between; }
 
 /* ---- 数值滑杆 ---- */
 
@@ -183,9 +194,6 @@
 .ccc-gpu-turbo-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-3); }
 .ccc-gpu-turbo-part { display: flex; flex-direction: column; gap: var(--ccc-space-3); padding: var(--ccc-space-3); min-width: 0; overflow-wrap: anywhere; }
 .ccc-gpu-turbo-part p { margin: 0; }
-.ccc-gpu-turbo-modes { display: grid; gap: var(--ccc-space-2); list-style: none; padding: 0; margin: 0; }
-.ccc-gpu-turbo-modes li { display: grid; gap: var(--ccc-space-1); }
-.ccc-gpu-turbo-target { color: var(--ccc-text-muted); font-size: var(--ccc-text-sm); }
 @container ccc-gpu-turbo (min-width: 380px) { .ccc-gpu-turbo-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .ccc-battery-threshold-facts { display: grid; gap: var(--ccc-space-3); width: 100%; min-width: 0; container: ccc-battery-threshold / inline-size; }
 .ccc-battery-threshold-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-3); }
@@ -210,20 +218,22 @@
 .ccc-pd-event-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ccc-space-3); }
 .ccc-pd-event-part { display: flex; flex-direction: column; gap: var(--ccc-space-3); padding: var(--ccc-space-3); min-width: 0; overflow-wrap: anywhere; }
 .ccc-pd-event-part p { margin: 0; }
-.ccc-pd-event-details { display: grid; gap: var(--ccc-space-2); margin: 0; }
-.ccc-pd-event-details div { display: flex; justify-content: space-between; gap: var(--ccc-space-3); }
-.ccc-pd-event-details dt { color: var(--ccc-text-muted); }
-.ccc-pd-event-details dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 @container ccc-pd-event (min-width: 380px) { .ccc-pd-event-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @container ccc-panel-hotkey (min-width: 380px) { .ccc-panel-hotkey-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.ccc-screen-brightness-current { display: grid; gap: var(--ccc-space-3); }
+.ccc-screen-brightness-current {
+  display: grid;
+  gap: var(--ccc-space-4);
+  padding: var(--ccc-space-3);
+  border-radius: var(--ccc-radius-utility);
+  background: var(--ccc-content-muted);
+}
 .ccc-screen-brightness-initial { display: grid; gap: var(--ccc-space-2); }
 @container ccc-brightness (min-width: 320px) { .ccc-screen-brightness-current { grid-template-columns: auto minmax(0, 1fr); align-items: center; } }
 @container ccc-control (max-width: 700px) { .ccc-hotkey-scopes { grid-template-columns: minmax(0, 1fr); } }
 
 .ccc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ccc-space-3); }
 
-.ccc-control-error { color: var(--ccc-danger); font-size: var(--ccc-text-sm); overflow-wrap: anywhere; margin: 0; }
+.ccc-control-error { color: var(--ccc-danger); font-size: var(--ccc-text-sm); line-height: 1.45; overflow-wrap: anywhere; margin: 0; }
 .ccc-keyboard-setting { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--ccc-space-3); padding: var(--ccc-space-3); }
 .ccc-keyboard-setting p { margin: var(--ccc-space-1) 0 0; }
 @media (max-width: 560px) {
@@ -235,8 +245,8 @@
 /* 控制关系用曲线表达，区块边界用表面与留白表达。 */
 .ccc-control .ccc-panel { padding: var(--ccc-space-4) var(--ccc-space-5); }
 .ccc-plot-label { transition: opacity var(--ccc-motion-fast) var(--ccc-easing); }
-.ccc-plot:has(.ccc-plot-handle[data-point="p2"]:is(:hover, :focus-visible, .is-dragging)) .ccc-plot-label[data-point="p2"],
-.ccc-plot:has(.ccc-plot-handle[data-point="p3"]:is(:hover, :focus-visible, .is-dragging)) .ccc-plot-label[data-point="p3"] { opacity: 1; }
+.ccc-curve-series:has(.ccc-plot-handle[data-point="p2"]:is(:hover, :focus-visible, .is-dragging)) .ccc-plot-label[data-point="p2"],
+.ccc-curve-series:has(.ccc-plot-handle[data-point="p3"]:is(:hover, :focus-visible, .is-dragging)) .ccc-plot-label[data-point="p3"] { opacity: 1; }
 .ccc-slider-scale { position: absolute; left: 0; right: 0; bottom: -10px; opacity: 0; pointer-events: none; transition: opacity var(--ccc-motion-fast) var(--ccc-easing); }
 .ccc-slider:is(:hover, :focus-within) .ccc-slider-scale { opacity: 1; }
 @media (max-width: 560px) {
@@ -244,4 +254,4 @@
 }
 
 .ccc-airplane { container: ccc-airplane / inline-size; }
-.ccc-airplane-artwork { width: calc(var(--ccc-space-6) * 4); max-width: 40%; flex: none; color: var(--ccc-action); }
+.ccc-airplane-artwork { width: calc(var(--ccc-space-6) * 4); max-width: 40%; flex: none; color: var(--ccc-action-ink); }

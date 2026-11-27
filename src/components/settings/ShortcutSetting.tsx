@@ -2,7 +2,7 @@ import { Button } from "../Button";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { setShortcutRecording } from "../../api/client";
 import { captureShortcut, shortcutLabel } from "../../lib/global-shortcut";
-import { SettingRow } from "./PreferenceCards";
+import { SettingRow } from "./SettingsSection";
 
 function useRecorder(active: boolean, onChange: (chord: string) => Promise<boolean>) {
   const [recording, setRecording] = useState(false), [preparing, setPreparing] = useState(false);
@@ -47,17 +47,16 @@ export function ShortcutSetting({ value, busy, active, onChange }: {
   value: string; busy: boolean; active: boolean; onChange: (value: string) => Promise<boolean>;
 }) {
   const recorder = useRecorder(active, onChange);
-  return <SettingRow label="全局唤起快捷键">
-    <div className="ccc-shortcut-setting"><div className="ccc-setting-control">
-      <Button variant="secondary" type="button" ref={recorder.button} disabled={busy}
-        aria-pressed={recorder.recording} aria-busy={recorder.preparing}
-        aria-label={recorder.recording ? "按下快捷键，Esc 取消" : `录入全局快捷键，当前${shortcutLabel(value)}`}
-        onClick={() => { if (!recorder.recording && !recorder.preparing) void recorder.start(); }}
-        onKeyDown={recorder.capture} onBlur={() => { if (recorder.recording || recorder.preparing) recorder.finish(); }}>
-        {recorder.preparing ? "准备录入…" : recorder.recording ? "按下快捷键…" : shortcutLabel(value)}
-      </Button>
-      {recorder.recording ? <Button icon="close" variant="secondary" type="button" onClick={recorder.finish}>取消</Button>
-        : value && <Button icon="delete" variant="secondary" type="button" disabled={busy || recorder.preparing} onClick={() => void onChange("")}>清除</Button>}
-    </div>{recorder.error && <p className="ccc-settings-error" role="alert">{recorder.error}</p>}</div>
+  return <SettingRow label="全局唤起快捷键" detail={recorder.error &&
+    <span className="ccc-settings-error" role="alert">{recorder.error}</span>}>
+    <Button variant="secondary" type="button" ref={recorder.button} disabled={busy}
+      aria-pressed={recorder.recording} aria-busy={recorder.preparing}
+      aria-label={recorder.recording ? "按下快捷键，Esc 取消" : `录入全局快捷键，当前${shortcutLabel(value)}`}
+      onClick={() => { if (!recorder.recording && !recorder.preparing) void recorder.start(); }}
+      onKeyDown={recorder.capture} onBlur={() => { if (recorder.recording || recorder.preparing) recorder.finish(); }}>
+      {recorder.preparing ? "准备录入…" : recorder.recording ? "按下快捷键…" : shortcutLabel(value)}
+    </Button>
+    {recorder.recording ? <Button icon="close" variant="secondary" type="button" onClick={recorder.finish}>取消</Button>
+      : value && <Button icon="delete" variant="secondary" type="button" disabled={busy || recorder.preparing} onClick={() => void onChange("")}>清除</Button>}
   </SettingRow>;
 }

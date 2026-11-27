@@ -192,8 +192,13 @@ impl Controller {
     fn lock(&self) -> Result<std::sync::MutexGuard<'_, State>> {
         self.state.lock().map_err(|_| anyhow!("显示恢复状态异常"))
     }
+    pub(crate) fn automatic_pending(&self) -> Result<Option<Pending>> {
+        Ok(self
+            .lock()?
+            .pending(now_ms())
+            .filter(|pending| pending.automatic))
+    }
     pub fn read(&self) -> Result<Profile> {
-        let state = self.lock()?;
         let displays = self.io.list()?;
         let rotation = primary_mode(&displays).ok().and_then(|before| {
             before
@@ -201,6 +206,7 @@ impl Controller {
                 .ok()
                 .map(|target| guardian::Change { before, target })
         });
+        let state = self.lock()?;
         Ok(Profile {
             displays,
             rotation,

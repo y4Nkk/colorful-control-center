@@ -11,7 +11,7 @@ impl Io for Dchu {
     fn duties(&self) -> Result<[f64; 2]> {
         let packet = self.read_package(12)?;
         if packet.iter().all(|b| *b == 0) || packet.iter().all(|b| *b == 255) {
-            bail!("无法确认当前风扇占空比");
+            bail!("无法确认当前风扇强度");
         }
         Ok([packet[16], packet[19]].map(|v| f64::from(v) * 100.0 / 255.0))
     }

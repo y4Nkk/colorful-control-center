@@ -21,7 +21,6 @@
 
 .ccc-scroll-viewport:focus-visible {
   outline-offset: -2px;
-  box-shadow: inset 0 0 0 3px var(--ccc-focus-ring);
 }
 
 /* WebView2 原生滑块保持完整槽宽作为拖动热区，仅在内侧绘制细线。 */

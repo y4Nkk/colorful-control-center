@@ -6,8 +6,6 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use std::cell::{Cell, RefCell};
-#[path = "links/settle.rs"]
-mod settle;
 #[path = "links/source.rs"]
 mod source;
 pub(crate) use source::Source;
@@ -122,7 +120,8 @@ pub(crate) struct Session<'a> {
 impl Session<'_> {
     pub fn recover_effects(&self, after_mode_node: bool) -> Result<()> {
         let mut errors = Vec::new();
-        if after_mode_node {
+        let node_attempted = after_mode_node && self.node_scope().attempted();
+        if node_attempted {
             if let Err(error) = self.rollback_nodes() {
                 errors.push(format!("独显恢复：{error:#}"));
             }

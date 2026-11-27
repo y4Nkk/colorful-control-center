@@ -1,5 +1,5 @@
 /** 配置档案，应用流水线逐步报告结果。 */
-import type { RpmPoint, SoftwareCurves, DustSchedule } from "./fans";
+import type { CurvePoints, RpmPoint, SoftwareCurves, DustSchedule } from "./fans";
 import type { RuntimeCpuSettings, OemModeTarget, OemPerformanceValues } from "./power";
 import type { LightBarValues } from "./lightbar";
 import type { KeyboardValues } from "./keyboard";
@@ -15,13 +15,6 @@ import type { MicrophoneTarget } from "./microphone";
 import type { MultiZoneTarget } from "./multizone";
 import { invoke } from "./client";
 
-export interface ProfileFanPoints {
-  t2: number;
-  d2Pct: number;
-  t3: number;
-  d3Pct: number;
-}
-
 export interface ProfileSettings {
   runtimeCpu: RuntimeCpuSettings | null;
   microphones: MicrophoneTarget | null;
@@ -31,7 +24,7 @@ export interface ProfileSettings {
   fanMode: number | null;
   fanSoftwareCurves: SoftwareCurves | null;
   fanRpmCurves: Record<string, RpmPoint[]> | null;
-  fanCurves: Record<string, ProfileFanPoints> | null;
+  fanCurves: Record<string, CurvePoints> | null;
   pl1W: number | null;
   pl2W: number | null;
   coreOffsetMv: number | null;
@@ -83,6 +76,19 @@ export interface ManualProfilePreview {
   graphicsModeReview: ProfileGraphicsModeReview | null;
   blocked: string | null;
 }
+
+export type BuiltinProfileId = "quietOffice" | "mobileBattery" | "pluggedGaming";
+export interface BuiltinProfile { id: BuiltinProfileId; name: string; description: string }
+export interface BuiltinRefresh { revision: string; current: number; candidates: number[]; low: number; high: number }
+export interface BuiltinRefreshChoice { revision: string; officeHz: number }
+export interface BuiltinProfileRequest { id: BuiltinProfileId; refresh: BuiltinRefreshChoice | null }
+export interface BuiltinProfileCatalog { profiles: BuiltinProfile[]; refresh: BuiltinRefresh | null; refreshIssue: string | null }
+
+export const readBuiltinProfiles = (): Promise<BuiltinProfileCatalog> => invoke("read_builtin_profiles");
+export const previewBuiltinProfile = (request: BuiltinProfileRequest): Promise<{ file: ProfileFile; review: ManualProfilePreview }> =>
+  invoke("preview_builtin_profile", { request });
+export const applyBuiltinProfile = (request: BuiltinProfileRequest, expected: ProfileFile, expectedMode: OemModeTarget | null, expectedDisplay: ProfileDisplayReview | null): Promise<ProfileApplication> =>
+  invoke("apply_builtin_profile", { request, expected, expectedMode, expectedDisplay });
 
 export interface ApplyStep {
   step: string;

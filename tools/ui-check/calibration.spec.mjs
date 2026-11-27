@@ -90,7 +90,8 @@ test("未满足开始条件和不支持机型保留明确边界", async ({ page 
   await expect(panel.getByRole("button", { name: "开始电池校准", exact: true })).toBeDisabled();
   await page.evaluate(() => { window.__uiFixture.calibrationSupported = false; });
   await panel.getByRole("button", { name: "重新读取校准", exact: true }).click();
-  await expect(panel).toHaveCount(0);
+  await expect(panel.getByRole("status")).toHaveText("当前设备未提供电池校准。");
+  await expect(panel.getByRole("button", { name: "开始电池校准", exact: true })).toHaveCount(0);
   await expect(page.getByRole("switch", { name: "限制充电范围", exact: true })).not.toHaveAttribute("aria-disabled", "true");
   expect(await writes(page)).toHaveLength(0);
 });

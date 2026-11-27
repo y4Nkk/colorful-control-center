@@ -38,7 +38,7 @@ test("三类键盘卡片只读展示开关与保留亮度，确认携带全部�
   await expect(panel.getByLabel("档案键盘灯效")).toContainText("关闭 · 保留亮度 3 级");
   await expect(panel.getByLabel("档案键盘灯效")).toContainText("分区");
   await expect(panel.getByLabel("档案灯光策略与外围灯区")).toContainText("65 秒后关灯");
-  await expect(panel.getByRole("img", { name: "Logo档案颜色", exact: true })).toHaveCSS("background-color", "rgb(255, 0, 0)");
+  await expect(panel.getByRole("img", { name: "Logo档案颜色", exact: true }).locator("rect")).toHaveCSS("fill", "rgb(255, 0, 0)");
   expect(await writes(page)).toEqual([]);
   await previewConfiguration(page);
   expect(await writes(page)).toEqual([]);

@@ -120,7 +120,7 @@ test("未知当前等级仍可恢复已有初始快照，读取失败撤销执�
   await expect(availableAction(page, "PD 档位", true)).toHaveCount(0);
 });
 
-test("仅Deep S5状态不生成控制开关，未声明能力时隐藏面板", async ({ page }) => {
+test("Deep S5 只读，未声明能力时保留平台卡片和重读入口", async ({ page }) => {
   const panel = panelOf(page);
   await page.evaluate(() => { window.__uiFixture.platform.powerDelivery = null; });
   await panel.getByRole("button", { name: "重新读取平台电源" }).click();
@@ -129,5 +129,6 @@ test("仅Deep S5状态不生成控制开关，未声明能力时隐藏面板", a
   expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   await page.evaluate(() => { window.__uiFixture.platform.deepS5 = null; });
   await panel.getByRole("button", { name: "重新读取平台电源" }).click();
-  await expect(panel).toHaveCount(0);
+  await expect(panel.getByRole("status")).toHaveText("固件未报告 PD 档位或 Deep S5。");
+  await expect(panel.getByRole("combobox")).toHaveCount(0);
 });

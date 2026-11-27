@@ -1,0 +1,17 @@
+.ccc-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--ccc-space-2);
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  color: var(--ccc-action-ink);
+  font-size: var(--ccc-text-sm);
+  line-height: 1.45;
+}
+
+.ccc-loading > span {
+  min-width: 0;
+  color: var(--ccc-text-muted);
+  overflow-wrap: anywhere;
+}

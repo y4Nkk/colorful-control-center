@@ -3,7 +3,7 @@
 //! ccc-core 的校验与钳位（安全设计 docs/design.md §4）。
 
 use anyhow::{Result, anyhow};
-use std::sync::atomic::AtomicU32;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use windows_sys::Win32::Foundation::{FARPROC, FreeLibrary};
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
 
@@ -24,6 +24,19 @@ type SetDataEx =
 type WriteSettings =
     unsafe extern "system" fn(page: i32, offset: i32, length: i32, buffer: *const u8) -> i32;
 
+/// 原厂组件不可用：DLL 加载失败、缺少导出，或没有双向包传输。
+/// 文案不变；领域用 `downcast_ref` 把它和「通道无响应」分开说明。
+#[derive(Debug)]
+pub(crate) struct ComponentUnavailable(pub String);
+
+impl std::fmt::Display for ComponentUnavailable {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for ComponentUnavailable {}
+
 pub struct Dchu {
     handle: *mut core::ffi::c_void,
     get_int: GetInt,
@@ -33,6 +46,8 @@ pub struct Dchu {
     set_data_ex: Option<SetDataEx>,
     write_settings: WriteSettings,
     pub(crate) acknowledged_mode: AtomicU32,
+    // 未确认的命令仍可能迟到，读取到旧档本身不能清除此标记。
+    fan_mode_unconfirmed: AtomicBool,
     #[cfg(test)]
     pub(crate) test_entertainment_options: std::sync::atomic::AtomicBool,
 }
@@ -60,6 +75,7 @@ impl Dchu {
             set_data_ex: None,
             write_settings,
             acknowledged_mode: AtomicU32::new(0),
+            fan_mode_unconfirmed: AtomicBool::new(false),
             test_entertainment_options: std::sync::atomic::AtomicBool::new(false),
         }
     }
@@ -82,10 +98,10 @@ impl Dchu {
         unsafe {
             let handle = LoadLibraryW(wide.as_ptr());
             if handle.is_null() {
-                return Err(anyhow!(
+                return Err(anyhow!(ComponentUnavailable(format!(
                     "{} 加载失败（驱动未运行或 OEM CC 已卸载）",
                     DLL_PATH
-                ));
+                ))));
             }
             let to_ptr = |p: FARPROC| -> *mut core::ffi::c_void {
                 std::mem::transmute::<FARPROC, *mut core::ffi::c_void>(p)
@@ -103,7 +119,9 @@ impl Dchu {
                 || write_ptr.is_null()
             {
                 FreeLibrary(handle);
-                return Err(anyhow!("InsydeDCHU.dll 缺少必需导出"));
+                return Err(anyhow!(ComponentUnavailable(
+                    "InsydeDCHU.dll 缺少必需导出".into()
+                )));
             }
             Ok(Self {
                 handle,
@@ -118,6 +136,7 @@ impl Dchu {
                 },
                 write_settings: std::mem::transmute(write_ptr),
                 acknowledged_mode: AtomicU32::new(0),
+                fan_mode_unconfirmed: AtomicBool::new(false),
                 #[cfg(test)]
                 test_entertainment_options: std::sync::atomic::AtomicBool::new(false),
             })
@@ -144,9 +163,11 @@ impl Dchu {
     }
 
     pub fn exchange_package(&self, command: i32, package: &[u8; 256]) -> Result<[u8; 256]> {
-        let exchange = self
-            .set_data_ex
-            .ok_or_else(|| anyhow!("OEM DLL 未提供双向包传输"))?;
+        let exchange = self.set_data_ex.ok_or_else(|| {
+            anyhow!(ComponentUnavailable(
+                "OEM DLL 未提供双向包传输".into()
+            ))
+        })?;
         let mut output = PacketOutput::new();
         let status = unsafe { exchange(command, package.as_ptr(), 256, output.bytes.as_mut_ptr()) };
         output.finish(status, command, "SetDCHU_DataEx")
@@ -166,6 +187,14 @@ impl Dchu {
             &format!("ReadAppSettings(page={page}, offset={offset})"),
         )?;
         Ok(buffer)
+    }
+
+    pub(crate) fn send_power_preset(&self, command: u32) -> Result<()> {
+        // 预设可异步改变风扇档位，传输报错时也需要按不确定的前态恢复。
+        self.fan_mode_unconfirmed.store(true, Ordering::Relaxed);
+        self.set_data_sub(121, 25, command)?;
+        self.acknowledged_mode.store(command, Ordering::Relaxed);
+        Ok(())
     }
 
     /// SetWMI(cmd, sub, value)：4 字节 LE，最高字节（buf[3]）= sub。

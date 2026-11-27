@@ -143,14 +143,7 @@ fn unknown_mode_event_supply_and_no_gpu_are_rejected() {
         limit_clock: true,
         all_mode_oc: true,
     };
-    assert_eq!(
-        target(97, 4, Some(true), caps, limits(), saved(), 1, None).unwrap(),
-        Target {
-            lock_mhz: None,
-            offsets: None
-        }
-    );
-    assert!(target(97, 5, Some(true), caps, limits(), saved(), 1, None).is_err());
+    assert!(target(97, 4, Some(true), caps, limits(), saved(), 1, None).is_err());
     assert!(target(97, 2, None, caps, limits(), saved(), 1, None).is_err());
     assert!(target(95, 0, Some(true), caps, limits(), saved(), 1, None).is_err());
     assert!(target(97, 0, Some(true), caps, limits(), saved(), 0, None).is_err());
